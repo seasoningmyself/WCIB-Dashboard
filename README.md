@@ -113,6 +113,23 @@ npm run build:client
 Docker and Postgres commands are added by their dedicated Foundation tickets;
 until then, these commands run against the local Node installation.
 
+## App image
+
+The repository has one `Dockerfile` for the WCIB app. It installs the locked
+dependencies, runs the check/test/client-build commands, and starts the backend
+as the non-root `node` user. Runtime values are not baked into the image; supply
+`DATABASE_URL`, `SESSION_SECRET`, `NODE_ENV`, and `PORT` through the container
+environment.
+
+Build the app image directly with:
+
+```sh
+docker build --tag wcib-dashboard .
+```
+
+The local Compose file builds its `app` service from this same Dockerfile. It
+uses the official Postgres image separately; there is no database Dockerfile.
+
 ## Environment configuration
 
 Copy `.env.example` to `.env` for local development. The server requires
