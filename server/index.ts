@@ -1,9 +1,11 @@
 import { createApp } from "./app.js";
-import { readPort } from "./runtime.js";
+import { loadConfig } from "./config/environment.js";
 
+const config = loadConfig();
 const app = createApp();
-const port = readPort(process.env.PORT);
 
-app.listen(port, () => {
-  console.log(`WCIB Dashboard API listening on port ${port}`);
+app.listen(config.port, () => {
+  console.log(
+    `WCIB Dashboard API listening on port ${config.port} (${config.nodeEnv})`,
+  );
 });

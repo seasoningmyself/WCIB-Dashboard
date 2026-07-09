@@ -13,6 +13,7 @@
     "test": "node script/run-tests.mjs"
   },
   "dependencies": {
+    "dotenv": "^17.4.2",
     "express": "^5.0.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

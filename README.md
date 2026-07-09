@@ -16,9 +16,9 @@ history but do not override those sources or the standing project decisions.
   creates the Express application, and starts the HTTP listener.
 - `server/app.ts` composes Express middleware and mounts routes. Keep process
   startup and environment reads out of this module so the app remains testable.
-- `server/runtime.ts` contains the small amount of runtime parsing established
-  by the initial scaffold. The environment/config ticket will move all runtime
-  configuration behind one validated server-only module.
+- `server/config/environment.ts` loads `.env`, validates all server runtime
+  values, and exposes one immutable config object shape. Other modules should
+  not read `process.env` directly.
 - `server/**/*.test.ts` holds backend tests next to the behavior they cover.
 
 As backend areas are implemented, use these boundaries rather than placing
@@ -112,6 +112,24 @@ npm run build:client
 
 Docker and Postgres commands are added by their dedicated Foundation tickets;
 until then, these commands run against the local Node installation.
+
+## Environment configuration
+
+Copy `.env.example` to `.env` for local development. The server requires
+`DATABASE_URL` and `SESSION_SECRET`; `NODE_ENV` defaults to `development` and
+`PORT` defaults to 5000. `.env` and environment-specific variants are ignored
+by git.
+
+Local Compose sets `DATABASE_URL` to the `db` service on the Compose network.
+Production injects a DigitalOcean managed Postgres connection string into the
+same variable. The application does not choose or hardcode a database host.
+DigitalOcean managed Postgres is the production target so financial data has
+managed backups and point-in-time recovery; there is no production database
+container.
+
+`SESSION_SECRET` must contain at least 32 characters. Production also rejects
+the example development value. Startup errors identify a missing or invalid
+variable but never print its value.
 
 ## Module rules
 
