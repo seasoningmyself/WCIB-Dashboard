@@ -1,0 +1,48 @@
+name: wcib-dashboard-dev
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: "5000"
+      DATABASE_URL: postgresql://wcib:wcib_local_password@db:5432/wcib
+      SESSION_SECRET: local-development-only-change-before-production
+      WCIB_API_PROXY_TARGET: http://127.0.0.1:5000
+    ports:
+      - "127.0.0.1:5000:5000"
+      - "127.0.0.1:5173:5173"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - wcib_local
+
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: wcib
+      POSTGRES_USER: wcib
+      POSTGRES_PASSWORD: wcib_local_password
+    ports:
+      - "127.0.0.1:54322:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wcib -d wcib"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - wcib_local
+
+networks:
+  wcib_local:
+    driver: bridge
+
+volumes:
+  postgres_data:

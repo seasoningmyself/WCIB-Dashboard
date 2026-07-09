@@ -110,16 +110,17 @@ Create a production frontend bundle in `dist/client`:
 npm run build:client
 ```
 
-Docker and Postgres commands are added by their dedicated Foundation tickets;
-until then, these commands run against the local Node installation.
+Run both development processes without containers with `npm run dev`. Compose is
+the preferred runner once Docker is available because it also supplies local
+Postgres.
 
 ## App image
 
 The repository has one `Dockerfile` for the WCIB app. It installs the locked
 dependencies, runs the check/test/client-build commands, and starts the backend
-as the non-root `node` user. Runtime values are not baked into the image; supply
-`DATABASE_URL`, `SESSION_SECRET`, `NODE_ENV`, and `PORT` through the container
-environment.
+and frontend as the non-root `node` user. Runtime values are not baked into the
+image; supply `DATABASE_URL`, `SESSION_SECRET`, `NODE_ENV`, and `PORT` through
+the container environment.
 
 Build the app image directly with:
 
@@ -129,6 +130,38 @@ docker build --tag wcib-dashboard .
 
 The local Compose file builds its `app` service from this same Dockerfile. It
 uses the official Postgres image separately; there is no database Dockerfile.
+
+## Local Compose
+
+Start the two local services and rebuild the app image with:
+
+```sh
+docker compose up --build
+```
+
+Compose creates exactly two services on the `wcib_local` network:
+
+- `app` runs the backend on `127.0.0.1:5000` and Vite on
+  `127.0.0.1:5173`. Its `DATABASE_URL` reaches Postgres at `db:5432`.
+- `db` uses the official `postgres:18-alpine` image. Host tools may reach it at
+  `127.0.0.1:54322`.
+
+The first start creates a blank `wcib` database. No prototype data is loaded.
+Stop the services while preserving local database data with:
+
+```sh
+docker compose down
+```
+
+The `postgres_data` volume survives normal restarts and `docker compose down`.
+Delete that local volume and return to a blank database only when intended:
+
+```sh
+docker compose down --volumes
+```
+
+This Compose file is local-only. Production runs the same app image with a
+DigitalOcean managed Postgres `DATABASE_URL`; it does not run the `db` service.
 
 ## Environment configuration
 
