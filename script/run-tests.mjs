@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 
@@ -10,7 +10,7 @@ function findTests(directory) {
 
     if (entry.isDirectory()) {
       tests.push(...findTests(path));
-    } else if (entry.name.endsWith(".test.ts")) {
+    } else if (/\.test\.tsx?$/.test(entry.name)) {
       tests.push(path);
     }
   }
@@ -18,7 +18,10 @@ function findTests(directory) {
   return tests;
 }
 
-const testFiles = findTests("server").sort();
+const testFiles = ["server", "shared", "client"]
+  .filter(existsSync)
+  .flatMap(findTests)
+  .sort();
 
 if (testFiles.length === 0) {
   console.error("No backend test files were found");
