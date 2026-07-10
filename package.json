@@ -13,6 +13,7 @@
     "db:seed:roster": "node --import tsx script/seed-roster.ts",
     "db:check": "drizzle-kit check",
     "db:smoke": "node --import tsx script/db-smoke.ts",
+    "db:verify:migrations": "node --import tsx script/verify-migration-safety.ts",
     "check": "npm run check:backend && npm run check:frontend",
     "check:backend": "tsc --noEmit",
     "check:frontend": "tsc -p client/tsconfig.json --noEmit",
@@ -53,7 +54,8 @@
     "test:db:pay-sheet-single-settlement": "node --import tsx --test server/db/pay-sheet-single-settlement.db-test.ts",
     "test:db:pay-sheet-adjustments": "node --import tsx --test server/db/pay-sheet-adjustments.db-test.ts",
     "test:db:kpi-targets": "node --import tsx --test server/db/kpi-targets.db-test.ts",
-    "test:db:kpi-closed-facts": "node --import tsx --test server/kpi/closed-facts.db-test.ts"
+    "test:db:kpi-closed-facts": "node --import tsx --test server/kpi/closed-facts.db-test.ts",
+    "test:db:migration-safety": "node --import tsx --test server/db/migration-safety.db-test.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

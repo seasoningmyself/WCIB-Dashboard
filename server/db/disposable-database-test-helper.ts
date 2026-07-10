@@ -7,6 +7,17 @@ export async function withDisposableMigratedDatabase(
   namePrefix: string,
   action: (databaseUrl: string) => Promise<void>,
 ): Promise<void> {
+  await withDisposableDatabase(sourceDatabaseUrl, namePrefix, async (databaseUrl) => {
+    await applyMigrations(databaseUrl);
+    await action(databaseUrl);
+  });
+}
+
+export async function withDisposableDatabase(
+  sourceDatabaseUrl: string,
+  namePrefix: string,
+  action: (databaseUrl: string) => Promise<void>,
+): Promise<void> {
   if (!/^[a-z][a-z0-9_]{0,20}$/.test(namePrefix)) {
     throw new Error("Disposable database prefix is invalid");
   }
@@ -21,7 +32,6 @@ export async function withDisposableMigratedDatabase(
   try {
     await adminPool.query(`CREATE DATABASE "${databaseName}"`);
     databaseCreated = true;
-    await applyMigrations(targetUrl.toString());
     await action(targetUrl.toString());
   } finally {
     try {

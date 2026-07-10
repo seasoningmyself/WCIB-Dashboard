@@ -239,6 +239,19 @@ safe; Drizzle skips migration entries already present in its history table.
 Connection failures report a sanitized database error code without printing the
 connection string.
 
+Every migration has reviewed forward and backout SQL. Before any managed
+database apply, run the disposable PostgreSQL 18 safety cycle and follow the
+preflight/stop conditions in
+[`docs/MIGRATION_SAFETY.md`](docs/MIGRATION_SAFETY.md):
+
+```sh
+npm run db:verify:migrations
+```
+
+The verifier accepts only the local Docker PostgreSQL host. It creates and
+drops its own temporary database; it never applies to the configured `wcib`
+database or to DigitalOcean.
+
 All commands fail before contacting Postgres when neither database URL is set.
 
 ## User identity and credentials
