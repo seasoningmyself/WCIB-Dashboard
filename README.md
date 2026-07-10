@@ -691,6 +691,18 @@ rows exist. Run the current close contract with:
 npm run test:db:pay-sheet-close
 ```
 
+Closed-sheet immutability is enforced below the application layer. A narrowly
+scoped parent trigger rejects any update statement naming `status`,
+`frozen_totals`, `closed_at`, or `closed_by_user_id` after close, while leaving
+unrelated columns outside that trigger. Every `pay_sheet_policies`
+insert/update/delete takes a share lock on its parent and fails when that parent
+is closed. The same parent-status helper is the intended guard for item 29's
+adjustment rows. Run the direct-SQL boundary tests with:
+
+```sh
+npm run test:db:closed-pay-sheet-immutability
+```
+
 ## Structured logging
 
 The backend writes newline-delimited JSON records with a timestamp, level,

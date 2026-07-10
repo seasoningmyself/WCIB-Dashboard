@@ -412,22 +412,6 @@ test("MGA placement attaches applicable open chains and preserves closed history
       paySheetIds: [sophiaJune.id],
     });
 
-    const closedAt = new Date("2026-07-03T12:00:00.000Z");
-    await database
-      .update(paySheets)
-      .set({
-        closedAt,
-        closedByUserId: admin.id,
-        status: "closed",
-        updatedAt: closedAt,
-      })
-      .where(
-        and(
-          eq(paySheets.periodMonth, 6),
-          eq(paySheets.periodYear, 2026),
-        ),
-      );
-
     const [closedSophiaAssociation] = await database
       .select()
       .from(paySheetPolicies)
@@ -459,6 +443,21 @@ test("MGA placement attaches applicable open chains and preserves closed history
       .update(paySheetPolicies)
       .set({ frozenPolicySnapshot: frozenSnapshot })
       .where(eq(paySheetPolicies.id, closedSophiaAssociation.id));
+    const closedAt = new Date("2026-07-03T12:00:00.000Z");
+    await database
+      .update(paySheets)
+      .set({
+        closedAt,
+        closedByUserId: admin.id,
+        status: "closed",
+        updatedAt: closedAt,
+      })
+      .where(
+        and(
+          eq(paySheets.periodMonth, 6),
+          eq(paySheets.periodYear, 2026),
+        ),
+      );
     const [closedBeforeDetach] = await database
       .select()
       .from(paySheetPolicies)
