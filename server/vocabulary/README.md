@@ -8,4 +8,8 @@ the active v15 similarity advisory at its actual 75% threshold. Exact database
 uniqueness remains in migration `0009_mgas`; in-use deletion protection belongs
 to the later policy foreign-key migration.
 
+`add-rules.ts` exports the explicit route requirement and vocabulary-only insert
+decisions for carriers and policy types. Callers must pass all existing names,
+including inactive rows, so a deactivated name cannot be silently reused.
+
 Run the contract tests with `npm test`.
