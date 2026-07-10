@@ -9,7 +9,7 @@
     "dev:client": "vite",
     "build:client": "vite build",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "node --import tsx script/migrate.ts",
     "db:check": "drizzle-kit check",
     "check": "npm run check:backend && npm run check:frontend",
     "check:backend": "tsc --noEmit",

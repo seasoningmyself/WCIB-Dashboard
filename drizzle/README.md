@@ -10,3 +10,7 @@ migrations with `npm run db:migrate`.
 Do not place prototype data imports, production credentials, or manual data
 backfills here. A migration that changes financial or authorization behavior
 must be reviewed with its owning ticket.
+
+`0000_baseline.sql` intentionally executes only `SELECT 1`. It proves the
+migration pipeline and creates Drizzle's migration-history record without
+creating WCIB tables or data.

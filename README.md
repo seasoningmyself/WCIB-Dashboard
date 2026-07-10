@@ -228,6 +228,12 @@ Apply all pending migrations to the configured database:
 npm run db:migrate
 ```
 
+The first apply records `0000_baseline`, an intentional `SELECT 1` migration
+that creates no application table or data. Re-running `npm run db:migrate` is
+safe; Drizzle skips migration entries already present in its history table.
+Connection failures report a sanitized database error code without printing the
+connection string.
+
 All commands fail before contacting Postgres when neither database URL is set.
 
 ## Module rules
