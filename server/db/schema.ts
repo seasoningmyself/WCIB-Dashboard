@@ -19,6 +19,7 @@ import {
   RECEIVABLE_STATUSES,
 } from "../../shared/policy-fields.js";
 import { MAX_POLICY_OVERRIDE_VALUES_BYTES } from "../../shared/policy-overrides.js";
+import { MGA_PAYMENT_STATUSES } from "../../shared/mga-payments.js";
 import {
   boolean,
   check,
@@ -73,6 +74,10 @@ export const auditActionEnum = pgEnum("audit_action", AUDIT_ACTIONS);
 export const auditEntityTypeEnum = pgEnum(
   "audit_entity_type",
   AUDIT_ENTITY_TYPES,
+);
+export const mgaPaymentStatusEnum = pgEnum(
+  "mga_payment_status",
+  MGA_PAYMENT_STATUSES,
 );
 export const staffPronounEnum = pgEnum("staff_pronoun", [
   "her",
@@ -1074,3 +1079,57 @@ export const policyOverrides = pgTable(
 
 export type PolicyOverrideRecord = typeof policyOverrides.$inferSelect;
 export type NewPolicyOverrideRecord = typeof policyOverrides.$inferInsert;
+
+export const mgaPayments = pgTable(
+  "mga_payments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    policyId: uuid("policy_id")
+      .notNull()
+      .references(() => policies.id, { onDelete: "restrict" }),
+    status: mgaPaymentStatusEnum("status").notNull().default("unpaid"),
+    reference: text("reference"),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    adminActorUserId: uuid("admin_actor_user_id").references(
+      () => users.id,
+      { onDelete: "restrict" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("mga_payments_policy_unique_idx").on(table.policyId),
+    check(
+      "mga_payments_state_check",
+      sql`(
+        ${table.status} = 'unpaid'
+        AND ${table.reference} is null
+        AND ${table.paidAt} is null
+        AND ${table.adminActorUserId} is null
+      ) OR (
+        ${table.status} = 'paid'
+        AND ${table.paidAt} is not null
+        AND ${table.adminActorUserId} is not null
+        AND (
+          ${table.reference} is null
+          OR (
+            ${table.reference} = btrim(${table.reference})
+            AND char_length(${table.reference}) > 0
+          )
+        )
+      )`,
+    ),
+    check(
+      "mga_payments_timestamp_order_check",
+      sql`${table.updatedAt} >= ${table.createdAt}
+        AND (${table.paidAt} is null OR ${table.paidAt} >= ${table.createdAt})`,
+    ),
+  ],
+);
+
+export type MgaPaymentRecord = typeof mgaPayments.$inferSelect;
+export type NewMgaPaymentRecord = typeof mgaPayments.$inferInsert;

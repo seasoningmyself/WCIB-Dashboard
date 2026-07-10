@@ -599,6 +599,21 @@ Success and failure logs contain only actor, policy, and override IDs. They do
 not include reasons, original or replacement values, insured data, or other
 financial fields.
 
+## MGA payment state
+
+`mga_payments` stores one current MGA settlement row per policy. Unpaid rows
+carry no paid-only metadata; paid rows require a paid timestamp and trusted
+admin account UUID, with an optional non-blank reference. Foreign keys retain
+the related policy and actor records. Item 21 defines only this table contract;
+the audited state-transition function and policy compatibility synchronization
+belong to item 22.
+
+Run the table-level database check after migrations with:
+
+```sh
+npm run test:db:mga-payments
+```
+
 ## Structured logging
 
 The backend writes newline-delimited JSON records with a timestamp, level,
