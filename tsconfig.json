@@ -12,6 +12,6 @@
     "jsx": "react-jsx",
     "noEmit": true
   },
-  "include": ["server/**/*.ts", "shared/**/*.ts"],
+  "include": ["drizzle.config.ts", "server/**/*.ts", "shared/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

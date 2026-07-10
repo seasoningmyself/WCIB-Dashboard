@@ -199,6 +199,37 @@ container.
 the example development value. Startup errors identify a missing or invalid
 variable but never print its value.
 
+## Database migrations
+
+Drizzle is the migration framework. Schema declarations live in
+`server/db/schema.ts`, and generated SQL plus migration metadata live in
+`drizzle/`. Domain tables are added only by their owning schema tickets.
+
+Local migration commands use `DATABASE_URL` from `.env`. If
+`DATABASE_MIGRATE_URL` is set, migration commands use it instead so a future
+deployment can separate schema privileges from runtime privileges. Neither URL
+is printed by the configuration helpers.
+
+Generate a migration after changing the schema declaration:
+
+```sh
+npm run db:generate
+```
+
+Check that committed migration snapshots are internally consistent:
+
+```sh
+npm run db:check
+```
+
+Apply all pending migrations to the configured database:
+
+```sh
+npm run db:migrate
+```
+
+All commands fail before contacting Postgres when neither database URL is set.
+
 ## Module rules
 
 - Routes parse transport input and delegate; domain services own business

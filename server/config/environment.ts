@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { readPostgresUrl } from "./postgres-url.js";
 
 const DEFAULT_PORT = 5000;
 const MINIMUM_SESSION_SECRET_LENGTH = 32;
@@ -48,26 +49,6 @@ function readPort(value: string | undefined): number {
   return port;
 }
 
-function readDatabaseUrl(value: string | undefined): string {
-  if (value === undefined || value.trim() === "") {
-    throw new Error("DATABASE_URL is required");
-  }
-
-  const databaseUrl = value.trim();
-
-  try {
-    const parsed = new URL(databaseUrl);
-
-    if (parsed.protocol !== "postgres:" && parsed.protocol !== "postgresql:") {
-      throw new Error("unsupported protocol");
-    }
-  } catch {
-    throw new Error("DATABASE_URL must be a valid PostgreSQL connection string");
-  }
-
-  return databaseUrl;
-}
-
 function readSessionSecret(
   value: string | undefined,
   nodeEnv: NodeEnvironment,
@@ -98,7 +79,7 @@ export function loadConfig(
   const nodeEnv = readNodeEnvironment(env.NODE_ENV);
 
   return Object.freeze({
-    databaseUrl: readDatabaseUrl(env.DATABASE_URL),
+    databaseUrl: readPostgresUrl("DATABASE_URL", env.DATABASE_URL),
     nodeEnv,
     port: readPort(env.PORT),
     sessionSecret: readSessionSecret(env.SESSION_SECRET, nodeEnv),
