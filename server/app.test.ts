@@ -3,7 +3,9 @@ import { IncomingMessage, ServerResponse } from "node:http";
 import type { Socket } from "node:net";
 import { Duplex } from "node:stream";
 import { test } from "node:test";
+import { z } from "zod";
 import { createApp } from "./app.js";
+import { asyncRoute, type UnexpectedErrorEvent } from "./http/errors.js";
 
 class MemorySocket extends Duplex {
   readonly chunks: Buffer[] = [];
@@ -22,7 +24,10 @@ class MemorySocket extends Duplex {
   }
 }
 
-async function request(path: string): Promise<{
+async function request(
+  path: string,
+  app = createApp(),
+): Promise<{
   body: unknown;
   statusCode: number;
 }> {
@@ -41,7 +46,7 @@ async function request(path: string): Promise<{
     res.once("error", reject);
   });
 
-  createApp()(req, res);
+  app(req, res);
   await finished;
 
   const rawResponse = Buffer.concat(socket.chunks).toString("utf8");
@@ -61,4 +66,68 @@ test("GET /api returns backend status", async () => {
     name: "WCIB Dashboard API",
     status: "ok",
   });
+});
+
+test("unknown routes use the standard API error shape", async () => {
+  const response = await request("/missing");
+
+  assert.equal(response.statusCode, 404);
+  assert.deepEqual(response.body, {
+    error: { code: "not_found", message: "Route not found" },
+  });
+});
+
+test("validation errors use the standard API error shape", async () => {
+  const app = createApp({
+    registerRoutes(expressApp) {
+      expressApp.get(
+        "/api/validate",
+        asyncRoute(async () => {
+          z.object({ email: z.string().email() }).parse({ email: "invalid" });
+        }),
+      );
+    },
+  });
+  const response = await request("/api/validate", app);
+
+  assert.equal(response.statusCode, 400);
+  assert.deepEqual(response.body, {
+    error: {
+      code: "validation_error",
+      details: [{ field: "email", message: "Invalid email" }],
+      message: "Request validation failed",
+    },
+  });
+});
+
+test("unexpected errors return a generic response and safe log event", async () => {
+  const events: UnexpectedErrorEvent[] = [];
+  const app = createApp({
+    logUnexpectedError: (event) => events.push(event),
+    registerRoutes(expressApp) {
+      expressApp.get(
+        "/api/fail/:sensitiveValue",
+        asyncRoute(async () => {
+          throw new Error("DATABASE_URL=must-not-be-logged");
+        }),
+      );
+    },
+  });
+  const response = await request("/api/fail/private-value", app);
+
+  assert.equal(response.statusCode, 500);
+  assert.deepEqual(response.body, {
+    error: { code: "internal_error", message: "Internal server error" },
+  });
+  assert.deepEqual(events, [
+    {
+      errorType: "Error",
+      event: "unhandled_request_error",
+      method: "GET",
+      route: "/api/fail/:sensitiveValue",
+      statusCode: 500,
+    },
+  ]);
+  assert.equal(JSON.stringify(events).includes("private-value"), false);
+  assert.equal(JSON.stringify(events).includes("DATABASE_URL"), false);
 });

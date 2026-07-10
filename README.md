@@ -253,6 +253,17 @@ successful`, and closes its pool. Local Compose waits for `db` to become healthy
 before starting `app`, so this same check also verifies the `db:5432` network
 path when the app container starts.
 
+## API errors
+
+Every API failure returns `{ "error": { "code", "message", "details"? } }`.
+Validation errors may include field/message details; unexpected failures always
+return the generic `internal_error` response. The server never returns stack
+traces, request bodies, cookies, credentials, or financial payloads.
+
+Unexpected failures emit one safe event containing only the HTTP method, route
+template, status code, and error type. Concrete logging and external tracking
+adapters are configured by their dedicated Foundation tickets.
+
 ## Module rules
 
 - Routes parse transport input and delegate; domain services own business
