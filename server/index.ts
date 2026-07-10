@@ -1,4 +1,5 @@
 import { createApp } from "./app.js";
+import { createSessionMiddleware } from "./auth/sessions.js";
 import { loadConfig } from "./config/environment.js";
 import {
   checkDatabaseConnection,
@@ -13,6 +14,12 @@ const pool = createDatabasePool(config.databaseUrl);
 const app = createApp({
   logger,
   readinessCheck: () => checkDatabaseConnection(pool),
+  sessionMiddleware: createSessionMiddleware(pool, {
+    logger,
+    nodeEnv: config.nodeEnv,
+    secret: config.sessionSecret,
+  }),
+  trustProxy: config.nodeEnv === "production",
 });
 let databaseConnected = false;
 

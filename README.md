@@ -258,6 +258,35 @@ DATABASE_URL=postgresql://wcib:wcib_local_password@127.0.0.1:54322/wcib \
   npm run test:db:user
 ```
 
+## Session handling
+
+Authenticated state is stored server-side in the Postgres `sessions` table.
+The signed `wcib.sid` cookie is HttpOnly, SameSite=Lax, expires after seven
+days, and is Secure in production. Production also trusts one reverse proxy so
+secure cookies work behind the hosting load balancer. Health and readiness
+routes are registered before session middleware and remain independent of the
+session store.
+
+The stored WCIB auth payload contains only `userId` and `sessionVersion` in
+addition to the standard cookie metadata. Login callers must use
+`establishAuthenticatedSession`, which regenerates the session ID before
+persisting identity. Authenticated lookup resolves the UUID against the current
+`users` row and destroys sessions for malformed, expired, deleted, disabled, or
+version-mismatched identities. Rejection logs contain a safe reason code only;
+they never contain cookies, session IDs, user UUIDs, emails, or credentials.
+
+Foundation sessions do not contain roles, capabilities, financial data,
+Dumpster domain fields, or MFA state. The later optional admin 2FA ticket may
+add inert pending-verification state without changing the authenticated
+identity contract.
+
+After applying migrations, run the Postgres-backed lifecycle smoke test with:
+
+```sh
+DATABASE_URL=postgresql://wcib:wcib_local_password@127.0.0.1:54322/wcib \
+  npm run test:db:session
+```
+
 ## Staff accounts and capabilities
 
 `staff_profiles` is a one-to-one extension of an auth-owned user UUID. Staff

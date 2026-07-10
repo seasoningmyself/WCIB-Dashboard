@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type RequestHandler } from "express";
 import {
   createErrorHandler,
   notFoundHandler,
@@ -16,16 +16,24 @@ export interface CreateAppOptions {
   logUnexpectedError?: UnexpectedErrorLogger;
   readinessCheck?: ReadinessCheck;
   registerRoutes?: (app: Express) => void;
+  sessionMiddleware?: RequestHandler;
+  trustProxy?: boolean;
 }
 
 export function createApp(options: CreateAppOptions = {}): Express {
   const app = express();
 
   app.disable("x-powered-by");
+  if (options.trustProxy === true) {
+    app.set("trust proxy", 1);
+  }
   if (options.logger !== undefined) {
     app.use(createRequestLoggingMiddleware(options.logger));
   }
   registerHealthRoutes(app, { readinessCheck: options.readinessCheck });
+  if (options.sessionMiddleware !== undefined) {
+    app.use(options.sessionMiddleware);
+  }
   app.use(express.json());
 
   app.get("/api", (_req, res) => {

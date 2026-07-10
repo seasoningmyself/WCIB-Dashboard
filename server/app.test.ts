@@ -87,6 +87,28 @@ test("GET /health reports process liveness without checking dependencies", async
   assert.equal(readinessChecks, 0);
 });
 
+test("health checks remain independent of session storage", async () => {
+  let sessionLookups = 0;
+  const app = createApp({
+    sessionMiddleware(_req, _res, next) {
+      sessionLookups += 1;
+      next();
+    },
+  });
+
+  await request("/health", app);
+  assert.equal(sessionLookups, 0);
+
+  await request("/api", app);
+  assert.equal(sessionLookups, 1);
+});
+
+test("production proxy trust can be enabled before secure cookies", () => {
+  const app = createApp({ trustProxy: true });
+
+  assert.equal(app.get("trust proxy"), 1);
+});
+
 test("GET /ready reports readiness after the database check passes", async () => {
   let readinessChecks = 0;
   const app = createApp({

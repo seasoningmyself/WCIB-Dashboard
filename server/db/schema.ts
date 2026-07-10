@@ -5,6 +5,7 @@ import {
   check,
   integer,
   index,
+  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -20,6 +21,19 @@ export const staffPronounEnum = pgEnum("staff_pronoun", [
   "his",
   "their",
 ]);
+
+export const sessions = pgTable(
+  "sessions",
+  {
+    sid: text("sid").primaryKey(),
+    sess: jsonb("sess").notNull(),
+    expire: timestamp("expire", { withTimezone: true }).notNull(),
+  },
+  (table) => [index("sessions_expire_idx").on(table.expire)],
+);
+
+export type SessionRecord = typeof sessions.$inferSelect;
+export type NewSessionRecord = typeof sessions.$inferInsert;
 
 export const users = pgTable(
   "users",
