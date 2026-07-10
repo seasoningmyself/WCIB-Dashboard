@@ -406,6 +406,41 @@ DATABASE_URL=postgresql://wcib:wcib_local_password@127.0.0.1:54322/wcib \
   npm run test:db:staff
 ```
 
+### Initial roster seed
+
+`npm run db:seed:roster` creates only the approved blank-slate roster: Kaylee
+as producer; Mercedes, Daniela, Joseph, and Ellyscia as employees; and Sophia
+with the `admin` capability and no staff profile. It never creates policies,
+drafts, ledger entries, pay sheets, financial data, or prototype imports.
+
+The command requires `DATABASE_URL` and a seed-only
+`WCIB_SEED_ROSTER_JSON` value. The JSON must contain the keys `kaylee`,
+`mercedes`, `daniela`, `joseph`, `ellyscia`, and `sophia`; each value must have
+an `email` and a unique temporary `password` satisfying the normal password
+policy. Store this value only in the ignored local `.env` or an equivalent
+deployment secret. Do not commit it or put production credentials in shell
+examples.
+
+The seed keys identity by normalized email and database UUID, never display
+name. Exact records are skipped on rerun without changing password hashes.
+Conflicting display names, disabled accounts, mismatched staff profiles,
+Sophia staff rows, and disabled admin grants fail closed instead of overwriting
+recorded state. Output contains created/skipped counts only; it never prints
+emails or passwords.
+
+Apply migrations first, then run:
+
+```sh
+npm run db:seed:roster
+```
+
+Verify idempotency and the exact Postgres shape with:
+
+```sh
+DATABASE_URL=postgresql://wcib:wcib_local_password@127.0.0.1:54322/wcib \
+  npm run test:db:roster-seed
+```
+
 ## Role and capability model
 
 WCIB has two staff roles and one approved capability:
