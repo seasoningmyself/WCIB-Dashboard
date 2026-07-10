@@ -40,7 +40,8 @@
     "test:db:audit-events": "node --import tsx --test server/db/audit-events.db-test.ts",
     "test:db:audit-integrity": "node --import tsx --test server/db/audit-integrity.db-test.ts",
     "test:db:policy-references": "node --import tsx --test server/db/policy-referential-integrity.db-test.ts",
-    "test:db:policy-lifecycle": "node --import tsx --test server/db/policy-lifecycle.db-test.ts"
+    "test:db:policy-lifecycle": "node --import tsx --test server/db/policy-lifecycle.db-test.ts",
+    "test:db:policy-overrides": "node --import tsx --test server/db/policy-overrides.db-test.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

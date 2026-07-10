@@ -27,3 +27,12 @@ deferred constraints reject partial draft, queue, and policy states at commit.
 Run the fast contract tests with `npm test`. After applying migrations to a
 disposable database, run `npm run test:db:policy-lifecycle` for the full atomic
 lifecycle and rollback coverage.
+
+## Override value contract
+
+`override-values.ts` accepts only the four figures exposed by v15's override
+panel: commission amount, broker fee, net due, and commission mode. Callers
+must name each changed field; the builder emits matching, bounded original and
+replacement objects and rejects unchanged, missing, malformed, or extra data.
+These objects are confidential admin-only financial data and must never be
+logged or returned through a non-admin projection.

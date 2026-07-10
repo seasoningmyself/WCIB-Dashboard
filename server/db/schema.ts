@@ -18,6 +18,7 @@ import {
   PAYMENT_MODES,
   RECEIVABLE_STATUSES,
 } from "../../shared/policy-fields.js";
+import { MAX_POLICY_OVERRIDE_VALUES_BYTES } from "../../shared/policy-overrides.js";
 import {
   boolean,
   check,
@@ -1011,3 +1012,58 @@ export const policies = pgTable(
 
 export type PolicyRecord = typeof policies.$inferSelect;
 export type NewPolicyRecord = typeof policies.$inferInsert;
+
+export const policyOverrides = pgTable(
+  "policy_overrides",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    policyId: uuid("policy_id")
+      .notNull()
+      .references(() => policies.id, { onDelete: "restrict" }),
+    reason: text("reason").notNull(),
+    originalValues: jsonb("original_values").notNull(),
+    replacementValues: jsonb("replacement_values").notNull(),
+    approvedByUserId: uuid("approved_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("policy_overrides_policy_timeline_idx").on(
+      table.policyId,
+      table.createdAt,
+    ),
+    index("policy_overrides_actor_idx").on(table.approvedByUserId),
+    check(
+      "policy_overrides_original_values_check",
+      sql`jsonb_typeof(${table.originalValues}) = 'object'
+        AND ${table.originalValues} <> '{}'::jsonb
+        AND pg_column_size(${table.originalValues}) <= ${sql.raw(String(MAX_POLICY_OVERRIDE_VALUES_BYTES))}
+        AND (${table.originalValues} - ARRAY[
+          'commissionAmount', 'brokerFee', 'netDue', 'commissionMode'
+        ]) = '{}'::jsonb
+        AND NOT jsonb_path_exists(
+          ${table.originalValues},
+          '$.* ? (@.type() != "string")'
+        )`,
+    ),
+    check(
+      "policy_overrides_replacement_values_check",
+      sql`jsonb_typeof(${table.replacementValues}) = 'object'
+        AND ${table.replacementValues} <> '{}'::jsonb
+        AND pg_column_size(${table.replacementValues}) <= ${sql.raw(String(MAX_POLICY_OVERRIDE_VALUES_BYTES))}
+        AND (${table.replacementValues} - ARRAY[
+          'commissionAmount', 'brokerFee', 'netDue', 'commissionMode'
+        ]) = '{}'::jsonb
+        AND NOT jsonb_path_exists(
+          ${table.replacementValues},
+          '$.* ? (@.type() != "string")'
+        )`,
+    ),
+  ],
+);
+
+export type PolicyOverrideRecord = typeof policyOverrides.$inferSelect;
+export type NewPolicyOverrideRecord = typeof policyOverrides.$inferInsert;
