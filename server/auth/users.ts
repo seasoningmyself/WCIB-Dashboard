@@ -78,6 +78,23 @@ export async function findUserById(
   return account ?? null;
 }
 
+export async function findUserByEmail(
+  database: AuthDatabase,
+  email: string,
+): Promise<UserAccount | null> {
+  const normalizedEmail = userEmailSchema.safeParse(email);
+  if (!normalizedEmail.success) {
+    return null;
+  }
+
+  const [account] = await database
+    .select(accountSelection)
+    .from(users)
+    .where(eq(users.email, normalizedEmail.data))
+    .limit(1);
+  return account ?? null;
+}
+
 export async function findUserCredentialsByEmail(
   database: AuthDatabase,
   email: string,

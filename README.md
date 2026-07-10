@@ -328,6 +328,36 @@ the session store cannot confirm destruction, the cookie is still cleared and
 the route returns the generic HTTP 500 API response rather than claiming that
 server-side revocation succeeded.
 
+### Password reset endpoints
+
+`POST /api/auth/password-reset/request` accepts `{ "email": string }` from any
+client and always returns HTTP 202 with `{ "status": "accepted" }` for a valid
+email shape. Known, unknown, disabled, delivery-failed, and internal processing
+outcomes do not change that response. Active users receive a one-hour reset
+token through the configured delivery adapter. The database stores only the
+SHA-256 token hash, expiry, consumed state, and user UUID.
+
+`POST /api/auth/password-reset/confirm` accepts a 43-character reset token and
+a new password. The shared password policy applies to every role. One valid,
+unexpired token can update the bcrypt hash exactly once; invalid, expired,
+consumed, and concurrently replayed tokens share the HTTP 400
+`invalid_reset_token` response. Success returns HTTP 204 with no response
+fields, increments `sessionVersion`, consumes sibling tokens, and deletes that
+user's active Postgres sessions.
+
+Both endpoints are role-independent and expose no financial, MFA,
+trusted-browser, or domain data. Runtime delivery is intentionally unconfigured
+during Foundation: the adapter reports a safe delivery failure and the
+undelivered token is immediately consumed. A reviewed provider can replace the
+adapter without changing token, route, or database logic.
+
+After applying migration `0004_password_reset_tokens`, run:
+
+```sh
+DATABASE_URL=postgresql://wcib:wcib_local_password@127.0.0.1:54322/wcib \
+  npm run test:db:password-reset
+```
+
 ## Staff accounts and capabilities
 
 `staff_profiles` is a one-to-one extension of an auth-owned user UUID. Staff

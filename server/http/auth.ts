@@ -20,6 +20,8 @@ import {
 } from "../auth/users.js";
 import type { AppLogger } from "../logging/logger.js";
 import { asyncRoute, HttpError } from "./errors.js";
+import type { PasswordResetDelivery } from "../auth/password-reset-delivery.js";
+import { registerPasswordResetRoutes } from "./password-reset.js";
 
 export const LOGIN_PATH = "/api/auth/login";
 export const LOGOUT_PATH = "/api/auth/logout";
@@ -35,6 +37,7 @@ export interface RegisterAuthRoutesOptions {
   database: AuthDatabase;
   logger: AppLogger;
   loginMiddleware?: readonly RequestHandler[];
+  passwordResetDelivery?: PasswordResetDelivery;
 }
 
 export interface LogoutHandlerDependencies {
@@ -141,6 +144,11 @@ export function registerAuthRoutes(
 
   app.post(LOGIN_PATH, ...(options.loginMiddleware ?? []), handler);
   app.post(LOGOUT_PATH, logoutHandler);
+  registerPasswordResetRoutes(app, {
+    database: options.database,
+    delivery: options.passwordResetDelivery,
+    logger: options.logger,
+  });
 }
 
 function invalidCredentialsError(): HttpError {

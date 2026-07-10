@@ -67,6 +67,46 @@ export const users = pgTable(
 export type UserRecord = typeof users.$inferSelect;
 export type NewUserRecord = typeof users.$inferInsert;
 
+export const passwordResetTokens = pgTable(
+  "password_reset_tokens",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("password_reset_tokens_token_hash_idx").on(table.tokenHash),
+    uniqueIndex("password_reset_tokens_active_user_idx")
+      .on(table.userId)
+      .where(sql`${table.consumedAt} is null`),
+    index("password_reset_tokens_expiry_idx").on(table.expiresAt),
+    check(
+      "password_reset_tokens_hash_format_check",
+      sql`${table.tokenHash} ~ '^[a-f0-9]{64}$'`,
+    ),
+    check(
+      "password_reset_tokens_expiry_order_check",
+      sql`${table.expiresAt} > ${table.createdAt}`,
+    ),
+    check(
+      "password_reset_tokens_consumed_order_check",
+      sql`${table.consumedAt} is null or ${table.consumedAt} >= ${table.createdAt}`,
+    ),
+  ],
+);
+
+export type PasswordResetTokenRecord =
+  typeof passwordResetTokens.$inferSelect;
+export type NewPasswordResetTokenRecord =
+  typeof passwordResetTokens.$inferInsert;
+
 export const staffProfiles = pgTable(
   "staff_profiles",
   {
