@@ -3,6 +3,11 @@ import { STAFF_ROLES } from "../../shared/access.js";
 import { MFA_METHOD_TYPES } from "../../shared/mfa-scaffold.js";
 import { POLICY_TYPE_CLASSES } from "../../shared/policy-types.js";
 import {
+  AUDIT_ACTIONS,
+  AUDIT_ENTITY_TYPES,
+  MAX_AUDIT_SUMMARY_BYTES,
+} from "../../shared/audit-events.js";
+import {
   ACCOUNT_ASSIGNMENTS,
   APPROVAL_QUEUE_STATUSES,
   COMMISSION_MODES,
@@ -63,6 +68,11 @@ export const receivableStatusEnum = pgEnum(
   RECEIVABLE_STATUSES,
 );
 export const payableStatusEnum = pgEnum("payable_status", PAYABLE_STATUSES);
+export const auditActionEnum = pgEnum("audit_action", AUDIT_ACTIONS);
+export const auditEntityTypeEnum = pgEnum(
+  "audit_entity_type",
+  AUDIT_ENTITY_TYPES,
+);
 export const staffPronounEnum = pgEnum("staff_pronoun", [
   "her",
   "his",
@@ -113,6 +123,56 @@ export const users = pgTable(
 
 export type UserRecord = typeof users.$inferSelect;
 export type NewUserRecord = typeof users.$inferInsert;
+
+export const auditEvents = pgTable(
+  "audit_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    actorUserId: uuid("actor_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    action: auditActionEnum("action").notNull(),
+    entityType: auditEntityTypeEnum("entity_type").notNull(),
+    entityId: uuid("entity_id").notNull(),
+    beforeSummary: jsonb("before_summary"),
+    afterSummary: jsonb("after_summary"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("audit_events_actor_timeline_idx").on(
+      table.actorUserId,
+      table.occurredAt,
+    ),
+    index("audit_events_entity_timeline_idx").on(
+      table.entityType,
+      table.entityId,
+      table.occurredAt,
+    ),
+    index("audit_events_action_timeline_idx").on(
+      table.action,
+      table.occurredAt,
+    ),
+    check(
+      "audit_events_before_summary_shape_check",
+      sql`${table.beforeSummary} is null OR (
+        jsonb_typeof(${table.beforeSummary}) = 'object'
+        AND pg_column_size(${table.beforeSummary}) <= ${sql.raw(String(MAX_AUDIT_SUMMARY_BYTES))}
+      )`,
+    ),
+    check(
+      "audit_events_after_summary_shape_check",
+      sql`${table.afterSummary} is null OR (
+        jsonb_typeof(${table.afterSummary}) = 'object'
+        AND pg_column_size(${table.afterSummary}) <= ${sql.raw(String(MAX_AUDIT_SUMMARY_BYTES))}
+      )`,
+    ),
+  ],
+);
+
+export type AuditEventRecord = typeof auditEvents.$inferSelect;
+export type NewAuditEventRecord = typeof auditEvents.$inferInsert;
 
 export const passwordResetTokens = pgTable(
   "password_reset_tokens",

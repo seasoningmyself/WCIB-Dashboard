@@ -120,6 +120,13 @@
       "when": 1783669837213,
       "tag": "0016_policy_payment_stub",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1783670095329,
+      "tag": "0017_audit_events",
+      "breakpoints": true
     }
   ]
 }
