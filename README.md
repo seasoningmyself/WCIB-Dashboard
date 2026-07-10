@@ -703,6 +703,18 @@ adjustment rows. Run the direct-SQL boundary tests with:
 npm run test:db:closed-pay-sheet-immutability
 ```
 
+Single settlement is scoped to `(policy UUID, owner UUID, owner type)`, so one
+policy can legitimately settle once on Sophia's chain and once on its assigned
+producer's chain. Association placement and sheet close take the same
+transaction-scoped advisory lock before checking for closed history. A later
+open association or second close in either chain fails at the database layer;
+no owner names or global policy-only uniqueness are used. Run the invariant
+tests with:
+
+```sh
+npm run test:db:pay-sheet-single-settlement
+```
+
 ## Structured logging
 
 The backend writes newline-delimited JSON records with a timestamp, level,

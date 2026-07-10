@@ -211,6 +211,13 @@
       "when": 1783677223294,
       "tag": "0029_closed_pay_sheet_immutability",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1783677605318,
+      "tag": "0030_pay_sheet_single_settlement",
+      "breakpoints": true
     }
   ]
 }
