@@ -278,6 +278,41 @@ DATABASE_URL=postgresql://wcib:wcib_local_password@127.0.0.1:54322/wcib \
   npm run test:db:staff
 ```
 
+## Role and capability model
+
+WCIB has two staff roles and one approved capability:
+
+- `employee`: may later receive explicit access to own draft entry workflows.
+  Under the pending client-confirmation boundary, this role alone never grants
+  stored financial reports, derived totals, agency figures, another record's
+  money fields, or any other endpoint not explicitly listed.
+- `producer`: does not inherit employee or admin access. Later endpoint rules
+  may list both staff roles for shared data-entry actions. Producer-only access
+  is limited to that producer's own My Commissions workflow; it never implies
+  agency-wide or another producer's financial access.
+- `admin`: an explicit capability, not a staff role. An active user such as
+  Sophia can hold it without a staff profile.
+
+Every protected endpoint must explicitly list the accepted staff roles and/or
+capabilities. The server evaluator uses OR composition for listed requirements,
+but an empty requirement denies everyone, including admin. Inactive users lose
+all access; inactive staff profiles lose their role; inactive and unknown
+capabilities are ignored. This keeps future capability strings inert until they
+are reviewed and added to the approved vocabulary. Frontend checks may mirror
+this model for presentation but cannot enforce it.
+
+The employee financial boundary is intentionally isolated here and in later
+server projections so the pending client decision can be adjusted without a
+schema change. No feature-specific policy, ledger, pay-sheet, or MGA rules are
+implemented by this Foundation model.
+
+Run the database-backed role/capability lookup smoke test with:
+
+```sh
+DATABASE_URL=postgresql://wcib:wcib_local_password@127.0.0.1:54322/wcib \
+  npm run test:db:access
+```
+
 ## Database connection smoke
 
 The backend creates its runtime `pg` pool from the validated `DATABASE_URL` and

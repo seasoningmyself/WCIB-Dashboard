@@ -17,7 +17,8 @@
     "check:frontend": "tsc -p client/tsconfig.json --noEmit",
     "test": "node script/run-tests.mjs",
     "test:db:user": "node --import tsx --test server/auth/users.db-test.ts",
-    "test:db:staff": "node --import tsx --test server/auth/staff-accounts.db-test.ts"
+    "test:db:staff": "node --import tsx --test server/auth/staff-accounts.db-test.ts",
+    "test:db:access": "node --import tsx --test server/auth/access-model.db-test.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

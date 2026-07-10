@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { STAFF_ROLES } from "../../shared/access.js";
 import {
   boolean,
   check,
@@ -13,7 +14,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-export const staffRoleEnum = pgEnum("staff_role", ["employee", "producer"]);
+export const staffRoleEnum = pgEnum("staff_role", STAFF_ROLES);
 export const staffPronounEnum = pgEnum("staff_pronoun", [
   "her",
   "his",
