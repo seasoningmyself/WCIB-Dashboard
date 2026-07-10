@@ -196,6 +196,10 @@ DigitalOcean managed Postgres is the production target so financial data has
 managed backups and point-in-time recovery; there is no production database
 container.
 
+The production resource inventory, network boundaries, secret locations, and
+provisioning checks are documented in
+[`docs/DIGITALOCEAN_INFRASTRUCTURE.md`](docs/DIGITALOCEAN_INFRASTRUCTURE.md).
+
 `SESSION_SECRET` must contain at least 32 characters. Production also rejects
 the example development value. Startup errors identify a missing or invalid
 variable but never print its value.

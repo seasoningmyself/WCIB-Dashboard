@@ -4,5 +4,6 @@ coverage/
 .env
 .env.*
 !.env.example
+.secrets/
 npm-debug.log*
 .DS_Store
