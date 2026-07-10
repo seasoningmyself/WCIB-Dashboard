@@ -159,9 +159,10 @@ test("unknown routes use the standard API error shape", async () => {
 
 test("validation errors use the standard API error shape", async () => {
   const app = createApp({
-    registerRoutes(expressApp) {
-      expressApp.get(
+    registerRoutes(routes) {
+      routes.get(
         "/api/validate",
+        { public: true, reason: "Test validation error handling" },
         asyncRoute(async () => {
           z.object({ email: z.string().email() }).parse({ email: "invalid" });
         }),
@@ -189,9 +190,10 @@ test("unexpected errors return a generic response and safe log event", async () 
       events.push(event);
       loggedError = error;
     },
-    registerRoutes(expressApp) {
-      expressApp.get(
+    registerRoutes(routes) {
+      routes.get(
         "/api/fail/:sensitiveValue",
+        { public: true, reason: "Test unexpected error handling" },
         asyncRoute(async () => {
           throw failure;
         }),

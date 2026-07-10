@@ -187,10 +187,11 @@ test("login endpoint creates WCIB sessions and returns scoped access summaries",
       .where(eq(users.id, disabled.id));
 
     const app = createApp({
-      registerRoutes(expressApp) {
-        registerAuthRoutes(expressApp, { database, logger });
-        expressApp.get(
+      registerRoutes(routes) {
+        registerAuthRoutes(routes, { database, logger });
+        routes.get(
           "/test/current-session",
+          { public: true, reason: "Test authenticated session state" },
           asyncRoute(async (req, res) => {
             const result = await resolveAuthenticatedSession(
               req,

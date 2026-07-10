@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type {
-  Express,
   NextFunction,
   Request,
   RequestHandler,
@@ -18,6 +17,10 @@ import {
   registerAuthRoutes,
 } from "./auth.js";
 import { toErrorResponse } from "./errors.js";
+import type {
+  RouteAccessDeclaration,
+  RouteRegistrar,
+} from "./routes.js";
 
 const USER_ID = "00000000-0000-4000-8000-000000000001";
 
@@ -306,20 +309,24 @@ test("logout destruction failures use the generic API error", async () => {
 test("login middleware has an explicit insertion point and no active default", () => {
   const { logger } = recordingLogger();
   const routeRegistrations: Array<{
+    access: RouteAccessDeclaration;
     handlers: RequestHandler[];
     path: string;
   }> = [];
-  const app = {
-    post(path: string, ...handlers: RequestHandler[]) {
-      routeRegistrations.push({ handlers, path });
-      return app;
+  const routes = {
+    post(
+      path: string,
+      access: RouteAccessDeclaration,
+      ...handlers: RequestHandler[]
+    ) {
+      routeRegistrations.push({ access, handlers, path });
     },
-  } as unknown as Express;
+  } as unknown as RouteRegistrar;
   const rateLimiter: RequestHandler = (_req, _res, next) => next();
   const database = {} as AuthDatabase;
 
-  registerAuthRoutes(app, { database, logger });
-  registerAuthRoutes(app, {
+  registerAuthRoutes(routes, { database, logger });
+  registerAuthRoutes(routes, {
     database,
     logger,
     loginMiddleware: [rateLimiter],
@@ -334,6 +341,8 @@ test("login middleware has an explicit insertion point and no active default", (
   assert.equal(loginRegistrations[0]?.handlers.length, 1);
   assert.equal(loginRegistrations[1]?.handlers.length, 2);
   assert.equal(loginRegistrations[1]?.handlers[0], rateLimiter);
+  assert.equal(loginRegistrations[0]?.access.public, true);
   assert.equal(logoutRegistrations.length, 2);
   assert.equal(logoutRegistrations[0]?.handlers.length, 1);
+  assert.equal(logoutRegistrations[0]?.access.public, true);
 });

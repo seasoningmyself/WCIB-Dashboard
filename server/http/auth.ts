@@ -1,4 +1,4 @@
-import type { Express, Request, RequestHandler, Response } from "express";
+import type { Request, RequestHandler, Response } from "express";
 import {
   loginRequestSchema,
   type LoginRequest,
@@ -22,6 +22,7 @@ import type { AppLogger } from "../logging/logger.js";
 import { asyncRoute, HttpError } from "./errors.js";
 import type { PasswordResetDelivery } from "../auth/password-reset-delivery.js";
 import { registerPasswordResetRoutes } from "./password-reset.js";
+import type { RouteRegistrar } from "./routes.js";
 
 export const LOGIN_PATH = "/api/auth/login";
 export const LOGOUT_PATH = "/api/auth/logout";
@@ -123,7 +124,7 @@ export function createLogoutHandler(
 }
 
 export function registerAuthRoutes(
-  app: Express,
+  routes: RouteRegistrar,
   options: RegisterAuthRoutesOptions,
 ): void {
   const handler = createLoginHandler({
@@ -142,9 +143,24 @@ export function registerAuthRoutes(
     logger: options.logger,
   });
 
-  app.post(LOGIN_PATH, ...(options.loginMiddleware ?? []), handler);
-  app.post(LOGOUT_PATH, logoutHandler);
-  registerPasswordResetRoutes(app, {
+  routes.post(
+    LOGIN_PATH,
+    {
+      public: true,
+      reason: "Users need anonymous access to establish a session",
+    },
+    ...(options.loginMiddleware ?? []),
+    handler,
+  );
+  routes.post(
+    LOGOUT_PATH,
+    {
+      public: true,
+      reason: "Logout is idempotent for expired or anonymous sessions",
+    },
+    logoutHandler,
+  );
+  registerPasswordResetRoutes(routes, {
     database: options.database,
     delivery: options.passwordResetDelivery,
     logger: options.logger,

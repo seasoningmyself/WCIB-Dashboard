@@ -181,8 +181,8 @@ test("admin MFA scaffold stays inert and does not alter password login", async (
     );
 
     const app = createApp({
-      registerRoutes(expressApp) {
-        registerAuthRoutes(expressApp, { database, logger });
+      registerRoutes(routes) {
+        registerAuthRoutes(routes, { database, logger });
       },
       sessionMiddleware: createSessionMiddleware(pool, {
         logger,

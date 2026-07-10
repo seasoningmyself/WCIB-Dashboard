@@ -1,4 +1,4 @@
-import type { Express, RequestHandler } from "express";
+import type { RequestHandler } from "express";
 import {
   passwordResetConfirmSchema,
   passwordResetRequestSchema,
@@ -20,6 +20,7 @@ import type { AuthDatabase } from "../auth/users.js";
 import type { AppLogger } from "../logging/logger.js";
 import { SESSION_COOKIE_NAME } from "../auth/sessions.js";
 import { asyncRoute, HttpError } from "./errors.js";
+import type { RouteRegistrar } from "./routes.js";
 
 export const PASSWORD_RESET_REQUEST_PATH = "/api/auth/password-reset/request";
 export const PASSWORD_RESET_CONFIRM_PATH = "/api/auth/password-reset/confirm";
@@ -116,20 +117,28 @@ export function createPasswordResetConfirmHandler(
 }
 
 export function registerPasswordResetRoutes(
-  app: Express,
+  routes: RouteRegistrar,
   options: RegisterPasswordResetRoutesOptions,
 ): void {
   const delivery = options.delivery ?? unavailablePasswordResetDelivery;
-  app.post(
+  routes.post(
     PASSWORD_RESET_REQUEST_PATH,
+    {
+      public: true,
+      reason: "Users need account recovery before they can authenticate",
+    },
     createPasswordResetRequestHandler({
       logger: options.logger,
       requestReset: (request) =>
         requestPasswordReset(options.database, request, delivery),
     }),
   );
-  app.post(
+  routes.post(
     PASSWORD_RESET_CONFIRM_PATH,
+    {
+      public: true,
+      reason: "Users must redeem reset tokens before authentication",
+    },
     createPasswordResetConfirmHandler({
       confirmReset: (request) =>
         confirmPasswordReset(options.database, request),

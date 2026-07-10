@@ -10,18 +10,24 @@ import {
 } from "./http/health.js";
 import type { AppLogger } from "./logging/logger.js";
 import { createRequestLoggingMiddleware } from "./logging/request.js";
+import {
+  auditRouteAccessDeclarations,
+  createRouteRegistrar,
+  type RouteRegistrar,
+} from "./http/routes.js";
 
 export interface CreateAppOptions {
   logger?: AppLogger;
   logUnexpectedError?: UnexpectedErrorLogger;
   readinessCheck?: ReadinessCheck;
-  registerRoutes?: (app: Express) => void;
+  registerRoutes?: (routes: RouteRegistrar) => void;
   sessionMiddleware?: RequestHandler;
   trustProxy?: boolean;
 }
 
 export function createApp(options: CreateAppOptions = {}): Express {
   const app = express();
+  const routes = createRouteRegistrar(app);
 
   app.disable("x-powered-by");
   if (options.trustProxy === true) {
@@ -30,17 +36,25 @@ export function createApp(options: CreateAppOptions = {}): Express {
   if (options.logger !== undefined) {
     app.use(createRequestLoggingMiddleware(options.logger));
   }
-  registerHealthRoutes(app, { readinessCheck: options.readinessCheck });
+  registerHealthRoutes(routes, { readinessCheck: options.readinessCheck });
   if (options.sessionMiddleware !== undefined) {
     app.use(options.sessionMiddleware);
   }
   app.use(express.json());
 
-  app.get("/api", (_req, res) => {
-    res.json({ name: "WCIB Dashboard API", status: "ok" });
-  });
+  routes.get(
+    "/api",
+    {
+      public: true,
+      reason: "Service identity is intentionally available before login",
+    },
+    (_req, res) => {
+      res.json({ name: "WCIB Dashboard API", status: "ok" });
+    },
+  );
 
-  options.registerRoutes?.(app);
+  options.registerRoutes?.(routes);
+  auditRouteAccessDeclarations(app);
   app.use(notFoundHandler);
   const logUnexpectedError =
     options.logUnexpectedError ??

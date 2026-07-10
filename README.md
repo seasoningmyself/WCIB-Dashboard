@@ -503,6 +503,37 @@ field allowlists, return explicit response DTOs, and state in one sentence who
 can call the endpoint and which fields its projector returns. Never spread a
 database row into an API response.
 
+### Route access declarations
+
+All application routes register through `server/http/routes.ts`. The registrar
+requires exactly one access declaration before Express receives the route:
+
+```ts
+routes.get(
+  "/api/policies",
+  { authorization: authorization.require({ capabilities: ["admin"] }) },
+  listPolicies,
+);
+
+routes.get(
+  "/health",
+  { public: true, reason: "Infrastructure requires liveness before login" },
+  healthCheck,
+);
+```
+
+Public declarations require a non-empty reason. Authorized declarations accept
+only a guard returned by `authorization.require(...)`; the registrar applies
+that existing guard before the handler. Missing, conflicting, or unrecognized
+declarations stop registration. `createApp` also audits the actual Express
+route stack before returning, so a route added directly through Express fails
+startup and the route-audit tests.
+
+This declaration layer controls route reachability only. Sensitive-data
+handlers must still call `projectAuthorizedFields` with their approved DTO
+projection; an authorization declaration never makes a raw database row safe
+to return.
+
 ## Database connection smoke
 
 The backend creates its runtime `pg` pool from the validated `DATABASE_URL` and

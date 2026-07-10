@@ -144,17 +144,19 @@ test("session establishment regenerates identity and stores only WCIB auth state
   const user = account();
   let sessionKeys: string[] = [];
   const app = createApp({
-    registerRoutes(expressApp) {
-      expressApp.post(
+    registerRoutes(routes) {
+      routes.post(
         "/test/authenticate",
+        { public: true, reason: "Test session establishment" },
         asyncRoute(async (req, res) => {
           await establishAuthenticatedSession(req, user);
           sessionKeys = Object.keys(req.session).sort();
           res.status(204).end();
         }),
       );
-      expressApp.get(
+      routes.get(
         "/test/current",
+        { public: true, reason: "Test session resolution" },
         asyncRoute(async (req, res) => {
           const result = await resolveAuthenticatedSession(
             req,
@@ -216,16 +218,18 @@ test("disabled and version-mismatched users are rejected with safe reason codes"
     },
   };
   const app = createApp({
-    registerRoutes(expressApp) {
-      expressApp.post(
+    registerRoutes(routes) {
+      routes.post(
         "/test/authenticate",
+        { public: true, reason: "Test session establishment" },
         asyncRoute(async (req, res) => {
           await establishAuthenticatedSession(req, account());
           res.status(204).end();
         }),
       );
-      expressApp.get(
+      routes.get(
         "/test/current",
+        { public: true, reason: "Test rejected sessions" },
         asyncRoute(async (req, res) => {
           const result = await resolveAuthenticatedSession(
             req,
@@ -293,14 +297,19 @@ test("disabled and version-mismatched users are rejected with safe reason codes"
 test("malformed session identity fails closed before user lookup", async () => {
   let lookups = 0;
   const app = createApp({
-    registerRoutes(expressApp) {
-      expressApp.post("/test/malformed", (req, res) => {
-        req.session.userId = "not-a-uuid";
-        req.session.sessionVersion = 0;
-        res.status(204).end();
-      });
-      expressApp.get(
+    registerRoutes(routes) {
+      routes.post(
+        "/test/malformed",
+        { public: true, reason: "Test malformed session state" },
+        (req, res) => {
+          req.session.userId = "not-a-uuid";
+          req.session.sessionVersion = 0;
+          res.status(204).end();
+        },
+      );
+      routes.get(
         "/test/current",
+        { public: true, reason: "Test malformed session rejection" },
         asyncRoute(async (req, res) => {
           const result = await resolveAuthenticatedSession(req, res, async () => {
             lookups += 1;

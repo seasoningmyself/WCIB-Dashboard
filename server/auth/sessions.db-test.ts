@@ -112,9 +112,10 @@ test("Postgres sessions enforce identity lifecycle and minimal payloads", async 
     userId = user.id;
 
     const app = createApp({
-      registerRoutes(expressApp) {
-        expressApp.post(
+      registerRoutes(routes) {
+        routes.post(
           "/test/authenticate",
+          { public: true, reason: "Test Postgres session establishment" },
           asyncRoute(async (req, res) => {
             const account = await findUserById(database, user.id);
             if (account === null) {
@@ -125,8 +126,9 @@ test("Postgres sessions enforce identity lifecycle and minimal payloads", async 
             res.status(204).end();
           }),
         );
-        expressApp.get(
+        routes.get(
           "/test/current",
+          { public: true, reason: "Test Postgres session resolution" },
           asyncRoute(async (req, res) => {
             const result = await resolveAuthenticatedSession(
               req,

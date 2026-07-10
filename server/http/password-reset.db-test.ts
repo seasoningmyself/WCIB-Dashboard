@@ -191,14 +191,15 @@ test("password reset tokens are single-use and invalidate existing sessions", as
     userIds.push(user.id);
 
     const app = createApp({
-      registerRoutes(expressApp) {
-        registerAuthRoutes(expressApp, {
+      registerRoutes(routes) {
+        registerAuthRoutes(routes, {
           database,
           logger,
           passwordResetDelivery: delivery,
         });
-        expressApp.get(
+        routes.get(
           "/test/current-session",
+          { public: true, reason: "Test reset session invalidation" },
           asyncRoute(async (req, res) => {
             const result = await resolveAuthenticatedSession(
               req,

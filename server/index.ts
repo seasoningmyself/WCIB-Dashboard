@@ -18,8 +18,8 @@ const database = drizzle(pool, { schema: databaseSchema });
 const app = createApp({
   logger,
   readinessCheck: () => checkDatabaseConnection(pool),
-  registerRoutes: (expressApp) => {
-    registerAuthRoutes(expressApp, { database, logger });
+  registerRoutes: (routes) => {
+    registerAuthRoutes(routes, { database, logger });
   },
   sessionMiddleware: createSessionMiddleware(pool, {
     logger,

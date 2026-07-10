@@ -35,8 +35,14 @@ export interface AuthorizationDependencies {
   logger: AppLogger;
 }
 
+const authorizationGuardMarker = Symbol("wcib.authorizationGuard");
+
+export type AuthorizationGuard = RequestHandler & {
+  readonly [authorizationGuardMarker]: true;
+};
+
 export interface AuthorizationGuards {
-  require(requirement?: RouteAccessRequirement): RequestHandler;
+  require(requirement?: RouteAccessRequirement): AuthorizationGuard;
 }
 
 export class MissingAuthorizationContextError extends Error {
@@ -81,11 +87,18 @@ export function getAuthorizedRequestContext(
   return context as AuthorizedRequestContext;
 }
 
+export function isAuthorizationGuard(value: unknown): value is AuthorizationGuard {
+  return (
+    typeof value === "function" &&
+    (value as Partial<AuthorizationGuard>)[authorizationGuardMarker] === true
+  );
+}
+
 function createAuthorizationGuard(
   requirement: RouteAccessRequirement | undefined,
   dependencies: AuthorizationDependencies,
-): RequestHandler {
-  return asyncRoute(async (req, res, next) => {
+): AuthorizationGuard {
+  const guard = asyncRoute(async (req, res, next) => {
     const session = await resolveAuthenticatedSession(
       req,
       res,
@@ -138,6 +151,9 @@ function createAuthorizationGuard(
     setAuthorizedRequestContext(res, principal);
     next();
   });
+
+  Object.defineProperty(guard, authorizationGuardMarker, { value: true });
+  return guard as AuthorizationGuard;
 }
 
 function normalizeRequirement(

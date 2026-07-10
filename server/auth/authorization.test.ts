@@ -191,13 +191,15 @@ function createFixture() {
   };
   const app = createApp({
     logUnexpectedError() {},
-    registerRoutes(expressApp) {
-      expressApp.post(
+    registerRoutes(routes) {
+      routes.post(
         "/api/financial",
-        authorization.require({
-          capabilities: ["admin"],
-          staffRoles: ["producer"],
-        }),
+        {
+          authorization: authorization.require({
+            capabilities: ["admin"],
+            staffRoles: ["producer"],
+          }),
+        },
         (_req, res) => {
           financialHandlerCalls += 1;
           const record = {
@@ -224,9 +226,11 @@ function createFixture() {
           res.json(response);
         },
       );
-      expressApp.get(
+      routes.get(
         "/api/authenticated",
-        authorization.require(AUTHENTICATED_ACCESS),
+        {
+          authorization: authorization.require(AUTHENTICATED_ACCESS),
+        },
         (_req, res) => {
           const response = projectAuthorizedFields(
             res,
@@ -239,43 +243,54 @@ function createFixture() {
           res.json(response);
         },
       );
-      expressApp.get(
+      routes.get(
         "/api/default-deny",
-        authorization.require(),
+        { authorization: authorization.require() },
         (_req, res) => {
           res.json({ status: "must-not-run" });
         },
       );
-      expressApp.get(
+      routes.get(
         "/api/unknown-access",
-        authorization.require({
-          capabilities: ["future_finance" as AccessCapability],
-          staffRoles: ["manager" as StaffRole],
-        }),
+        {
+          authorization: authorization.require({
+            capabilities: ["future_finance" as AccessCapability],
+            staffRoles: ["manager" as StaffRole],
+          }),
+        },
         (_req, res) => {
           res.json({ status: "must-not-run" });
         },
       );
-      expressApp.get(
+      routes.get(
         "/api/malformed-access",
-        authorization.require({
-          staffRoles: "producer",
-        } as unknown as RouteAccessRequirement),
+        {
+          authorization: authorization.require({
+            staffRoles: "producer",
+          } as unknown as RouteAccessRequirement),
+        },
         (_req, res) => {
           res.json({ status: "must-not-run" });
         },
       );
-      expressApp.get("/api/unguarded-projection", (_req, res) => {
-        const response = projectAuthorizedFields(
-          res,
-          { premiumTotal: 1_000 },
-          (source) => {
-            projectionCalls += 1;
-            return source;
-          },
-        );
-        res.json(response);
-      });
+      routes.get(
+        "/api/unguarded-projection",
+        {
+          public: true,
+          reason: "Test that projection independently requires authorization",
+        },
+        (_req, res) => {
+          const response = projectAuthorizedFields(
+            res,
+            { premiumTotal: 1_000 },
+            (source) => {
+              projectionCalls += 1;
+              return source;
+            },
+          );
+          res.json(response);
+        },
+      );
     },
     sessionMiddleware,
   });
