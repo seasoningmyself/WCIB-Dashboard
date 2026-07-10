@@ -38,3 +38,15 @@ export const APPROVAL_QUEUE_STATUSES = [
 export type ApprovalQueueStatus = (typeof APPROVAL_QUEUE_STATUSES)[number];
 
 export const KAYLEE_PRODUCER_SHARE_PERCENT = 25 as const;
+
+export const RECEIVABLE_STATUSES = ["paid", "partial", "open"] as const;
+
+export type ReceivableStatus = (typeof RECEIVABLE_STATUSES)[number];
+
+export const PAYABLE_STATUSES = [
+  "paid",
+  "partially_remitted",
+  "unpaid",
+] as const;
+
+export type PayableStatus = (typeof PAYABLE_STATUSES)[number];

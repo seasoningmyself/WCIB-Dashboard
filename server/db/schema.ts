@@ -9,7 +9,9 @@ import {
   DRAFT_STATUSES,
   IPFS_CUSTOMER_TYPES,
   IPFS_FINANCING_CHOICES,
+  PAYABLE_STATUSES,
   PAYMENT_MODES,
+  RECEIVABLE_STATUSES,
 } from "../../shared/policy-fields.js";
 import {
   boolean,
@@ -56,6 +58,11 @@ export const approvalQueueStatusEnum = pgEnum(
   "approval_queue_status",
   APPROVAL_QUEUE_STATUSES,
 );
+export const receivableStatusEnum = pgEnum(
+  "receivable_status",
+  RECEIVABLE_STATUSES,
+);
+export const payableStatusEnum = pgEnum("payable_status", PAYABLE_STATUSES);
 export const staffPronounEnum = pgEnum("staff_pronoun", [
   "her",
   "his",
@@ -727,6 +734,25 @@ export const policies = pgTable(
     mgaPaid: boolean("mga_paid").notNull().default(false),
     mgaPayReference: text("mga_pay_reference"),
     mgaPaidAt: timestamp("mga_paid_at", { withTimezone: true }),
+    premiumTotal: numeric("premium_total", { precision: 14, scale: 2 })
+      .notNull()
+      .default("0"),
+    collectedToDate: numeric("collected_to_date", { precision: 14, scale: 2 })
+      .notNull()
+      .default("0"),
+    netDueTotal: numeric("net_due_total", { precision: 14, scale: 2 })
+      .notNull()
+      .default("0"),
+    remittedToMga: numeric("remitted_to_mga", { precision: 14, scale: 2 })
+      .notNull()
+      .default("0"),
+    receivableStatus: receivableStatusEnum("receivable_status")
+      .notNull()
+      .default("paid"),
+    payableStatus: payableStatusEnum("payable_status")
+      .notNull()
+      .default("paid"),
+    balanceDueDate: date("balance_due_date"),
     submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull(),
     approvedAt: timestamp("approved_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -867,6 +893,31 @@ export const policies = pgTable(
       "policies_mga_paid_state_check",
       sql`(${table.mgaPaid} = false AND ${table.mgaPaidAt} is null)
         OR (${table.mgaPaid} = true AND ${table.mgaPaidAt} is not null)`,
+    ),
+    check(
+      "policies_payment_stub_nonnegative_check",
+      sql`${table.premiumTotal} >= 0
+        AND ${table.collectedToDate} >= 0
+        AND ${table.netDueTotal} >= 0
+        AND ${table.remittedToMga} >= 0
+        AND ${table.collectedToDate} <= ${table.premiumTotal}
+        AND ${table.remittedToMga} <= ${table.netDueTotal}`,
+    ),
+    check(
+      "policies_receivable_status_check",
+      sql`(${table.receivableStatus} = 'paid' AND ${table.collectedToDate} = ${table.premiumTotal})
+        OR (${table.receivableStatus} = 'open' AND ${table.premiumTotal} > 0 AND ${table.collectedToDate} = 0)
+        OR (${table.receivableStatus} = 'partial'
+          AND ${table.collectedToDate} > 0
+          AND ${table.collectedToDate} < ${table.premiumTotal})`,
+    ),
+    check(
+      "policies_payable_status_check",
+      sql`(${table.payableStatus} = 'paid' AND ${table.remittedToMga} = ${table.netDueTotal})
+        OR (${table.payableStatus} = 'unpaid' AND ${table.netDueTotal} > 0 AND ${table.remittedToMga} = 0)
+        OR (${table.payableStatus} = 'partially_remitted'
+          AND ${table.remittedToMga} > 0
+          AND ${table.remittedToMga} < ${table.netDueTotal})`,
     ),
     check(
       "policies_timestamp_order_check",

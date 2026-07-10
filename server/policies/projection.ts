@@ -30,6 +30,13 @@ export const POLICY_FINANCIAL_FIELDS = [
   "mgaPaid",
   "mgaPayReference",
   "mgaPaidAt",
+  "premiumTotal",
+  "collectedToDate",
+  "netDueTotal",
+  "remittedToMga",
+  "receivableStatus",
+  "payableStatus",
+  "balanceDueDate",
 ] as const satisfies readonly (keyof PolicyRecord)[];
 
 const ADMIN_POLICY_FIELDS = [
