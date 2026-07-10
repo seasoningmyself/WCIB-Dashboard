@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { STAFF_ROLES } from "../../shared/access.js";
 import { MFA_METHOD_TYPES } from "../../shared/mfa-scaffold.js";
+import { POLICY_TYPE_CLASSES } from "../../shared/policy-types.js";
 import {
   boolean,
   check,
@@ -20,6 +21,10 @@ import {
 
 export const staffRoleEnum = pgEnum("staff_role", STAFF_ROLES);
 export const mfaMethodTypeEnum = pgEnum("mfa_method_type", MFA_METHOD_TYPES);
+export const policyTypeClassEnum = pgEnum(
+  "policy_type_class",
+  POLICY_TYPE_CLASSES,
+);
 export const staffPronounEnum = pgEnum("staff_pronoun", [
   "her",
   "his",
@@ -357,3 +362,29 @@ export const carriers = pgTable(
 
 export type CarrierRecord = typeof carriers.$inferSelect;
 export type NewCarrierRecord = typeof carriers.$inferInsert;
+
+export const policyTypes = pgTable(
+  "policy_types",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    classTag: policyTypeClassEnum("class_tag").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("policy_types_name_unique_idx").on(sql`lower(${table.name})`),
+    check(
+      "policy_types_name_normalized_check",
+      sql`${table.name} = btrim(${table.name}) AND char_length(${table.name}) > 0`,
+    ),
+  ],
+);
+
+export type PolicyTypeRecord = typeof policyTypes.$inferSelect;
+export type NewPolicyTypeRecord = typeof policyTypes.$inferInsert;
