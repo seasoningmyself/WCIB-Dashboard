@@ -7,8 +7,8 @@ import pg from "pg";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import { createUser } from "../auth/users.js";
 import type { AppLogger, LogContext } from "../logging/logger.js";
+import { closePaySheet } from "../pay-sheets/close.js";
 import { syncMgaPaymentSheetPlacement } from "../pay-sheets/mga-placement.js";
-import { buildPaySheetPolicySnapshot } from "../pay-sheets/snapshots.js";
 import { setMgaPaymentState } from "../policies/mga-payments.js";
 import { withDisposableMigratedDatabase } from "./disposable-database-test-helper.js";
 import { readDatabaseErrorCode } from "./error-code.js";
@@ -21,6 +21,7 @@ import {
   paySheetPolicies,
   paySheets,
   policies,
+  producerRateHistory,
   userCapabilities,
 } from "./schema.js";
 import * as databaseSchema from "./schema.js";
@@ -278,6 +279,15 @@ test("MGA placement attaches applicable open chains and preserves closed history
     assert.ok(sophiaJune);
     assert.ok(producerJune);
 
+    await database.insert(producerRateHistory).values({
+      effectiveDate: "2000-01-01",
+      newBrokerRate: "25.00",
+      newCommissionRate: "25.00",
+      producerUserId: references.producerUserId,
+      renewalBrokerRate: "25.00",
+      renewalCommissionRate: "25.00",
+    });
+
     const financialPolicyValues = {
       amountPaid: "1000.00",
       basePremium: "1000.00",
@@ -412,6 +422,18 @@ test("MGA placement attaches applicable open chains and preserves closed history
       paySheetIds: [sophiaJune.id],
     });
 
+    const producerClose = await closePaySheet(
+      database,
+      adminContext,
+      producerJune.id,
+      logger,
+    );
+    const sophiaClose = await closePaySheet(
+      database,
+      adminContext,
+      sophiaJune.id,
+      logger,
+    );
     const [closedSophiaAssociation] = await database
       .select()
       .from(paySheetPolicies)
@@ -422,42 +444,7 @@ test("MGA placement attaches applicable open chains and preserves closed history
         ),
       );
     assert.ok(closedSophiaAssociation);
-    const frozenSnapshot = buildPaySheetPolicySnapshot({
-      approvedAt: laterAssignedPolicy.approvedAt,
-      brokerFee: laterAssignedPolicy.brokerFee,
-      commissionAmount: laterAssignedPolicy.commissionAmount,
-      effectiveDate: laterAssignedPolicy.effectiveDate,
-      insuredName: laterAssignedPolicy.insuredName,
-      kayleeSplit: "none",
-      officeLocationId: laterAssignedPolicy.officeLocationId,
-      policyId: laterAssignedPolicy.id,
-      policyNumber: laterAssignedPolicy.policyNumber,
-      policyTypeClass: "Commercial",
-      policyTypeName: "General Liability",
-      producerPayout: "0.00",
-      producerUserId: null,
-      sophiaShare: "150.00",
-      transactionType: laterAssignedPolicy.transactionType,
-    });
-    await database
-      .update(paySheetPolicies)
-      .set({ frozenPolicySnapshot: frozenSnapshot })
-      .where(eq(paySheetPolicies.id, closedSophiaAssociation.id));
     const closedAt = new Date("2026-07-03T12:00:00.000Z");
-    await database
-      .update(paySheets)
-      .set({
-        closedAt,
-        closedByUserId: admin.id,
-        status: "closed",
-        updatedAt: closedAt,
-      })
-      .where(
-        and(
-          eq(paySheets.periodMonth, 6),
-          eq(paySheets.periodYear, 2026),
-        ),
-      );
     const [closedBeforeDetach] = await database
       .select()
       .from(paySheetPolicies)
@@ -472,29 +459,14 @@ test("MGA placement attaches applicable open chains and preserves closed history
         updatedAt: closedAt,
       })
       .where(eq(policies.id, laterAssignedPolicy.id));
-    const [sophiaJuly, producerJuly] = await database
-      .insert(paySheets)
-      .values([
-        {
-          createdAt: closedAt,
-          openedAt: closedAt,
-          ownerType: "sophia",
-          ownerUserId: admin.id,
-          periodMonth: 7,
-          periodYear: 2026,
-          updatedAt: closedAt,
-        },
-        {
-          createdAt: closedAt,
-          openedAt: closedAt,
-          ownerType: "producer",
-          ownerUserId: references.producerUserId,
-          periodMonth: 7,
-          periodYear: 2026,
-          updatedAt: closedAt,
-        },
-      ])
-      .returning();
+    const [sophiaJuly] = await database
+      .select()
+      .from(paySheets)
+      .where(eq(paySheets.id, sophiaClose.nextSheetId));
+    const [producerJuly] = await database
+      .select()
+      .from(paySheets)
+      .where(eq(paySheets.id, producerClose.nextSheetId));
     assert.ok(sophiaJuly);
     assert.ok(producerJuly);
 

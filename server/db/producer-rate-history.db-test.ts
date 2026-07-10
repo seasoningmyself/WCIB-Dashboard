@@ -10,8 +10,27 @@ import * as databaseSchema from "./schema.js";
 import {
   producerRateHistory,
   staffProfiles,
-  users,
 } from "./schema.js";
+
+let savepointSequence = 0;
+
+async function expectDatabaseError(
+  client: pg.PoolClient,
+  code: string,
+  action: () => Promise<unknown>,
+): Promise<void> {
+  const savepoint = `expected_rate_history_error_${savepointSequence++}`;
+  await client.query(`SAVEPOINT ${savepoint}`);
+  try {
+    await assert.rejects(
+      action,
+      (error: unknown) => readDatabaseErrorCode(error) === code,
+    );
+  } finally {
+    await client.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+    await client.query(`RELEASE SAVEPOINT ${savepoint}`);
+  }
+}
 
 test("producer rate history preserves dated exact rates and table constraints", async () => {
   const databaseUrl = process.env.DATABASE_URL;
@@ -21,15 +40,15 @@ test("producer rate history preserves dated exact rates and table constraints", 
   );
 
   const pool = new pg.Pool({ connectionString: databaseUrl, max: 1 });
-  const database = drizzle(pool, { schema: databaseSchema });
-  let producerUserId: string | undefined;
+  const client = await pool.connect();
+  const database = drizzle(client, { schema: databaseSchema });
 
   try {
+    await client.query("BEGIN");
     const producer = await createUser(database, {
       email: `rate-producer.${randomUUID()}@example.test`,
       password: "StrongPass123!",
     });
-    producerUserId = producer.id;
 
     await database.insert(staffProfiles).values({
       displayName: "Rate Test Producer",
@@ -90,7 +109,7 @@ test("producer rate history preserves dated exact rates and table constraints", 
     );
     assert.equal(rows[0]?.lockedAt, null);
 
-    await assert.rejects(
+    await expectDatabaseError(client, "23505", () =>
       database.insert(producerRateHistory).values({
         effectiveDate: "2026-06-01",
         newBrokerRate: "10.00",
@@ -99,10 +118,9 @@ test("producer rate history preserves dated exact rates and table constraints", 
         renewalBrokerRate: "10.00",
         renewalCommissionRate: "10.00",
       }),
-      (error: unknown) => readDatabaseErrorCode(error) === "23505",
     );
 
-    await assert.rejects(
+    await expectDatabaseError(client, "23514", () =>
       database.insert(producerRateHistory).values({
         effectiveDate: "2027-01-01",
         newBrokerRate: "10.00",
@@ -111,10 +129,9 @@ test("producer rate history preserves dated exact rates and table constraints", 
         renewalBrokerRate: "10.00",
         renewalCommissionRate: "10.00",
       }),
-      (error: unknown) => readDatabaseErrorCode(error) === "23514",
     );
 
-    await assert.rejects(
+    await expectDatabaseError(client, "23503", () =>
       database.insert(producerRateHistory).values({
         effectiveDate: "2027-01-01",
         newBrokerRate: "10.00",
@@ -123,18 +140,10 @@ test("producer rate history preserves dated exact rates and table constraints", 
         renewalBrokerRate: "10.00",
         renewalCommissionRate: "10.00",
       }),
-      (error: unknown) => readDatabaseErrorCode(error) === "23503",
     );
   } finally {
-    if (producerUserId !== undefined) {
-      await database
-        .delete(producerRateHistory)
-        .where(eq(producerRateHistory.producerUserId, producerUserId));
-      await database
-        .delete(staffProfiles)
-        .where(eq(staffProfiles.userId, producerUserId));
-      await database.delete(users).where(eq(users.id, producerUserId));
-    }
+    await client.query("ROLLBACK");
+    client.release();
     await pool.end();
   }
 });

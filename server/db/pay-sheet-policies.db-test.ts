@@ -232,7 +232,7 @@ test("pay-sheet policies normalize live links and bounded frozen snapshots", asy
         producerRateHistoryId: rate.id,
       }),
     );
-    await expectDatabaseError(client, "23503", () =>
+    await expectDatabaseError(client, "P0002", () =>
       database.insert(paySheetPolicies).values({
         paySheetId: randomUUID(),
         policyId: openPolicy.id,
