@@ -43,7 +43,8 @@
     "test:db:policy-lifecycle": "node --import tsx --test server/db/policy-lifecycle.db-test.ts",
     "test:db:policy-overrides": "node --import tsx --test server/db/policy-overrides.db-test.ts",
     "test:db:policy-override-integrity": "node --import tsx --test server/db/policy-override-integrity.db-test.ts",
-    "test:db:mga-payments": "node --import tsx --test server/db/mga-payments.db-test.ts"
+    "test:db:mga-payments": "node --import tsx --test server/db/mga-payments.db-test.ts",
+    "test:db:mga-payment-rules": "node --import tsx --test server/db/mga-payment-rules.db-test.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

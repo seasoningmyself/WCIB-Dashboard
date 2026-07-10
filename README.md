@@ -604,14 +604,21 @@ financial fields.
 `mga_payments` stores one current MGA settlement row per policy. Unpaid rows
 carry no paid-only metadata; paid rows require a paid timestamp and trusted
 admin account UUID, with an optional non-blank reference. Foreign keys retain
-the related policy and actor records. Item 21 defines only this table contract;
-the audited state-transition function and policy compatibility synchronization
-belong to item 22.
+the related policy and actor records.
+
+MGA paid/unpaid changes use `setMgaPaymentState`, which delegates to the
+admin-validated `set_mga_payment_state` database function. It locks the policy
+and current payment row, synchronizes the policy compatibility fields, and
+writes the audit event in one transaction. Direct state writes and payment-row
+deletes fail at database level. Identical repeated requests retain timestamps
+and do not append duplicate audit events. Pay-sheet attachment is deliberately
+absent until item 25, after its referenced tables exist.
 
 Run the table-level database check after migrations with:
 
 ```sh
 npm run test:db:mga-payments
+npm run test:db:mga-payment-rules
 ```
 
 ## Structured logging

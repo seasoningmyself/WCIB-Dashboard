@@ -981,8 +981,21 @@ export const policies = pgTable(
     ),
     check(
       "policies_mga_paid_state_check",
-      sql`(${table.mgaPaid} = false AND ${table.mgaPaidAt} is null)
-        OR (${table.mgaPaid} = true AND ${table.mgaPaidAt} is not null)`,
+      sql`(
+        ${table.mgaPaid} = false
+        AND ${table.mgaPayReference} is null
+        AND ${table.mgaPaidAt} is null
+      ) OR (
+        ${table.mgaPaid} = true
+        AND ${table.mgaPaidAt} is not null
+        AND (
+          ${table.mgaPayReference} is null
+          OR (
+            ${table.mgaPayReference} = btrim(${table.mgaPayReference})
+            AND char_length(${table.mgaPayReference}) > 0
+          )
+        )
+      )`,
     ),
     check(
       "policies_payment_stub_nonnegative_check",

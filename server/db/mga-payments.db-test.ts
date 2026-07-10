@@ -4,16 +4,30 @@ import { test } from "node:test";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
+import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import { createUser } from "../auth/users.js";
+import type { AppLogger } from "../logging/logger.js";
+import { setMgaPaymentState } from "../policies/mga-payments.js";
 import { readDatabaseErrorCode } from "./error-code.js";
 import {
   createPolicyReferenceFixture,
   policyTestInput,
 } from "./policy-test-fixture.js";
-import { mgaPayments, policies, users } from "./schema.js";
+import {
+  mgaPayments,
+  policies,
+  userCapabilities,
+  users,
+} from "./schema.js";
 import * as databaseSchema from "./schema.js";
 
 let savepointSequence = 0;
+
+const logger: AppLogger = {
+  error() {},
+  info() {},
+  warn() {},
+};
 
 async function expectDatabaseError(
   client: pg.PoolClient,
@@ -48,6 +62,18 @@ test("MGA payment rows enforce one UUID-linked current settlement state", async 
       email: `mga-payment-admin-${randomUUID()}@example.test`,
       password: "StrongPass123!",
     });
+    await database.insert(userCapabilities).values({
+      capability: "admin",
+      userId: admin.id,
+    });
+    const context: AuthorizedRequestContext = {
+      principal: {
+        capabilities: ["admin"],
+        staffRole: null,
+        userActive: true,
+        userId: admin.id,
+      },
+    };
     const createdAt = new Date("2026-07-01T12:00:00.000Z");
     const paidAt = new Date("2026-07-02T12:00:00.000Z");
     const [policy] = await database
@@ -63,10 +89,19 @@ test("MGA payment rows enforce one UUID-linked current settlement state", async 
       .returning();
     assert.ok(policy);
 
+    const paymentId = await setMgaPaymentState(
+      database,
+      context,
+      policy.id,
+      "unpaid",
+      null,
+      logger,
+      paidAt,
+    );
     const [payment] = await database
-      .insert(mgaPayments)
-      .values({ createdAt, policyId: policy.id, updatedAt: createdAt })
-      .returning();
+      .select()
+      .from(mgaPayments)
+      .where(eq(mgaPayments.id, paymentId));
     assert.ok(payment);
     assert.match(payment.id, /^[0-9a-f-]{36}$/);
     assert.equal(payment.policyId, policy.id);
@@ -75,63 +110,42 @@ test("MGA payment rows enforce one UUID-linked current settlement state", async 
     assert.equal(payment.paidAt, null);
     assert.equal(payment.adminActorUserId, null);
 
-    await expectDatabaseError(client, "23505", () =>
+    await expectDatabaseError(client, "55000", () =>
       database.insert(mgaPayments).values({ policyId: policy.id }),
     );
-    await expectDatabaseError(client, "23514", () =>
+    await expectDatabaseError(client, "55000", () =>
       database
         .update(mgaPayments)
         .set({ status: "paid", updatedAt: paidAt })
         .where(eq(mgaPayments.id, payment.id)),
     );
-    await expectDatabaseError(client, "23514", () =>
-      database
-        .update(mgaPayments)
-        .set({ reference: "UNPAID-REF" })
-        .where(eq(mgaPayments.id, payment.id)),
-    );
-    await expectDatabaseError(client, "23514", () =>
-      database
-        .update(mgaPayments)
-        .set({ updatedAt: new Date("2026-06-30T12:00:00.000Z") })
-        .where(eq(mgaPayments.id, payment.id)),
-    );
 
+    await setMgaPaymentState(
+      database,
+      context,
+      policy.id,
+      "paid",
+      "WIRE-2026-07-02",
+      logger,
+      new Date("2026-07-03T12:00:00.000Z"),
+    );
     const [paid] = await database
-      .update(mgaPayments)
-      .set({
-        adminActorUserId: admin.id,
-        paidAt,
-        reference: "WIRE-2026-07-02",
-        status: "paid",
-        updatedAt: paidAt,
-      })
-      .where(eq(mgaPayments.id, payment.id))
-      .returning();
+      .select()
+      .from(mgaPayments)
+      .where(eq(mgaPayments.id, payment.id));
     assert.equal(paid?.status, "paid");
     assert.equal(paid?.adminActorUserId, admin.id);
     assert.equal(paid?.reference, "WIRE-2026-07-02");
 
-    await expectDatabaseError(client, "23514", () =>
-      database
-        .update(mgaPayments)
-        .set({ reference: "   " })
-        .where(eq(mgaPayments.id, payment.id)),
-    );
-    await expectDatabaseError(client, "23514", () =>
-      database
-        .update(mgaPayments)
-        .set({ status: "unpaid" })
-        .where(eq(mgaPayments.id, payment.id)),
-    );
-    await expectDatabaseError(client, "23503", () =>
-      database
-        .update(mgaPayments)
-        .set({ adminActorUserId: randomUUID() })
-        .where(eq(mgaPayments.id, payment.id)),
-    );
-    await expectDatabaseError(client, "23503", () =>
-      database.insert(mgaPayments).values({ policyId: randomUUID() }),
+    await expectDatabaseError(client, "P0002", () =>
+      setMgaPaymentState(
+        database,
+        context,
+        randomUUID(),
+        "unpaid",
+        null,
+        logger,
+      ),
     );
     await expectDatabaseError(client, "23001", () =>
       database.delete(policies).where(eq(policies.id, policy.id)),
@@ -140,26 +154,36 @@ test("MGA payment rows enforce one UUID-linked current settlement state", async 
       database.delete(users).where(eq(users.id, admin.id)),
     );
 
+    await setMgaPaymentState(
+      database,
+      context,
+      policy.id,
+      "paid",
+      null,
+      logger,
+      new Date("2026-07-04T12:00:00.000Z"),
+    );
     const [paidWithoutReference] = await database
-      .update(mgaPayments)
-      .set({ reference: null })
-      .where(eq(mgaPayments.id, payment.id))
-      .returning();
+      .select()
+      .from(mgaPayments)
+      .where(eq(mgaPayments.id, payment.id));
     assert.equal(paidWithoutReference?.status, "paid");
     assert.equal(paidWithoutReference?.reference, null);
 
-    const unpaidAt = new Date("2026-07-03T12:00:00.000Z");
+    const unpaidAt = new Date("2026-07-05T12:00:00.000Z");
+    await setMgaPaymentState(
+      database,
+      context,
+      policy.id,
+      "unpaid",
+      null,
+      logger,
+      unpaidAt,
+    );
     const [unpaid] = await database
-      .update(mgaPayments)
-      .set({
-        adminActorUserId: null,
-        paidAt: null,
-        reference: null,
-        status: "unpaid",
-        updatedAt: unpaidAt,
-      })
-      .where(eq(mgaPayments.id, payment.id))
-      .returning();
+      .select()
+      .from(mgaPayments)
+      .where(eq(mgaPayments.id, payment.id));
     assert.equal(unpaid?.status, "unpaid");
     assert.equal(unpaid?.adminActorUserId, null);
     assert.equal(unpaid?.paidAt, null);

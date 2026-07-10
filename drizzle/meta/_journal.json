@@ -169,6 +169,13 @@
       "when": 1783673753686,
       "tag": "0023_mga_payments",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1783674014974,
+      "tag": "0024_mga_payment_rules",
+      "breakpoints": true
     }
   ]
 }
