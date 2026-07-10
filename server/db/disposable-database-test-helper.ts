@@ -22,11 +22,9 @@ export async function withDisposableDatabase(
     throw new Error("Disposable database prefix is invalid");
   }
   const databaseName = `${namePrefix}_${randomUUID().replaceAll("-", "")}`;
-  const adminUrl = new URL(sourceDatabaseUrl);
   const targetUrl = new URL(sourceDatabaseUrl);
-  adminUrl.pathname = "/postgres";
   targetUrl.pathname = `/${databaseName}`;
-  const adminPool = new pg.Pool({ connectionString: adminUrl.toString(), max: 1 });
+  const adminPool = new pg.Pool({ connectionString: sourceDatabaseUrl, max: 1 });
   let databaseCreated = false;
 
   try {
