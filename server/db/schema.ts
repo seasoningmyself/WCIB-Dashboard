@@ -332,3 +332,28 @@ export const mgas = pgTable(
 
 export type MgaRecord = typeof mgas.$inferSelect;
 export type NewMgaRecord = typeof mgas.$inferInsert;
+
+export const carriers = pgTable(
+  "carriers",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("carriers_name_unique_idx").on(sql`lower(${table.name})`),
+    check(
+      "carriers_name_normalized_check",
+      sql`${table.name} = btrim(${table.name}) AND char_length(${table.name}) > 0`,
+    ),
+  ],
+);
+
+export type CarrierRecord = typeof carriers.$inferSelect;
+export type NewCarrierRecord = typeof carriers.$inferInsert;

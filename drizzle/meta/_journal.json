@@ -71,6 +71,13 @@
       "when": 1783667375682,
       "tag": "0009_mgas",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783667731828,
+      "tag": "0010_carriers",
+      "breakpoints": true
     }
   ]
 }
