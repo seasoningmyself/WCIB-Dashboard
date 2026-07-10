@@ -10,8 +10,8 @@ import type { AppLogger, LogContext } from "../logging/logger.js";
 import { syncMgaPaymentSheetPlacement } from "../pay-sheets/mga-placement.js";
 import { buildPaySheetPolicySnapshot } from "../pay-sheets/snapshots.js";
 import { setMgaPaymentState } from "../policies/mga-payments.js";
+import { withDisposableMigratedDatabase } from "./disposable-database-test-helper.js";
 import { readDatabaseErrorCode } from "./error-code.js";
-import { applyMigrations } from "./migrate.js";
 import {
   createPolicyReferenceFixture,
   policyTestInput,
@@ -76,36 +76,11 @@ function capturingLogger(events: LoggedEvent[]): AppLogger {
   };
 }
 
-async function withDisposableMigratedDatabase(
-  sourceDatabaseUrl: string,
-  action: (databaseUrl: string) => Promise<void>,
-): Promise<void> {
-  const databaseName = `wcib_stone76_race_${randomUUID().replaceAll("-", "")}`;
-  const adminUrl = new URL(sourceDatabaseUrl);
-  const targetUrl = new URL(sourceDatabaseUrl);
-  adminUrl.pathname = "/postgres";
-  targetUrl.pathname = `/${databaseName}`;
-  const adminPool = new pg.Pool({ connectionString: adminUrl.toString(), max: 1 });
-  let databaseCreated = false;
-
-  try {
-    await adminPool.query(`CREATE DATABASE "${databaseName}"`);
-    databaseCreated = true;
-    await applyMigrations(targetUrl.toString());
-    await action(targetUrl.toString());
-  } finally {
-    if (databaseCreated) {
-      await adminPool.query(`DROP DATABASE "${databaseName}" WITH (FORCE)`);
-    }
-    await adminPool.end();
-  }
-}
-
 test("concurrent MGA placement calls cannot duplicate associations", async () => {
   const databaseUrl = process.env.DATABASE_URL;
   assert.ok(databaseUrl, "DATABASE_URL is required for MGA placement DB test");
 
-  await withDisposableMigratedDatabase(databaseUrl, async (isolatedUrl) => {
+  await withDisposableMigratedDatabase(databaseUrl, "wcib_stone76_race", async (isolatedUrl) => {
     const pool = new pg.Pool({ connectionString: isolatedUrl, max: 3 });
     const database = drizzle(pool, { schema: databaseSchema });
     const loggedEvents: LoggedEvent[] = [];

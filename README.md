@@ -674,6 +674,23 @@ competing placement requests duplicate-safe. Run the database contract with:
 npm run test:db:mga-pay-sheet-attachment
 ```
 
+Pay-sheet close is one database transaction exposed through
+`close_pay_sheet(sheet UUID, actor UUID)`. The function derives all snapshots
+and totals from locked database rows, uses the producer rate effective on the
+UTC close date, locks that rate, records the bounded close audit, and creates
+the next owner period. It is idempotent after a successful close and never
+reopens or recalculates closed history. December advances to January of the
+next year.
+
+At item 26, frozen totals contain policy-derived commission and broker-fee
+values; `directCheckAchIncome` is `0.00`. Item 29 owns the normalized adjustment
+and direct-income rows and will extend this same close transaction once those
+rows exist. Run the current close contract with:
+
+```sh
+npm run test:db:pay-sheet-close
+```
+
 ## Structured logging
 
 The backend writes newline-delimited JSON records with a timestamp, level,

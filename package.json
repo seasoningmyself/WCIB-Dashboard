@@ -47,7 +47,8 @@
     "test:db:mga-payment-rules": "node --import tsx --test server/db/mga-payment-rules.db-test.ts",
     "test:db:pay-sheets": "node --import tsx --test server/db/pay-sheets.db-test.ts",
     "test:db:pay-sheet-policies": "node --import tsx --test server/db/pay-sheet-policies.db-test.ts",
-    "test:db:mga-pay-sheet-attachment": "node --import tsx --test server/db/mga-pay-sheet-attachment.db-test.ts"
+    "test:db:mga-pay-sheet-attachment": "node --import tsx --test server/db/mga-pay-sheet-attachment.db-test.ts",
+    "test:db:pay-sheet-close": "node --import tsx --test server/db/pay-sheet-close.db-test.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
