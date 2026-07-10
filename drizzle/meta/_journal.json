@@ -50,6 +50,13 @@
       "when": 1783666652413,
       "tag": "0006_producer_rate_history",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1783666889062,
+      "tag": "0007_producer_rate_integrity",
+      "breakpoints": true
     }
   ]
 }
