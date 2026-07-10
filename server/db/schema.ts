@@ -307,3 +307,28 @@ export const officeLocations = pgTable(
 
 export type OfficeLocationRecord = typeof officeLocations.$inferSelect;
 export type NewOfficeLocationRecord = typeof officeLocations.$inferInsert;
+
+export const mgas = pgTable(
+  "mgas",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("mgas_name_unique_idx").on(sql`lower(${table.name})`),
+    check(
+      "mgas_name_normalized_check",
+      sql`${table.name} = btrim(${table.name}) AND char_length(${table.name}) > 0`,
+    ),
+  ],
+);
+
+export type MgaRecord = typeof mgas.$inferSelect;
+export type NewMgaRecord = typeof mgas.$inferInsert;
