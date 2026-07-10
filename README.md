@@ -236,6 +236,28 @@ connection string.
 
 All commands fail before contacting Postgres when neither database URL is set.
 
+## User identity and credentials
+
+The auth-owned `users` table uses a database-generated UUID identity. It stores
+only a normalized unique email, a bcrypt password hash, active state, session
+version, and creation time. Display names, staff profiles, roles, capabilities,
+password-reset tokens, and MFA structures are deliberately owned by later
+tickets and are not columns in this table.
+
+All password creation and reset paths must reuse
+`shared/password-policy.ts` and `server/auth/password.ts`; passwords require at
+least 12 characters with uppercase, lowercase, numeric, and special characters.
+Plaintext passwords and password hashes must never be logged or returned from
+normal account reads.
+
+After applying migrations to local Postgres, run the database-backed model
+smoke test with:
+
+```sh
+DATABASE_URL=postgresql://wcib:wcib_local_password@127.0.0.1:54322/wcib \
+  npm run test:db:user
+```
+
 ## Database connection smoke
 
 The backend creates its runtime `pg` pool from the validated `DATABASE_URL` and

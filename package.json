@@ -15,9 +15,11 @@
     "check": "npm run check:backend && npm run check:frontend",
     "check:backend": "tsc --noEmit",
     "check:frontend": "tsc -p client/tsconfig.json --noEmit",
-    "test": "node script/run-tests.mjs"
+    "test": "node script/run-tests.mjs",
+    "test:db:user": "node --import tsx --test server/auth/users.db-test.ts"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "express": "^5.0.1",
