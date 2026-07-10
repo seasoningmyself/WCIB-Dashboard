@@ -642,6 +642,22 @@ npm run test:db:pay-sheets
 node --import tsx --test server/pay-sheets/frozen-totals.test.ts
 ```
 
+`pay_sheet_policies` normalizes each sheet/policy association. Open rows may
+carry only their source UUIDs; close workflows later populate a self-contained
+policy snapshot and, for producer payouts, a source rate UUID plus copied rate
+snapshot. The policy snapshot contains the display identity, KPI dimensions,
+UUID ownership dimensions, exact commission/broker/revenue/payout/share values,
+and no carrier fee or rewrite subtype. Agency revenue is derived by the builder
+instead of trusted from a caller.
+
+Snapshot builders use fixed allowlists and ignore unknown source fields rather
+than spreading ORM rows. Run their contract and database checks with:
+
+```sh
+node --import tsx --test server/pay-sheets/snapshots.test.ts
+npm run test:db:pay-sheet-policies
+```
+
 ## Structured logging
 
 The backend writes newline-delimited JSON records with a timestamp, level,

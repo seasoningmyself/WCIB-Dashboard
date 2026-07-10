@@ -26,6 +26,10 @@ import {
   PAY_SHEET_STATUSES,
 } from "../../shared/pay-sheets.js";
 import {
+  MAX_PAY_SHEET_POLICY_SNAPSHOT_BYTES,
+  MAX_PAY_SHEET_RATE_SNAPSHOT_BYTES,
+} from "../../shared/pay-sheet-snapshots.js";
+import {
   boolean,
   check,
   date,
@@ -1253,3 +1257,93 @@ export const paySheets = pgTable(
 
 export type PaySheetRecord = typeof paySheets.$inferSelect;
 export type NewPaySheetRecord = typeof paySheets.$inferInsert;
+
+export const paySheetPolicies = pgTable(
+  "pay_sheet_policies",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    paySheetId: uuid("pay_sheet_id")
+      .notNull()
+      .references(() => paySheets.id, { onDelete: "restrict" }),
+    policyId: uuid("policy_id")
+      .notNull()
+      .references(() => policies.id, { onDelete: "restrict" }),
+    addedAt: timestamp("added_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    frozenPolicySnapshot: jsonb("frozen_policy_snapshot"),
+    producerRateHistoryId: uuid("producer_rate_history_id").references(
+      () => producerRateHistory.id,
+      { onDelete: "restrict" },
+    ),
+    frozenRateSnapshot: jsonb("frozen_rate_snapshot"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("pay_sheet_policies_sheet_policy_unique_idx").on(
+      table.paySheetId,
+      table.policyId,
+    ),
+    index("pay_sheet_policies_policy_idx").on(table.policyId),
+    check(
+      "pay_sheet_policies_policy_snapshot_check",
+      sql`${table.frozenPolicySnapshot} is null OR (
+        jsonb_typeof(${table.frozenPolicySnapshot}) = 'object'
+        AND pg_column_size(${table.frozenPolicySnapshot}) <= ${sql.raw(String(MAX_PAY_SHEET_POLICY_SNAPSHOT_BYTES))}
+        AND (${table.frozenPolicySnapshot} - ARRAY[
+          'policyId', 'insuredName', 'policyNumber', 'policyTypeName',
+          'policyTypeClass', 'transactionType', 'effectiveDate', 'approvedAt',
+          'producerUserId', 'officeLocationId', 'kayleeSplit',
+          'commissionAmount', 'brokerFee', 'agencyRevenue',
+          'producerPayout', 'sophiaShare'
+        ]) = '{}'::jsonb
+        AND ${table.frozenPolicySnapshot} ?& ARRAY[
+          'policyId', 'insuredName', 'policyNumber', 'policyTypeName',
+          'policyTypeClass', 'transactionType', 'effectiveDate', 'approvedAt',
+          'producerUserId', 'officeLocationId', 'kayleeSplit',
+          'commissionAmount', 'brokerFee', 'agencyRevenue',
+          'producerPayout', 'sophiaShare'
+        ]
+        AND NOT jsonb_path_exists(
+          ${table.frozenPolicySnapshot} - 'producerUserId',
+          '$.* ? (@.type() != "string")'
+        )
+        AND jsonb_typeof(${table.frozenPolicySnapshot} -> 'producerUserId')
+          IN ('string', 'null')
+      )`,
+    ),
+    check(
+      "pay_sheet_policies_rate_snapshot_check",
+      sql`(
+        ${table.producerRateHistoryId} is null
+        AND ${table.frozenRateSnapshot} is null
+      ) OR (
+        ${table.producerRateHistoryId} is not null
+        AND ${table.frozenRateSnapshot} is not null
+        AND jsonb_typeof(${table.frozenRateSnapshot}) = 'object'
+        AND pg_column_size(${table.frozenRateSnapshot}) <= ${sql.raw(String(MAX_PAY_SHEET_RATE_SNAPSHOT_BYTES))}
+        AND (${table.frozenRateSnapshot} - ARRAY[
+          'effectiveDate', 'newCommissionRate', 'newBrokerRate',
+          'renewalCommissionRate', 'renewalBrokerRate'
+        ]) = '{}'::jsonb
+        AND ${table.frozenRateSnapshot} ?& ARRAY[
+          'effectiveDate', 'newCommissionRate', 'newBrokerRate',
+          'renewalCommissionRate', 'renewalBrokerRate'
+        ]
+        AND NOT jsonb_path_exists(
+          ${table.frozenRateSnapshot},
+          '$.* ? (@.type() != "string")'
+        )
+      )`,
+    ),
+    check(
+      "pay_sheet_policies_timestamp_check",
+      sql`${table.addedAt} >= ${table.createdAt}`,
+    ),
+  ],
+);
+
+export type PaySheetPolicyRecord = typeof paySheetPolicies.$inferSelect;
+export type NewPaySheetPolicyRecord = typeof paySheetPolicies.$inferInsert;
