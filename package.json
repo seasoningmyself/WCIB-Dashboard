@@ -26,7 +26,8 @@
     "test:db:staff": "node --import tsx --test server/auth/staff-accounts.db-test.ts",
     "test:db:access": "node --import tsx --test server/auth/access-model.db-test.ts",
     "test:db:producer-rate-history": "node --import tsx --test server/db/producer-rate-history.db-test.ts",
-    "test:db:producer-rate-integrity": "node --import tsx --test server/db/producer-rate-integrity.db-test.ts"
+    "test:db:producer-rate-integrity": "node --import tsx --test server/db/producer-rate-integrity.db-test.ts",
+    "test:db:office-locations": "node --import tsx --test server/db/office-locations.db-test.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

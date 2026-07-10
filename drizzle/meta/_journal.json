@@ -57,6 +57,13 @@
       "when": 1783666889062,
       "tag": "0007_producer_rate_integrity",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1783667238116,
+      "tag": "0008_office_locations",
+      "breakpoints": true
     }
   ]
 }

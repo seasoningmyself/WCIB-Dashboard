@@ -280,3 +280,30 @@ export type ProducerRateHistoryRecord =
   typeof producerRateHistory.$inferSelect;
 export type NewProducerRateHistoryRecord =
   typeof producerRateHistory.$inferInsert;
+
+export const officeLocations = pgTable(
+  "office_locations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("office_locations_name_unique_idx").on(
+      sql`lower(${table.name})`,
+    ),
+    check(
+      "office_locations_name_normalized_check",
+      sql`${table.name} = btrim(${table.name}) AND char_length(${table.name}) > 0`,
+    ),
+  ],
+);
+
+export type OfficeLocationRecord = typeof officeLocations.$inferSelect;
+export type NewOfficeLocationRecord = typeof officeLocations.$inferInsert;
