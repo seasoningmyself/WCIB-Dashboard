@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import pg from "pg";
+import { approvedCoreSchemaFingerprint } from "./core-schema-contract.js";
 import { withDisposableDatabase } from "./disposable-database-test-helper.js";
 import { applyMigrations, migrationAdvisoryLockKey } from "./migrate.js";
 import {
@@ -16,7 +17,7 @@ test("all migrations survive forward, rollback, reapply, and injected failures",
 
   assert.equal(result.migrationCount, 33);
   assert.deepEqual(result.failureInjectionTags, failureInjectionTags);
-  assert.match(result.finalFingerprint, /^[a-f0-9]{64}$/);
+  assert.equal(result.finalFingerprint, approvedCoreSchemaFingerprint);
   assert.deepEqual(
     result.phases.map((phase) => phase.name),
     [

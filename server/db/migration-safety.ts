@@ -140,7 +140,9 @@ async function assertHistoryMatches(
   assert.deepEqual(await readMigrationHistory(client), expectedHistory(entries));
 }
 
-async function schemaFingerprint(client: pg.Client): Promise<string> {
+export async function captureSchemaFingerprint(
+  client: pg.Client,
+): Promise<string> {
   const result = await client.query<{ definition: string; identity: string; kind: string }>(`
     WITH schema_objects AS (
       SELECT
@@ -254,7 +256,7 @@ async function verifyInjectedFailure(
   assert.ok(target);
 
   await applyEntries(client, prefix);
-  const beforeFingerprint = await schemaFingerprint(client);
+  const beforeFingerprint = await captureSchemaFingerprint(client);
   const beforeHistory = await readMigrationHistory(client);
 
   await client.query("BEGIN");
@@ -270,7 +272,7 @@ async function verifyInjectedFailure(
     await client.query("ROLLBACK");
   }
 
-  assert.equal(await schemaFingerprint(client), beforeFingerprint);
+  assert.equal(await captureSchemaFingerprint(client), beforeFingerprint);
   assert.deepEqual(await readMigrationHistory(client), beforeHistory);
   await rollbackEntries(client, prefix);
 }
@@ -288,20 +290,26 @@ export async function verifyMigrationSafety(
     sourceDatabaseUrl,
     "wcib_migration",
     async (databaseUrl) => {
-      const baselineFingerprint = await withClient(databaseUrl, schemaFingerprint);
+      const baselineFingerprint = await withClient(
+        databaseUrl,
+        captureSchemaFingerprint,
+      );
 
       finalFingerprint = await recordPhase(phases, "forward", async () => {
         await applyMigrations(databaseUrl);
         return withClient(databaseUrl, async (client) => {
           await assertHistoryMatches(client, plan);
-          return schemaFingerprint(client);
+          return captureSchemaFingerprint(client);
         });
       });
 
       await recordPhase(phases, "rollback", () =>
         withClient(databaseUrl, async (client) => {
           await rollbackEntries(client, plan);
-          assert.equal(await schemaFingerprint(client), baselineFingerprint);
+          assert.equal(
+            await captureSchemaFingerprint(client),
+            baselineFingerprint,
+          );
           assert.deepEqual(await readMigrationHistory(client), []);
         }),
       );
@@ -310,7 +318,10 @@ export async function verifyMigrationSafety(
         await applyMigrations(databaseUrl);
         await withClient(databaseUrl, async (client) => {
           await assertHistoryMatches(client, plan);
-          assert.equal(await schemaFingerprint(client), finalFingerprint);
+          assert.equal(
+            await captureSchemaFingerprint(client),
+            finalFingerprint,
+          );
         });
       });
 

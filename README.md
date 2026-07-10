@@ -252,6 +252,11 @@ The verifier accepts only the local Docker PostgreSQL host. It creates and
 drops its own temporary database; it never applies to the configured `wcib`
 database or to DigitalOcean.
 
+The managed Core Schema apply and parity evidence are recorded in
+[`docs/MANAGED_SCHEMA_DEPLOYMENT.md`](docs/MANAGED_SCHEMA_DEPLOYMENT.md).
+Re-run its read-only catalog contract with `npm run db:verify:managed` after a
+managed migration.
+
 All commands fail before contacting Postgres when neither database URL is set.
 
 ## User identity and credentials

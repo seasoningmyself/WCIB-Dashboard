@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { test } from "node:test";
+import { coreSchemaTables } from "./core-schema-contract.js";
 
 interface SnapshotColumn {
   type: string;
@@ -39,31 +40,6 @@ const snapshot = JSON.parse(
   ),
 ) as DrizzleSnapshot;
 
-const expectedTables = [
-  "approval_queue_entries",
-  "audit_events",
-  "carriers",
-  "drafts",
-  "kpi_targets",
-  "mga_payments",
-  "mgas",
-  "office_locations",
-  "password_reset_tokens",
-  "pay_sheet_adjustments",
-  "pay_sheet_policies",
-  "pay_sheets",
-  "policies",
-  "policy_overrides",
-  "policy_types",
-  "producer_rate_history",
-  "sessions",
-  "staff_profiles",
-  "user_capabilities",
-  "user_mfa_method_placeholders",
-  "user_mfa_settings",
-  "users",
-];
-
 test("Core Schema has only the approved normalized table inventory", () => {
   const schemaTables = [...schemaSource.matchAll(/pgTable\(\s*"([^"]+)"/g)]
     .map((match) => match[1])
@@ -73,10 +49,10 @@ test("Core Schema has only the approved normalized table inventory", () => {
     .map((table) => table.name)
     .sort();
 
-  assert.deepEqual(schemaTables, expectedTables);
-  assert.deepEqual(snapshotTables, expectedTables);
+  assert.deepEqual(schemaTables, [...coreSchemaTables]);
+  assert.deepEqual(snapshotTables, [...coreSchemaTables]);
   assert.equal(
-    expectedTables.some((name) => /backup|restore|export|staging/i.test(name)),
+    coreSchemaTables.some((name) => /backup|restore|export|staging/i.test(name)),
     false,
   );
 });
@@ -149,6 +125,7 @@ test("no backup or restore runtime was introduced", () => {
     recursive: true,
   })
     .filter((name) => typeof name === "string")
+    .filter((name) => name !== "db/core-schema-contract.ts")
     .filter((name) => !name.endsWith(".test.ts") && !name.endsWith(".db-test.ts"))
     .filter((name) => name.endsWith(".ts"));
 
