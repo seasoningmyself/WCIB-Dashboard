@@ -36,3 +36,5 @@ export const APPROVAL_QUEUE_STATUSES = [
 ] as const;
 
 export type ApprovalQueueStatus = (typeof APPROVAL_QUEUE_STATUSES)[number];
+
+export const KAYLEE_PRODUCER_SHARE_PERCENT = 25 as const;

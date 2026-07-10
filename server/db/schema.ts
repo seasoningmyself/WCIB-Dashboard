@@ -655,3 +655,226 @@ export type ApprovalQueueEntryRecord =
   typeof approvalQueueEntries.$inferSelect;
 export type NewApprovalQueueEntryRecord =
   typeof approvalQueueEntries.$inferInsert;
+
+export const policies = pgTable(
+  "policies",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    sourceDraftId: uuid("source_draft_id"),
+    submittedByUserId: uuid("submitted_by_user_id").notNull(),
+    insuredName: text("insured_name").notNull(),
+    companyName: text("company_name"),
+    policyNumber: text("policy_number").notNull(),
+    policyTypeId: uuid("policy_type_id").notNull(),
+    transactionType: text("transaction_type").notNull(),
+    transactionNotes: text("transaction_notes"),
+    invoiceNumber: text("invoice_number"),
+    effectiveDate: date("effective_date").notNull(),
+    expirationDate: date("expiration_date").notNull(),
+    carrierId: uuid("carrier_id").notNull(),
+    mgaId: uuid("mga_id").notNull(),
+    officeLocationId: uuid("office_location_id").notNull(),
+    accountAssignment: accountAssignmentEnum("account_assignment")
+      .notNull()
+      .default("none"),
+    producerUserId: uuid("producer_user_id"),
+    kayleeSplit: accountAssignmentEnum("kaylee_split")
+      .notNull()
+      .default("none"),
+    notes: text("notes"),
+    basePremium: numeric("base_premium", { precision: 14, scale: 2 })
+      .notNull()
+      .default("0"),
+    taxes: numeric("taxes", { precision: 14, scale: 2 })
+      .notNull()
+      .default("0"),
+    mgaFee: numeric("mga_fee", { precision: 14, scale: 2 })
+      .notNull()
+      .default("0"),
+    brokerFee: numeric("broker_fee", { precision: 14, scale: 2 }).notNull(),
+    commissionAmount: numeric("commission_amount", {
+      precision: 14,
+      scale: 2,
+    })
+      .notNull()
+      .default("0"),
+    commissionMode: commissionModeEnum("commission_mode").notNull(),
+    commissionRate: numeric("commission_rate", { precision: 7, scale: 4 }),
+    commissionConfirmed: boolean("commission_confirmed")
+      .notNull()
+      .default(false),
+    amountPaid: numeric("amount_paid", { precision: 14, scale: 2 }).notNull(),
+    proposalTotal: numeric("proposal_total", {
+      precision: 14,
+      scale: 2,
+    }).notNull(),
+    netDue: numeric("net_due", { precision: 14, scale: 2 }).notNull(),
+    paymentMode: paymentModeEnum("payment_mode").notNull(),
+    depositOption: numeric("deposit_option", { precision: 14, scale: 2 })
+      .notNull()
+      .default("0"),
+    financeBalance: numeric("finance_balance", { precision: 14, scale: 2 })
+      .notNull()
+      .default("0"),
+    financeReference: text("finance_reference"),
+    ipfsFinanced: ipfsFinancingChoiceEnum("ipfs_financed"),
+    ipfsManual: boolean("ipfs_manual").notNull().default(false),
+    ipfsReturning: ipfsCustomerTypeEnum("ipfs_returning"),
+    financeContact: jsonb("finance_contact"),
+    financeMeta: jsonb("finance_meta"),
+    ipfsPushed: boolean("ipfs_pushed").notNull().default(false),
+    ipfsPushedAt: timestamp("ipfs_pushed_at", { withTimezone: true }),
+    mgaPaid: boolean("mga_paid").notNull().default(false),
+    mgaPayReference: text("mga_pay_reference"),
+    mgaPaidAt: timestamp("mga_paid_at", { withTimezone: true }),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull(),
+    approvedAt: timestamp("approved_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("policies_source_draft_idx").on(table.sourceDraftId),
+    index("policies_submitter_idx").on(table.submittedByUserId),
+    index("policies_policy_type_idx").on(table.policyTypeId),
+    index("policies_carrier_idx").on(table.carrierId),
+    index("policies_mga_paid_idx").on(table.mgaId, table.mgaPaid),
+    index("policies_office_idx").on(table.officeLocationId),
+    index("policies_producer_idx").on(table.producerUserId),
+    index("policies_effective_date_idx").on(table.effectiveDate),
+    check(
+      "policies_insured_name_check",
+      sql`${table.insuredName} = btrim(${table.insuredName}) AND char_length(${table.insuredName}) > 0`,
+    ),
+    check(
+      "policies_company_name_check",
+      sql`${table.companyName} is null OR (${table.companyName} = btrim(${table.companyName}) AND char_length(${table.companyName}) > 0)`,
+    ),
+    check(
+      "policies_policy_number_check",
+      sql`${table.policyNumber} = btrim(${table.policyNumber}) AND char_length(${table.policyNumber}) > 0`,
+    ),
+    check(
+      "policies_transaction_type_check",
+      sql`${table.transactionType} = btrim(${table.transactionType}) AND char_length(${table.transactionType}) BETWEEN 1 AND 100`,
+    ),
+    check(
+      "policies_invoice_number_check",
+      sql`lower(${table.transactionType}) NOT IN ('audit', 'endorsement') OR NULLIF(btrim(${table.invoiceNumber}), '') is not null`,
+    ),
+    check(
+      "policies_date_order_check",
+      sql`${table.expirationDate} >= ${table.effectiveDate}`,
+    ),
+    check(
+      "policies_assignment_check",
+      sql`(${table.kayleeSplit} = 'none' AND ${table.producerUserId} is null)
+        OR (${table.kayleeSplit} in ('book', 'house') AND ${table.producerUserId} is not null)`,
+    ),
+    check(
+      "policies_money_nonnegative_check",
+      sql`${table.basePremium} >= 0
+        AND ${table.taxes} >= 0
+        AND ${table.mgaFee} >= 0
+        AND ${table.brokerFee} >= 0
+        AND ${table.commissionAmount} >= 0
+        AND ${table.amountPaid} >= 0
+        AND ${table.proposalTotal} >= 0
+        AND ${table.netDue} >= 0
+        AND ${table.depositOption} >= 0
+        AND ${table.financeBalance} >= 0`,
+    ),
+    check(
+      "policies_proposal_total_check",
+      sql`${table.proposalTotal} = ${table.basePremium} + ${table.taxes} + ${table.mgaFee} + ${table.brokerFee}`,
+    ),
+    check(
+      "policies_commission_check",
+      sql`(
+        ${table.commissionMode} = 'pct'
+        AND ${table.commissionRate} is not null
+        AND ${table.commissionRate} BETWEEN 0 AND 100
+        AND ${table.commissionAmount} = round(${table.basePremium} * ${table.commissionRate} / 100, 2)
+        AND (${table.basePremium} = 0 OR ${table.commissionConfirmed} = true)
+      ) OR (
+        ${table.commissionMode} in ('tbd', 'na')
+        AND ${table.commissionRate} is null
+        AND ${table.commissionAmount} = 0
+        AND ${table.commissionConfirmed} = false
+      )`,
+    ),
+    check(
+      "policies_net_due_check",
+      sql`${table.netDue} = ${table.amountPaid} - ${table.commissionAmount} - ${table.brokerFee}`,
+    ),
+    check(
+      "policies_finance_balance_check",
+      sql`(${table.paymentMode} = 'deposit'
+        AND ${table.proposalTotal} >= ${table.amountPaid}
+        AND ${table.financeBalance} = ${table.proposalTotal} - ${table.amountPaid})
+        OR (${table.paymentMode} in ('full', 'direct') AND ${table.financeBalance} = 0)`,
+    ),
+    check(
+      "policies_finance_contact_shape_check",
+      sql`${table.financeContact} is null OR (jsonb_typeof(${table.financeContact}) = 'object' AND pg_column_size(${table.financeContact}) <= 8192)`,
+    ),
+    check(
+      "policies_finance_meta_shape_check",
+      sql`${table.financeMeta} is null OR (jsonb_typeof(${table.financeMeta}) = 'object' AND pg_column_size(${table.financeMeta}) <= 8192)`,
+    ),
+    check(
+      "policies_ipfs_state_check",
+      sql`(
+        ${table.paymentMode} <> 'deposit'
+        AND ${table.ipfsFinanced} is null
+        AND ${table.ipfsManual} = false
+        AND ${table.ipfsReturning} is null
+        AND ${table.financeContact} is null
+        AND ${table.financeMeta} is null
+        AND ${table.ipfsPushed} = false
+        AND ${table.ipfsPushedAt} is null
+      ) OR (
+        ${table.paymentMode} = 'deposit'
+        AND ${table.ipfsFinanced} = 'no'
+        AND ${table.ipfsManual} = false
+        AND ${table.ipfsReturning} is null
+        AND ${table.financeContact} is null
+        AND ${table.financeMeta} is null
+        AND ${table.ipfsPushed} = false
+        AND ${table.ipfsPushedAt} is null
+      ) OR (
+        ${table.paymentMode} = 'deposit'
+        AND ${table.ipfsFinanced} = 'yes'
+        AND ${table.financeMeta} is not null
+        AND (
+          ${table.ipfsManual} = true
+          OR (${table.ipfsReturning} is not null AND ${table.financeContact} is not null)
+        )
+        AND (
+          (${table.ipfsPushed} = false AND ${table.ipfsPushedAt} is null)
+          OR (
+            ${table.ipfsManual} = false
+            AND ${table.ipfsPushed} = true
+            AND ${table.ipfsPushedAt} is not null
+          )
+        )
+      )`,
+    ),
+    check(
+      "policies_mga_paid_state_check",
+      sql`(${table.mgaPaid} = false AND ${table.mgaPaidAt} is null)
+        OR (${table.mgaPaid} = true AND ${table.mgaPaidAt} is not null)`,
+    ),
+    check(
+      "policies_timestamp_order_check",
+      sql`${table.approvedAt} >= ${table.submittedAt}
+        AND ${table.updatedAt} >= ${table.createdAt}`,
+    ),
+  ],
+);
+
+export type PolicyRecord = typeof policies.$inferSelect;
+export type NewPolicyRecord = typeof policies.$inferInsert;
