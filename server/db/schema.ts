@@ -3,6 +3,14 @@ import { STAFF_ROLES } from "../../shared/access.js";
 import { MFA_METHOD_TYPES } from "../../shared/mfa-scaffold.js";
 import { POLICY_TYPE_CLASSES } from "../../shared/policy-types.js";
 import {
+  ACCOUNT_ASSIGNMENTS,
+  COMMISSION_MODES,
+  DRAFT_STATUSES,
+  IPFS_CUSTOMER_TYPES,
+  IPFS_FINANCING_CHOICES,
+  PAYMENT_MODES,
+} from "../../shared/policy-fields.js";
+import {
   boolean,
   check,
   date,
@@ -24,6 +32,24 @@ export const mfaMethodTypeEnum = pgEnum("mfa_method_type", MFA_METHOD_TYPES);
 export const policyTypeClassEnum = pgEnum(
   "policy_type_class",
   POLICY_TYPE_CLASSES,
+);
+export const draftStatusEnum = pgEnum("draft_status", DRAFT_STATUSES);
+export const commissionModeEnum = pgEnum(
+  "commission_mode",
+  COMMISSION_MODES,
+);
+export const paymentModeEnum = pgEnum("payment_mode", PAYMENT_MODES);
+export const accountAssignmentEnum = pgEnum(
+  "account_assignment",
+  ACCOUNT_ASSIGNMENTS,
+);
+export const ipfsFinancingChoiceEnum = pgEnum(
+  "ipfs_financing_choice",
+  IPFS_FINANCING_CHOICES,
+);
+export const ipfsCustomerTypeEnum = pgEnum(
+  "ipfs_customer_type",
+  IPFS_CUSTOMER_TYPES,
 );
 export const staffPronounEnum = pgEnum("staff_pronoun", [
   "her",
@@ -388,3 +414,153 @@ export const policyTypes = pgTable(
 
 export type PolicyTypeRecord = typeof policyTypes.$inferSelect;
 export type NewPolicyTypeRecord = typeof policyTypes.$inferInsert;
+
+export const drafts = pgTable(
+  "drafts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerUserId: uuid("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    schemaVersion: integer("schema_version").notNull().default(1),
+    status: draftStatusEnum("status").notNull().default("draft"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    lastEditedAt: timestamp("last_edited_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    flagReason: text("flag_reason"),
+    sentBackReason: text("sent_back_reason"),
+    sentBackByUserId: uuid("sent_back_by_user_id").references(() => users.id, {
+      onDelete: "restrict",
+    }),
+    sentBackAt: timestamp("sent_back_at", { withTimezone: true }),
+    linkedQueueEntryId: uuid("linked_queue_entry_id"),
+    linkedPolicyId: uuid("linked_policy_id"),
+    insuredName: text("insured_name"),
+    companyName: text("company_name"),
+    policyNumber: text("policy_number"),
+    policyTypeId: uuid("policy_type_id").references(() => policyTypes.id, {
+      onDelete: "restrict",
+    }),
+    transactionType: text("transaction_type"),
+    transactionNotes: text("transaction_notes"),
+    invoiceNumber: text("invoice_number"),
+    effectiveDate: date("effective_date"),
+    expirationDate: date("expiration_date"),
+    carrierId: uuid("carrier_id").references(() => carriers.id, {
+      onDelete: "restrict",
+    }),
+    mgaId: uuid("mga_id").references(() => mgas.id, {
+      onDelete: "restrict",
+    }),
+    officeLocationId: uuid("office_location_id").references(
+      () => officeLocations.id,
+      { onDelete: "restrict" },
+    ),
+    accountAssignment: accountAssignmentEnum("account_assignment"),
+    producerUserId: uuid("producer_user_id").references(
+      () => staffProfiles.userId,
+      { onDelete: "restrict" },
+    ),
+    notes: text("notes"),
+    basePremium: numeric("base_premium", { precision: 14, scale: 2 }),
+    taxes: numeric("taxes", { precision: 14, scale: 2 }),
+    mgaFee: numeric("mga_fee", { precision: 14, scale: 2 }),
+    brokerFee: numeric("broker_fee", { precision: 14, scale: 2 }),
+    commissionMode: commissionModeEnum("commission_mode"),
+    commissionRate: numeric("commission_rate", { precision: 7, scale: 4 }),
+    commissionConfirmed: boolean("commission_confirmed")
+      .notNull()
+      .default(false),
+    amountPaid: numeric("amount_paid", { precision: 14, scale: 2 }),
+    proposalTotal: numeric("proposal_total", { precision: 14, scale: 2 }),
+    netDue: numeric("net_due", { precision: 14, scale: 2 }),
+    paymentMode: paymentModeEnum("payment_mode"),
+    depositOption: numeric("deposit_option", { precision: 14, scale: 2 }),
+    financeBalance: numeric("finance_balance", { precision: 14, scale: 2 }),
+    financeReference: text("finance_reference"),
+    ipfsFinanced: ipfsFinancingChoiceEnum("ipfs_financed"),
+    ipfsManual: boolean("ipfs_manual").notNull().default(false),
+    ipfsReturning: ipfsCustomerTypeEnum("ipfs_returning"),
+    financeContact: jsonb("finance_contact"),
+    financeMeta: jsonb("finance_meta"),
+    ipfsPushed: boolean("ipfs_pushed").notNull().default(false),
+    ipfsPushedAt: timestamp("ipfs_pushed_at", { withTimezone: true }),
+    history: jsonb("history").notNull().default(sql`'[]'::jsonb`),
+  },
+  (table) => [
+    index("drafts_owner_status_idx").on(table.ownerUserId, table.status),
+    index("drafts_policy_type_idx").on(table.policyTypeId),
+    index("drafts_carrier_idx").on(table.carrierId),
+    index("drafts_mga_idx").on(table.mgaId),
+    index("drafts_office_location_idx").on(table.officeLocationId),
+    index("drafts_producer_idx").on(table.producerUserId),
+    check("drafts_schema_version_positive_check", sql`${table.schemaVersion} > 0`),
+    check(
+      "drafts_last_edited_order_check",
+      sql`${table.lastEditedAt} >= ${table.createdAt}`,
+    ),
+    check(
+      "drafts_date_order_check",
+      sql`${table.effectiveDate} is null OR ${table.expirationDate} is null OR ${table.expirationDate} >= ${table.effectiveDate}`,
+    ),
+    check(
+      "drafts_base_premium_nonnegative_check",
+      sql`${table.basePremium} is null OR ${table.basePremium} >= 0`,
+    ),
+    check(
+      "drafts_taxes_nonnegative_check",
+      sql`${table.taxes} is null OR ${table.taxes} >= 0`,
+    ),
+    check(
+      "drafts_mga_fee_nonnegative_check",
+      sql`${table.mgaFee} is null OR ${table.mgaFee} >= 0`,
+    ),
+    check(
+      "drafts_broker_fee_nonnegative_check",
+      sql`${table.brokerFee} is null OR ${table.brokerFee} >= 0`,
+    ),
+    check(
+      "drafts_commission_rate_check",
+      sql`${table.commissionRate} is null OR (${table.commissionRate} >= 0 AND ${table.commissionRate} <= 100)`,
+    ),
+    check(
+      "drafts_amount_paid_nonnegative_check",
+      sql`${table.amountPaid} is null OR ${table.amountPaid} >= 0`,
+    ),
+    check(
+      "drafts_proposal_total_nonnegative_check",
+      sql`${table.proposalTotal} is null OR ${table.proposalTotal} >= 0`,
+    ),
+    check(
+      "drafts_deposit_option_nonnegative_check",
+      sql`${table.depositOption} is null OR ${table.depositOption} >= 0`,
+    ),
+    check(
+      "drafts_finance_balance_nonnegative_check",
+      sql`${table.financeBalance} is null OR ${table.financeBalance} >= 0`,
+    ),
+    check(
+      "drafts_finance_contact_shape_check",
+      sql`${table.financeContact} is null OR (jsonb_typeof(${table.financeContact}) = 'object' AND pg_column_size(${table.financeContact}) <= 8192)`,
+    ),
+    check(
+      "drafts_finance_meta_shape_check",
+      sql`${table.financeMeta} is null OR (jsonb_typeof(${table.financeMeta}) = 'object' AND pg_column_size(${table.financeMeta}) <= 8192)`,
+    ),
+    check(
+      "drafts_ipfs_push_metadata_check",
+      sql`(${table.ipfsPushed} = false AND ${table.ipfsPushedAt} is null) OR (${table.ipfsPushed} = true AND ${table.ipfsPushedAt} is not null)`,
+    ),
+    check(
+      "drafts_history_bounded_check",
+      sql`jsonb_typeof(${table.history}) = 'array' AND jsonb_array_length(${table.history}) <= 200 AND pg_column_size(${table.history}) <= 65536`,
+    ),
+  ],
+);
+
+export type DraftRecord = typeof drafts.$inferSelect;
+export type NewDraftRecord = typeof drafts.$inferInsert;
