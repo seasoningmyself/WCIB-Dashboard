@@ -441,6 +441,33 @@ DATABASE_URL=postgresql://wcib:wcib_local_password@127.0.0.1:54322/wcib \
   npm run test:db:access
 ```
 
+## Authorization middleware
+
+`server/auth/authorization.ts` is the server-side guard entry point for future
+protected routes. Build one guard set with
+`createDatabaseAuthorizationGuards`, then attach exactly one explicit
+`authorization.require(...)` declaration to each protected route. The accepted
+requirement is `authenticated`, a list of employee/producer staff roles, a list
+of capabilities, or a role/capability combination. Omitting the requirement or
+passing empty lists denies every account, including admin.
+
+The guard resolves the server-side session, reloads current user access from
+Postgres, and stores only the trusted user UUID, staff role, and capability
+summary in request-local authorization context. Client-supplied roles,
+capabilities, IDs, or financial values are never consulted. Anonymous requests
+receive HTTP 401; authenticated accounts that do not satisfy the explicit rule
+receive HTTP 403. Denial logs contain only the route template, method, safe
+reason code, and authenticated user UUID when available.
+
+`server/security/field-projection.ts` is the response-projection hook. A route
+handler calls `projectAuthorizedFields` with an explicit DTO projector; that
+projector receives the trusted authorization context established by the guard.
+The helper fails closed before running the projector if the route omitted its
+guard. Later endpoint tickets must define the concrete record-scope checks and
+field allowlists, return explicit response DTOs, and state in one sentence who
+can call the endpoint and which fields its projector returns. Never spread a
+database row into an API response.
+
 ## Database connection smoke
 
 The backend creates its runtime `pg` pool from the validated `DATABASE_URL` and

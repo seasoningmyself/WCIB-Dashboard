@@ -1,9 +1,11 @@
 export const apiErrorCodes = {
   badRequest: "bad_request",
+  forbidden: "forbidden",
   invalidCredentials: "invalid_credentials",
   invalidResetToken: "invalid_reset_token",
   internal: "internal_error",
   notFound: "not_found",
+  unauthorized: "unauthorized",
   validation: "validation_error",
 } as const;
 
