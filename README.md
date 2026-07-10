@@ -4,9 +4,10 @@ WCIB Dashboard is the new multi-user application that will replace the
 single-file prototype. The application starts from a blank database; prototype
 `localStorage` data is not imported.
 
-The authoritative behavior references are `wcib_dashboard_v15.html` and the
-July 7 Engineer Handoff. Older data-model and permissions documents are useful
-history but do not override those sources or the standing project decisions.
+The authoritative behavior references are `docs/wcib_dashboard_v15.html` and
+`docs/README_Engineer_Handoff.md`. Older data-model and permissions documents
+are useful history but do not override those sources or the standing project
+decisions.
 
 ## Current structure
 
