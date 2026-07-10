@@ -87,14 +87,15 @@ PostgreSQL superuser.
 | Purpose | Location | Required mode |
 | --- | --- | --- |
 | Production app environment | `/etc/wcib-dashboard/app.env` | `0600 root:root` |
-| Persistent managed DB CA | `/etc/wcib-dashboard/digitalocean-postgres-ca.crt` | `0600 root:root` |
+| Persistent managed DB CA | `/etc/wcib-dashboard/digitalocean-postgres-ca.crt` | `0644 root:root` |
 | Container CA mount | `/run/secrets/digitalocean-postgres-ca.crt` | Read-only |
 | Operator managed-DB environment | Ignored `.env.managed.local` | `0600` |
 | Operator migration environment | Ignored `.env.production-migrate.local` | `0600` |
 
 The repository ignores `.env.*` and `.secrets/`. The Docker build context also
 excludes both, preventing local credentials and certificates from being copied
-into an image layer.
+into an image layer. The CA certificate is a public trust anchor rather than a
+secret, so it is root-owned but world-readable for the non-root app process.
 
 ## Managed durability
 

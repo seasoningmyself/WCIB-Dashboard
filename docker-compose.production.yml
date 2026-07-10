@@ -1,0 +1,62 @@
+name: wcib-dashboard-production
+
+services:
+  app:
+    image: ${WCIB_APP_IMAGE:-wcib-dashboard:stone-75}
+    restart: unless-stopped
+    env_file:
+      - /etc/wcib-dashboard/app.env
+    ports:
+      - "127.0.0.1:5000:5000"
+    volumes:
+      - /etc/wcib-dashboard/digitalocean-postgres-ca.crt:/run/secrets/digitalocean-postgres-ca.crt:ro
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:5000/health').then((response)=>{if(!response.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    networks:
+      - wcib_app
+
+  caddy:
+    image: caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+    profiles:
+      - ingress
+    restart: unless-stopped
+    environment:
+      WCIB_HOSTNAME: ${WCIB_HOSTNAME:-}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - wcib_app
+
+networks:
+  wcib_app:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:

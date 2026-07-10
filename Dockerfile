@@ -13,6 +13,6 @@ RUN npm run check \
 
 USER node
 
-EXPOSE 5000 5173
+EXPOSE 5000
 
-CMD ["npm", "run", "dev"]
+CMD ["npm", "run", "start"]
