@@ -21,6 +21,11 @@ import {
 import { MAX_POLICY_OVERRIDE_VALUES_BYTES } from "../../shared/policy-overrides.js";
 import { MGA_PAYMENT_STATUSES } from "../../shared/mga-payments.js";
 import {
+  MAX_PAY_SHEET_FROZEN_TOTALS_BYTES,
+  PAY_SHEET_OWNER_TYPES,
+  PAY_SHEET_STATUSES,
+} from "../../shared/pay-sheets.js";
+import {
   boolean,
   check,
   date,
@@ -78,6 +83,14 @@ export const auditEntityTypeEnum = pgEnum(
 export const mgaPaymentStatusEnum = pgEnum(
   "mga_payment_status",
   MGA_PAYMENT_STATUSES,
+);
+export const paySheetOwnerTypeEnum = pgEnum(
+  "pay_sheet_owner_type",
+  PAY_SHEET_OWNER_TYPES,
+);
+export const paySheetStatusEnum = pgEnum(
+  "pay_sheet_status",
+  PAY_SHEET_STATUSES,
 );
 export const staffPronounEnum = pgEnum("staff_pronoun", [
   "her",
@@ -1146,3 +1159,97 @@ export const mgaPayments = pgTable(
 
 export type MgaPaymentRecord = typeof mgaPayments.$inferSelect;
 export type NewMgaPaymentRecord = typeof mgaPayments.$inferInsert;
+
+export const paySheets = pgTable(
+  "pay_sheets",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerUserId: uuid("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    ownerType: paySheetOwnerTypeEnum("owner_type").notNull(),
+    periodMonth: integer("period_month").notNull(),
+    periodYear: integer("period_year").notNull(),
+    status: paySheetStatusEnum("status").notNull().default("open"),
+    openedAt: timestamp("opened_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    frozenTotals: jsonb("frozen_totals"),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    closedByUserId: uuid("closed_by_user_id").references(() => users.id, {
+      onDelete: "restrict",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("pay_sheets_owner_period_unique_idx").on(
+      table.ownerUserId,
+      table.ownerType,
+      table.periodYear,
+      table.periodMonth,
+    ),
+    check(
+      "pay_sheets_period_check",
+      sql`${table.periodMonth} BETWEEN 1 AND 12
+        AND ${table.periodYear} BETWEEN 2000 AND 9999`,
+    ),
+    check(
+      "pay_sheets_open_state_check",
+      sql`${table.status} <> 'open' OR (
+        ${table.frozenTotals} is null
+        AND ${table.closedAt} is null
+        AND ${table.closedByUserId} is null
+      )`,
+    ),
+    check(
+      "pay_sheets_frozen_totals_check",
+      sql`${table.frozenTotals} is null OR (
+        jsonb_typeof(${table.frozenTotals}) = 'object'
+        AND pg_column_size(${table.frozenTotals}) <= ${sql.raw(String(MAX_PAY_SHEET_FROZEN_TOTALS_BYTES))}
+        AND NOT jsonb_path_exists(
+          ${table.frozenTotals},
+          '$.* ? (@.type() != "string")'
+        )
+        AND (
+          (
+            ${table.ownerType} = 'sophia'
+            AND (${table.frozenTotals} - ARRAY[
+              'brokerFees', 'commissions', 'trustPull',
+              'directCheckAchIncome', 'grandTotalIncome',
+              'sophiaTakeHome', 'sophiaShare', 'sophiaAgencyGross'
+            ]) = '{}'::jsonb
+            AND ${table.frozenTotals} ?& ARRAY[
+              'brokerFees', 'commissions', 'trustPull',
+              'directCheckAchIncome', 'grandTotalIncome',
+              'sophiaTakeHome', 'sophiaShare', 'sophiaAgencyGross'
+            ]
+          ) OR (
+            ${table.ownerType} = 'producer'
+            AND (${table.frozenTotals} - ARRAY[
+              'brokerFees', 'commissions', 'trustPull',
+              'directCheckAchIncome', 'grandTotalIncome', 'producerPayout'
+            ]) = '{}'::jsonb
+            AND ${table.frozenTotals} ?& ARRAY[
+              'brokerFees', 'commissions', 'trustPull',
+              'directCheckAchIncome', 'grandTotalIncome', 'producerPayout'
+            ]
+          )
+        )
+      )`,
+    ),
+    check(
+      "pay_sheets_timestamp_order_check",
+      sql`${table.updatedAt} >= ${table.createdAt}
+        AND ${table.openedAt} >= ${table.createdAt}
+        AND (${table.closedAt} is null OR ${table.closedAt} >= ${table.openedAt})`,
+    ),
+  ],
+);
+
+export type PaySheetRecord = typeof paySheets.$inferSelect;
+export type NewPaySheetRecord = typeof paySheets.$inferInsert;

@@ -621,6 +621,27 @@ npm run test:db:mga-payments
 npm run test:db:mga-payment-rules
 ```
 
+## Pay-sheet records
+
+`pay_sheets` identifies each Sophia or producer sheet by owner UUID and numeric
+month/year. Open sheets cannot contain frozen totals or close metadata. When
+present, `frozen_totals` is a bounded owner-specific object of canonical money
+strings. Common totals retain broker fees, commissions, trust pull,
+direct/check/ACH income, and grand total income; producer sheets add payout,
+while Sophia sheets separately retain agency gross, share, and take-home.
+
+The application validator enforces `trust = broker fees + commissions`, `grand
+total = trust + direct/check/ACH income`, and Sophia agency gross equals grand
+total. Policy rows, rate snapshots, adjustments, close behavior, and reopen
+behavior are not part of the item-23 table.
+
+Run the table and frozen-total contract checks with:
+
+```sh
+npm run test:db:pay-sheets
+node --import tsx --test server/pay-sheets/frozen-totals.test.ts
+```
+
 ## Structured logging
 
 The backend writes newline-delimited JSON records with a timestamp, level,
