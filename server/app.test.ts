@@ -102,13 +102,18 @@ test("validation errors use the standard API error shape", async () => {
 
 test("unexpected errors return a generic response and safe log event", async () => {
   const events: UnexpectedErrorEvent[] = [];
+  const failure = new Error("DATABASE_URL=must-not-be-logged");
+  let loggedError: unknown;
   const app = createApp({
-    logUnexpectedError: (event) => events.push(event),
+    logUnexpectedError: (event, error) => {
+      events.push(event);
+      loggedError = error;
+    },
     registerRoutes(expressApp) {
       expressApp.get(
         "/api/fail/:sensitiveValue",
         asyncRoute(async () => {
-          throw new Error("DATABASE_URL=must-not-be-logged");
+          throw failure;
         }),
       );
     },
@@ -130,4 +135,5 @@ test("unexpected errors return a generic response and safe log event", async () 
   ]);
   assert.equal(JSON.stringify(events).includes("private-value"), false);
   assert.equal(JSON.stringify(events).includes("DATABASE_URL"), false);
+  assert.equal(loggedError, failure);
 });

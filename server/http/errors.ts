@@ -12,6 +12,8 @@ import {
   type ApiErrorDetail,
   type ApiErrorResponse,
 } from "../../shared/api-errors.js";
+import { StructuredLogger } from "../logging/logger.js";
+import { safeRouteLabel } from "../logging/request.js";
 
 export interface UnexpectedErrorEvent {
   errorType: string;
@@ -21,7 +23,10 @@ export interface UnexpectedErrorEvent {
   statusCode: 500;
 }
 
-export type UnexpectedErrorLogger = (event: UnexpectedErrorEvent) => void;
+export type UnexpectedErrorLogger = (
+  event: UnexpectedErrorEvent,
+  error: unknown,
+) => void;
 
 export class HttpError extends Error {
   constructor(
@@ -115,15 +120,9 @@ export function toErrorResponse(error: unknown): ErrorResponse {
   );
 }
 
-function safeRouteLabel(req: Request): string {
-  const routePath = (req.route as { path?: unknown } | undefined)?.path;
-  return typeof routePath === "string"
-    ? `${req.baseUrl}${routePath}`
-    : "unmatched";
-}
-
-const defaultUnexpectedErrorLogger: UnexpectedErrorLogger = (event) => {
-  console.error(JSON.stringify({ level: "error", ...event }));
+const defaultLogger = new StructuredLogger();
+const defaultUnexpectedErrorLogger: UnexpectedErrorLogger = (event, error) => {
+  defaultLogger.error("Unhandled request error", { ...event }, error);
 };
 
 export function asyncRoute(
@@ -154,13 +153,16 @@ export function createErrorHandler(
     const result = toErrorResponse(error);
 
     if (result.unexpected) {
-      logUnexpectedError({
-        errorType: error instanceof Error ? error.name : "UnknownError",
-        event: "unhandled_request_error",
-        method: req.method,
-        route: safeRouteLabel(req),
-        statusCode: 500,
-      });
+      logUnexpectedError(
+        {
+          errorType: error instanceof Error ? error.name : "UnknownError",
+          event: "unhandled_request_error",
+          method: req.method,
+          route: safeRouteLabel(req),
+          statusCode: 500,
+        },
+        error,
+      );
     }
 
     res.status(result.statusCode).json(result.response);

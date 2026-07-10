@@ -261,8 +261,22 @@ return the generic `internal_error` response. The server never returns stack
 traces, request bodies, cookies, credentials, or financial payloads.
 
 Unexpected failures emit one safe event containing only the HTTP method, route
-template, status code, and error type. Concrete logging and external tracking
-adapters are configured by their dedicated Foundation tickets.
+template, status code, and error type.
+
+## Structured logging
+
+The backend writes newline-delimited JSON records with a timestamp, level,
+message, and optional safe context. Request records contain only the route
+template, method, status, and duration. Logs must not include request bodies,
+headers, cookies, credentials, PII, stored financial values, or concrete route
+parameters; the logger applies bounded defensive redaction if a caller passes
+sensitive context by mistake.
+
+Unexpected exceptions are represented locally by error type only. The logger
+has a Sentry-shaped `captureException(error, { level, tags, extra })` adapter
+boundary so later integration will not require route-handler changes. Foundation
+uses a no-op adapter: there is no Sentry SDK, DSN, initialization, release
+metadata, event shipping, or other telemetry dependency in this milestone.
 
 ## Module rules
 
