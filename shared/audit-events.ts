@@ -10,6 +10,11 @@ export const AUDIT_ACTIONS = [
   "pay_sheet_adjustment_deleted",
   "staff_account_changed",
   "producer_rate_changed",
+  "draft_submitted",
+  "draft_flagged",
+  "draft_sent_back",
+  "policy_approved",
+  "admin_policy_submitted",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -23,6 +28,8 @@ export const AUDIT_ENTITY_TYPES = [
   "pay_sheet_adjustment",
   "staff_profile",
   "producer_rate_history",
+  "draft",
+  "approval_queue_entry",
 ] as const;
 
 export type AuditEntityType = (typeof AUDIT_ENTITY_TYPES)[number];

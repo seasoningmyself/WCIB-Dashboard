@@ -67,7 +67,10 @@ test("payment stub persists true inputs and status-consistent defaults", async (
     const [defaults] = await database
       .insert(policies)
       .values(
-        policyTestInput(references, { insuredName: "Default Stub Insured" }),
+        policyTestInput(references, {
+          insuredName: "Default Stub Insured",
+          sourceDraftId: null,
+        }),
       )
       .returning();
     assert.ok(defaults);
@@ -90,6 +93,7 @@ test("payment stub persists true inputs and status-consistent defaults", async (
           collectedToDate: "300.00",
           premiumTotal: "1000.00",
           receivableStatus: "paid",
+          sourceDraftId: null,
         }),
       ),
     );
@@ -99,6 +103,7 @@ test("payment stub persists true inputs and status-consistent defaults", async (
           collectedToDate: "1000.01",
           premiumTotal: "1000.00",
           receivableStatus: "partial",
+          sourceDraftId: null,
         }),
       ),
     );
@@ -108,6 +113,7 @@ test("payment stub persists true inputs and status-consistent defaults", async (
           netDueTotal: "100.00",
           payableStatus: "partially_remitted",
           remittedToMga: "-0.01",
+          sourceDraftId: null,
         }),
       ),
     );

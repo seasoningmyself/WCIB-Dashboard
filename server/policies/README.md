@@ -14,3 +14,16 @@ statuses, and due date are stored. Read models compute
 `balance_due_from_insured = premium_total - collected_to_date` and
 `remaining_net_due = net_due_total - remitted_to_mga`; neither balance is a
 database column.
+
+## Draft-to-ledger lifecycle
+
+`lifecycle.ts` is the transaction boundary for draft submission, flagging,
+send-back, queued approval, and admin direct entry. Actor IDs and queue bypass
+come only from `AuthorizedRequestContext`; policy identity, timestamps, MGA
+payment state, IPFS push state, and the inert payment-tracking stub are set by
+the service. The database functions recheck active staff/admin access and
+deferred constraints reject partial draft, queue, and policy states at commit.
+
+Run the fast contract tests with `npm test`. After applying migrations to a
+disposable database, run `npm run test:db:policy-lifecycle` for the full atomic
+lifecycle and rollback coverage.

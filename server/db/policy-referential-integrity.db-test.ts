@@ -73,7 +73,12 @@ test("policies reject orphan identities and preserve deactivated history", async
       await expectForeignKeyFailure(client, () =>
         database
           .insert(policies)
-          .values(policyTestInput(references, invalidReference)),
+          .values(
+            policyTestInput(references, {
+              sourceDraftId: null,
+              ...invalidReference,
+            }),
+          ),
       );
     }
 
@@ -109,6 +114,9 @@ test("policies reject orphan identities and preserve deactivated history", async
       database.delete(drafts).where(eq(drafts.id, references.sourceDraftId)),
       "23001",
     );
+    await database
+      .delete(staffProfiles)
+      .where(eq(staffProfiles.userId, references.submittedByUserId));
     await expectForeignKeyFailure(client, () =>
       database
         .delete(users)

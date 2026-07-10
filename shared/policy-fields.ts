@@ -33,6 +33,7 @@ export const APPROVAL_QUEUE_STATUSES = [
   "pending",
   "sent_back",
   "flagged",
+  "approved",
 ] as const;
 
 export type ApprovalQueueStatus = (typeof APPROVAL_QUEUE_STATUSES)[number];

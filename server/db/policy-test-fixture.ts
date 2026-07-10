@@ -33,11 +33,18 @@ export async function createPolicyReferenceFixture(
     email: `policy-producer-${suffix}@example.test`,
     password: "StrongPass123!",
   });
-  await database.insert(staffProfiles).values({
-    displayName: `Policy Producer ${suffix}`,
-    role: "producer",
-    userId: producer.id,
-  });
+  await database.insert(staffProfiles).values([
+    {
+      displayName: `Policy Submitter ${suffix}`,
+      role: "employee",
+      userId: submitter.id,
+    },
+    {
+      displayName: `Policy Producer ${suffix}`,
+      role: "producer",
+      userId: producer.id,
+    },
+  ]);
 
   const [office] = await database
     .insert(officeLocations)

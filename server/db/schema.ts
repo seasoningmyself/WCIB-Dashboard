@@ -701,6 +701,11 @@ export const approvalQueueEntries = pgTable(
         AND ${table.actedByUserId} is null
         AND ${table.actedAt} is null
       ) OR (
+        ${table.status} = 'approved'
+        AND ${table.reason} is null
+        AND ${table.actedByUserId} is not null
+        AND ${table.actedAt} is not null
+      ) OR (
         ${table.status} in ('sent_back', 'flagged')
         AND NULLIF(btrim(${table.reason}), '') is not null
         AND ${table.actedByUserId} is not null
@@ -838,7 +843,9 @@ export const policies = pgTable(
       .defaultNow(),
   },
   (table) => [
-    index("policies_source_draft_idx").on(table.sourceDraftId),
+    uniqueIndex("policies_source_draft_unique_idx")
+      .on(table.sourceDraftId)
+      .where(sql`${table.sourceDraftId} is not null`),
     index("policies_submitter_idx").on(table.submittedByUserId),
     index("policies_policy_type_idx").on(table.policyTypeId),
     index("policies_carrier_idx").on(table.carrierId),
