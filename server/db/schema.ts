@@ -1197,6 +1197,12 @@ export const paySheets = pgTable(
       table.periodYear,
       table.periodMonth,
     ),
+    uniqueIndex("pay_sheets_single_open_sophia_idx")
+      .on(table.ownerType)
+      .where(sql`${table.ownerType} = 'sophia' AND ${table.status} = 'open'`),
+    uniqueIndex("pay_sheets_single_open_producer_idx")
+      .on(table.ownerUserId)
+      .where(sql`${table.ownerType} = 'producer' AND ${table.status} = 'open'`),
     check(
       "pay_sheets_period_check",
       sql`${table.periodMonth} BETWEEN 1 AND 12

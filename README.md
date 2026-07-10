@@ -658,6 +658,22 @@ node --import tsx --test server/pay-sheets/snapshots.test.ts
 npm run test:db:pay-sheet-policies
 ```
 
+MGA placement runs only after the item-22 paid/unpaid state is synchronized.
+The trusted `sync_mga_payment_sheet_placement` function derives the one open
+Sophia sheet and matching assigned-producer sheet; callers cannot supply sheet
+or owner IDs. Paid calls skip owner chains already represented on a closed
+sheet. Unpaid calls delete open associations only, and every actual attachment
+or detachment writes its own bounded audit event atomically.
+
+Partial unique indexes allow one global open Sophia sheet and one open sheet per
+producer. The function also locks the policy/MGA rows and uses the existing
+sheet-policy unique key with `ON CONFLICT DO NOTHING`, making repeated and
+competing placement requests duplicate-safe. Run the database contract with:
+
+```sh
+npm run test:db:mga-pay-sheet-attachment
+```
+
 ## Structured logging
 
 The backend writes newline-delimited JSON records with a timestamp, level,

@@ -57,7 +57,7 @@ test("pay-sheet policies normalize live links and bounded frozen snapshots", asy
     const references = await createPolicyReferenceFixture(database);
     const sheetCreatedAt = new Date("2026-06-01T12:00:00.000Z");
     const associationCreatedAt = new Date("2026-07-01T12:00:00.000Z");
-    const [openSheet, closedSheet] = await database
+    const [openSheet, snapshotSheet] = await database
       .insert(paySheets)
       .values([
         {
@@ -72,17 +72,23 @@ test("pay-sheet policies normalize live links and bounded frozen snapshots", asy
         {
           createdAt: sheetCreatedAt,
           openedAt: sheetCreatedAt,
-          ownerType: "producer",
-          ownerUserId: references.producerUserId,
+          ownerType: "sophia",
+          ownerUserId: references.submittedByUserId,
           periodMonth: 5,
           periodYear: 2026,
-          status: "closed",
           updatedAt: sheetCreatedAt,
         },
       ])
       .returning();
     assert.ok(openSheet);
-    assert.ok(closedSheet);
+    assert.ok(snapshotSheet);
+
+    // Item 24's table-contract test runs after item 25 in the current schema.
+    // This transaction-local context lets the migration owner exercise the
+    // underlying constraints without opening the production direct-write path.
+    await client.query(
+      "select set_config('wcib.pay_sheet_placement_context', 'placement', true)",
+    );
 
     const [rate] = await database
       .insert(producerRateHistory)
@@ -177,7 +183,7 @@ test("pay-sheet policies normalize live links and bounded frozen snapshots", asy
         createdAt: associationCreatedAt,
         frozenPolicySnapshot: policySnapshot,
         frozenRateSnapshot: rateSnapshot,
-        paySheetId: closedSheet.id,
+        paySheetId: snapshotSheet.id,
         policyId: frozenPolicy.id,
         producerRateHistoryId: rate.id,
       })
@@ -199,14 +205,14 @@ test("pay-sheet policies normalize live links and bounded frozen snapshots", asy
       await expectDatabaseError(client, "23514", () =>
         database.insert(paySheetPolicies).values({
           frozenPolicySnapshot: invalidSnapshot,
-          paySheetId: closedSheet.id,
+          paySheetId: snapshotSheet.id,
           policyId: openPolicy.id,
         }),
       );
     }
     await expectDatabaseError(client, "23514", () =>
       database.insert(paySheetPolicies).values({
-        paySheetId: closedSheet.id,
+        paySheetId: snapshotSheet.id,
         policyId: openPolicy.id,
         producerRateHistoryId: rate.id,
       }),
@@ -214,14 +220,14 @@ test("pay-sheet policies normalize live links and bounded frozen snapshots", asy
     await expectDatabaseError(client, "23514", () =>
       database.insert(paySheetPolicies).values({
         frozenRateSnapshot: rateSnapshot,
-        paySheetId: closedSheet.id,
+        paySheetId: snapshotSheet.id,
         policyId: openPolicy.id,
       }),
     );
     await expectDatabaseError(client, "23514", () =>
       database.insert(paySheetPolicies).values({
         frozenRateSnapshot: { ...rateSnapshot, carrierFee: "1.00" },
-        paySheetId: closedSheet.id,
+        paySheetId: snapshotSheet.id,
         policyId: openPolicy.id,
         producerRateHistoryId: rate.id,
       }),
@@ -241,7 +247,7 @@ test("pay-sheet policies normalize live links and bounded frozen snapshots", asy
     await expectDatabaseError(client, "23503", () =>
       database.insert(paySheetPolicies).values({
         frozenRateSnapshot: rateSnapshot,
-        paySheetId: closedSheet.id,
+        paySheetId: snapshotSheet.id,
         policyId: openPolicy.id,
         producerRateHistoryId: randomUUID(),
       }),
@@ -250,13 +256,13 @@ test("pay-sheet policies normalize live links and bounded frozen snapshots", asy
       database.insert(paySheetPolicies).values({
         addedAt: new Date("2026-06-30T12:00:00.000Z"),
         createdAt: associationCreatedAt,
-        paySheetId: closedSheet.id,
+        paySheetId: snapshotSheet.id,
         policyId: openPolicy.id,
       }),
     );
 
     await expectDatabaseError(client, "23001", () =>
-      database.delete(paySheets).where(eq(paySheets.id, closedSheet.id)),
+      database.delete(paySheets).where(eq(paySheets.id, snapshotSheet.id)),
     );
     await expectDatabaseError(client, "23001", () =>
       database.delete(policies).where(eq(policies.id, frozenPolicy.id)),
