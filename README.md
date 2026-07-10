@@ -258,6 +258,26 @@ DATABASE_URL=postgresql://wcib:wcib_local_password@127.0.0.1:54322/wcib \
   npm run test:db:user
 ```
 
+## Staff accounts and capabilities
+
+`staff_profiles` is a one-to-one extension of an auth-owned user UUID. Staff
+profiles contain the editable display name, employee/producer role, the
+her/his/their label used by v15, active state, and creation time. Deactivation
+preserves the profile and its UUID relationships.
+
+`user_capabilities` stores normalized explicit capability names by user UUID.
+Capabilities can be disabled without deleting the grant. Admin is a capability,
+not a staff role, so Sophia can hold `admin` without a `staff_profiles` row.
+The tables contain no credential fields and use restrictive foreign keys so a
+referenced user cannot be deleted accidentally.
+
+After applying migrations, verify the approved roster and Sophia/admin shapes:
+
+```sh
+DATABASE_URL=postgresql://wcib:wcib_local_password@127.0.0.1:54322/wcib \
+  npm run test:db:staff
+```
+
 ## Database connection smoke
 
 The backend creates its runtime `pg` pool from the validated `DATABASE_URL` and

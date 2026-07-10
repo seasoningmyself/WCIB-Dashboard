@@ -3,12 +3,22 @@ import {
   boolean,
   check,
   integer,
+  index,
+  pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+
+export const staffRoleEnum = pgEnum("staff_role", ["employee", "producer"]);
+export const staffPronounEnum = pgEnum("staff_pronoun", [
+  "her",
+  "his",
+  "their",
+]);
 
 export const users = pgTable(
   "users",
@@ -41,3 +51,59 @@ export const users = pgTable(
 
 export type UserRecord = typeof users.$inferSelect;
 export type NewUserRecord = typeof users.$inferInsert;
+
+export const staffProfiles = pgTable(
+  "staff_profiles",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "restrict" }),
+    displayName: text("display_name").notNull(),
+    role: staffRoleEnum("role").notNull(),
+    pronoun: staffPronounEnum("pronoun").notNull().default("their"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("staff_profiles_role_active_idx").on(table.role, table.isActive),
+    check(
+      "staff_profiles_display_name_normalized_check",
+      sql`${table.displayName} = btrim(${table.displayName}) AND char_length(${table.displayName}) > 0`,
+    ),
+  ],
+);
+
+export const userCapabilities = pgTable(
+  "user_capabilities",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    capability: text("capability").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.userId, table.capability],
+      name: "user_capabilities_user_capability_pk",
+    }),
+    index("user_capabilities_capability_active_idx").on(
+      table.capability,
+      table.isActive,
+    ),
+    check(
+      "user_capabilities_capability_format_check",
+      sql`${table.capability} ~ '^[a-z][a-z0-9_]*$'`,
+    ),
+  ],
+);
+
+export type StaffProfileRecord = typeof staffProfiles.$inferSelect;
+export type NewStaffProfileRecord = typeof staffProfiles.$inferInsert;
+export type UserCapabilityRecord = typeof userCapabilities.$inferSelect;
+export type NewUserCapabilityRecord = typeof userCapabilities.$inferInsert;

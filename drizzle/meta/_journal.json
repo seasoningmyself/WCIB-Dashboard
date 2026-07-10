@@ -15,6 +15,13 @@
       "when": 1783643942123,
       "tag": "0001_users",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783644362393,
+      "tag": "0002_staff_accounts",
+      "breakpoints": true
     }
   ]
 }
