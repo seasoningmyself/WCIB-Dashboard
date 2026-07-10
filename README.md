@@ -147,6 +147,24 @@ Compose creates exactly two services on the `wcib_local` network:
   `127.0.0.1:54322`.
 
 The first start creates a blank `wcib` database. No prototype data is loaded.
+To start only Postgres and confirm its readiness:
+
+```sh
+docker compose up -d db
+docker compose ps db
+```
+
+Confirm that the application-owned `public` schema is still empty before the
+first migration:
+
+```sh
+docker compose exec -T db psql -U wcib -d wcib -Atc \
+  "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';"
+```
+
+A fresh database returns `0`; Postgres system catalogs are outside the `public`
+schema and are intentionally excluded from this check.
+
 Stop the services while preserving local database data with:
 
 ```sh
