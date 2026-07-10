@@ -9,8 +9,11 @@ import { StructuredLogger } from "./logging/logger.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
-const app = createApp({ logger });
 const pool = createDatabasePool(config.databaseUrl);
+const app = createApp({
+  logger,
+  readinessCheck: () => checkDatabaseConnection(pool),
+});
 let databaseConnected = false;
 
 try {

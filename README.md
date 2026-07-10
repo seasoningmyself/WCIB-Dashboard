@@ -253,6 +253,24 @@ successful`, and closes its pool. Local Compose waits for `db` to become healthy
 before starting `app`, so this same check also verifies the `db:5432` network
 path when the app container starts.
 
+## Health checks
+
+`GET /health` is a public process-liveness check. It returns only
+`{"status":"ok"}` while the HTTP app is running and does not query Postgres.
+
+`GET /ready` is a public readiness check backed by the existing database
+connection check. It returns `{"status":"ready"}` with HTTP 200 when Postgres
+responds, or `{"status":"unavailable"}` with HTTP 503 when the check is missing
+or fails. Neither endpoint returns environment values, connection details,
+schema information, record counts, or error messages, and both disable caching.
+
+Check them locally with:
+
+```sh
+curl --fail http://127.0.0.1:5000/health
+curl --fail http://127.0.0.1:5000/ready
+```
+
 ## API errors
 
 Every API failure returns `{ "error": { "code", "message", "details"? } }`.

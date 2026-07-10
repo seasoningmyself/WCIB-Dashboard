@@ -29,6 +29,7 @@ async function request(
   app = createApp(),
 ): Promise<{
   body: unknown;
+  headers: ReturnType<ServerResponse["getHeaders"]>;
   statusCode: number;
 }> {
   const socket = new MemorySocket();
@@ -54,6 +55,7 @@ async function request(
 
   return {
     body: JSON.parse(body),
+    headers: res.getHeaders(),
     statusCode: res.statusCode,
   };
 }
@@ -66,6 +68,62 @@ test("GET /api returns backend status", async () => {
     name: "WCIB Dashboard API",
     status: "ok",
   });
+});
+
+test("GET /health reports process liveness without checking dependencies", async () => {
+  let readinessChecks = 0;
+  const app = createApp({
+    readinessCheck: async () => {
+      readinessChecks += 1;
+      throw new Error("DATABASE_URL=must-not-be-logged");
+    },
+  });
+
+  const response = await request("/health", app);
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, { status: "ok" });
+  assert.equal(response.headers["cache-control"], "no-store");
+  assert.equal(readinessChecks, 0);
+});
+
+test("GET /ready reports readiness after the database check passes", async () => {
+  let readinessChecks = 0;
+  const app = createApp({
+    readinessCheck: async () => {
+      readinessChecks += 1;
+    },
+  });
+
+  const response = await request("/ready", app);
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, { status: "ready" });
+  assert.equal(response.headers["cache-control"], "no-store");
+  assert.equal(readinessChecks, 1);
+});
+
+test("GET /ready fails safely when the database is unavailable", async () => {
+  const app = createApp({
+    readinessCheck: async () => {
+      throw new Error("password authentication failed for private-password");
+    },
+  });
+
+  const response = await request("/ready", app);
+
+  assert.equal(response.statusCode, 503);
+  assert.deepEqual(response.body, { status: "unavailable" });
+  assert.equal(response.headers["cache-control"], "no-store");
+  assert.equal(JSON.stringify(response).includes("private-password"), false);
+});
+
+test("GET /ready is predictable before a readiness dependency is configured", async () => {
+  const response = await request("/ready");
+
+  assert.equal(response.statusCode, 503);
+  assert.deepEqual(response.body, { status: "unavailable" });
+  assert.equal(response.headers["cache-control"], "no-store");
 });
 
 test("unknown routes use the standard API error shape", async () => {
