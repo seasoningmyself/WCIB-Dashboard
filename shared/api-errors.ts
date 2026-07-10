@@ -1,5 +1,6 @@
 export const apiErrorCodes = {
   badRequest: "bad_request",
+  invalidCredentials: "invalid_credentials",
   internal: "internal_error",
   notFound: "not_found",
   validation: "validation_error",

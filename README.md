@@ -287,6 +287,33 @@ DATABASE_URL=postgresql://wcib:wcib_local_password@127.0.0.1:54322/wcib \
   npm run test:db:session
 ```
 
+### Login endpoint
+
+`POST /api/auth/login` accepts `{ "email": string, "password": string }`.
+Any unauthenticated client may call it; only valid credentials for an active
+account create a session. A successful response contains only the user's UUID,
+normalized email, employee/producer `staffRole` or `null`, and approved
+capability names. It contains no password state, session version, financial
+fields, MFA state, or domain records.
+
+Unknown accounts, wrong passwords, disabled accounts, and an identity removed
+during login all return the same HTTP 401 `invalid_credentials` response.
+Malformed requests use the shared HTTP 400 validation response. Successful
+login regenerates the session ID before returning. Password-only login is the
+complete Foundation flow for employees, producers, and admins; optional admin
+2FA remains deferred and inert.
+
+Foundation intentionally installs no login rate limiter. The route accepts a
+middleware list ahead of its standalone handler so Security Hardening ticket
+STONE-33 can add rate limiting without rewriting credential or session logic.
+
+After applying migrations, run the real endpoint smoke test with:
+
+```sh
+DATABASE_URL=postgresql://wcib:wcib_local_password@127.0.0.1:54322/wcib \
+  npm run test:db:login
+```
+
 ## Staff accounts and capabilities
 
 `staff_profiles` is a one-to-one extension of an auth-owned user UUID. Staff

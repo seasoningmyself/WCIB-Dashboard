@@ -1,3 +1,4 @@
+import { drizzle } from "drizzle-orm/node-postgres";
 import { createApp } from "./app.js";
 import { createSessionMiddleware } from "./auth/sessions.js";
 import { loadConfig } from "./config/environment.js";
@@ -6,14 +7,20 @@ import {
   createDatabasePool,
   formatDatabaseConnectionError,
 } from "./db/client.js";
+import * as databaseSchema from "./db/schema.js";
+import { registerAuthRoutes } from "./http/auth.js";
 import { StructuredLogger } from "./logging/logger.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
 const pool = createDatabasePool(config.databaseUrl);
+const database = drizzle(pool, { schema: databaseSchema });
 const app = createApp({
   logger,
   readinessCheck: () => checkDatabaseConnection(pool),
+  registerRoutes: (expressApp) => {
+    registerAuthRoutes(expressApp, { database, logger });
+  },
   sessionMiddleware: createSessionMiddleware(pool, {
     logger,
     nodeEnv: config.nodeEnv,

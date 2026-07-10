@@ -16,6 +16,7 @@
     "check:backend": "tsc --noEmit",
     "check:frontend": "tsc -p client/tsconfig.json --noEmit",
     "test": "node script/run-tests.mjs",
+    "test:db:login": "node --import tsx --test server/http/auth.db-test.ts",
     "test:db:session": "node --import tsx --test server/auth/sessions.db-test.ts",
     "test:db:user": "node --import tsx --test server/auth/users.db-test.ts",
     "test:db:staff": "node --import tsx --test server/auth/staff-accounts.db-test.ts",
