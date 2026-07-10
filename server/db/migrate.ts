@@ -2,42 +2,7 @@ import { resolve } from "node:path";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
-
-interface ErrorDetails {
-  cause?: unknown;
-  code?: unknown;
-  errors?: unknown;
-}
-
-function readErrorCode(error: unknown): string | undefined {
-  if (typeof error !== "object" || error === null) {
-    return undefined;
-  }
-
-  const details = error as ErrorDetails;
-
-  if (typeof details.code === "string") {
-    return details.code;
-  }
-
-  if (Array.isArray(details.errors)) {
-    for (const nestedError of details.errors) {
-      const nestedCode = readErrorCode(nestedError);
-
-      if (nestedCode !== undefined) {
-        return nestedCode;
-      }
-    }
-  }
-
-  const causeCode = readErrorCode(details.cause);
-
-  if (causeCode !== undefined) {
-    return causeCode;
-  }
-
-  return undefined;
-}
+import { readDatabaseErrorCode } from "./error-code.js";
 
 export function formatMigrationError(error: unknown): string {
   if (
@@ -47,7 +12,7 @@ export function formatMigrationError(error: unknown): string {
     return error.message;
   }
 
-  const code = readErrorCode(error);
+  const code = readDatabaseErrorCode(error);
   return code === undefined
     ? "Database migration failed"
     : `Database migration failed (${code})`;

@@ -236,6 +236,23 @@ connection string.
 
 All commands fail before contacting Postgres when neither database URL is set.
 
+## Database connection smoke
+
+The backend creates its runtime `pg` pool from the validated `DATABASE_URL` and
+executes `select 1` before opening the HTTP listener. A failed database check
+stops startup and logs only a safe driver code.
+
+Run the same round-trip without starting HTTP:
+
+```sh
+npm run db:smoke
+```
+
+The command uses the normal runtime config path, prints `Database connection
+successful`, and closes its pool. Local Compose waits for `db` to become healthy
+before starting `app`, so this same check also verifies the `db:5432` network
+path when the app container starts.
+
 ## Module rules
 
 - Routes parse transport input and delegate; domain services own business

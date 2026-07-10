@@ -11,6 +11,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --import tsx script/migrate.ts",
     "db:check": "drizzle-kit check",
+    "db:smoke": "node --import tsx script/db-smoke.ts",
     "check": "npm run check:backend && npm run check:frontend",
     "check:backend": "tsc --noEmit",
     "check:frontend": "tsc -p client/tsconfig.json --noEmit",
