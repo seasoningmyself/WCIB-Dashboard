@@ -218,6 +218,13 @@
       "when": 1783677605318,
       "tag": "0030_pay_sheet_single_settlement",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1783678080235,
+      "tag": "0031_pay_sheet_adjustments",
+      "breakpoints": true
     }
   ]
 }

@@ -682,10 +682,10 @@ the next owner period. It is idempotent after a successful close and never
 reopens or recalculates closed history. December advances to January of the
 next year.
 
-At item 26, frozen totals contain policy-derived commission and broker-fee
-values; `directCheckAchIncome` is `0.00`. Item 29 owns the normalized adjustment
-and direct-income rows and will extend this same close transaction once those
-rows exist. Run the current close contract with:
+At item 26, frozen totals begin with policy-derived commission and broker-fee
+values. Item 29's close trigger now folds locked normalized adjustment and
+direct-income rows into those totals in the same close transaction. Run the
+close contract with:
 
 ```sh
 npm run test:db:pay-sheet-close
@@ -713,6 +713,17 @@ tests with:
 
 ```sh
 npm run test:db:pay-sheet-single-settlement
+```
+
+Chargebacks, manual corrections, direct deposits, check income, and ACH income
+live in the discriminated `pay_sheet_adjustments` table. Only audited admin
+functions can create/update/delete rows, and the item-27 parent lock restricts
+all writes to open sheets. Corrections carry negative deltas; direct income is
+positive and Sophia-only. Closing folds those rows into frozen totals without
+creating policy snapshots or changing KPI policy actuals. Run:
+
+```sh
+npm run test:db:pay-sheet-adjustments
 ```
 
 ## Structured logging

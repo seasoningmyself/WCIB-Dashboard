@@ -30,6 +30,10 @@ import {
   MAX_PAY_SHEET_RATE_SNAPSHOT_BYTES,
 } from "../../shared/pay-sheet-snapshots.js";
 import {
+  PAY_SHEET_ACCOUNT_BASES,
+  PAY_SHEET_ADJUSTMENT_TYPES,
+} from "../../shared/pay-sheet-adjustments.js";
+import {
   boolean,
   check,
   date,
@@ -95,6 +99,14 @@ export const paySheetOwnerTypeEnum = pgEnum(
 export const paySheetStatusEnum = pgEnum(
   "pay_sheet_status",
   PAY_SHEET_STATUSES,
+);
+export const paySheetAdjustmentTypeEnum = pgEnum(
+  "pay_sheet_adjustment_type",
+  PAY_SHEET_ADJUSTMENT_TYPES,
+);
+export const paySheetAccountBasisEnum = pgEnum(
+  "pay_sheet_account_basis",
+  PAY_SHEET_ACCOUNT_BASES,
 );
 export const staffPronounEnum = pgEnum("staff_pronoun", [
   "her",
@@ -1353,3 +1365,113 @@ export const paySheetPolicies = pgTable(
 
 export type PaySheetPolicyRecord = typeof paySheetPolicies.$inferSelect;
 export type NewPaySheetPolicyRecord = typeof paySheetPolicies.$inferInsert;
+
+export const paySheetAdjustments = pgTable(
+  "pay_sheet_adjustments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    paySheetId: uuid("pay_sheet_id")
+      .notNull()
+      .references(() => paySheets.id, { onDelete: "restrict" }),
+    adjustmentType: paySheetAdjustmentTypeEnum("adjustment_type").notNull(),
+    effectiveDate: date("effective_date").notNull(),
+    insuredOrClientLabel: text("insured_or_client_label").notNull(),
+    policyTypeId: uuid("policy_type_id").references(() => policyTypes.id, {
+      onDelete: "restrict",
+    }),
+    accountBasis: paySheetAccountBasisEnum("account_basis").notNull(),
+    producerUserId: uuid("producer_user_id").references(
+      () => staffProfiles.userId,
+      { onDelete: "restrict" },
+    ),
+    brokerFeeDelta: numeric("broker_fee_delta", {
+      precision: 14,
+      scale: 2,
+    })
+      .notNull()
+      .default("0"),
+    commissionDelta: numeric("commission_delta", {
+      precision: 14,
+      scale: 2,
+    })
+      .notNull()
+      .default("0"),
+    payoutDelta: numeric("payout_delta", { precision: 14, scale: 2 })
+      .notNull()
+      .default("0"),
+    incomeAmount: numeric("income_amount", { precision: 14, scale: 2 })
+      .notNull()
+      .default("0"),
+    reasonOrNote: text("reason_or_note"),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("pay_sheet_adjustments_sheet_idx").on(table.paySheetId),
+    index("pay_sheet_adjustments_policy_type_idx").on(table.policyTypeId),
+    index("pay_sheet_adjustments_producer_idx").on(table.producerUserId),
+    check(
+      "pay_sheet_adjustments_label_check",
+      sql`${table.insuredOrClientLabel} = btrim(${table.insuredOrClientLabel})
+        AND char_length(${table.insuredOrClientLabel}) BETWEEN 1 AND 500`,
+    ),
+    check(
+      "pay_sheet_adjustments_note_check",
+      sql`${table.reasonOrNote} is null OR (
+        ${table.reasonOrNote} = btrim(${table.reasonOrNote})
+        AND char_length(${table.reasonOrNote}) BETWEEN 1 AND 2000
+      )`,
+    ),
+    check(
+      "pay_sheet_adjustments_account_basis_check",
+      sql`(${table.accountBasis} = 'own' AND ${table.producerUserId} is null)
+        OR (
+          ${table.accountBasis} in ('book', 'house')
+          AND ${table.producerUserId} is not null
+        )`,
+    ),
+    check(
+      "pay_sheet_adjustments_value_shape_check",
+      sql`(
+        ${table.adjustmentType} in ('chargeback', 'manual_adjustment')
+        AND ${table.incomeAmount} = 0
+        AND ${table.brokerFeeDelta} <= 0
+        AND ${table.commissionDelta} <= 0
+        AND ${table.payoutDelta} <= 0
+        AND (
+          ${table.brokerFeeDelta} < 0
+          OR ${table.commissionDelta} < 0
+          OR ${table.payoutDelta} < 0
+        )
+      ) OR (
+        ${table.adjustmentType} in (
+          'direct_deposit',
+          'check_income',
+          'ach_income'
+        )
+        AND ${table.brokerFeeDelta} = 0
+        AND ${table.commissionDelta} = 0
+        AND ${table.payoutDelta} = 0
+        AND ${table.incomeAmount} > 0
+        AND ${table.accountBasis} = 'own'
+        AND ${table.producerUserId} is null
+        AND ${table.policyTypeId} is null
+      )`,
+    ),
+    check(
+      "pay_sheet_adjustments_timestamp_order_check",
+      sql`${table.updatedAt} >= ${table.createdAt}`,
+    ),
+  ],
+);
+
+export type PaySheetAdjustmentRecord = typeof paySheetAdjustments.$inferSelect;
+export type NewPaySheetAdjustmentRecord =
+  typeof paySheetAdjustments.$inferInsert;
