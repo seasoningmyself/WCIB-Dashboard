@@ -63,6 +63,7 @@ function policy(): PolicyRecord {
     netDueTotal: "700.00",
     notes: "Private notes",
     officeLocationId: "00000000-0000-4000-8000-000000000004",
+    overridden: false,
     paymentMode: "deposit",
     payableStatus: "partially_remitted",
     policyNumber: "POL-1",

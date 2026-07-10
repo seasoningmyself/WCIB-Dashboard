@@ -13,6 +13,7 @@ export const POLICY_FINANCIAL_FIELDS = [
   "commissionMode",
   "commissionRate",
   "commissionConfirmed",
+  "overridden",
   "amountPaid",
   "proposalTotal",
   "netDue",

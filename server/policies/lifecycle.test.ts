@@ -87,6 +87,7 @@ test("trusted policy inserts discard forged identity and inert payment state", (
     ipfsPushed: true,
     mgaPaid: true,
     mgaPayReference: "forged",
+    overridden: true,
     premiumTotal: "999.00",
     sourceDraftId: randomUUID(),
     submittedByUserId: randomUUID(),
@@ -104,6 +105,7 @@ test("trusted policy inserts discard forged identity and inert payment state", (
   assert.equal(values.approvedAt, approvedAt);
   assert.equal(values.submittedAt, submittedAt);
   assert.equal(values.mgaPaid, false);
+  assert.equal(values.overridden, false);
   assert.equal(values.mgaPayReference, null);
   assert.equal(values.ipfsPushed, false);
   assert.equal(values.premiumTotal, "0.00");

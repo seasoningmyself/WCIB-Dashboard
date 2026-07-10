@@ -4,17 +4,30 @@ import { test } from "node:test";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
+import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import { createUser } from "../auth/users.js";
-import { buildPolicyOverrideValuePair } from "../policies/override-values.js";
+import type { AppLogger } from "../logging/logger.js";
+import { applyPolicyOverride } from "../policies/overrides.js";
 import { readDatabaseErrorCode } from "./error-code.js";
 import {
   createPolicyReferenceFixture,
   policyTestInput,
 } from "./policy-test-fixture.js";
-import { policies, policyOverrides, users } from "./schema.js";
+import {
+  policies,
+  policyOverrides,
+  userCapabilities,
+  users,
+} from "./schema.js";
 import * as databaseSchema from "./schema.js";
 
 let savepointSequence = 0;
+
+const logger: AppLogger = {
+  error() {},
+  info() {},
+  warn() {},
+};
 
 async function expectDatabaseError(
   client: pg.PoolClient,
@@ -49,41 +62,62 @@ test("policy overrides persist only bounded UUID-linked financial changes", asyn
       email: `override-approver-${randomUUID()}@example.test`,
       password: "StrongPass123!",
     });
+    await database.insert(userCapabilities).values({
+      capability: "admin",
+      userId: approver.id,
+    });
+    const context: AuthorizedRequestContext = {
+      principal: {
+        capabilities: ["admin"],
+        staffRole: null,
+        userActive: true,
+        userId: approver.id,
+      },
+    };
     const [policy] = await database
       .insert(policies)
       .values(
         policyTestInput(references, {
+          amountPaid: "1000.00",
+          basePremium: "1000.00",
+          netDue: "1000.00",
           policyNumber: "OVERRIDE-SOURCE",
+          proposalTotal: "1000.00",
           sourceDraftId: null,
         }),
       )
       .returning();
     assert.ok(policy);
 
-    const values = buildPolicyOverrideValuePair(
-      { brokerFee: "0.00", commissionAmount: "0.00" },
+    const overrideId = await applyPolicyOverride(
+      database,
+      context,
+      policy.id,
+      "Correct carrier statement figures",
       { brokerFee: "25.00", commissionAmount: "100.00" },
       ["brokerFee", "commissionAmount"],
+      logger,
     );
     const [override] = await database
-      .insert(policyOverrides)
-      .values({
-        approvedByUserId: approver.id,
-        originalValues: values.originalValues,
-        policyId: policy.id,
-        reason: "Correct carrier statement figures",
-        replacementValues: values.replacementValues,
-      })
-      .returning();
+      .select()
+      .from(policyOverrides)
+      .where(eq(policyOverrides.id, overrideId));
     assert.ok(override);
     assert.equal(override.policyId, policy.id);
     assert.equal(override.approvedByUserId, approver.id);
     assert.deepEqual(override.originalValues, {
       brokerFee: "0.00",
       commissionAmount: "0.00",
+      commissionMode: "na",
+    });
+    assert.deepEqual(override.replacementValues, {
+      brokerFee: "25.00",
+      commissionAmount: "100.00",
+      commissionMode: "pct",
     });
 
     for (const invalidValues of [
+      null,
       [],
       {},
       { insuredName: "Private insured" },
@@ -91,40 +125,57 @@ test("policy overrides persist only bounded UUID-linked financial changes", asyn
       { brokerFee: "1".repeat(5_000) },
     ]) {
       await expectDatabaseError(client, "23514", () =>
-        database.insert(policyOverrides).values({
-          approvedByUserId: approver.id,
-          originalValues: invalidValues,
-          policyId: policy.id,
-          reason: "Invalid value shape",
-          replacementValues: { brokerFee: "25.00" },
-        }),
+        client.query(
+          `select apply_policy_override(
+             $1::uuid,
+             $2::uuid,
+             'Invalid value shape',
+             $3::jsonb
+           )`,
+          [policy.id, approver.id, JSON.stringify(invalidValues)],
+        ),
       );
     }
 
-    await expectDatabaseError(client, "23503", () =>
-      database.insert(policyOverrides).values({
-        approvedByUserId: approver.id,
-        originalValues: { brokerFee: "0.00" },
-        policyId: randomUUID(),
-        reason: "Missing policy",
-        replacementValues: { brokerFee: "25.00" },
-      }),
+    await expectDatabaseError(client, "P0002", () =>
+      client.query(
+        `select apply_policy_override(
+           $1::uuid,
+           $2::uuid,
+           'Missing policy',
+           '{"brokerFee":"25.00"}'::jsonb
+         )`,
+        [randomUUID(), approver.id],
+      ),
     );
-    await expectDatabaseError(client, "23502", () =>
+    await expectDatabaseError(client, "22004", () =>
+      client.query(
+        `select apply_policy_override(
+           $1::uuid,
+           $2::uuid,
+           null,
+           '{"brokerFee":"25.00"}'::jsonb
+         )`,
+        [policy.id, approver.id],
+      ),
+    );
+    await expectDatabaseError(client, "42501", () =>
+      client.query(
+        `select apply_policy_override(
+           $1::uuid,
+           $2::uuid,
+           'Missing actor',
+           '{"brokerFee":"25.00"}'::jsonb
+         )`,
+        [policy.id, randomUUID()],
+      ),
+    );
+    await expectDatabaseError(client, "55000", () =>
       database.insert(policyOverrides).values({
         approvedByUserId: approver.id,
         originalValues: { brokerFee: "0.00" },
         policyId: policy.id,
-        reason: null as never,
-        replacementValues: { brokerFee: "25.00" },
-      }),
-    );
-    await expectDatabaseError(client, "23503", () =>
-      database.insert(policyOverrides).values({
-        approvedByUserId: randomUUID(),
-        originalValues: { brokerFee: "0.00" },
-        policyId: policy.id,
-        reason: "Missing actor",
+        reason: "Direct insert is forbidden",
         replacementValues: { brokerFee: "25.00" },
       }),
     );

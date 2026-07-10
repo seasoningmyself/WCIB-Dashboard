@@ -26,6 +26,7 @@ type SystemManagedPolicyField =
   | "mgaPaidAt"
   | "mgaPayReference"
   | "netDueTotal"
+  | "overridden"
   | "payableStatus"
   | "premiumTotal"
   | "receivableStatus"
@@ -67,6 +68,7 @@ const systemManagedPolicyFields = new Set<SystemManagedPolicyField>([
   "mgaPaidAt",
   "mgaPayReference",
   "netDueTotal",
+  "overridden",
   "payableStatus",
   "premiumTotal",
   "receivableStatus",
@@ -132,6 +134,7 @@ export function buildTrustedPolicyInsert(
     mgaPaidAt: null,
     mgaPayReference: null,
     netDueTotal: "0.00",
+    overridden: false,
     payableStatus: "paid",
     premiumTotal: "0.00",
     receivableStatus: "paid",

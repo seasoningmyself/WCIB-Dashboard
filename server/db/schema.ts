@@ -791,6 +791,7 @@ export const policies = pgTable(
     commissionConfirmed: boolean("commission_confirmed")
       .notNull()
       .default(false),
+    overridden: boolean("overridden").notNull().default(false),
     amountPaid: numeric("amount_paid", { precision: 14, scale: 2 }).notNull(),
     proposalTotal: numeric("proposal_total", {
       precision: 14,
@@ -902,7 +903,7 @@ export const policies = pgTable(
     ),
     check(
       "policies_commission_check",
-      sql`(
+      sql`${table.overridden} = true OR (
         ${table.commissionMode} = 'pct'
         AND ${table.commissionRate} is not null
         AND ${table.commissionRate} BETWEEN 0 AND 100
@@ -917,7 +918,8 @@ export const policies = pgTable(
     ),
     check(
       "policies_net_due_check",
-      sql`${table.netDue} = ${table.amountPaid} - ${table.commissionAmount} - ${table.brokerFee}`,
+      sql`${table.overridden} = true
+        OR ${table.netDue} = ${table.amountPaid} - ${table.commissionAmount} - ${table.brokerFee}`,
     ),
     check(
       "policies_finance_balance_check",
@@ -1036,6 +1038,11 @@ export const policyOverrides = pgTable(
       table.createdAt,
     ),
     index("policy_overrides_actor_idx").on(table.approvedByUserId),
+    check(
+      "policy_overrides_reason_check",
+      sql`${table.reason} = btrim(${table.reason})
+        AND char_length(${table.reason}) BETWEEN 1 AND 2000`,
+    ),
     check(
       "policy_overrides_original_values_check",
       sql`jsonb_typeof(${table.originalValues}) = 'object'

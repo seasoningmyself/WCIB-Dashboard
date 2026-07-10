@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildPolicyOverrideValuePair } from "./override-values.js";
+import {
+  buildPolicyOverrideReplacement,
+  buildPolicyOverrideValuePair,
+} from "./override-values.js";
 
 test("override values retain only explicitly changed v15 financial fields", () => {
   const values = buildPolicyOverrideValuePair(
@@ -36,6 +39,14 @@ test("override values retain only explicitly changed v15 financial fields", () =
 });
 
 test("override values reject unsafe, missing, unchanged, and malformed fields", () => {
+  assert.throws(
+    () =>
+      buildPolicyOverrideReplacement(
+        { commissionMode: "pct" },
+        ["commissionMode"],
+      ),
+    /unique non-empty allowlist/,
+  );
   assert.throws(
     () => buildPolicyOverrideValuePair({}, {}, []),
     /unique non-empty allowlist/,
@@ -88,9 +99,9 @@ test("override values reject unsafe, missing, unchanged, and malformed fields", 
   assert.throws(
     () =>
       buildPolicyOverrideValuePair(
-        { commissionMode: "tbd" },
-        { commissionMode: "unknown" },
-        ["commissionMode"],
+        { commissionAmount: "0.00", commissionMode: "tbd" },
+        { commissionAmount: "1.00", commissionMode: "unknown" },
+        ["commissionAmount", "commissionMode"],
       ),
     /commission mode is invalid/,
   );

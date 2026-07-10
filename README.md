@@ -580,6 +580,25 @@ traces, request bodies, cookies, credentials, or financial payloads.
 Unexpected failures emit one safe event containing only the HTTP method, route
 template, status code, and error type.
 
+## Policy override integrity
+
+Admin-approved corrections to stored policy financial values use
+`applyPolicyOverride`, which calls the database-owned `apply_policy_override`
+function. The function locks the policy, reads original values from Postgres,
+updates the allowlisted fields, appends an immutable override record, and writes
+the audit event in one transaction. Direct override inserts, updates, deletes,
+and direct mutations of override-managed policy fields fail at database level.
+
+Run the database-backed integrity check after migrations with:
+
+```sh
+npm run test:db:policy-override-integrity
+```
+
+Success and failure logs contain only actor, policy, and override IDs. They do
+not include reasons, original or replacement values, insured data, or other
+financial fields.
+
 ## Structured logging
 
 The backend writes newline-delimited JSON records with a timestamp, level,

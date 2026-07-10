@@ -22,24 +22,14 @@ export function buildPolicyOverrideValuePair(
   replacementSource: Readonly<Record<string, unknown>>,
   changedFields: readonly PolicyOverrideField[],
 ): PolicyOverrideValuePair {
-  const fields = [...new Set(changedFields)];
-  if (
-    fields.length === 0 ||
-    fields.length !== changedFields.length ||
-    fields.some((field) => !allowedFields.has(field))
-  ) {
-    throw new Error("Override fields must be a unique non-empty allowlist");
-  }
-
-  const originalValues = projectAuditSummary(originalSource, fields);
-  const replacementValues = projectAuditSummary(replacementSource, fields);
+  const fields = validateChangedFields(changedFields);
+  const originalValues = projectOverrideValues(originalSource, fields);
+  const replacementValues = projectOverrideValues(replacementSource, fields);
 
   for (const field of fields) {
     if (!(field in originalValues) || !(field in replacementValues)) {
       throw new Error(`Override field is missing: ${field}`);
     }
-    validateOverrideValue(field, originalValues[field]);
-    validateOverrideValue(field, replacementValues[field]);
     if (originalValues[field] === replacementValues[field]) {
       throw new Error(`Override field did not change: ${field}`);
     }
@@ -55,6 +45,51 @@ export function buildPolicyOverrideValuePair(
   }
 
   return Object.freeze({ originalValues, replacementValues });
+}
+
+export function buildPolicyOverrideReplacement(
+  replacementSource: Readonly<Record<string, unknown>>,
+  changedFields: readonly PolicyOverrideField[],
+): AuditSummary {
+  return projectOverrideValues(
+    replacementSource,
+    validateChangedFields(changedFields),
+  );
+}
+
+function validateChangedFields(
+  changedFields: readonly PolicyOverrideField[],
+): PolicyOverrideField[] {
+  const fields = [...new Set(changedFields)];
+  if (
+    fields.length === 0 ||
+    fields.length !== changedFields.length ||
+    fields.some((field) => !allowedFields.has(field)) ||
+    (fields.includes("commissionMode") && !fields.includes("commissionAmount"))
+  ) {
+    throw new Error("Override fields must be a unique non-empty allowlist");
+  }
+  return fields;
+}
+
+function projectOverrideValues(
+  source: Readonly<Record<string, unknown>>,
+  fields: readonly PolicyOverrideField[],
+): AuditSummary {
+  const values = projectAuditSummary(source, fields);
+  for (const field of fields) {
+    if (!(field in values)) {
+      throw new Error(`Override field is missing: ${field}`);
+    }
+    validateOverrideValue(field, values[field]);
+  }
+  if (
+    Buffer.byteLength(JSON.stringify(values), "utf8") >
+    MAX_POLICY_OVERRIDE_VALUES_BYTES
+  ) {
+    throw new Error("Override values exceed the byte limit");
+  }
+  return values;
 }
 
 function validateOverrideValue(
