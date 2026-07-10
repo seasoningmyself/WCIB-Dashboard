@@ -12,7 +12,9 @@ import type { AuthDatabase, UserAccount } from "../auth/users.js";
 import type { AppLogger, LogContext } from "../logging/logger.js";
 import {
   createLoginHandler,
+  createLogoutHandler,
   LOGIN_PATH,
+  LOGOUT_PATH,
   registerAuthRoutes,
 } from "./auth.js";
 import { toErrorResponse } from "./errors.js";
@@ -73,6 +75,10 @@ async function invokeHandler(
     let statusCode = 200;
     const req = { body } as Request;
     const res = {
+      end() {
+        resolve({ body: null, statusCode });
+        return res;
+      },
       json(responseBody: unknown) {
         resolve({ body: responseBody, statusCode });
         return res;
@@ -237,6 +243,66 @@ test("malformed login requests use the shared validation error", async () => {
   assert.equal(attempts, 0);
 });
 
+test("logout is idempotent and returns an empty safe response", async () => {
+  const { events, logger } = recordingLogger();
+  let destroyedSessions = 0;
+  const handler = createLogoutHandler({
+    async destroySession() {
+      destroyedSessions += 1;
+    },
+    logger,
+  });
+
+  const first = await invokeHandler(handler, undefined);
+  const second = await invokeHandler(handler, undefined);
+
+  assert.deepEqual(first, { body: null, statusCode: 204 });
+  assert.deepEqual(second, first);
+  assert.equal(destroyedSessions, 2);
+  assert.deepEqual(events, [
+    {
+      context: { component: "auth", event: "logout_succeeded" },
+      level: "info",
+      message: "Logout succeeded",
+    },
+    {
+      context: { component: "auth", event: "logout_succeeded" },
+      level: "info",
+      message: "Logout succeeded",
+    },
+  ]);
+});
+
+test("logout destruction failures use the generic API error", async () => {
+  const { events, logger } = recordingLogger();
+  const handler = createLogoutHandler({
+    async destroySession() {
+      throw new Error("cookie=must-not-reach-the-response");
+    },
+    logger,
+  });
+
+  const response = await invokeHandler(handler, undefined);
+
+  assert.deepEqual(response, {
+    body: {
+      error: {
+        code: "internal_error",
+        message: "Internal server error",
+      },
+    },
+    statusCode: 500,
+  });
+  assert.deepEqual(events, [
+    {
+      context: { component: "auth", event: "logout_failed" },
+      level: "error",
+      message: "Logout failed",
+    },
+  ]);
+  assert.equal(JSON.stringify(response).includes("must-not"), false);
+});
+
 test("login middleware has an explicit insertion point and no active default", () => {
   const { logger } = recordingLogger();
   const routeRegistrations: Array<{
@@ -259,9 +325,15 @@ test("login middleware has an explicit insertion point and no active default", (
     loginMiddleware: [rateLimiter],
   });
 
-  assert.equal(routeRegistrations[0]?.path, LOGIN_PATH);
-  assert.equal(routeRegistrations[0]?.handlers.length, 1);
-  assert.equal(routeRegistrations[1]?.path, LOGIN_PATH);
-  assert.equal(routeRegistrations[1]?.handlers.length, 2);
-  assert.equal(routeRegistrations[1]?.handlers[0], rateLimiter);
+  const loginRegistrations = routeRegistrations.filter(
+    (registration) => registration.path === LOGIN_PATH,
+  );
+  const logoutRegistrations = routeRegistrations.filter(
+    (registration) => registration.path === LOGOUT_PATH,
+  );
+  assert.equal(loginRegistrations[0]?.handlers.length, 1);
+  assert.equal(loginRegistrations[1]?.handlers.length, 2);
+  assert.equal(loginRegistrations[1]?.handlers[0], rateLimiter);
+  assert.equal(logoutRegistrations.length, 2);
+  assert.equal(logoutRegistrations[0]?.handlers.length, 1);
 });

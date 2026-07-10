@@ -1,4 +1,4 @@
-import type { Express, Request, RequestHandler } from "express";
+import type { Express, Request, RequestHandler, Response } from "express";
 import {
   loginRequestSchema,
   type LoginRequest,
@@ -9,7 +9,10 @@ import { loadAccessPrincipal } from "../auth/access-repository.js";
 import type { AccessPrincipal } from "../auth/access.js";
 import { authenticateLoginCredentials } from "../auth/login.js";
 import { verifyPassword } from "../auth/password.js";
-import { establishAuthenticatedSession } from "../auth/sessions.js";
+import {
+  destroyAuthenticatedSession,
+  establishAuthenticatedSession,
+} from "../auth/sessions.js";
 import {
   findUserCredentialsByEmail,
   type AuthDatabase,
@@ -19,6 +22,7 @@ import type { AppLogger } from "../logging/logger.js";
 import { asyncRoute, HttpError } from "./errors.js";
 
 export const LOGIN_PATH = "/api/auth/login";
+export const LOGOUT_PATH = "/api/auth/logout";
 
 export interface LoginHandlerDependencies {
   authenticate(request: LoginRequest): Promise<UserAccount | null>;
@@ -31,6 +35,11 @@ export interface RegisterAuthRoutesOptions {
   database: AuthDatabase;
   logger: AppLogger;
   loginMiddleware?: readonly RequestHandler[];
+}
+
+export interface LogoutHandlerDependencies {
+  destroySession(req: Request, res: Response): Promise<void>;
+  logger: AppLogger;
 }
 
 export function createLoginHandler(
@@ -83,6 +92,33 @@ export function createLoginHandler(
   });
 }
 
+export function createLogoutHandler(
+  dependencies: LogoutHandlerDependencies,
+): RequestHandler {
+  return asyncRoute(async (req, res) => {
+    try {
+      await dependencies.destroySession(req, res);
+    } catch (error) {
+      dependencies.logger.error(
+        "Logout failed",
+        { component: "auth", event: "logout_failed" },
+        error,
+      );
+      throw new HttpError(
+        500,
+        apiErrorCodes.internal,
+        "Internal server error",
+      );
+    }
+
+    dependencies.logger.info("Logout succeeded", {
+      component: "auth",
+      event: "logout_succeeded",
+    });
+    res.status(204).end();
+  });
+}
+
 export function registerAuthRoutes(
   app: Express,
   options: RegisterAuthRoutesOptions,
@@ -98,8 +134,13 @@ export function registerAuthRoutes(
     loadPrincipal: (userId) => loadAccessPrincipal(options.database, userId),
     logger: options.logger,
   });
+  const logoutHandler = createLogoutHandler({
+    destroySession: destroyAuthenticatedSession,
+    logger: options.logger,
+  });
 
   app.post(LOGIN_PATH, ...(options.loginMiddleware ?? []), handler);
+  app.post(LOGOUT_PATH, logoutHandler);
 }
 
 function invalidCredentialsError(): HttpError {

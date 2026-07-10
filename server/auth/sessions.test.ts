@@ -3,13 +3,14 @@ import { IncomingMessage, ServerResponse } from "node:http";
 import type { Socket } from "node:net";
 import { Duplex } from "node:stream";
 import { test } from "node:test";
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import session from "express-session";
 import { createApp } from "../app.js";
 import { asyncRoute } from "../http/errors.js";
 import type { AppLogger, LogContext } from "../logging/logger.js";
 import {
   establishAuthenticatedSession,
+  destroyAuthenticatedSession,
   getSessionCookieOptions,
   resolveAuthenticatedSession,
   SESSION_COOKIE_NAME,
@@ -113,6 +114,30 @@ test("production session cookies require HTTPS", () => {
     secure: true,
   });
   assert.equal(getSessionCookieOptions("development").secure, false);
+});
+
+test("session destruction clears the WCIB cookie even when the store fails", async () => {
+  const failure = new Error("session store unavailable");
+  const clearedCookies: Array<{ name: string; path: string | undefined }> = [];
+  const req = {
+    session: {
+      destroy(callback: (error?: Error) => void) {
+        callback(failure);
+      },
+    },
+  } as unknown as Request;
+  const res = {
+    clearCookie(name: string, options?: { path?: string }) {
+      clearedCookies.push({ name, path: options?.path });
+      return res;
+    },
+  } as unknown as Response;
+
+  await assert.rejects(
+    destroyAuthenticatedSession(req, res),
+    failure,
+  );
+  assert.deepEqual(clearedCookies, [{ name: "wcib.sid", path: "/" }]);
 });
 
 test("session establishment regenerates identity and stores only WCIB auth state", async () => {

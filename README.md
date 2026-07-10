@@ -314,6 +314,20 @@ DATABASE_URL=postgresql://wcib:wcib_local_password@127.0.0.1:54322/wcib \
   npm run test:db:login
 ```
 
+### Logout endpoint
+
+`POST /api/auth/logout` accepts no body and returns HTTP 204 with no response
+fields. Any client may call it: authenticated, anonymous, and already-expired
+sessions receive the same idempotent result. The server destroys the current
+Postgres session when present and clears only the `wcib.sid` cookie. Requests
+that reuse the old cookie are unauthenticated.
+
+Logout has no role, capability, financial, MFA, trusted-browser, or domain-data
+branches. Logs contain only `logout_succeeded` or `logout_failed` metadata. If
+the session store cannot confirm destruction, the cookie is still cleared and
+the route returns the generic HTTP 500 API response rather than claiming that
+server-side revocation succeeded.
+
 ## Staff accounts and capabilities
 
 `staff_profiles` is a one-to-one extension of an auth-owned user UUID. Staff

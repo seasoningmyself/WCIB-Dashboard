@@ -9,8 +9,15 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import type { Express } from "express";
 import type pg from "pg";
 import { createApp } from "../app.js";
-import { createSessionMiddleware } from "../auth/sessions.js";
-import { createUser, type AuthDatabase } from "../auth/users.js";
+import {
+  createSessionMiddleware,
+  resolveAuthenticatedSession,
+} from "../auth/sessions.js";
+import {
+  createUser,
+  findUserById,
+  type AuthDatabase,
+} from "../auth/users.js";
 import { createDatabasePool } from "../db/client.js";
 import * as databaseSchema from "../db/schema.js";
 import {
@@ -20,7 +27,12 @@ import {
   users,
 } from "../db/schema.js";
 import { StructuredLogger } from "../logging/logger.js";
-import { LOGIN_PATH, registerAuthRoutes } from "./auth.js";
+import { asyncRoute } from "./errors.js";
+import {
+  LOGIN_PATH,
+  LOGOUT_PATH,
+  registerAuthRoutes,
+} from "./auth.js";
 
 const SESSION_SECRET = "database-login-test-secret-at-least-32-characters";
 const PASSWORD = "StrongPass123!";
@@ -61,14 +73,18 @@ async function closeServer(server: Server): Promise<void> {
 
 async function request(
   baseUrl: string,
-  options: { body?: unknown; method?: string; path: string },
+  options: { body?: unknown; cookie?: string; method?: string; path: string },
 ): Promise<TestResponse> {
+  const headers: Record<string, string> = {};
+  if (options.body !== undefined) {
+    headers["content-type"] = "application/json";
+  }
+  if (options.cookie !== undefined) {
+    headers.cookie = options.cookie;
+  }
   const response = await fetch(`${baseUrl}${options.path}`, {
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    headers:
-      options.body === undefined
-        ? undefined
-        : { "content-type": "application/json" },
+    headers,
     method: options.method ?? "GET",
   });
   const bodyText = await response.text();
@@ -77,6 +93,12 @@ async function request(
     headers: response.headers,
     statusCode: response.status,
   };
+}
+
+function readCookie(response: TestResponse): string {
+  const setCookie = response.headers.get("set-cookie");
+  assert.ok(setCookie !== null);
+  return setCookie.split(";", 1)[0] ?? "";
 }
 
 function login(baseUrl: string, email: string, password = PASSWORD) {
@@ -167,6 +189,21 @@ test("login endpoint creates WCIB sessions and returns scoped access summaries",
     const app = createApp({
       registerRoutes(expressApp) {
         registerAuthRoutes(expressApp, { database, logger });
+        expressApp.get(
+          "/test/current-session",
+          asyncRoute(async (req, res) => {
+            const result = await resolveAuthenticatedSession(
+              req,
+              res,
+              (id) => findUserById(database, id),
+            );
+            if (!result.authenticated) {
+              res.status(401).json(result);
+              return;
+            }
+            res.json({ userId: result.user.id });
+          }),
+        );
       },
       sessionMiddleware: createSessionMiddleware(pool, {
         logger,
@@ -191,6 +228,27 @@ test("login endpoint creates WCIB sessions and returns scoped access summaries",
       },
     });
     assert.match(employeeLogin.headers.get("set-cookie") ?? "", /wcib\.sid=/);
+    const employeeCookie = readCookie(employeeLogin);
+    const currentEmployee = await request(runningServer.baseUrl, {
+      cookie: employeeCookie,
+      path: "/test/current-session",
+    });
+    assert.equal(currentEmployee.statusCode, 200);
+    assert.deepEqual(currentEmployee.body, { userId: employee.id });
+
+    const employeeLogout = await request(runningServer.baseUrl, {
+      cookie: employeeCookie,
+      method: "POST",
+      path: LOGOUT_PATH,
+    });
+    assert.equal(employeeLogout.statusCode, 204);
+    assert.equal(employeeLogout.body, null);
+    assert.match(employeeLogout.headers.get("set-cookie") ?? "", /^wcib\.sid=;/);
+    const oldEmployeeSession = await request(runningServer.baseUrl, {
+      cookie: employeeCookie,
+      path: "/test/current-session",
+    });
+    assert.equal(oldEmployeeSession.statusCode, 401);
 
     const adminLogin = await login(runningServer.baseUrl, admin.email);
     assert.equal(adminLogin.statusCode, 200);
@@ -202,6 +260,7 @@ test("login endpoint creates WCIB sessions and returns scoped access summaries",
         staffRole: null,
       },
     });
+    const adminCookie = readCookie(adminLogin);
 
     const failure = {
       error: {
@@ -233,7 +292,7 @@ test("login endpoint creates WCIB sessions and returns scoped access summaries",
     const testSessions = storedSessions
       .map((row) => row.sess as Record<string, unknown>)
       .filter((payload) => userIds.includes(String(payload.userId)));
-    assert.equal(testSessions.length, 2);
+    assert.equal(testSessions.length, 1);
     for (const payload of testSessions) {
       assert.deepEqual(Object.keys(payload).sort(), [
         "cookie",
@@ -241,6 +300,25 @@ test("login endpoint creates WCIB sessions and returns scoped access summaries",
         "userId",
       ]);
     }
+
+    await pool.query(
+      "update sessions set expire = now() - interval '1 second' where sess->>'userId' = $1",
+      [admin.id],
+    );
+    const expiredLogout = await request(runningServer.baseUrl, {
+      cookie: adminCookie,
+      method: "POST",
+      path: LOGOUT_PATH,
+    });
+    assert.equal(expiredLogout.statusCode, 204);
+    assert.match(expiredLogout.headers.get("set-cookie") ?? "", /^wcib\.sid=;/);
+
+    const anonymousLogout = await request(runningServer.baseUrl, {
+      method: "POST",
+      path: LOGOUT_PATH,
+    });
+    assert.equal(anonymousLogout.statusCode, 204);
+    assert.match(anonymousLogout.headers.get("set-cookie") ?? "", /^wcib\.sid=;/);
 
     const serialized = JSON.stringify([
       employeeLogin.body,
