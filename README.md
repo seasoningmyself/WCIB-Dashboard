@@ -358,6 +358,34 @@ DATABASE_URL=postgresql://wcib:wcib_local_password@127.0.0.1:54322/wcib \
   npm run test:db:password-reset
 ```
 
+### Optional admin 2FA scaffold
+
+Foundation includes schema-only structure for future optional admin 2FA:
+`user_mfa_settings` identifies an admin account with a scaffold, and
+`user_mfa_method_placeholders` can name `email`, `totp`, or `webauthn` as
+future method types. The service creates these records only for users with an
+active `admin` capability.
+
+This is not active MFA protection. Database checks require
+`enforcement_enabled = false` and `is_enabled = false`; login and session code
+do not read either table. Admins with no placeholders and admins with inert
+placeholders both use the same password-only Foundation login as employees and
+producers. There are no enrollment, challenge, verification, recovery-code, or
+trusted-browser routes.
+
+The scaffold stores no secrets, credential IDs, assertions, challenges,
+recovery codes, or trusted-browser tokens. Activating any method requires a
+separate reviewed ticket to migrate the inert checks, add method-appropriate
+encrypted or hashed credential storage, implement challenge services and
+routes, update sessions, and add user-facing enrollment and recovery behavior.
+
+After applying migration `0005_mfa_scaffold`, run:
+
+```sh
+DATABASE_URL=postgresql://wcib:wcib_local_password@127.0.0.1:54322/wcib \
+  npm run test:db:mfa-scaffold
+```
+
 ## Staff accounts and capabilities
 
 `staff_profiles` is a one-to-one extension of an auth-owned user UUID. Staff

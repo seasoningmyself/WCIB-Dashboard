@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { STAFF_ROLES } from "../../shared/access.js";
+import { MFA_METHOD_TYPES } from "../../shared/mfa-scaffold.js";
 import {
   boolean,
   check,
@@ -16,6 +17,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 export const staffRoleEnum = pgEnum("staff_role", STAFF_ROLES);
+export const mfaMethodTypeEnum = pgEnum("mfa_method_type", MFA_METHOD_TYPES);
 export const staffPronounEnum = pgEnum("staff_pronoun", [
   "her",
   "his",
@@ -106,6 +108,59 @@ export type PasswordResetTokenRecord =
   typeof passwordResetTokens.$inferSelect;
 export type NewPasswordResetTokenRecord =
   typeof passwordResetTokens.$inferInsert;
+
+export const userMfaSettings = pgTable(
+  "user_mfa_settings",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    enforcementEnabled: boolean("enforcement_enabled")
+      .notNull()
+      .default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "user_mfa_settings_foundation_inert_check",
+      sql`${table.enforcementEnabled} = false`,
+    ),
+  ],
+);
+
+export const userMfaMethodPlaceholders = pgTable(
+  "user_mfa_method_placeholders",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => userMfaSettings.userId, { onDelete: "cascade" }),
+    methodType: mfaMethodTypeEnum("method_type").notNull(),
+    isEnabled: boolean("is_enabled").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("user_mfa_method_placeholders_user_type_idx").on(
+      table.userId,
+      table.methodType,
+    ),
+    check(
+      "user_mfa_method_placeholders_foundation_inert_check",
+      sql`${table.isEnabled} = false`,
+    ),
+  ],
+);
+
+export type UserMfaSettingsRecord = typeof userMfaSettings.$inferSelect;
+export type NewUserMfaSettingsRecord = typeof userMfaSettings.$inferInsert;
+export type UserMfaMethodPlaceholderRecord =
+  typeof userMfaMethodPlaceholders.$inferSelect;
+export type NewUserMfaMethodPlaceholderRecord =
+  typeof userMfaMethodPlaceholders.$inferInsert;
 
 export const staffProfiles = pgTable(
   "staff_profiles",
