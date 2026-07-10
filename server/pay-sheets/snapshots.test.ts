@@ -7,6 +7,7 @@ import {
 import {
   buildPaySheetPolicySnapshot,
   buildPaySheetRateSnapshot,
+  parsePaySheetPolicySnapshot,
 } from "./snapshots.js";
 
 const policySource = {
@@ -51,6 +52,20 @@ test("policy snapshots support unassigned producer UUIDs", () => {
   });
 
   assert.equal(snapshot.producerUserId, null);
+});
+
+test("stored policy snapshots require the exact frozen contract", () => {
+  const snapshot = buildPaySheetPolicySnapshot(policySource);
+
+  assert.deepEqual(parsePaySheetPolicySnapshot(snapshot), snapshot);
+  assert.throws(
+    () => parsePaySheetPolicySnapshot({ ...snapshot, agencyRevenue: "149.99" }),
+    /agencyRevenue/,
+  );
+  assert.throws(
+    () => parsePaySheetPolicySnapshot({ ...snapshot, rewriteSubtype: "wonback" }),
+    /fields/,
+  );
 });
 
 test("rate snapshots copy the effective four-rate contract only", () => {

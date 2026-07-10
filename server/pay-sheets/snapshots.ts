@@ -3,6 +3,7 @@ import { POLICY_TYPE_CLASSES } from "../../shared/policy-types.js";
 import {
   MAX_PAY_SHEET_POLICY_SNAPSHOT_BYTES,
   MAX_PAY_SHEET_RATE_SNAPSHOT_BYTES,
+  PAY_SHEET_POLICY_SNAPSHOT_FIELDS,
   type PaySheetPolicySnapshot,
   type PaySheetRateSnapshot,
 } from "../../shared/pay-sheet-snapshots.js";
@@ -48,6 +49,29 @@ export function buildPaySheetPolicySnapshot(
     MAX_PAY_SHEET_POLICY_SNAPSHOT_BYTES
   ) {
     throw new Error("Policy snapshot exceeds the byte limit");
+  }
+  return snapshot;
+}
+
+export function parsePaySheetPolicySnapshot(
+  value: unknown,
+): PaySheetPolicySnapshot {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Policy snapshot is missing or invalid");
+  }
+  const source = value as Readonly<Record<string, unknown>>;
+  const actualFields = Object.keys(source).sort();
+  const expectedFields = [...PAY_SHEET_POLICY_SNAPSHOT_FIELDS].sort();
+  if (
+    actualFields.length !== expectedFields.length ||
+    actualFields.some((field, index) => field !== expectedFields[index])
+  ) {
+    throw new Error("Policy snapshot fields are missing or invalid");
+  }
+
+  const snapshot = buildPaySheetPolicySnapshot(source);
+  if (source.agencyRevenue !== snapshot.agencyRevenue) {
+    throw new Error("Policy snapshot money is missing or invalid: agencyRevenue");
   }
   return snapshot;
 }
