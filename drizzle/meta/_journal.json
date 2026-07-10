@@ -43,6 +43,13 @@
       "when": 1783652814984,
       "tag": "0005_mfa_scaffold",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783666652413,
+      "tag": "0006_producer_rate_history",
+      "breakpoints": true
     }
   ]
 }

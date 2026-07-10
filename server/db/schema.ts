@@ -4,9 +4,11 @@ import { MFA_METHOD_TYPES } from "../../shared/mfa-scaffold.js";
 import {
   boolean,
   check,
+  date,
   integer,
   index,
   jsonb,
+  numeric,
   pgEnum,
   pgTable,
   primaryKey,
@@ -217,3 +219,64 @@ export type StaffProfileRecord = typeof staffProfiles.$inferSelect;
 export type NewStaffProfileRecord = typeof staffProfiles.$inferInsert;
 export type UserCapabilityRecord = typeof userCapabilities.$inferSelect;
 export type NewUserCapabilityRecord = typeof userCapabilities.$inferInsert;
+
+export const producerRateHistory = pgTable(
+  "producer_rate_history",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    producerUserId: uuid("producer_user_id")
+      .notNull()
+      .references(() => staffProfiles.userId, { onDelete: "restrict" }),
+    effectiveDate: date("effective_date").notNull(),
+    newCommissionRate: numeric("new_commission_rate", {
+      precision: 5,
+      scale: 2,
+    }).notNull(),
+    newBrokerRate: numeric("new_broker_rate", {
+      precision: 5,
+      scale: 2,
+    }).notNull(),
+    renewalCommissionRate: numeric("renewal_commission_rate", {
+      precision: 5,
+      scale: 2,
+    }).notNull(),
+    renewalBrokerRate: numeric("renewal_broker_rate", {
+      precision: 5,
+      scale: 2,
+    }).notNull(),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("producer_rate_history_producer_effective_date_idx").on(
+      table.producerUserId,
+      table.effectiveDate,
+    ),
+    check(
+      "producer_rate_history_new_commission_rate_check",
+      sql`${table.newCommissionRate} >= 0 AND ${table.newCommissionRate} <= 100`,
+    ),
+    check(
+      "producer_rate_history_new_broker_rate_check",
+      sql`${table.newBrokerRate} >= 0 AND ${table.newBrokerRate} <= 100`,
+    ),
+    check(
+      "producer_rate_history_renewal_commission_rate_check",
+      sql`${table.renewalCommissionRate} >= 0 AND ${table.renewalCommissionRate} <= 100`,
+    ),
+    check(
+      "producer_rate_history_renewal_broker_rate_check",
+      sql`${table.renewalBrokerRate} >= 0 AND ${table.renewalBrokerRate} <= 100`,
+    ),
+  ],
+);
+
+export type ProducerRateHistoryRecord =
+  typeof producerRateHistory.$inferSelect;
+export type NewProducerRateHistoryRecord =
+  typeof producerRateHistory.$inferInsert;

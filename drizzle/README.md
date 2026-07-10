@@ -11,6 +11,10 @@ Do not place prototype data imports, production credentials, or manual data
 backfills here. A migration that changes financial or authorization behavior
 must be reviewed with its owning ticket.
 
+Reviewed reverse SQL lives in `backout/` and is never applied by the normal
+migration runner. Backout files are for unused or disposable environments;
+after financial data exists, preserve the data and use a reviewed forward fix.
+
 `0000_baseline.sql` intentionally executes only `SELECT 1`. It proves the
 migration pipeline and creates Drizzle's migration-history record without
 creating WCIB tables or data.
