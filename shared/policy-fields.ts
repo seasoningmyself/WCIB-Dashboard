@@ -28,3 +28,11 @@ export type IpfsFinancingChoice = (typeof IPFS_FINANCING_CHOICES)[number];
 export const IPFS_CUSTOMER_TYPES = ["new", "returning"] as const;
 
 export type IpfsCustomerType = (typeof IPFS_CUSTOMER_TYPES)[number];
+
+export const APPROVAL_QUEUE_STATUSES = [
+  "pending",
+  "sent_back",
+  "flagged",
+] as const;
+
+export type ApprovalQueueStatus = (typeof APPROVAL_QUEUE_STATUSES)[number];

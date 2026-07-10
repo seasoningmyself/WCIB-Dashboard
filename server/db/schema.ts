@@ -4,6 +4,7 @@ import { MFA_METHOD_TYPES } from "../../shared/mfa-scaffold.js";
 import { POLICY_TYPE_CLASSES } from "../../shared/policy-types.js";
 import {
   ACCOUNT_ASSIGNMENTS,
+  APPROVAL_QUEUE_STATUSES,
   COMMISSION_MODES,
   DRAFT_STATUSES,
   IPFS_CUSTOMER_TYPES,
@@ -50,6 +51,10 @@ export const ipfsFinancingChoiceEnum = pgEnum(
 export const ipfsCustomerTypeEnum = pgEnum(
   "ipfs_customer_type",
   IPFS_CUSTOMER_TYPES,
+);
+export const approvalQueueStatusEnum = pgEnum(
+  "approval_queue_status",
+  APPROVAL_QUEUE_STATUSES,
 );
 export const staffPronounEnum = pgEnum("staff_pronoun", [
   "her",
@@ -564,3 +569,89 @@ export const drafts = pgTable(
 
 export type DraftRecord = typeof drafts.$inferSelect;
 export type NewDraftRecord = typeof drafts.$inferInsert;
+
+export const approvalQueueEntries = pgTable(
+  "approval_queue_entries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    draftId: uuid("draft_id")
+      .notNull()
+      .references(() => drafts.id, { onDelete: "restrict" }),
+    submittedByUserId: uuid("submitted_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    submittedPayload: jsonb("submitted_payload").notNull(),
+    status: approvalQueueStatusEnum("status").notNull().default("pending"),
+    reason: text("reason"),
+    actedByUserId: uuid("acted_by_user_id").references(() => users.id, {
+      onDelete: "restrict",
+    }),
+    actedAt: timestamp("acted_at", { withTimezone: true }),
+    submittedAt: timestamp("submitted_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("approval_queue_entries_active_draft_idx")
+      .on(table.draftId)
+      .where(sql`${table.status} in ('pending', 'flagged')`),
+    index("approval_queue_entries_status_submitted_idx").on(
+      table.status,
+      table.submittedAt,
+    ),
+    index("approval_queue_entries_submitter_idx").on(table.submittedByUserId),
+    check(
+      "approval_queue_entries_payload_shape_check",
+      sql`jsonb_typeof(${table.submittedPayload}) = 'object'
+        AND COALESCE(
+          (${table.submittedPayload}->>'schemaVersion') ~ '^[1-9][0-9]*$',
+          false
+        )
+        AND pg_column_size(${table.submittedPayload}) <= 262144`,
+    ),
+    check(
+      "approval_queue_entries_payload_scope_check",
+      sql`NOT (${table.submittedPayload} ?| ARRAY[
+        'carrierFee',
+        'carrier_fee',
+        'rewriteSubtype',
+        'rewrite_subtype',
+        'balance_due_from_insured',
+        'remaining_net_due'
+      ])`,
+    ),
+    check(
+      "approval_queue_entries_action_metadata_check",
+      sql`(
+        ${table.status} = 'pending'
+        AND ${table.reason} is null
+        AND ${table.actedByUserId} is null
+        AND ${table.actedAt} is null
+      ) OR (
+        ${table.status} in ('sent_back', 'flagged')
+        AND NULLIF(btrim(${table.reason}), '') is not null
+        AND ${table.actedByUserId} is not null
+        AND ${table.actedAt} is not null
+      )`,
+    ),
+    check(
+      "approval_queue_entries_submitted_order_check",
+      sql`${table.submittedAt} >= ${table.createdAt}`,
+    ),
+    check(
+      "approval_queue_entries_updated_order_check",
+      sql`${table.updatedAt} >= ${table.createdAt}`,
+    ),
+  ],
+);
+
+export type ApprovalQueueEntryRecord =
+  typeof approvalQueueEntries.$inferSelect;
+export type NewApprovalQueueEntryRecord =
+  typeof approvalQueueEntries.$inferInsert;
