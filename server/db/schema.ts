@@ -727,24 +727,39 @@ export const policies = pgTable(
   "policies",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    sourceDraftId: uuid("source_draft_id"),
-    submittedByUserId: uuid("submitted_by_user_id").notNull(),
+    sourceDraftId: uuid("source_draft_id").references(() => drafts.id, {
+      onDelete: "restrict",
+    }),
+    submittedByUserId: uuid("submitted_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
     insuredName: text("insured_name").notNull(),
     companyName: text("company_name"),
     policyNumber: text("policy_number").notNull(),
-    policyTypeId: uuid("policy_type_id").notNull(),
+    policyTypeId: uuid("policy_type_id")
+      .notNull()
+      .references(() => policyTypes.id, { onDelete: "restrict" }),
     transactionType: text("transaction_type").notNull(),
     transactionNotes: text("transaction_notes"),
     invoiceNumber: text("invoice_number"),
     effectiveDate: date("effective_date").notNull(),
     expirationDate: date("expiration_date").notNull(),
-    carrierId: uuid("carrier_id").notNull(),
-    mgaId: uuid("mga_id").notNull(),
-    officeLocationId: uuid("office_location_id").notNull(),
+    carrierId: uuid("carrier_id")
+      .notNull()
+      .references(() => carriers.id, { onDelete: "restrict" }),
+    mgaId: uuid("mga_id")
+      .notNull()
+      .references(() => mgas.id, { onDelete: "restrict" }),
+    officeLocationId: uuid("office_location_id")
+      .notNull()
+      .references(() => officeLocations.id, { onDelete: "restrict" }),
     accountAssignment: accountAssignmentEnum("account_assignment")
       .notNull()
       .default("none"),
-    producerUserId: uuid("producer_user_id"),
+    producerUserId: uuid("producer_user_id").references(
+      () => staffProfiles.userId,
+      { onDelete: "restrict" },
+    ),
     kayleeSplit: accountAssignmentEnum("kaylee_split")
       .notNull()
       .default("none"),

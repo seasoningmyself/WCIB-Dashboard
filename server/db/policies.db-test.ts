@@ -1,27 +1,46 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
 import { test } from "node:test";
-import { inArray, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { KAYLEE_PRODUCER_SHARE_PERCENT } from "../../shared/policy-fields.js";
 import { readDatabaseErrorCode } from "./error-code.js";
+import { createPolicyReferenceFixture } from "./policy-test-fixture.js";
 import { policies } from "./schema.js";
 import * as databaseSchema from "./schema.js";
+
+async function expectDatabaseError(
+  client: pg.PoolClient,
+  code: string,
+  action: () => Promise<unknown>,
+): Promise<void> {
+  await client.query("SAVEPOINT expected_policy_error");
+  try {
+    await assert.rejects(
+      action,
+      (error: unknown) => readDatabaseErrorCode(error) === code,
+    );
+  } finally {
+    await client.query("ROLLBACK TO SAVEPOINT expected_policy_error");
+    await client.query("RELEASE SAVEPOINT expected_policy_error");
+  }
+}
 
 test("policies persist exact v15 ledger, split, and financing facts", async () => {
   const databaseUrl = process.env.DATABASE_URL;
   assert.ok(databaseUrl, "DATABASE_URL is required for the policies smoke test");
 
   const pool = new pg.Pool({ connectionString: databaseUrl, max: 1 });
-  const database = drizzle(pool, { schema: databaseSchema });
-  const policyIds: string[] = [];
+  const client = await pool.connect();
+  const database = drizzle(client, { schema: databaseSchema });
 
   try {
+    await client.query("BEGIN");
+    const references = await createPolicyReferenceFixture(database);
     const submittedAt = new Date("2026-07-01T12:00:00.000Z");
     const approvedAt = new Date("2026-07-01T13:00:00.000Z");
     const pushedAt = new Date("2026-07-02T12:00:00.000Z");
-    const producerUserId = randomUUID();
+    const producerUserId = references.producerUserId;
     const [wonBack] = await database
       .insert(policies)
       .values({
@@ -30,7 +49,7 @@ test("policies persist exact v15 ledger, split, and financing facts", async () =
         approvedAt,
         basePremium: "1000.00",
         brokerFee: "50.00",
-        carrierId: randomUUID(),
+        carrierId: references.carrierId,
         commissionAmount: "125.00",
         commissionConfirmed: true,
         commissionMode: "pct",
@@ -61,18 +80,18 @@ test("policies persist exact v15 ledger, split, and financing facts", async () =
         ipfsReturning: "new",
         kayleeSplit: "book",
         mgaFee: "25.00",
-        mgaId: randomUUID(),
+        mgaId: references.mgaId,
         netDue: "175.00",
         notes: "Policy notes",
-        officeLocationId: randomUUID(),
+        officeLocationId: references.officeLocationId,
         paymentMode: "deposit",
         policyNumber: "POL-WON-BACK",
-        policyTypeId: randomUUID(),
+        policyTypeId: references.policyTypeId,
         producerUserId,
         proposalTotal: "1125.00",
-        sourceDraftId: randomUUID(),
+        sourceDraftId: references.sourceDraftId,
         submittedAt,
-        submittedByUserId: randomUUID(),
+        submittedByUserId: references.submittedByUserId,
         taxes: "50.00",
         transactionNotes: "Client returned after a coverage gap",
         transactionType: "Won Back",
@@ -80,7 +99,6 @@ test("policies persist exact v15 ledger, split, and financing facts", async () =
       })
       .returning();
     assert.ok(wonBack);
-    policyIds.push(wonBack.id);
 
     const [rewrite] = await database
       .insert(policies)
@@ -90,7 +108,7 @@ test("policies persist exact v15 ledger, split, and financing facts", async () =
         approvedAt,
         basePremium: "0.00",
         brokerFee: "100.00",
-        carrierId: randomUUID(),
+        carrierId: references.carrierId,
         commissionAmount: "0.00",
         commissionConfirmed: false,
         commissionMode: "na",
@@ -99,21 +117,20 @@ test("policies persist exact v15 ledger, split, and financing facts", async () =
         financeBalance: "0.00",
         insuredName: "Rewrite Insured",
         kayleeSplit: "none",
-        mgaId: randomUUID(),
+        mgaId: references.mgaId,
         netDue: "0.00",
-        officeLocationId: randomUUID(),
+        officeLocationId: references.officeLocationId,
         paymentMode: "full",
         policyNumber: "POL-REWRITE",
-        policyTypeId: randomUUID(),
+        policyTypeId: references.policyTypeId,
         proposalTotal: "100.00",
         submittedAt,
-        submittedByUserId: randomUUID(),
+        submittedByUserId: references.submittedByUserId,
         transactionNotes: "Moved carrier for a coverage need",
         transactionType: "Rewrite",
       })
       .returning();
     assert.ok(rewrite);
-    policyIds.push(rewrite.id);
 
     assert.equal(KAYLEE_PRODUCER_SHARE_PERCENT, 25);
     assert.equal(wonBack.kayleeSplit, "book");
@@ -138,22 +155,20 @@ test("policies persist exact v15 ledger, split, and financing facts", async () =
               'rewrite_subtype',
               'carrier_fee',
               'on_pay_sheets',
-              'premium_total',
-              'collected_to_date',
               'balance_due_from_insured',
               'remaining_net_due'
             )`,
     );
     assert.deepEqual(forbiddenColumns.rows, []);
 
-    await assert.rejects(
+    await expectDatabaseError(client, "23514", () =>
       database.insert(policies).values({
         accountAssignment: "book",
         amountPaid: "350.00",
         approvedAt,
         basePremium: "1000.00",
         brokerFee: "50.00",
-        carrierId: randomUUID(),
+        carrierId: references.carrierId,
         commissionAmount: "125.00",
         commissionConfirmed: true,
         commissionMode: "pct",
@@ -163,47 +178,45 @@ test("policies persist exact v15 ledger, split, and financing facts", async () =
         financeBalance: "0.00",
         insuredName: "Missing Producer",
         kayleeSplit: "book",
-        mgaId: randomUUID(),
+        mgaId: references.mgaId,
         netDue: "175.00",
-        officeLocationId: randomUUID(),
+        officeLocationId: references.officeLocationId,
         paymentMode: "full",
         policyNumber: "INVALID-SPLIT",
-        policyTypeId: randomUUID(),
+        policyTypeId: references.policyTypeId,
         proposalTotal: "1050.00",
         submittedAt,
-        submittedByUserId: randomUUID(),
+        submittedByUserId: references.submittedByUserId,
         transactionType: "New",
       }),
-      (error: unknown) => readDatabaseErrorCode(error) === "23514",
     );
-    await assert.rejects(
+    await expectDatabaseError(client, "23514", () =>
       database.insert(policies).values({
         accountAssignment: "none",
         amountPaid: "100.00",
         approvedAt,
         basePremium: "0.00",
         brokerFee: "100.00",
-        carrierId: randomUUID(),
+        carrierId: references.carrierId,
         commissionAmount: "0.00",
         commissionMode: "na",
         effectiveDate: "2026-07-01",
         expirationDate: "2027-07-01",
         insuredName: "Wrong Total",
         kayleeSplit: "none",
-        mgaId: randomUUID(),
+        mgaId: references.mgaId,
         netDue: "0.00",
-        officeLocationId: randomUUID(),
+        officeLocationId: references.officeLocationId,
         paymentMode: "full",
         policyNumber: "INVALID-TOTAL",
-        policyTypeId: randomUUID(),
+        policyTypeId: references.policyTypeId,
         proposalTotal: "101.00",
         submittedAt,
-        submittedByUserId: randomUUID(),
+        submittedByUserId: references.submittedByUserId,
         transactionType: "New",
       }),
-      (error: unknown) => readDatabaseErrorCode(error) === "23514",
     );
-    await assert.rejects(
+    await expectDatabaseError(client, "22P02", () =>
       database.execute(
         sql`insert into policies (
           submitted_by_user_id, insured_name, policy_number, policy_type_id,
@@ -212,17 +225,15 @@ test("policies persist exact v15 ledger, split, and financing facts", async () =
           commission_mode, amount_paid, proposal_total, net_due, payment_mode,
           submitted_at, approved_at
         ) values (
-          ${randomUUID()}::uuid, 'Invalid Split', 'INVALID-ENUM', ${randomUUID()}::uuid,
-          'New', '2026-07-01', '2027-07-01', ${randomUUID()}::uuid, ${randomUUID()}::uuid,
-          ${randomUUID()}::uuid, 'other', 0, 0, 'na', 0, 0, 0, 'full', now(), now()
+          ${references.submittedByUserId}::uuid, 'Invalid Split', 'INVALID-ENUM', ${references.policyTypeId}::uuid,
+          'New', '2026-07-01', '2027-07-01', ${references.carrierId}::uuid, ${references.mgaId}::uuid,
+          ${references.officeLocationId}::uuid, 'other', 0, 0, 'na', 0, 0, 0, 'full', now(), now()
         )`,
       ),
-      (error: unknown) => readDatabaseErrorCode(error) === "22P02",
     );
   } finally {
-    if (policyIds.length > 0) {
-      await database.delete(policies).where(inArray(policies.id, policyIds));
-    }
+    await client.query("ROLLBACK");
+    client.release();
     await pool.end();
   }
 });

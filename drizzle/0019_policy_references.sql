@@ -1,0 +1,7 @@
+ALTER TABLE "policies" ADD CONSTRAINT "policies_source_draft_id_drafts_id_fk" FOREIGN KEY ("source_draft_id") REFERENCES "public"."drafts"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "policies" ADD CONSTRAINT "policies_submitted_by_user_id_users_id_fk" FOREIGN KEY ("submitted_by_user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "policies" ADD CONSTRAINT "policies_policy_type_id_policy_types_id_fk" FOREIGN KEY ("policy_type_id") REFERENCES "public"."policy_types"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "policies" ADD CONSTRAINT "policies_carrier_id_carriers_id_fk" FOREIGN KEY ("carrier_id") REFERENCES "public"."carriers"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "policies" ADD CONSTRAINT "policies_mga_id_mgas_id_fk" FOREIGN KEY ("mga_id") REFERENCES "public"."mgas"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "policies" ADD CONSTRAINT "policies_office_location_id_office_locations_id_fk" FOREIGN KEY ("office_location_id") REFERENCES "public"."office_locations"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "policies" ADD CONSTRAINT "policies_producer_user_id_staff_profiles_user_id_fk" FOREIGN KEY ("producer_user_id") REFERENCES "public"."staff_profiles"("user_id") ON DELETE restrict ON UPDATE no action;
