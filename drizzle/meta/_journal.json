@@ -225,6 +225,13 @@
       "when": 1783678080235,
       "tag": "0031_pay_sheet_adjustments",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1783678784002,
+      "tag": "0032_kpi_targets",
+      "breakpoints": true
     }
   ]
 }

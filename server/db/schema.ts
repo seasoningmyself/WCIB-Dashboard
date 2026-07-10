@@ -33,6 +33,7 @@ import {
   PAY_SHEET_ACCOUNT_BASES,
   PAY_SHEET_ADJUSTMENT_TYPES,
 } from "../../shared/pay-sheet-adjustments.js";
+import { KPI_TARGET_SCOPE_TYPES } from "../../shared/kpi-targets.js";
 import {
   boolean,
   check,
@@ -107,6 +108,10 @@ export const paySheetAdjustmentTypeEnum = pgEnum(
 export const paySheetAccountBasisEnum = pgEnum(
   "pay_sheet_account_basis",
   PAY_SHEET_ACCOUNT_BASES,
+);
+export const kpiTargetScopeTypeEnum = pgEnum(
+  "kpi_target_scope_type",
+  KPI_TARGET_SCOPE_TYPES,
 );
 export const staffPronounEnum = pgEnum("staff_pronoun", [
   "her",
@@ -1475,3 +1480,68 @@ export const paySheetAdjustments = pgTable(
 export type PaySheetAdjustmentRecord = typeof paySheetAdjustments.$inferSelect;
 export type NewPaySheetAdjustmentRecord =
   typeof paySheetAdjustments.$inferInsert;
+
+export const kpiTargets = pgTable(
+  "kpi_targets",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    scopeType: kpiTargetScopeTypeEnum("scope_type").notNull(),
+    producerUserId: uuid("producer_user_id").references(
+      () => staffProfiles.userId,
+      { onDelete: "restrict" },
+    ),
+    year: integer("year").notNull(),
+    newPolicyCountTarget: integer("new_policy_count_target"),
+    newRevenueTarget: numeric("new_revenue_target", {
+      precision: 14,
+      scale: 2,
+    }),
+    retentionRateTarget: numeric("retention_rate_target", {
+      precision: 5,
+      scale: 2,
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("kpi_targets_company_year_unique_idx")
+      .on(table.year)
+      .where(sql`${table.scopeType} = 'company'`),
+    uniqueIndex("kpi_targets_producer_year_unique_idx")
+      .on(table.producerUserId, table.year)
+      .where(sql`${table.scopeType} = 'producer'`),
+    check(
+      "kpi_targets_scope_shape_check",
+      sql`(${table.scopeType} = 'company' AND ${table.producerUserId} is null)
+        OR (${table.scopeType} = 'producer' AND ${table.producerUserId} is not null)`,
+    ),
+    check(
+      "kpi_targets_year_check",
+      sql`${table.year} BETWEEN 2000 AND 9999`,
+    ),
+    check(
+      "kpi_targets_new_policy_count_check",
+      sql`${table.newPolicyCountTarget} is null OR ${table.newPolicyCountTarget} >= 0`,
+    ),
+    check(
+      "kpi_targets_new_revenue_check",
+      sql`${table.newRevenueTarget} is null OR ${table.newRevenueTarget} >= 0`,
+    ),
+    check(
+      "kpi_targets_retention_rate_check",
+      sql`${table.retentionRateTarget} is null
+        OR ${table.retentionRateTarget} BETWEEN 0 AND 100`,
+    ),
+    check(
+      "kpi_targets_timestamp_order_check",
+      sql`${table.updatedAt} >= ${table.createdAt}`,
+    ),
+  ],
+);
+
+export type KpiTargetRecord = typeof kpiTargets.$inferSelect;
+export type NewKpiTargetRecord = typeof kpiTargets.$inferInsert;
