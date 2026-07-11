@@ -40,6 +40,12 @@ import { listDraftAssignmentOptions } from "./drafts/assignment-options.js";
 import { registerDraftAssignmentOptionsRoute } from "./http/draft-assignment-options.js";
 import { registerApprovalWorkRoute } from "./http/approval-queue.js";
 import { listApprovalWork } from "./approval-queue/list.js";
+import { registerApprovalActionRoutes } from "./http/approval-actions.js";
+import {
+  approveCorrectedFlaggedHelp,
+  approvePendingSubmission,
+  pushThroughFlaggedHelp,
+} from "./approval-queue/approve.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -109,6 +115,16 @@ const app = createApp({
       authorization,
       list: (context, query) => listApprovalWork(database, context, query),
       logger,
+    });
+    registerApprovalActionRoutes(routes, {
+      approve: (context, queueEntryId) =>
+        approvePendingSubmission(database, context, queueEntryId),
+      approveFixedHelp: (context, draftId, patch) =>
+        approveCorrectedFlaggedHelp(database, context, draftId, patch),
+      authorization,
+      logger,
+      pushThroughHelp: (context, draftId) =>
+        pushThroughFlaggedHelp(database, context, draftId),
     });
   },
   sessionMiddleware: createSessionMiddleware(pool, {

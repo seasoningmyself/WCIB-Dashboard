@@ -14,3 +14,10 @@ come from `approval_queue_entries` and use `projectAdminApprovalQueueEntry`.
 Flagged help requests are separate `drafts` records and use the admin branch of
 `projectDraftForAuthorizedContext`; the API never manufactures queue rows for
 them. Use `npm run test:db:approval-work` for the migrated-database contract.
+
+Approval actions are split by trusted source. Pending queue approval accepts an
+empty body and parses the immutable `submitted_payload`. Flagged help uses
+separate push-through and open-fix routes; both lock the stored draft and call
+the existing admin-direct lifecycle without creating a queue row. Open-fix
+merges only the established draft allowlist and leaves the original flagged
+content intact as the approved policy's source record.
