@@ -24,6 +24,8 @@ import {
   createPolicyTypeVocabulary,
 } from "./vocabulary/create.js";
 import { createMgaVocabulary } from "./vocabulary/mga-create.js";
+import { registerDraftCreateRoute } from "./http/drafts.js";
+import { createOwnDraft } from "./drafts/create.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -55,6 +57,12 @@ const app = createApp({
       authorization,
       createMga: (context, input) =>
         createMgaVocabulary(database, context, input, logger),
+    });
+    registerDraftCreateRoute(routes, {
+      authorization,
+      create: (context, input) =>
+        createOwnDraft(database, context, input),
+      logger,
     });
   },
   sessionMiddleware: createSessionMiddleware(pool, {

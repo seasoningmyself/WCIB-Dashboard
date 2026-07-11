@@ -1,0 +1,383 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import type {
+  NextFunction,
+  Request,
+  RequestHandler,
+  Response,
+} from "express";
+import { createApp } from "../app.js";
+import type { AccessPrincipal } from "../auth/access.js";
+import { createAuthorizationGuards } from "../auth/authorization.js";
+import type { UserAccount } from "../auth/users.js";
+import type { DraftRecord } from "../db/schema.js";
+import type { AppLogger } from "../logging/logger.js";
+import { toErrorResponse } from "./errors.js";
+import {
+  DRAFTS_PATH,
+  createDraftCreateHandler,
+  registerDraftCreateRoute,
+  type RegisterDraftCreateRouteOptions,
+} from "./drafts.js";
+import {
+  auditRouteAccessDeclarations,
+  type RouteAccessDeclaration,
+  type RouteRegistrar,
+} from "./routes.js";
+
+const ADMIN_ID = "00000000-0000-4000-8000-000000000001";
+const PRODUCER_ID = "00000000-0000-4000-8000-000000000002";
+const EMPLOYEE_ID = "00000000-0000-4000-8000-000000000003";
+const UNASSIGNED_ID = "00000000-0000-4000-8000-000000000004";
+const DRAFT_ID = "00000000-0000-4000-8000-000000000010";
+
+interface RegisteredPostRoute {
+  access: RouteAccessDeclaration;
+  handler: RequestHandler;
+  path: string;
+}
+
+interface TestResult {
+  body: unknown;
+  headers: Record<string, string>;
+  status: number;
+}
+
+const logger: AppLogger = { error() {}, info() {}, warn() {} };
+
+function createFixture() {
+  const users = new Map<string, UserAccount>(
+    [ADMIN_ID, PRODUCER_ID, EMPLOYEE_ID, UNASSIGNED_ID].map((id) => [
+      id,
+      account(id),
+    ]),
+  );
+  const principals = new Map<string, AccessPrincipal>([
+    [ADMIN_ID, principal(ADMIN_ID, { capabilities: ["admin"] })],
+    [PRODUCER_ID, principal(PRODUCER_ID, { staffRole: "producer" })],
+    [EMPLOYEE_ID, principal(EMPLOYEE_ID, { staffRole: "employee" })],
+    [UNASSIGNED_ID, principal(UNASSIGNED_ID)],
+  ]);
+  const calls: Array<{ input: unknown; userId: string }> = [];
+  const authorization = createAuthorizationGuards({
+    async findUser(userId) {
+      return users.get(userId) ?? null;
+    },
+    async loadPrincipal(userId) {
+      return principals.get(userId) ?? null;
+    },
+    logger,
+  });
+  const registrations: RegisteredPostRoute[] = [];
+  const options: RegisterDraftCreateRouteOptions = {
+    authorization,
+    async create(context, input) {
+      calls.push({ input, userId: context.principal.userId });
+      return draft(context.principal.userId) as DraftRecord;
+    },
+    logger,
+  };
+  const routes = {
+    post(
+      path: string,
+      access: RouteAccessDeclaration,
+      ...handlers: RequestHandler[]
+    ) {
+      const handler = handlers[0];
+      assert.ok(handler);
+      registrations.push({ access, handler, path });
+    },
+  } as unknown as RouteRegistrar;
+  registerDraftCreateRoute(routes, options);
+  return { calls, options, registrations };
+}
+
+test("all three authenticated WCIB roles create UUID-owned active drafts", async () => {
+  for (const [identity, userId] of [
+    ["admin", ADMIN_ID],
+    ["producer", PRODUCER_ID],
+    ["employee", EMPLOYEE_ID],
+  ] as const) {
+    const fixture = createFixture();
+    const response = await invokeRoute(fixture, validBody(), identity);
+    assert.equal(response.status, 201);
+    assert.equal(response.headers["cache-control"], "no-store");
+    const body = response.body as { draft: Record<string, unknown> };
+    assert.equal(body.draft.ownerUserId, userId);
+    assert.equal(body.draft.status, "draft");
+    assert.equal(body.draft.agencyCommissionAmount, "125.00");
+    assert.equal(body.draft.basePremium, "1000.00");
+    for (const field of [
+      "applicableProducerRate",
+      "producerPayout",
+      "producerRate",
+      "producerRateHistory",
+    ]) {
+      assert.equal(field in body.draft, false, field);
+    }
+    assert.deepEqual(fixture.calls, [{ input: validBody(), userId }]);
+  }
+});
+
+test("owner and lifecycle spoofing fail before draft persistence", async () => {
+  for (const body of [
+    { ...validBody(), ownerUserId: ADMIN_ID },
+    { ...validBody(), status: "submitted" },
+    { ...validBody(), linkedPolicyId: DRAFT_ID },
+    { ...validBody(), producerPayout: "25.00" },
+  ]) {
+    const fixture = createFixture();
+    const response = await invokeRoute(fixture, body, "employee");
+    assert.equal(response.status, 400);
+    assert.deepEqual(fixture.calls, []);
+  }
+});
+
+test("draft creation denies unauthenticated and default-deny users", async () => {
+  for (const identity of [undefined, "unassigned"] as const) {
+    const fixture = createFixture();
+    const response = await invokeRoute(fixture, validBody(), identity);
+    assert.equal(response.status, identity === undefined ? 401 : 403);
+    assert.deepEqual(fixture.calls, []);
+  }
+});
+
+test("draft route is explicitly authorized and fails closed without its guard", async () => {
+  const fixture = createFixture();
+  const app = createApp({
+    registerRoutes(routes) {
+      registerDraftCreateRoute(routes, fixture.options);
+    },
+  });
+  assert.deepEqual(
+    auditRouteAccessDeclarations(app).find(({ path }) => path === DRAFTS_PATH),
+    {
+      access: { type: "authorized" },
+      method: "POST",
+      path: DRAFTS_PATH,
+    },
+  );
+
+  let calls = 0;
+  const handler = createDraftCreateHandler({
+    async create() {
+      calls += 1;
+      return draft(EMPLOYEE_ID) as DraftRecord;
+    },
+    logger,
+  });
+  const result = await invokeHandlerWithoutGuard(handler, validBody());
+  assert.equal(result.status, 500);
+  assert.equal(calls, 0);
+});
+
+function validBody() {
+  return {
+    basePremium: "1000.00",
+    commissionConfirmed: true,
+    commissionMode: "pct" as const,
+    commissionRate: "12.5000",
+    insuredName: "Test Insured",
+  };
+}
+
+function draft(ownerUserId: string): DraftRecord & Record<string, unknown> {
+  return {
+    accountAssignment: null,
+    amountPaid: "300.00",
+    applicableProducerRate: "25.0000",
+    basePremium: "1000.00",
+    brokerFee: "50.00",
+    carrierId: null,
+    commissionConfirmed: true,
+    commissionMode: "pct",
+    commissionRate: "12.5000",
+    companyName: null,
+    createdAt: new Date("2026-07-10T00:00:00.000Z"),
+    depositOption: "300.00",
+    effectiveDate: null,
+    expirationDate: null,
+    financeBalance: "780.00",
+    financeContact: null,
+    financeMeta: null,
+    financeReference: null,
+    flagReason: null,
+    history: [],
+    id: DRAFT_ID,
+    insuredName: "Test Insured",
+    invoiceNumber: null,
+    ipfsFinanced: null,
+    ipfsManual: false,
+    ipfsPushed: false,
+    ipfsPushedAt: null,
+    ipfsReturning: null,
+    lastEditedAt: new Date("2026-07-10T00:00:00.000Z"),
+    linkedPolicyId: null,
+    linkedQueueEntryId: null,
+    mgaFee: "0.00",
+    mgaId: null,
+    netDue: "125.00",
+    notes: null,
+    officeLocationId: null,
+    ownerUserId,
+    paymentMode: "deposit",
+    policyNumber: null,
+    policyTypeId: null,
+    producerPayout: "31.25",
+    producerRate: "25.0000",
+    producerRateHistory: [],
+    producerUserId: null,
+    proposalTotal: "1080.00",
+    schemaVersion: 1,
+    sentBackAt: null,
+    sentBackByUserId: null,
+    sentBackReason: null,
+    status: "draft",
+    submittedAt: null,
+    taxes: "5.00",
+    transactionNotes: null,
+    transactionType: null,
+  };
+}
+
+function account(id: string): UserAccount {
+  return {
+    createdAt: new Date("2026-07-10T00:00:00.000Z"),
+    email: `${id}@example.test`,
+    id,
+    isActive: true,
+    sessionVersion: 0,
+  };
+}
+
+function principal(
+  id: string,
+  access: Partial<AccessPrincipal> = {},
+): AccessPrincipal {
+  return {
+    capabilities: [],
+    staffRole: null,
+    userActive: true,
+    userId: id,
+    ...access,
+  };
+}
+
+function fakeSession(userId?: string): Request["session"] {
+  const session = {
+    cookie: {},
+    destroy(callback: (error?: unknown) => void) {
+      callback();
+    },
+  } as unknown as Request["session"];
+  if (userId !== undefined) {
+    session.userId = userId;
+    session.sessionVersion = 0;
+  }
+  return session;
+}
+
+async function invokeRoute(
+  fixture: ReturnType<typeof createFixture>,
+  body: unknown,
+  identity?: "admin" | "employee" | "producer" | "unassigned",
+): Promise<TestResult> {
+  const registration = fixture.registrations[0];
+  assert.ok(registration);
+  const guard = registration.access.authorization;
+  assert.ok(guard);
+  const userId =
+    identity === "admin"
+      ? ADMIN_ID
+      : identity === "producer"
+        ? PRODUCER_ID
+        : identity === "employee"
+          ? EMPLOYEE_ID
+          : identity === "unassigned"
+            ? UNASSIGNED_ID
+            : undefined;
+  const req = {
+    body,
+    headers: {},
+    method: "POST",
+    originalUrl: DRAFTS_PATH,
+    route: { path: DRAFTS_PATH },
+    session: fakeSession(userId),
+  } as unknown as Request;
+  const response = createTestResponse();
+  const guardError = await invokeNextMiddleware(guard, req, response.res);
+  if (guardError !== null) {
+    return errorResult(guardError);
+  }
+  registration.handler(req, response.res, response.next);
+  const handlerError = await response.completed;
+  return handlerError === null ? response.result() : errorResult(handlerError);
+}
+
+async function invokeHandlerWithoutGuard(
+  handler: RequestHandler,
+  body: unknown,
+): Promise<TestResult> {
+  const req = { body } as Request;
+  const response = createTestResponse();
+  handler(req, response.res, response.next);
+  const error = await response.completed;
+  return error === null ? response.result() : errorResult(error);
+}
+
+function createTestResponse(): {
+  completed: Promise<unknown | null>;
+  next: NextFunction;
+  res: Response;
+  result(): TestResult;
+} {
+  let body: unknown = null;
+  let status = 200;
+  const headers: Record<string, string> = {};
+  let complete: (error: unknown | null) => void = () => undefined;
+  const completed = new Promise<unknown | null>((resolve) => {
+    complete = resolve;
+  });
+  const res = {
+    clearCookie() {
+      return this;
+    },
+    json(value: unknown) {
+      body = value;
+      complete(null);
+      return this;
+    },
+    locals: {},
+    set(name: string, value: string) {
+      headers[name.toLowerCase()] = value;
+      return this;
+    },
+    status(value: number) {
+      status = value;
+      return this;
+    },
+  } as unknown as Response;
+  return {
+    completed,
+    next(error?: unknown) {
+      complete(error ?? null);
+    },
+    res,
+    result: () => ({ body, headers, status }),
+  };
+}
+
+async function invokeNextMiddleware(
+  handler: RequestHandler,
+  req: Request,
+  res: Response,
+): Promise<unknown | null> {
+  return new Promise((resolve) => {
+    handler(req, res, (error?: unknown) => resolve(error ?? null));
+  });
+}
+
+function errorResult(error: unknown): TestResult {
+  const result = toErrorResponse(error);
+  return { body: result.response, headers: {}, status: result.statusCode };
+}
