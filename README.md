@@ -196,6 +196,10 @@ DigitalOcean managed Postgres is the production target so financial data has
 managed backups and point-in-time recovery; there is no production database
 container.
 
+The production resource inventory, network boundaries, secret locations, and
+provisioning checks are documented in
+[`docs/DIGITALOCEAN_INFRASTRUCTURE.md`](docs/DIGITALOCEAN_INFRASTRUCTURE.md).
+
 `SESSION_SECRET` must contain at least 32 characters. Production also rejects
 the example development value. Startup errors identify a missing or invalid
 variable but never print its value.
@@ -234,6 +238,24 @@ that creates no application table or data. Re-running `npm run db:migrate` is
 safe; Drizzle skips migration entries already present in its history table.
 Connection failures report a sanitized database error code without printing the
 connection string.
+
+Every migration has reviewed forward and backout SQL. Before any managed
+database apply, run the disposable PostgreSQL 18 safety cycle and follow the
+preflight/stop conditions in
+[`docs/MIGRATION_SAFETY.md`](docs/MIGRATION_SAFETY.md):
+
+```sh
+npm run db:verify:migrations
+```
+
+The verifier accepts only the local Docker PostgreSQL host. It creates and
+drops its own temporary database; it never applies to the configured `wcib`
+database or to DigitalOcean.
+
+The managed Core Schema apply and parity evidence are recorded in
+[`docs/MANAGED_SCHEMA_DEPLOYMENT.md`](docs/MANAGED_SCHEMA_DEPLOYMENT.md).
+Re-run its read-only catalog contract with `npm run db:verify:managed` after a
+managed migration.
 
 All commands fail before contacting Postgres when neither database URL is set.
 
@@ -579,6 +601,152 @@ traces, request bodies, cookies, credentials, or financial payloads.
 
 Unexpected failures emit one safe event containing only the HTTP method, route
 template, status code, and error type.
+
+## Policy override integrity
+
+Admin-approved corrections to stored policy financial values use
+`applyPolicyOverride`, which calls the database-owned `apply_policy_override`
+function. The function locks the policy, reads original values from Postgres,
+updates the allowlisted fields, appends an immutable override record, and writes
+the audit event in one transaction. Direct override inserts, updates, deletes,
+and direct mutations of override-managed policy fields fail at database level.
+
+Run the database-backed integrity check after migrations with:
+
+```sh
+npm run test:db:policy-override-integrity
+```
+
+Success and failure logs contain only actor, policy, and override IDs. They do
+not include reasons, original or replacement values, insured data, or other
+financial fields.
+
+## MGA payment state
+
+`mga_payments` stores one current MGA settlement row per policy. Unpaid rows
+carry no paid-only metadata; paid rows require a paid timestamp and trusted
+admin account UUID, with an optional non-blank reference. Foreign keys retain
+the related policy and actor records.
+
+MGA paid/unpaid changes use `setMgaPaymentState`, which delegates to the
+admin-validated `set_mga_payment_state` database function. It locks the policy
+and current payment row, synchronizes the policy compatibility fields, and
+writes the audit event in one transaction. Direct state writes and payment-row
+deletes fail at database level. Identical repeated requests retain timestamps
+and do not append duplicate audit events. Pay-sheet attachment is deliberately
+absent until item 25, after its referenced tables exist.
+
+Run the table-level database check after migrations with:
+
+```sh
+npm run test:db:mga-payments
+npm run test:db:mga-payment-rules
+```
+
+## Pay-sheet records
+
+`pay_sheets` identifies each Sophia or producer sheet by owner UUID and numeric
+month/year. Open sheets cannot contain frozen totals or close metadata. When
+present, `frozen_totals` is a bounded owner-specific object of canonical money
+strings. Common totals retain broker fees, commissions, trust pull,
+direct/check/ACH income, and grand total income; producer sheets add payout,
+while Sophia sheets separately retain agency gross, share, and take-home.
+
+The application validator enforces `trust = broker fees + commissions`, `grand
+total = trust + direct/check/ACH income`, and Sophia agency gross equals grand
+total. Policy rows, rate snapshots, adjustments, close behavior, and reopen
+behavior are not part of the item-23 table.
+
+Run the table and frozen-total contract checks with:
+
+```sh
+npm run test:db:pay-sheets
+node --import tsx --test server/pay-sheets/frozen-totals.test.ts
+```
+
+`pay_sheet_policies` normalizes each sheet/policy association. Open rows may
+carry only their source UUIDs; close workflows later populate a self-contained
+policy snapshot and, for producer payouts, a source rate UUID plus copied rate
+snapshot. The policy snapshot contains the display identity, KPI dimensions,
+UUID ownership dimensions, exact commission/broker/revenue/payout/share values,
+and no carrier fee or rewrite subtype. Agency revenue is derived by the builder
+instead of trusted from a caller.
+
+Snapshot builders use fixed allowlists and ignore unknown source fields rather
+than spreading ORM rows. Run their contract and database checks with:
+
+```sh
+node --import tsx --test server/pay-sheets/snapshots.test.ts
+npm run test:db:pay-sheet-policies
+```
+
+MGA placement runs only after the item-22 paid/unpaid state is synchronized.
+The trusted `sync_mga_payment_sheet_placement` function derives the one open
+Sophia sheet and matching assigned-producer sheet; callers cannot supply sheet
+or owner IDs. Paid calls skip owner chains already represented on a closed
+sheet. Unpaid calls delete open associations only, and every actual attachment
+or detachment writes its own bounded audit event atomically.
+
+Partial unique indexes allow one global open Sophia sheet and one open sheet per
+producer. The function also locks the policy/MGA rows and uses the existing
+sheet-policy unique key with `ON CONFLICT DO NOTHING`, making repeated and
+competing placement requests duplicate-safe. Run the database contract with:
+
+```sh
+npm run test:db:mga-pay-sheet-attachment
+```
+
+Pay-sheet close is one database transaction exposed through
+`close_pay_sheet(sheet UUID, actor UUID)`. The function derives all snapshots
+and totals from locked database rows, uses the producer rate effective on the
+UTC close date, locks that rate, records the bounded close audit, and creates
+the next owner period. It is idempotent after a successful close and never
+reopens or recalculates closed history. December advances to January of the
+next year.
+
+At item 26, frozen totals begin with policy-derived commission and broker-fee
+values. Item 29's close trigger now folds locked normalized adjustment and
+direct-income rows into those totals in the same close transaction. Run the
+close contract with:
+
+```sh
+npm run test:db:pay-sheet-close
+```
+
+Closed-sheet immutability is enforced below the application layer. A narrowly
+scoped parent trigger rejects any update statement naming `status`,
+`frozen_totals`, `closed_at`, or `closed_by_user_id` after close, while leaving
+unrelated columns outside that trigger. Every `pay_sheet_policies`
+insert/update/delete takes a share lock on its parent and fails when that parent
+is closed. The same parent-status helper is the intended guard for item 29's
+adjustment rows. Run the direct-SQL boundary tests with:
+
+```sh
+npm run test:db:closed-pay-sheet-immutability
+```
+
+Single settlement is scoped to `(policy UUID, owner UUID, owner type)`, so one
+policy can legitimately settle once on Sophia's chain and once on its assigned
+producer's chain. Association placement and sheet close take the same
+transaction-scoped advisory lock before checking for closed history. A later
+open association or second close in either chain fails at the database layer;
+no owner names or global policy-only uniqueness are used. Run the invariant
+tests with:
+
+```sh
+npm run test:db:pay-sheet-single-settlement
+```
+
+Chargebacks, manual corrections, direct deposits, check income, and ACH income
+live in the discriminated `pay_sheet_adjustments` table. Only audited admin
+functions can create/update/delete rows, and the item-27 parent lock restricts
+all writes to open sheets. Corrections carry negative deltas; direct income is
+positive and Sophia-only. Closing folds those rows into frozen totals without
+creating policy snapshots or changing KPI policy actuals. Run:
+
+```sh
+npm run test:db:pay-sheet-adjustments
+```
 
 ## Structured logging
 

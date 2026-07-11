@@ -43,6 +43,209 @@
       "when": 1783652814984,
       "tag": "0005_mfa_scaffold",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783666652413,
+      "tag": "0006_producer_rate_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1783666889062,
+      "tag": "0007_producer_rate_integrity",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1783667238116,
+      "tag": "0008_office_locations",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1783667375682,
+      "tag": "0009_mgas",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783667731828,
+      "tag": "0010_carriers",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1783667909673,
+      "tag": "0011_policy_types",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1783668553444,
+      "tag": "0012_drafts",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1783668798591,
+      "tag": "0013_draft_integrity",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1783669172690,
+      "tag": "0014_approval_queue",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1783669633833,
+      "tag": "0015_policies",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1783669837213,
+      "tag": "0016_policy_payment_stub",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1783670095329,
+      "tag": "0017_audit_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1783670317000,
+      "tag": "0018_audit_integrity",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1783670679929,
+      "tag": "0019_policy_references",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1783671121014,
+      "tag": "0020_policy_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1783672604879,
+      "tag": "0021_policy_overrides",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1783673092514,
+      "tag": "0022_policy_override_integrity",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1783673753686,
+      "tag": "0023_mga_payments",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1783674014974,
+      "tag": "0024_mga_payment_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1783674580930,
+      "tag": "0025_pay_sheets",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1783674974752,
+      "tag": "0026_pay_sheet_policies",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1783675428951,
+      "tag": "0027_mga_pay_sheet_attachment",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1783676625919,
+      "tag": "0028_pay_sheet_close",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1783677223294,
+      "tag": "0029_closed_pay_sheet_immutability",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1783677605318,
+      "tag": "0030_pay_sheet_single_settlement",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1783678080235,
+      "tag": "0031_pay_sheet_adjustments",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1783678784002,
+      "tag": "0032_kpi_targets",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1783730166733,
+      "tag": "0033_policy_corrected_audit_action",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1783730714640,
+      "tag": "0034_policy_correction",
+      "breakpoints": true
     }
   ]
 }

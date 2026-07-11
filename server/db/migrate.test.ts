@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { formatMigrationError } from "./migrate.js";
+import { formatMigrationError, migrationAdvisoryLockKey } from "./migrate.js";
+
+test("migration runner uses a stable PostgreSQL advisory lock key", () => {
+  assert.equal(migrationAdvisoryLockKey, 2_147_031_942);
+});
 
 test("formatMigrationError keeps missing-config guidance", () => {
   assert.equal(
