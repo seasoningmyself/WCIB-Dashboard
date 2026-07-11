@@ -9,6 +9,12 @@ through the mandatory route registrar, permits admin/producer/employee
 principals, and projects exact picker fields through `projectAuthorizedFields`.
 It returns valid empty arrays when WCIB has no vocabulary data.
 
+`create.ts` owns the audited carrier and policy-type write service. The two
+POST routes permit admin/producer/employee principals, normalize bounded names,
+return picker-safe HTTP 409 duplicates, and commit each new row with its
+append-only creation event in one database transaction. Audit actor identity
+comes only from the trusted authorization context.
+
 `mgas.ts` is the entry point for the admin-only MGA-add decision and reproduces
 the active v15 similarity advisory at its actual 75% threshold. Exact database
 uniqueness remains in migration `0009_mgas`; in-use deletion protection belongs

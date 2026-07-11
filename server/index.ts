@@ -12,9 +12,16 @@ import {
 import * as databaseSchema from "./db/schema.js";
 import { registerAuthRoutes } from "./http/auth.js";
 import { registerCurrentUserRoute } from "./http/current-user.js";
-import { registerActiveVocabularyRoute } from "./http/vocabulary.js";
+import {
+  registerActiveVocabularyRoute,
+  registerVocabularyMutationRoutes,
+} from "./http/vocabulary.js";
 import { StructuredLogger } from "./logging/logger.js";
 import { loadActiveVocabulary } from "./vocabulary/active.js";
+import {
+  createCarrierVocabulary,
+  createPolicyTypeVocabulary,
+} from "./vocabulary/create.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -34,6 +41,13 @@ const app = createApp({
       authorization,
       load: () => loadActiveVocabulary(database),
       logger,
+    });
+    registerVocabularyMutationRoutes(routes, {
+      authorization,
+      createCarrier: (context, input) =>
+        createCarrierVocabulary(database, context, input, logger),
+      createPolicyType: (context, input) =>
+        createPolicyTypeVocabulary(database, context, input, logger),
     });
   },
   sessionMiddleware: createSessionMiddleware(pool, {

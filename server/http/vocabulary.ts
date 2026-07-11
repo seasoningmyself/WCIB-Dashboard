@@ -1,7 +1,19 @@
 import type { RequestHandler } from "express";
 import { apiErrorCodes } from "../../shared/api-errors.js";
-import { activeVocabularyResponseSchema } from "../../shared/vocabulary.js";
-import type { AuthorizationGuards } from "../auth/authorization.js";
+import {
+  activeVocabularyResponseSchema,
+  carrierMutationResponseSchema,
+  createCarrierRequestSchema,
+  createPolicyTypeRequestSchema,
+  policyTypeMutationResponseSchema,
+  type CarrierMutationResponse,
+  type PolicyTypeMutationResponse,
+} from "../../shared/vocabulary.js";
+import {
+  getAuthorizedRequestContext,
+  type AuthorizationGuards,
+  type AuthorizedRequestContext,
+} from "../auth/authorization.js";
 import type { AppLogger } from "../logging/logger.js";
 import { projectAuthorizedFields } from "../security/field-projection.js";
 import {
@@ -9,10 +21,17 @@ import {
   VOCABULARY_READ_ACCESS,
   type ActiveVocabularySource,
 } from "../vocabulary/active.js";
+import {
+  projectCarrierMutation,
+  projectPolicyTypeMutation,
+} from "../vocabulary/create.js";
+import { VOCABULARY_ADD_ACCESS } from "../vocabulary/add-rules.js";
 import { asyncRoute, HttpError } from "./errors.js";
 import type { RouteRegistrar } from "./routes.js";
 
 export const ACTIVE_VOCABULARY_PATH = "/api/vocabulary";
+export const CREATE_CARRIER_PATH = "/api/vocabulary/carriers";
+export const CREATE_POLICY_TYPE_PATH = "/api/vocabulary/policy-types";
 
 export interface ActiveVocabularyHandlerDependencies {
   load(): Promise<ActiveVocabularySource>;
@@ -23,6 +42,22 @@ export interface RegisterActiveVocabularyRouteOptions {
   authorization: AuthorizationGuards;
   load(): Promise<ActiveVocabularySource>;
   logger: AppLogger;
+}
+
+export interface VocabularyMutationHandlerDependencies {
+  createCarrier(
+    context: AuthorizedRequestContext,
+    input: unknown,
+  ): Promise<CarrierMutationResponse>;
+  createPolicyType(
+    context: AuthorizedRequestContext,
+    input: unknown,
+  ): Promise<PolicyTypeMutationResponse>;
+}
+
+export interface RegisterVocabularyMutationRoutesOptions
+  extends VocabularyMutationHandlerDependencies {
+  authorization: AuthorizationGuards;
 }
 
 export function createActiveVocabularyHandler(
@@ -65,5 +100,72 @@ export function registerActiveVocabularyRoute(
       load: options.load,
       logger: options.logger,
     }),
+  );
+}
+
+export function createCarrierMutationHandler(
+  dependencies: Pick<VocabularyMutationHandlerDependencies, "createCarrier">,
+): RequestHandler {
+  return asyncRoute(async (req, res) => {
+    const context = getAuthorizedRequestContext(res);
+    const request = createCarrierRequestSchema.parse(req.body);
+    const result = await dependencies.createCarrier(context, request);
+    const projected = projectAuthorizedFields(
+      res,
+      result,
+      projectCarrierMutation,
+    );
+    if (projected === null) {
+      throw new HttpError(403, apiErrorCodes.forbidden, "Forbidden");
+    }
+
+    const response = carrierMutationResponseSchema.parse(projected);
+    res
+      .status(response.outcome === "created" ? 201 : 409)
+      .set("Cache-Control", "no-store")
+      .json(response);
+  });
+}
+
+export function createPolicyTypeMutationHandler(
+  dependencies: Pick<VocabularyMutationHandlerDependencies, "createPolicyType">,
+): RequestHandler {
+  return asyncRoute(async (req, res) => {
+    const context = getAuthorizedRequestContext(res);
+    const request = createPolicyTypeRequestSchema.parse(req.body);
+    const result = await dependencies.createPolicyType(context, request);
+    const projected = projectAuthorizedFields(
+      res,
+      result,
+      projectPolicyTypeMutation,
+    );
+    if (projected === null) {
+      throw new HttpError(403, apiErrorCodes.forbidden, "Forbidden");
+    }
+
+    const response = policyTypeMutationResponseSchema.parse(projected);
+    res
+      .status(response.outcome === "created" ? 201 : 409)
+      .set("Cache-Control", "no-store")
+      .json(response);
+  });
+}
+
+export function registerVocabularyMutationRoutes(
+  routes: RouteRegistrar,
+  options: RegisterVocabularyMutationRoutesOptions,
+): void {
+  const access = {
+    authorization: options.authorization.require(VOCABULARY_ADD_ACCESS),
+  } as const;
+  routes.post(
+    CREATE_CARRIER_PATH,
+    access,
+    createCarrierMutationHandler(options),
+  );
+  routes.post(
+    CREATE_POLICY_TYPE_PATH,
+    access,
+    createPolicyTypeMutationHandler(options),
   );
 }
