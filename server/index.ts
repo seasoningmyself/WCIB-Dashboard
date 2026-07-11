@@ -12,7 +12,9 @@ import {
 import * as databaseSchema from "./db/schema.js";
 import { registerAuthRoutes } from "./http/auth.js";
 import { registerCurrentUserRoute } from "./http/current-user.js";
+import { registerActiveVocabularyRoute } from "./http/vocabulary.js";
 import { StructuredLogger } from "./logging/logger.js";
+import { loadActiveVocabulary } from "./vocabulary/active.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -27,6 +29,11 @@ const app = createApp({
     registerCurrentUserRoute(routes, {
       authorization,
       loadIdentity: (userId) => loadCurrentUserIdentity(database, userId),
+    });
+    registerActiveVocabularyRoute(routes, {
+      authorization,
+      load: () => loadActiveVocabulary(database),
+      logger,
     });
   },
   sessionMiddleware: createSessionMiddleware(pool, {
