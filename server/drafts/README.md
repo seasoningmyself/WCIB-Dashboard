@@ -27,6 +27,14 @@ sent-back work. Submitted, flagged, and approved drafts remain immutable through
 this endpoint. Run `npm run test:db:draft-edit` for ownership, lifecycle, and
 atomic rollback coverage.
 
+`POST /api/drafts/:draftId/submit` accepts no policy payload. It locks the
+authenticated UUID's persisted draft, validates the complete v15 record, and
+builds the immutable queue snapshot or admin policy input on the server. Staff
+submission returns a nonfinancial `submitted` projection; admin-owned drafts go
+directly to the ledger through the existing audited lifecycle transaction. Run
+`npm run test:db:draft-submit` for replay, concurrency, audit rollback, and
+queue/ledger mapping coverage.
+
 PostgreSQL migration `0013_draft_integrity` owns status transitions and stale
 state checks through `transition_draft_status`. Direct status updates are
 rejected. Financial values, insured/contact fields, and transition reasons must

@@ -11,25 +11,35 @@ import type { AccessPrincipal } from "../auth/access.js";
 import { createAuthorizationGuards } from "../auth/authorization.js";
 import type { UserAccount } from "../auth/users.js";
 import type { DraftRecord } from "../db/schema.js";
+import { DraftInputValidationError } from "../drafts/create.js";
 import { DRAFT_FINANCIAL_FIELDS } from "../drafts/projection.js";
 import {
   DraftNotEditableError,
   DraftNotFoundError,
 } from "../drafts/edit.js";
+import {
+  DraftNotSubmittableError,
+  DraftSubmissionNotFoundError,
+  DraftSubmissionValidationError,
+} from "../drafts/submit.js";
 import type { AppLogger } from "../logging/logger.js";
 import { toErrorResponse } from "./errors.js";
 import {
   DRAFTS_PATH,
   DRAFT_PATH,
+  DRAFT_SUBMIT_PATH,
   createDraftCreateHandler,
   createDraftEditHandler,
   createDraftListHandler,
+  createDraftSubmitHandler,
   registerDraftCreateRoute,
   registerDraftEditRoute,
   registerDraftListRoute,
+  registerDraftSubmitRoute,
   type RegisterDraftCreateRouteOptions,
   type RegisterDraftEditRouteOptions,
   type RegisterDraftListRouteOptions,
+  type RegisterDraftSubmitRouteOptions,
 } from "./drafts.js";
 import {
   auditRouteAccessDeclarations,
@@ -43,6 +53,10 @@ const EMPLOYEE_ID = "00000000-0000-4000-8000-000000000003";
 const UNASSIGNED_ID = "00000000-0000-4000-8000-000000000004";
 const INACTIVE_ID = "00000000-0000-4000-8000-000000000005";
 const DRAFT_ID = "00000000-0000-4000-8000-000000000010";
+const LOCKED_DRAFT_ID = "00000000-0000-4000-8000-000000000011";
+const INCOMPLETE_DRAFT_ID = "00000000-0000-4000-8000-000000000012";
+const INACTIVE_REFERENCE_DRAFT_ID =
+  "00000000-0000-4000-8000-000000000013";
 const OTHER_DRAFT_ID = "00000000-0000-4000-8000-000000000099";
 
 interface RegisteredRoute {
@@ -80,6 +94,7 @@ function createFixture(options: { emptyList?: boolean } = {}) {
   const calls: Array<{ input: unknown; userId: string }> = [];
   const listCalls: Array<{ query: unknown; userId: string }> = [];
   const editCalls: Array<{ draftId: string; input: unknown; userId: string }> = [];
+  const submitCalls: Array<{ draftId: string; userId: string }> = [];
   const authorization = createAuthorizationGuards({
     async findUser(userId) {
       return users.get(userId) ?? null;
@@ -146,6 +161,37 @@ function createFixture(options: { emptyList?: boolean } = {}) {
     },
     logger,
   };
+  const submitOptions: RegisterDraftSubmitRouteOptions = {
+    authorization,
+    logger,
+    async submit(context, draftId) {
+      submitCalls.push({ draftId, userId: context.principal.userId });
+      if (draftId === OTHER_DRAFT_ID) {
+        throw new DraftSubmissionNotFoundError();
+      }
+      if (draftId === LOCKED_DRAFT_ID) {
+        throw new DraftNotSubmittableError();
+      }
+      if (draftId === INCOMPLETE_DRAFT_ID) {
+        throw new DraftSubmissionValidationError([
+          { field: "policyNumber", message: "Policy number is required" },
+        ]);
+      }
+      if (draftId === INACTIVE_REFERENCE_DRAFT_ID) {
+        throw new DraftInputValidationError([
+          { field: "carrierId", message: "Select an active carrier" },
+        ]);
+      }
+      const isAdmin = context.principal.capabilities.includes("admin");
+      return {
+        destination: isAdmin ? "ledger" : "approval",
+        draft: draft(
+          context.principal.userId,
+          isAdmin ? "approved" : "submitted",
+        ),
+      };
+    },
+  };
   const routes = {
     get(
       path: string,
@@ -178,6 +224,7 @@ function createFixture(options: { emptyList?: boolean } = {}) {
   registerDraftCreateRoute(routes, createOptions);
   registerDraftListRoute(routes, listOptions);
   registerDraftEditRoute(routes, editOptions);
+  registerDraftSubmitRoute(routes, submitOptions);
   return {
     calls,
     createOptions,
@@ -186,6 +233,8 @@ function createFixture(options: { emptyList?: boolean } = {}) {
     listCalls,
     listOptions,
     registrations,
+    submitCalls,
+    submitOptions,
   };
 }
 
@@ -511,6 +560,168 @@ test("draft edit route is explicitly authorized and fails closed without its gua
   assert.equal(calls, 0);
 });
 
+test("draft submission sends staff to approval and admin directly to ledger", async () => {
+  for (const [identity, expectedUserId] of [
+    ["employee", EMPLOYEE_ID],
+    ["producer", PRODUCER_ID],
+  ] as const) {
+    const fixture = createFixture();
+    const result = await invokeSubmitRoute(fixture, DRAFT_ID, {}, identity);
+    assert.equal(result.status, 200);
+    assert.equal(result.headers["cache-control"], "no-store");
+    const response = result.body as {
+      destination: string;
+      draft: Record<string, unknown>;
+    };
+    assert.equal(response.destination, "approval");
+    assert.equal(response.draft.status, "submitted");
+    assert.equal(response.draft.ownerUserId, expectedUserId);
+    for (const field of [
+      ...DRAFT_FINANCIAL_FIELDS,
+      "agencyCommissionAmount",
+    ]) {
+      assert.equal(field in response.draft, false, `${identity}:${field}`);
+    }
+    for (const field of [
+      "applicableProducerRate",
+      "producerPayout",
+      "producerRate",
+      "producerRateHistory",
+    ]) {
+      assert.equal(field in response.draft, false, `${identity}:${field}`);
+    }
+    assert.deepEqual(fixture.submitCalls, [
+      { draftId: DRAFT_ID, userId: expectedUserId },
+    ]);
+  }
+
+  const adminFixture = createFixture();
+  const adminResult = await invokeSubmitRoute(
+    adminFixture,
+    DRAFT_ID,
+    {},
+    "admin",
+  );
+  assert.equal(adminResult.status, 200);
+  const adminResponse = adminResult.body as {
+    destination: string;
+    draft: Record<string, unknown>;
+  };
+  assert.equal(adminResponse.destination, "ledger");
+  assert.equal(adminResponse.draft.status, "approved");
+  assert.equal(adminResponse.draft.basePremium, "1000.00");
+  assert.equal(adminResponse.draft.agencyCommissionAmount, "125.00");
+  assert.equal("producerPayout" in adminResponse.draft, false);
+});
+
+test("draft submission rejects replacement payloads and discloses no other owner", async () => {
+  const forgedFixture = createFixture();
+  const forged = await invokeSubmitRoute(
+    forgedFixture,
+    DRAFT_ID,
+    { basePremium: "1.00", ownerUserId: ADMIN_ID },
+    "employee",
+  );
+  assert.equal(forged.status, 400);
+  assert.deepEqual(forgedFixture.submitCalls, []);
+
+  const missing = await invokeSubmitRoute(
+    createFixture(),
+    OTHER_DRAFT_ID,
+    {},
+    "producer",
+  );
+  assert.deepEqual(missing, {
+    body: { error: { code: "not_found", message: "Draft not found" } },
+    headers: {},
+    status: 404,
+  });
+
+  const locked = await invokeSubmitRoute(
+    createFixture(),
+    LOCKED_DRAFT_ID,
+    {},
+    "employee",
+  );
+  assert.equal(locked.status, 409);
+
+  const incomplete = await invokeSubmitRoute(
+    createFixture(),
+    INCOMPLETE_DRAFT_ID,
+    {},
+    "employee",
+  );
+  assert.deepEqual(incomplete.body, {
+    error: {
+      code: "validation_error",
+      details: [
+        { field: "policyNumber", message: "Policy number is required" },
+      ],
+      message: "Draft is incomplete",
+    },
+  });
+
+  const inactiveReference = await invokeSubmitRoute(
+    createFixture(),
+    INACTIVE_REFERENCE_DRAFT_ID,
+    {},
+    "employee",
+  );
+  assert.deepEqual(inactiveReference.body, {
+    error: {
+      code: "validation_error",
+      details: [
+        { field: "carrierId", message: "Select an active carrier" },
+      ],
+      message: "Request validation failed",
+    },
+  });
+});
+
+test("draft submission denies unauthenticated and default-closed identities", async () => {
+  for (const [identity, status] of [
+    [undefined, 401],
+    ["inactive", 401],
+    ["unassigned", 403],
+  ] as const) {
+    const fixture = createFixture();
+    const result = await invokeSubmitRoute(fixture, DRAFT_ID, {}, identity);
+    assert.equal(result.status, status);
+    assert.deepEqual(fixture.submitCalls, []);
+  }
+});
+
+test("draft submit route is explicitly authorized and fails closed without its guard", async () => {
+  const fixture = createFixture();
+  const app = createApp({
+    registerRoutes(routes) {
+      registerDraftSubmitRoute(routes, fixture.submitOptions);
+    },
+  });
+  assert.deepEqual(
+    auditRouteAccessDeclarations(app).find(
+      ({ method, path }) => method === "POST" && path === DRAFT_SUBMIT_PATH,
+    ),
+    {
+      access: { type: "authorized" },
+      method: "POST",
+      path: DRAFT_SUBMIT_PATH,
+    },
+  );
+
+  let calls = 0;
+  const handler = createDraftSubmitHandler({
+    logger,
+    async submit() {
+      calls += 1;
+      return { destination: "approval", draft: draft(EMPLOYEE_ID) };
+    },
+  });
+  const result = await invokeHandlerWithoutGuard(handler, {}, {});
+  assert.equal(result.status, 500);
+  assert.equal(calls, 0);
+});
+
 function validBody() {
   return {
     basePremium: "1000.00",
@@ -627,7 +838,7 @@ async function invokeRoute(
   identity?: "admin" | "employee" | "producer" | "unassigned",
 ): Promise<TestResult> {
   const registration = fixture.registrations.find(
-    ({ method }) => method === "POST",
+    ({ method, path }) => method === "POST" && path === DRAFTS_PATH,
   );
   assert.ok(registration);
   const guard = registration.access.authorization;
@@ -742,6 +953,49 @@ async function invokeEditRoute(
     originalUrl: `/api/drafts/${draftId}`,
     params: { draftId },
     route: { path: DRAFT_PATH },
+    session: fakeSession(userId),
+  } as unknown as Request;
+  const response = createTestResponse();
+  const guardError = await invokeNextMiddleware(guard, req, response.res);
+  if (guardError !== null) {
+    return errorResult(guardError);
+  }
+  registration.handler(req, response.res, response.next);
+  const handlerError = await response.completed;
+  return handlerError === null ? response.result() : errorResult(handlerError);
+}
+
+async function invokeSubmitRoute(
+  fixture: ReturnType<typeof createFixture>,
+  draftId: string,
+  body: unknown,
+  identity?: "admin" | "employee" | "inactive" | "producer" | "unassigned",
+): Promise<TestResult> {
+  const registration = fixture.registrations.find(
+    ({ method, path }) => method === "POST" && path === DRAFT_SUBMIT_PATH,
+  );
+  assert.ok(registration);
+  const guard = registration.access.authorization;
+  assert.ok(guard);
+  const userId =
+    identity === "admin"
+      ? ADMIN_ID
+      : identity === "producer"
+        ? PRODUCER_ID
+        : identity === "employee"
+          ? EMPLOYEE_ID
+          : identity === "inactive"
+            ? INACTIVE_ID
+            : identity === "unassigned"
+              ? UNASSIGNED_ID
+              : undefined;
+  const req = {
+    body,
+    headers: {},
+    method: "POST",
+    originalUrl: `/api/drafts/${draftId}/submit`,
+    params: { draftId },
+    route: { path: DRAFT_SUBMIT_PATH },
     session: fakeSession(userId),
   } as unknown as Request;
   const response = createTestResponse();

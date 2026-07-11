@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   createDraftRequestSchema,
   listDraftsQuerySchema,
+  submitDraftRequestSchema,
   updateDraftRequestSchema,
 } from "./drafts.js";
 
@@ -25,6 +26,18 @@ test("draft input normalizes exact decimal and text values", () => {
       producerUserId: PRODUCER_ID,
     },
   );
+});
+
+test("draft submission accepts no client-authored policy payload", () => {
+  assert.deepEqual(submitDraftRequestSchema.parse({}), {});
+  for (const input of [
+    { ownerUserId: PRODUCER_ID },
+    { submittedAt: "2026-07-10T00:00:00.000Z" },
+    { policy: {} },
+    { basePremium: "1000.00" },
+  ]) {
+    assert.equal(submitDraftRequestSchema.safeParse(input).success, false);
+  }
 });
 
 test("draft edits require at least one allowlisted content field", () => {

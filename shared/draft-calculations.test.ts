@@ -4,6 +4,8 @@ import {
   calculateAgencyCommissionAmount,
   calculateDraftFinanceBalance,
   calculateDraftNetDue,
+  calculateDraftProposalTotal,
+  compareMoney,
 } from "./draft-calculations.js";
 
 test("draft calculations use deterministic cent rounding", () => {
@@ -47,6 +49,18 @@ test("draft calculations use deterministic cent rounding", () => {
     }),
     "780.00",
   );
+  assert.equal(
+    calculateDraftProposalTotal({
+      basePremium: "1000.00",
+      brokerFee: "50.00",
+      mgaFee: null,
+      taxes: "30.00",
+    }),
+    "1080.00",
+  );
+  assert.equal(compareMoney("1080.00", "1080.00"), 0);
+  assert.equal(compareMoney("0.00", "1.00"), -1);
+  assert.equal(compareMoney("2.00", "1.00"), 1);
 });
 
 test("incomplete or invalid draft calculation inputs remain unset", () => {
@@ -74,4 +88,14 @@ test("incomplete or invalid draft calculation inputs remain unset", () => {
     }),
     null,
   );
+  assert.equal(
+    calculateDraftProposalTotal({
+      basePremium: "10.00",
+      brokerFee: null,
+      mgaFee: "0.00",
+      taxes: "0.00",
+    }),
+    null,
+  );
+  assert.equal(compareMoney("invalid", "1.00"), null);
 });

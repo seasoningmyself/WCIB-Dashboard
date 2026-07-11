@@ -28,10 +28,12 @@ import {
   registerDraftCreateRoute,
   registerDraftEditRoute,
   registerDraftListRoute,
+  registerDraftSubmitRoute,
 } from "./http/drafts.js";
 import { createOwnDraft } from "./drafts/create.js";
 import { listOwnDrafts } from "./drafts/list.js";
 import { editOwnDraft } from "./drafts/edit.js";
+import { submitOwnDraft } from "./drafts/submit.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -80,6 +82,11 @@ const app = createApp({
       edit: (context, draftId, input) =>
         editOwnDraft(database, context, draftId, input),
       logger,
+    });
+    registerDraftSubmitRoute(routes, {
+      authorization,
+      logger,
+      submit: (context, draftId) => submitOwnDraft(database, context, draftId),
     });
   },
   sessionMiddleware: createSessionMiddleware(pool, {

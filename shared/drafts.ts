@@ -88,6 +88,8 @@ export const draftIdParamsSchema = z
   .object({ draftId: z.string().uuid() })
   .strict();
 
+export const submitDraftRequestSchema = z.object({}).strict();
+
 export const listDraftsQuerySchema = z
   .object({
     status: z.enum(DRAFT_STATUSES).optional(),
@@ -169,6 +171,13 @@ export const createDraftResponseSchema = z
 
 export const editDraftResponseSchema = createDraftResponseSchema;
 
+export const submitDraftResponseSchema = z
+  .object({
+    destination: z.enum(["approval", "ledger"]),
+    draft: draftResponseSchema,
+  })
+  .strict();
+
 export const listDraftsResponseSchema = z
   .object({ drafts: z.array(draftResponseSchema) })
   .strict();
@@ -177,6 +186,7 @@ export type CreateDraftRequest = z.output<typeof createDraftRequestSchema>;
 export type DraftResponse = z.output<typeof draftResponseSchema>;
 export type CreateDraftResponse = z.output<typeof createDraftResponseSchema>;
 export type UpdateDraftRequest = z.output<typeof updateDraftRequestSchema>;
+export type SubmitDraftResponse = z.output<typeof submitDraftResponseSchema>;
 export type ListDraftsQuery = z.output<typeof listDraftsQuerySchema>;
 export type ListDraftsResponse = z.output<typeof listDraftsResponseSchema>;
 

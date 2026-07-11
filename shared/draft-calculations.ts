@@ -73,6 +73,38 @@ export function calculateDraftFinanceBalance(input: {
   return balance < 0n ? null : formatCents(balance);
 }
 
+export function calculateDraftProposalTotal(input: {
+  basePremium: string | null | undefined;
+  brokerFee: string | null | undefined;
+  mgaFee: string | null | undefined;
+  taxes: string | null | undefined;
+}): string | null {
+  const amounts = [
+    input.basePremium ?? "0.00",
+    input.taxes ?? "0.00",
+    input.mgaFee ?? "0.00",
+    input.brokerFee,
+  ].map((value) => (value == null ? null : parseFixed(value, 2)));
+  if (amounts.some((value) => value === null)) {
+    return null;
+  }
+  return formatCents(
+    amounts.reduce<bigint>((total, value) => total + (value ?? 0n), 0n),
+  );
+}
+
+export function compareMoney(
+  left: string,
+  right: string,
+): -1 | 0 | 1 | null {
+  const leftCents = parseFixed(left, 2);
+  const rightCents = parseFixed(right, 2);
+  if (leftCents === null || rightCents === null) {
+    return null;
+  }
+  return leftCents < rightCents ? -1 : leftCents > rightCents ? 1 : 0;
+}
+
 function parseFixed(value: string, scale: number): bigint | null {
   const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(value);
   if (match === null) {

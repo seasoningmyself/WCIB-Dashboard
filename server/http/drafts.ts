@@ -7,9 +7,12 @@ import {
   editDraftResponseSchema,
   listDraftsQuerySchema,
   listDraftsResponseSchema,
+  submitDraftRequestSchema,
+  submitDraftResponseSchema,
   updateDraftRequestSchema,
   type CreateDraftResponse,
   type ListDraftsResponse,
+  type SubmitDraftResponse,
 } from "../../shared/drafts.js";
 import {
   getAuthorizedRequestContext,
@@ -26,6 +29,12 @@ import {
   DraftNotFoundError,
   type DraftEditResult,
 } from "../drafts/edit.js";
+import {
+  DraftNotSubmittableError,
+  DraftSubmissionNotFoundError,
+  DraftSubmissionValidationError,
+  type DraftSubmissionResult,
+} from "../drafts/submit.js";
 import type { DraftRecord } from "../db/schema.js";
 import type { AppLogger } from "../logging/logger.js";
 import { projectAuthorizedFields } from "../security/field-projection.js";
@@ -34,6 +43,7 @@ import type { RouteRegistrar } from "./routes.js";
 
 export const DRAFTS_PATH = "/api/drafts";
 export const DRAFT_PATH = "/api/drafts/:draftId";
+export const DRAFT_SUBMIT_PATH = "/api/drafts/:draftId/submit";
 
 export interface DraftCreateHandlerDependencies {
   create(
@@ -72,6 +82,19 @@ export interface DraftEditHandlerDependencies {
 
 export interface RegisterDraftEditRouteOptions
   extends DraftEditHandlerDependencies {
+  authorization: AuthorizationGuards;
+}
+
+export interface DraftSubmitHandlerDependencies {
+  logger: AppLogger;
+  submit(
+    context: AuthorizedRequestContext,
+    draftId: string,
+  ): Promise<DraftSubmissionResult>;
+}
+
+export interface RegisterDraftSubmitRouteOptions
+  extends DraftSubmitHandlerDependencies {
   authorization: AuthorizationGuards;
 }
 
@@ -227,5 +250,81 @@ export function registerDraftEditRoute(
       authorization: options.authorization.require(DRAFT_SELF_SERVICE_ACCESS),
     },
     createDraftEditHandler(options),
+  );
+}
+
+export function createDraftSubmitHandler(
+  dependencies: DraftSubmitHandlerDependencies,
+): RequestHandler {
+  return asyncRoute(async (req, res) => {
+    const context = getAuthorizedRequestContext(res);
+    const { draftId } = draftIdParamsSchema.parse(req.params);
+    submitDraftRequestSchema.parse(req.body ?? {});
+    let result: DraftSubmissionResult;
+    try {
+      result = await dependencies.submit(context, draftId);
+    } catch (error) {
+      if (error instanceof DraftInputValidationError) {
+        throw new HttpError(
+          400,
+          apiErrorCodes.validation,
+          "Request validation failed",
+          error.details,
+        );
+      }
+      if (error instanceof DraftSubmissionValidationError) {
+        throw new HttpError(
+          400,
+          apiErrorCodes.validation,
+          "Draft is incomplete",
+          error.details,
+        );
+      }
+      if (error instanceof DraftSubmissionNotFoundError) {
+        throw new HttpError(404, apiErrorCodes.notFound, "Draft not found");
+      }
+      if (error instanceof DraftNotSubmittableError) {
+        throw new HttpError(
+          409,
+          apiErrorCodes.badRequest,
+          "Draft is not submittable",
+        );
+      }
+      throw error;
+    }
+
+    const draft = projectAuthorizedFields(
+      res,
+      result.draft,
+      projectDraftForAuthorizedContext,
+    );
+    if (draft === null) {
+      throw new HttpError(403, apiErrorCodes.forbidden, "Forbidden");
+    }
+    const response: SubmitDraftResponse = submitDraftResponseSchema.parse({
+      destination: result.destination,
+      draft,
+    });
+    dependencies.logger.info("Own draft submitted", {
+      component: "drafts",
+      destination: response.destination,
+      draftId: response.draft.id,
+      event: "own_draft_submitted",
+      userId: context.principal.userId,
+    });
+    res.set("Cache-Control", "no-store").json(response);
+  });
+}
+
+export function registerDraftSubmitRoute(
+  routes: RouteRegistrar,
+  options: RegisterDraftSubmitRouteOptions,
+): void {
+  routes.post(
+    DRAFT_SUBMIT_PATH,
+    {
+      authorization: options.authorization.require(DRAFT_SELF_SERVICE_ACCESS),
+    },
+    createDraftSubmitHandler(options),
   );
 }
