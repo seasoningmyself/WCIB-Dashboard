@@ -1,6 +1,8 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { createApp } from "./app.js";
 import { createSessionMiddleware } from "./auth/sessions.js";
+import { createDatabaseAuthorizationGuards } from "./auth/authorization.js";
+import { loadCurrentUserIdentity } from "./auth/current-user.js";
 import { loadConfig } from "./config/environment.js";
 import {
   checkDatabaseConnection,
@@ -9,17 +11,23 @@ import {
 } from "./db/client.js";
 import * as databaseSchema from "./db/schema.js";
 import { registerAuthRoutes } from "./http/auth.js";
+import { registerCurrentUserRoute } from "./http/current-user.js";
 import { StructuredLogger } from "./logging/logger.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
 const pool = createDatabasePool(config.databaseUrl);
 const database = drizzle(pool, { schema: databaseSchema });
+const authorization = createDatabaseAuthorizationGuards(database, logger);
 const app = createApp({
   logger,
   readinessCheck: () => checkDatabaseConnection(pool),
   registerRoutes: (routes) => {
     registerAuthRoutes(routes, { database, logger });
+    registerCurrentUserRoute(routes, {
+      authorization,
+      loadIdentity: (userId) => loadCurrentUserIdentity(database, userId),
+    });
   },
   sessionMiddleware: createSessionMiddleware(pool, {
     logger,
