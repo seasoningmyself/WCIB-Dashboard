@@ -58,6 +58,13 @@ export class MgaPayableConsistencyError extends Error {
   }
 }
 
+export class MgaPayableNotFoundError extends Error {
+  constructor() {
+    super("MGA payable policy was not found");
+    this.name = "MgaPayableNotFoundError";
+  }
+}
+
 export async function listMgaPayableSources(
   database: AuthDatabase,
   context: AuthorizedRequestContext,
@@ -72,6 +79,21 @@ export async function listMgaPayableSources(
     throw new MgaPayableBoundsError();
   }
   return { items: rows.map(mapMgaPayableRow), status };
+}
+
+export async function getMgaPayableSource(
+  database: Pick<AuthDatabase, "select">,
+  context: AuthorizedRequestContext,
+  policyId: string,
+): Promise<MgaPayableSourceItem> {
+  requirePolicyLedgerAdmin(context);
+  const rows = await baseMgaPayableQuery(database)
+    .where(eq(policies.id, policyId))
+    .limit(1);
+  if (rows[0] === undefined) {
+    throw new MgaPayableNotFoundError();
+  }
+  return mapMgaPayableRow(rows[0]);
 }
 
 export function projectAdminMgaPayable(
@@ -178,7 +200,7 @@ export function calculateMgaPayableTotals(
   };
 }
 
-function baseMgaPayableQuery(database: AuthDatabase) {
+function baseMgaPayableQuery(database: Pick<AuthDatabase, "select">) {
   return database
     .select({
       ...getTableColumns(policies),

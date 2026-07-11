@@ -62,6 +62,8 @@ import { registerPolicyLedgerCorrectionRoute } from "./http/policy-corrections.j
 import { correctPolicyLedgerItem } from "./policies/ledger-corrections.js";
 import { registerMgaPayableRoute } from "./http/mga-payables.js";
 import { listMgaPayableSources } from "./policies/mga-payables.js";
+import { registerMgaPayableStateRoute } from "./http/mga-payable-state.js";
+import { changeMgaPayableState } from "./policies/mga-payable-state.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -177,6 +179,18 @@ const app = createApp({
       authorization,
       list: (context, query) =>
         listMgaPayableSources(database, context, query),
+      logger,
+    });
+    registerMgaPayableStateRoute(routes, {
+      authorization,
+      change: (context, policyId, input) =>
+        changeMgaPayableState(
+          database,
+          context,
+          policyId,
+          input,
+          logger,
+        ),
       logger,
     });
   },

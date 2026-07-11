@@ -56,6 +56,14 @@ explicitly admin-guarded route and runs every source row through
 Postgres for the real-session, projection, override, sorting, and totals smoke
 test.
 
+`mga-payable-state.ts` owns the paid/unpaid transaction boundary. It calls the
+audited state function first, synchronizes eligible open-sheet placement with
+the same transaction/actor/timestamp, and only then reloads the projected
+payable. State, placement, and audit failures therefore roll back together;
+closed associations and frozen snapshots are never mutation targets. Run
+`npm run test:db:mga-payable-state` for the composed endpoint, concurrency,
+rollback, and closed-history verification.
+
 ## Override value contract
 
 `override-values.ts` accepts only the four figures exposed by v15's override

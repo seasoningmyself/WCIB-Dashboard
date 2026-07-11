@@ -3,6 +3,7 @@ import { ACCOUNT_ASSIGNMENTS } from "./policy-fields.js";
 import { MGA_PAYMENT_STATUSES } from "./mga-payments.js";
 
 export const MGA_PAYABLE_FILTERS = ["unpaid", "all", "paid"] as const;
+export const MAX_MGA_PAYMENT_REFERENCE_LENGTH = 200;
 
 export const mgaPayableListQuerySchema = z
   .object({
@@ -66,6 +67,56 @@ export const mgaPayableListResponseSchema = z
   })
   .strict();
 
+export const mgaPayableParamsSchema = z
+  .object({ policyId: z.string().uuid() })
+  .strict();
+
+export const mgaPayableStateRequestSchema = z
+  .object({
+    reference: z
+      .string()
+      .trim()
+      .min(1)
+      .max(MAX_MGA_PAYMENT_REFERENCE_LENGTH)
+      .nullable()
+      .optional(),
+    status: z.enum(MGA_PAYMENT_STATUSES),
+  })
+  .strict()
+  .superRefine((input, context) => {
+    if (input.status === "unpaid" && input.reference != null) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Unpaid state cannot include a payment reference",
+        path: ["reference"],
+      });
+    }
+  })
+  .transform((input) => ({
+    reference: input.status === "paid" ? (input.reference ?? null) : null,
+    status: input.status,
+  }));
+
+export const mgaPayablePlacementSchema = z
+  .object({
+    associationCount: z.number().int().min(0).max(2),
+    paySheetIds: z.array(z.string().uuid()).max(2),
+  })
+  .strict()
+  .refine(
+    (placement) =>
+      placement.associationCount === placement.paySheetIds.length &&
+      new Set(placement.paySheetIds).size === placement.paySheetIds.length,
+    { message: "Placement count and unique sheet IDs must match" },
+  );
+
+export const mgaPayableStateResponseSchema = z
+  .object({
+    item: mgaPayableItemSchema,
+    placement: mgaPayablePlacementSchema,
+  })
+  .strict();
+
 export type MgaPayableFilter = z.output<
   typeof mgaPayableListQuerySchema
 >["status"];
@@ -74,4 +125,10 @@ export type MgaPayableTotals = z.output<typeof mgaPayableTotalsSchema>;
 export type MgaPayableGroup = z.output<typeof mgaPayableGroupSchema>;
 export type MgaPayableListResponse = z.output<
   typeof mgaPayableListResponseSchema
+>;
+export type MgaPayableStateRequest = z.output<
+  typeof mgaPayableStateRequestSchema
+>;
+export type MgaPayableStateResponse = z.output<
+  typeof mgaPayableStateResponseSchema
 >;
