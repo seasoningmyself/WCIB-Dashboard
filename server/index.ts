@@ -58,6 +58,8 @@ import {
   getPolicyLedgerItem,
   listPolicyLedger,
 } from "./policies/ledger.js";
+import { registerPolicyLedgerCorrectionRoute } from "./http/policy-corrections.js";
+import { correctPolicyLedgerItem } from "./policies/ledger-corrections.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -155,6 +157,18 @@ const app = createApp({
       get: (context, policyId) =>
         getPolicyLedgerItem(database, context, policyId),
       list: (context, query) => listPolicyLedger(database, context, query),
+      logger,
+    });
+    registerPolicyLedgerCorrectionRoute(routes, {
+      authorization,
+      correct: (context, policyId, input) =>
+        correctPolicyLedgerItem(
+          database,
+          context,
+          policyId,
+          input,
+          logger,
+        ),
       logger,
     });
   },

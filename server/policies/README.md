@@ -38,6 +38,12 @@ admin guard and projects every policy through `projectAdminPolicy` before
 response validation. Run `npm run test:db:policy-ledger` against local
 Postgres for the real-session authorization and query smoke test.
 
+Ledger corrections use `ledger-corrections.ts` as the transaction boundary.
+The request declares either a general correction or an override and supplies
+the last observed `updatedAt` version. General fields call only
+`apply_policy_correction`; the four override-managed fields call only
+`apply_policy_override`. Mixed requests reject before either mutation runs.
+
 ## Override value contract
 
 `override-values.ts` accepts only the four figures exposed by v15's override

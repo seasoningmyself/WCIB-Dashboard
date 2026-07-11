@@ -52,6 +52,7 @@
     "test:db:approval-override": "node --import tsx --test server/approval-queue/approve-with-override.db-test.ts",
     "test:db:approval-send-back": "node --import tsx --test server/approval-queue/send-back.db-test.ts",
     "test:db:policy-ledger": "node --import tsx --test server/http/policies.db-test.ts",
+    "test:db:policy-ledger-correction": "node --import tsx --test server/http/policy-corrections.db-test.ts",
     "test:db:policies": "node --import tsx --test server/db/policies.db-test.ts",
     "test:db:policy-payment-stub": "node --import tsx --test server/db/policy-payment-stub.db-test.ts",
     "test:db:audit-events": "node --import tsx --test server/db/audit-events.db-test.ts",
