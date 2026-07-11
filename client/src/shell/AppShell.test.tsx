@@ -49,6 +49,7 @@ test("shell renders the exact admin navigation supplied by /api/me", () => {
   assert.doesNotMatch(markup, />My Commissions</);
   assert.match(markup, /aria-label="Primary navigation"/);
   assert.match(markup, /<main[^>]*tabindex="-1"/i);
+  assert.match(markup, /<button[^>]*>Sign out<\/button>/);
 });
 
 test("producer and employee shells do not infer additional links", () => {
@@ -87,6 +88,7 @@ test("unknown IDs and unauthorized URLs fail closed in the shell", () => {
   const unauthorizedPath = renderToStaticMarkup(
     <AppShellView
       currentPath="/pay-sheets"
+      onLogout={() => {}}
       user={{
         ...baseUser,
         allowedNavigation: ["my_commissions"],
@@ -103,5 +105,7 @@ test("unknown IDs and unauthorized URLs fail closed in the shell", () => {
 });
 
 function shellMarkup(user: CurrentUser): string {
-  return renderToStaticMarkup(<AppShellView currentPath="/" user={user} />);
+  return renderToStaticMarkup(
+    <AppShellView currentPath="/" onLogout={() => {}} user={user} />,
+  );
 }

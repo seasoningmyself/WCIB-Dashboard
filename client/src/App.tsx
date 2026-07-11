@@ -1,8 +1,25 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { CurrentUser } from "../../shared/current-user.js";
+import { createApiClient } from "./api/client.js";
+import { ApiClientProvider } from "./api/context.js";
 import { createAuthApi, type AuthApi } from "./auth/api.js";
 import { LoginScreen } from "./auth/LoginScreen.js";
+import {
+  createLogoutAction,
+  createSessionBoundary,
+  type SessionBoundary,
+} from "./auth/session-boundary.js";
 import { AppShell } from "./shell/AppShell.js";
+import {
+  resolveAuthorizedNavigation,
+  resolveShellRoute,
+} from "./shell/navigation.js";
 
 const defaultAuthApi = createAuthApi();
 
@@ -10,7 +27,7 @@ type AuthState =
   | { status: "authenticated"; user: CurrentUser }
   | { status: "error" }
   | { status: "loading" }
-  | { status: "signed_out" };
+  | { returnPath: string | null; status: "signed_out" };
 
 interface AppProps {
   authApi?: AuthApi;
@@ -19,6 +36,26 @@ interface AppProps {
 export function App({ authApi = defaultAuthApi }: AppProps) {
   const [auth, setAuth] = useState<AuthState>({ status: "loading" });
   const [restoreAttempt, setRestoreAttempt] = useState(0);
+  const boundaryRef = useRef<SessionBoundary | null>(null);
+  if (boundaryRef.current === null) {
+    boundaryRef.current = createSessionBoundary((event) => {
+      setAuth({ returnPath: event.returnPath, status: "signed_out" });
+    });
+  }
+  const boundary = boundaryRef.current;
+  const protectedApi = useMemo(
+    () =>
+      createApiClient({
+        onUnauthorized: () => {
+          boundary.endSession("expired", currentHashPath());
+        },
+      }),
+    [boundary],
+  );
+  const logoutAction = useMemo(
+    () => createLogoutAction(() => authApi.logout(), boundary),
+    [authApi, boundary],
+  );
 
   useEffect(() => {
     let active = true;
@@ -28,11 +65,12 @@ export function App({ authApi = defaultAuthApi }: AppProps) {
         if (!active) {
           return;
         }
-        setAuth(
-          user === null
-            ? { status: "signed_out" }
-            : { status: "authenticated", user },
-        );
+        if (user === null) {
+          setAuth({ returnPath: null, status: "signed_out" });
+          return;
+        }
+        boundary.beginSession();
+        setAuth({ status: "authenticated", user });
       })
       .catch(() => {
         if (active) {
@@ -42,11 +80,26 @@ export function App({ authApi = defaultAuthApi }: AppProps) {
     return () => {
       active = false;
     };
-  }, [authApi, restoreAttempt]);
+  }, [authApi, boundary, restoreAttempt]);
 
-  const handleAuthenticated = useCallback((user: CurrentUser) => {
-    setAuth({ status: "authenticated", user });
-  }, []);
+  const handleAuthenticated = useCallback(
+    (user: CurrentUser) => {
+      const returnPath =
+        auth.status === "signed_out" ? auth.returnPath : null;
+      if (returnPath !== null) {
+        const navigation = resolveAuthorizedNavigation(
+          user.allowedNavigation,
+        );
+        window.location.hash =
+          resolveShellRoute(returnPath, navigation).status === "ready"
+            ? returnPath
+            : "/";
+      }
+      boundary.beginSession();
+      setAuth({ status: "authenticated", user });
+    },
+    [auth, boundary],
+  );
 
   if (auth.status === "loading") {
     return <AuthLoading />;
@@ -77,7 +130,16 @@ export function App({ authApi = defaultAuthApi }: AppProps) {
     );
   }
 
-  return <AppShell user={auth.user} />;
+  return (
+    <ApiClientProvider boundary={boundary} client={protectedApi}>
+      <AppShell
+        onLogout={() => {
+          logoutAction.run();
+        }}
+        user={auth.user}
+      />
+    </ApiClientProvider>
+  );
 }
 
 function AuthLoading() {
@@ -90,4 +152,12 @@ function AuthLoading() {
       </section>
     </main>
   );
+}
+
+function currentHashPath(): string {
+  if (typeof window === "undefined") {
+    return "/";
+  }
+  const path = window.location.hash.slice(1);
+  return path === "" ? "/" : path;
 }

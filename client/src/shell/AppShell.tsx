@@ -13,6 +13,7 @@ import {
 } from "./navigation.js";
 
 interface AppShellProps {
+  onLogout(): void;
   user: CurrentUser;
 }
 
@@ -22,7 +23,7 @@ interface AppShellViewProps extends AppShellProps {
   onNavigate?(path: string): void;
 }
 
-export function AppShell({ user }: AppShellProps) {
+export function AppShell({ onLogout, user }: AppShellProps) {
   const [currentPath, setCurrentPath] = useState(readHashPath);
   const mainRef = useRef<HTMLElement>(null);
 
@@ -44,6 +45,7 @@ export function AppShell({ user }: AppShellProps) {
         window.location.hash = path;
         setCurrentPath(path);
       }}
+      onLogout={onLogout}
       user={user}
     />
   );
@@ -53,6 +55,7 @@ export function AppShellView({
   currentPath,
   mainRef,
   onNavigate,
+  onLogout,
   user,
 }: AppShellViewProps) {
   const navigation = useMemo(
@@ -87,6 +90,13 @@ export function AppShellView({
             <strong>{name}</strong>
             <span>{roleLabel(user.role)}</span>
           </span>
+          <button
+            className="workspace-logout"
+            onClick={onLogout}
+            type="button"
+          >
+            Sign out
+          </button>
         </div>
       </header>
 

@@ -72,6 +72,21 @@ test("session restoration returns null only for an unauthenticated response", as
   );
 });
 
+test("logout calls the idempotent Foundation endpoint once", async () => {
+  const requests: Array<{ init?: RequestInit; input: string }> = [];
+  const api = createAuthApi(async (input, init) => {
+    requests.push({ init, input: String(input) });
+    return new Response(null, { status: 204 });
+  }, "/api");
+
+  await api.logout();
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0]?.input, "/api/auth/logout");
+  assert.equal(requests[0]?.init?.method, "POST");
+  assert.equal(requests[0]?.init?.credentials, "same-origin");
+});
+
 test("login separates credential, network, and invalid-contract failures", async () => {
   const invalidCredentials = createAuthApi(
     async () =>

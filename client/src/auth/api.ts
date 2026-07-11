@@ -29,6 +29,7 @@ export class AuthApiError extends Error {
 
 export interface AuthApi {
   login(request: LoginRequest): Promise<CurrentUser>;
+  logout(): Promise<void>;
   restoreCurrentUser(): Promise<CurrentUser | null>;
 }
 
@@ -80,6 +81,21 @@ export function createAuthApi(
         throw new AuthApiError("invalid_response");
       }
       return currentUser;
+    },
+
+    async logout() {
+      const response = await safeFetch(
+        fetchRequest,
+        endpoint(baseUrl, "/auth/logout"),
+        {
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+          method: "POST",
+        },
+      );
+      if (response.status !== 204) {
+        throw new AuthApiError("server");
+      }
     },
 
     restoreCurrentUser() {

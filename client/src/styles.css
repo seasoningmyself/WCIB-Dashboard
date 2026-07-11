@@ -341,6 +341,29 @@ h1 {
   font-size: 11px;
 }
 
+.workspace-logout {
+  min-height: 32px;
+  border: 1px solid #b9c4ca;
+  border-radius: 5px;
+  background: #ffffff;
+  padding: 0 10px;
+  color: #34434e;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.workspace-logout:hover,
+.workspace-logout:focus-visible {
+  border-color: #27634d;
+  color: #1f503e;
+}
+
+.workspace-logout:focus-visible {
+  outline: 2px solid rgba(39, 99, 77, 0.24);
+  outline-offset: 2px;
+}
+
 .workspace-body {
   display: grid;
   min-height: calc(100vh - 58px);
