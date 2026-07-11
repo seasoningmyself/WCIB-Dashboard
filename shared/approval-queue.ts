@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { draftResponseSchema } from "./drafts.js";
+import { draftResponseSchema, flagDraftRequestSchema } from "./drafts.js";
 
 export const APPROVAL_WORK_STATUSES = ["all", "pending", "flagged"] as const;
 
@@ -53,9 +53,22 @@ export const approvalWorkListResponseSchema = z
   })
   .strict();
 
+export const approvalSendBackRequestSchema = flagDraftRequestSchema;
+
+export const approvalQueueSendBackResponseSchema = z
+  .object({ entry: adminApprovalQueueEntrySchema })
+  .strict();
+
+export const flaggedHelpSendBackResponseSchema = z
+  .object({ draft: draftResponseSchema })
+  .strict();
+
 export type ListApprovalWorkQuery = z.output<
   typeof listApprovalWorkQuerySchema
 >;
 export type ApprovalWorkListResponse = z.output<
   typeof approvalWorkListResponseSchema
+>;
+export type ApprovalSendBackRequest = z.output<
+  typeof approvalSendBackRequestSchema
 >;

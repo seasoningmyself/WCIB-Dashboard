@@ -9,7 +9,11 @@ import type {
 import type { AccessPrincipal } from "../auth/access.js";
 import { createAuthorizationGuards } from "../auth/authorization.js";
 import type { UserAccount } from "../auth/users.js";
-import type { PolicyRecord } from "../db/schema.js";
+import type {
+  ApprovalQueueEntryRecord,
+  DraftRecord,
+  PolicyRecord,
+} from "../db/schema.js";
 import type { AppLogger } from "../logging/logger.js";
 import { ApprovalItemStateError } from "../approval-queue/approve.js";
 import { toErrorResponse } from "./errors.js";
@@ -17,6 +21,8 @@ import {
   APPROVE_SUBMISSION_PATH,
   OPEN_FIX_HELP_PATH,
   PUSH_THROUGH_HELP_PATH,
+  SEND_BACK_HELP_PATH,
+  SEND_BACK_SUBMISSION_PATH,
   registerApprovalActionRoutes,
   type RegisterApprovalActionRoutesOptions,
 } from "./approval-actions.js";
@@ -40,7 +46,7 @@ interface Registration {
   path: string;
 }
 
-function createFixture(options: { fail?: boolean } = {}) {
+function createFixture(options: { fail?: boolean; failSendBack?: boolean } = {}) {
   const users = new Map<string, UserAccount>([
     [ADMIN_ID, account(ADMIN_ID)],
     [PRODUCER_ID, account(PRODUCER_ID)],
@@ -77,6 +83,16 @@ function createFixture(options: { fail?: boolean } = {}) {
     async pushThroughHelp(_context, draftId) {
       calls.push({ id: draftId, kind: "push" });
       return policy();
+    },
+    async sendBackHelp(_context, draftId, body) {
+      calls.push({ body, id: draftId, kind: "send-back-help" });
+      if (options.failSendBack === true) throw new ApprovalItemStateError();
+      return draft("sent_back");
+    },
+    async sendBackSubmission(_context, queueEntryId, body) {
+      calls.push({ body, id: queueEntryId, kind: "send-back-submission" });
+      if (options.failSendBack === true) throw new ApprovalItemStateError();
+      return queueEntry("sent_back");
     },
   };
   const routes = {
@@ -159,12 +175,78 @@ test("flagged push-through and open-fix are distinct allowlisted admin actions",
   assert.deepEqual(rejected.calls, []);
 });
 
+test("pending and flagged send-back routes require reasons and exact projections", async () => {
+  const fixture = createFixture();
+  const pending = await invoke(
+    fixture,
+    SEND_BACK_SUBMISSION_PATH,
+    { queueEntryId: QUEUE_ID },
+    { reason: "  Correct the carrier  " },
+    "admin",
+  );
+  assert.equal(pending.status, 200);
+  assert.equal(pending.headers["cache-control"], "no-store");
+  assert.equal((pending.body as any).entry.status, "sent_back");
+  assert.equal((pending.body as any).entry.reason, "Correct the carrier");
+
+  const flagged = await invoke(
+    fixture,
+    SEND_BACK_HELP_PATH,
+    { draftId: DRAFT_ID },
+    { reason: "  Complete the missing fields  " },
+    "admin",
+  );
+  assert.equal(flagged.status, 200);
+  assert.equal((flagged.body as any).draft.status, "sent_back");
+  assert.equal((flagged.body as any).draft.flagReason, null);
+  assert.equal(
+    (flagged.body as any).draft.sentBackReason,
+    "Complete the missing fields",
+  );
+  assert.deepEqual(fixture.calls, [
+    {
+      body: { reason: "Correct the carrier" },
+      id: QUEUE_ID,
+      kind: "send-back-submission",
+    },
+    {
+      body: { reason: "Complete the missing fields" },
+      id: DRAFT_ID,
+      kind: "send-back-help",
+    },
+  ]);
+
+  for (const body of [
+    {},
+    { reason: "   " },
+    { reason: "x".repeat(501) },
+    { reason: "No", ownerUserId: EMPLOYEE_ID },
+  ]) {
+    const invalid = createFixture();
+    const response = await invoke(
+      invalid,
+      SEND_BACK_HELP_PATH,
+      { draftId: DRAFT_ID },
+      body,
+      "admin",
+    );
+    assert.equal(response.status, 400);
+    assert.deepEqual(invalid.calls, []);
+  }
+});
+
 test("employee and producer are denied on every approval action before service access", async () => {
   for (const identity of [undefined, "employee", "producer"] as const) {
     for (const [path, params, body] of [
       [APPROVE_SUBMISSION_PATH, { queueEntryId: QUEUE_ID }, {}],
       [PUSH_THROUGH_HELP_PATH, { draftId: DRAFT_ID }, {}],
       [OPEN_FIX_HELP_PATH, { draftId: DRAFT_ID }, { insuredName: "No" }],
+      [
+        SEND_BACK_SUBMISSION_PATH,
+        { queueEntryId: QUEUE_ID },
+        { reason: "No access" },
+      ],
+      [SEND_BACK_HELP_PATH, { draftId: DRAFT_ID }, { reason: "No access" }],
     ] as const) {
       const fixture = createFixture();
       const response = await invoke(fixture, path, params, body, identity);
@@ -189,7 +271,124 @@ test("stale approval conflicts are safe and every action route is guarded", asyn
     assert.equal(typeof registration.access.authorization, "function");
     assert.equal("public" in registration.access, false);
   }
+
+  const staleSendBack = createFixture({ failSendBack: true });
+  const staleResponse = await invoke(
+    staleSendBack,
+    SEND_BACK_HELP_PATH,
+    { draftId: DRAFT_ID },
+    { reason: "Too late" },
+    "admin",
+  );
+  assert.equal(staleResponse.status, 409);
 });
+
+test("send-back handlers fail closed when route authorization is omitted", async () => {
+  for (const [path, params] of [
+    [SEND_BACK_SUBMISSION_PATH, { queueEntryId: QUEUE_ID }],
+    [SEND_BACK_HELP_PATH, { draftId: DRAFT_ID }],
+  ] as const) {
+    const fixture = createFixture();
+    const registration = fixture.registrations.find((item) => item.path === path);
+    assert.ok(registration);
+    const req = {
+      body: { reason: "Must not run" },
+      headers: {},
+      method: "POST",
+      originalUrl: path,
+      params,
+      route: { path },
+      session: fakeSession(ADMIN_ID),
+    } as unknown as Request;
+    const response = createTestResponse();
+    registration.handler(req, response.res, response.next);
+    const error = await response.completed;
+    assert.notEqual(error, null);
+    assert.equal(errorResult(error).status, 500);
+    assert.deepEqual(fixture.calls, []);
+  }
+});
+
+function queueEntry(
+  status: ApprovalQueueEntryRecord["status"] = "pending",
+): ApprovalQueueEntryRecord & Record<string, unknown> {
+  const timestamp = new Date("2026-07-11T12:00:00.000Z");
+  return {
+    actedAt: status === "sent_back" ? timestamp : null,
+    actedByUserId: status === "sent_back" ? ADMIN_ID : null,
+    createdAt: timestamp,
+    draftId: DRAFT_ID,
+    id: QUEUE_ID,
+    passwordHash: "must-not-leak",
+    reason: status === "sent_back" ? "Correct the carrier" : null,
+    status,
+    submittedAt: timestamp,
+    submittedByUserId: EMPLOYEE_ID,
+    submittedPayload: {
+      basePremium: "1000.00",
+      insuredName: "Private Insured",
+      schemaVersion: 1,
+    },
+    updatedAt: timestamp,
+  };
+}
+
+function draft(status: DraftRecord["status"] = "flagged"): DraftRecord {
+  const timestamp = new Date("2026-07-11T12:00:00.000Z");
+  return {
+    accountAssignment: "none",
+    amountPaid: "250.00",
+    basePremium: "1000.00",
+    brokerFee: "20.00",
+    carrierId: null,
+    commissionConfirmed: true,
+    commissionMode: "pct",
+    commissionRate: "12.5000",
+    companyName: null,
+    createdAt: timestamp,
+    depositOption: "0.00",
+    effectiveDate: "2026-07-11",
+    expirationDate: "2027-07-11",
+    financeBalance: "750.00",
+    financeContact: null,
+    financeMeta: null,
+    financeReference: null,
+    flagReason: status === "flagged" ? "Need admin help" : null,
+    history: [],
+    id: DRAFT_ID,
+    insuredName: "Flagged Insured",
+    invoiceNumber: null,
+    ipfsFinanced: "no",
+    ipfsManual: false,
+    ipfsPushed: false,
+    ipfsPushedAt: null,
+    ipfsReturning: null,
+    lastEditedAt: timestamp,
+    linkedPolicyId: null,
+    linkedQueueEntryId: null,
+    mgaFee: "10.00",
+    mgaId: null,
+    netDue: "905.00",
+    notes: null,
+    officeLocationId: null,
+    ownerUserId: EMPLOYEE_ID,
+    paymentMode: "full",
+    policyNumber: "FLAG-1",
+    policyTypeId: null,
+    producerUserId: null,
+    proposalTotal: "1030.00",
+    schemaVersion: 1,
+    sentBackAt: status === "sent_back" ? timestamp : null,
+    sentBackByUserId: status === "sent_back" ? ADMIN_ID : null,
+    sentBackReason:
+      status === "sent_back" ? "Complete the missing fields" : null,
+    status,
+    submittedAt: null,
+    taxes: "0.00",
+    transactionNotes: null,
+    transactionType: "new_business",
+  };
+}
 
 function policy(): PolicyRecord & Record<string, unknown> {
   const timestamp = new Date("2026-07-11T12:00:00.000Z");

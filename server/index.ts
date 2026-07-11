@@ -46,6 +46,10 @@ import {
   approvePendingSubmission,
   pushThroughFlaggedHelp,
 } from "./approval-queue/approve.js";
+import {
+  sendBackFlaggedHelp,
+  sendBackPendingSubmission,
+} from "./approval-queue/send-back.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -125,6 +129,10 @@ const app = createApp({
       logger,
       pushThroughHelp: (context, draftId) =>
         pushThroughFlaggedHelp(database, context, draftId),
+      sendBackHelp: (context, draftId, input) =>
+        sendBackFlaggedHelp(database, context, draftId, input),
+      sendBackSubmission: (context, queueEntryId, input) =>
+        sendBackPendingSubmission(database, context, queueEntryId, input),
     });
   },
   sessionMiddleware: createSessionMiddleware(pool, {

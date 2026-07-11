@@ -228,6 +228,25 @@ export async function sendBackQueuedDraft(
   );
 }
 
+export async function sendBackFlaggedDraft(
+  database: PolicyLifecycleDatabase,
+  context: AuthorizedRequestContext,
+  draftId: string,
+  reason: string,
+  actedAt = new Date(),
+): Promise<void> {
+  const actorUserId = requireLifecycleAdmin(context);
+  requireValidTimestamp(actedAt);
+  await database.execute(
+    sql`select send_back_flagged_draft(
+      ${draftId}::uuid,
+      ${actorUserId}::uuid,
+      ${reason}::text,
+      ${actedAt}::timestamp with time zone
+    )`,
+  );
+}
+
 export async function approveQueuedPolicy(
   database: AuthDatabase,
   context: AuthorizedRequestContext,

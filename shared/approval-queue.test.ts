@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  approvalSendBackRequestSchema,
   approvalWorkListResponseSchema,
   listApprovalWorkQuerySchema,
 } from "./approval-queue.js";
@@ -16,6 +17,21 @@ test("approval work filters are bounded and default to the active queue", () => 
   assert.throws(() =>
     listApprovalWorkQuerySchema.parse({ status: "all", ownerUserId: "x" }),
   );
+});
+
+test("approval send-back reasons are trimmed, bounded, and reason-only", () => {
+  assert.deepEqual(
+    approvalSendBackRequestSchema.parse({ reason: "  Correct the MGA  " }),
+    { reason: "Correct the MGA" },
+  );
+  for (const input of [
+    {},
+    { reason: "   " },
+    { reason: "x".repeat(501) },
+    { reason: "No", status: "sent_back" },
+  ]) {
+    assert.equal(approvalSendBackRequestSchema.safeParse(input).success, false);
+  }
 });
 
 test("approval work responses reject undeclared queue and help fields", () => {
