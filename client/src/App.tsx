@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import type { CurrentUser } from "../../shared/current-user.js";
 import { createAuthApi, type AuthApi } from "./auth/api.js";
 import { LoginScreen } from "./auth/LoginScreen.js";
+import { AppShell } from "./shell/AppShell.js";
 
 const defaultAuthApi = createAuthApi();
 
@@ -76,18 +77,7 @@ export function App({ authApi = defaultAuthApi }: AppProps) {
     );
   }
 
-  return (
-    <div className="app-shell">
-      <header className="app-header">
-        <span className="brand">WCIB Dashboard</span>
-      </header>
-      <main className="app-main">
-        <p className="eyebrow">Authenticated session</p>
-        <h1>Welcome, {auth.user.displayName ?? auth.user.email}</h1>
-        <p className="status">Your WCIB workspace is ready to load.</p>
-      </main>
-    </div>
-  );
+  return <AppShell user={auth.user} />;
 }
 
 function AuthLoading() {
