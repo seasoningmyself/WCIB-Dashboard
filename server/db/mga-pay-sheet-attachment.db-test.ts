@@ -9,6 +9,7 @@ import { createUser } from "../auth/users.js";
 import type { AppLogger, LogContext } from "../logging/logger.js";
 import { closePaySheet } from "../pay-sheets/close.js";
 import { syncMgaPaymentSheetPlacement } from "../pay-sheets/mga-placement.js";
+import { applyPolicyCorrection } from "../policies/corrections.js";
 import { setMgaPaymentState } from "../policies/mga-payments.js";
 import { withDisposableMigratedDatabase } from "./disposable-database-test-helper.js";
 import { readDatabaseErrorCode } from "./error-code.js";
@@ -451,14 +452,25 @@ test("MGA placement attaches applicable open chains and preserves closed history
       .where(eq(paySheetPolicies.id, closedSophiaAssociation.id));
     assert.ok(closedBeforeDetach);
 
-    await database
-      .update(policies)
-      .set({
+    const [assignmentVersion] = await database
+      .select({ updatedAt: policies.updatedAt })
+      .from(policies)
+      .where(eq(policies.id, laterAssignedPolicy.id));
+    assert.ok(assignmentVersion);
+    await applyPolicyCorrection(
+      database,
+      adminContext,
+      laterAssignedPolicy.id,
+      "Assign the producer after MGA payment",
+      {
         kayleeSplit: "book",
         producerUserId: references.producerUserId,
-        updatedAt: closedAt,
-      })
-      .where(eq(policies.id, laterAssignedPolicy.id));
+      },
+      ["producerUserId", "kayleeSplit"],
+      assignmentVersion.updatedAt,
+      logger,
+      closedAt,
+    );
     const [sophiaJuly] = await database
       .select()
       .from(paySheets)

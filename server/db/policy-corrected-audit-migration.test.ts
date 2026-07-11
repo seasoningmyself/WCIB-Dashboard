@@ -21,11 +21,15 @@ const backoutSql = readFileSync(
 test("one migration owns the policy_corrected audit action", () => {
   const owners = readdirSync(resolve(process.cwd(), "drizzle"))
     .filter((name) => /^\d{4}_.*\.sql$/.test(name))
-    .filter((name) =>
-      readFileSync(resolve(process.cwd(), "drizzle", name), "utf8").includes(
-        "'policy_corrected'",
-      ),
-    );
+    .filter((name) => {
+      const sql = readFileSync(
+        resolve(process.cwd(), "drizzle", name),
+        "utf8",
+      );
+      return /CREATE TYPE[\s\S]*?"audit_action" AS ENUM\([\s\S]*?'policy_corrected'[\s\S]*?\);/.test(
+        sql,
+      );
+    });
 
   assert.deepEqual(owners, ["0033_policy_corrected_audit_action.sql"]);
   assert.equal(
