@@ -12,15 +12,23 @@ import { createAuthorizationGuards } from "../auth/authorization.js";
 import type { UserAccount } from "../auth/users.js";
 import type { DraftRecord } from "../db/schema.js";
 import { DRAFT_FINANCIAL_FIELDS } from "../drafts/projection.js";
+import {
+  DraftNotEditableError,
+  DraftNotFoundError,
+} from "../drafts/edit.js";
 import type { AppLogger } from "../logging/logger.js";
 import { toErrorResponse } from "./errors.js";
 import {
   DRAFTS_PATH,
+  DRAFT_PATH,
   createDraftCreateHandler,
+  createDraftEditHandler,
   createDraftListHandler,
   registerDraftCreateRoute,
+  registerDraftEditRoute,
   registerDraftListRoute,
   type RegisterDraftCreateRouteOptions,
+  type RegisterDraftEditRouteOptions,
   type RegisterDraftListRouteOptions,
 } from "./drafts.js";
 import {
@@ -35,11 +43,12 @@ const EMPLOYEE_ID = "00000000-0000-4000-8000-000000000003";
 const UNASSIGNED_ID = "00000000-0000-4000-8000-000000000004";
 const INACTIVE_ID = "00000000-0000-4000-8000-000000000005";
 const DRAFT_ID = "00000000-0000-4000-8000-000000000010";
+const OTHER_DRAFT_ID = "00000000-0000-4000-8000-000000000099";
 
 interface RegisteredRoute {
   access: RouteAccessDeclaration;
   handler: RequestHandler;
-  method: "GET" | "POST";
+  method: "GET" | "PATCH" | "POST";
   path: string;
 }
 
@@ -70,6 +79,7 @@ function createFixture(options: { emptyList?: boolean } = {}) {
   ]);
   const calls: Array<{ input: unknown; userId: string }> = [];
   const listCalls: Array<{ query: unknown; userId: string }> = [];
+  const editCalls: Array<{ draftId: string; input: unknown; userId: string }> = [];
   const authorization = createAuthorizationGuards({
     async findUser(userId) {
       return users.get(userId) ?? null;
@@ -109,6 +119,33 @@ function createFixture(options: { emptyList?: boolean } = {}) {
     },
     logger,
   };
+  const editOptions: RegisterDraftEditRouteOptions = {
+    authorization,
+    async edit(context, draftId, input) {
+      editCalls.push({
+        draftId,
+        input,
+        userId: context.principal.userId,
+      });
+      if (draftId === OTHER_DRAFT_ID) {
+        throw new DraftNotFoundError();
+      }
+      if ((input as { notes?: string }).notes === "locked") {
+        throw new DraftNotEditableError();
+      }
+      const record = draft(context.principal.userId);
+      record.insuredName =
+        (input as { insuredName?: string }).insuredName ?? record.insuredName;
+      return {
+        draft: record,
+        previousStatus:
+          (input as { notes?: string }).notes === "reopen"
+            ? "sent_back"
+            : "draft",
+      };
+    },
+    logger,
+  };
   const routes = {
     get(
       path: string,
@@ -128,12 +165,24 @@ function createFixture(options: { emptyList?: boolean } = {}) {
       assert.ok(handler);
       registrations.push({ access, handler, method: "POST", path });
     },
+    patch(
+      path: string,
+      access: RouteAccessDeclaration,
+      ...handlers: RequestHandler[]
+    ) {
+      const handler = handlers[0];
+      assert.ok(handler);
+      registrations.push({ access, handler, method: "PATCH", path });
+    },
   } as unknown as RouteRegistrar;
   registerDraftCreateRoute(routes, createOptions);
   registerDraftListRoute(routes, listOptions);
+  registerDraftEditRoute(routes, editOptions);
   return {
     calls,
     createOptions,
+    editCalls,
+    editOptions,
     listCalls,
     listOptions,
     registrations,
@@ -339,6 +388,129 @@ test("own-draft list route is explicitly authorized", () => {
   );
 });
 
+test("all three roles edit only through the active owner projection", async () => {
+  for (const [identity, userId] of [
+    ["admin", ADMIN_ID],
+    ["producer", PRODUCER_ID],
+    ["employee", EMPLOYEE_ID],
+  ] as const) {
+    const fixture = createFixture();
+    const result = await invokeEditRoute(
+      fixture,
+      DRAFT_ID,
+      { insuredName: "Updated Insured" },
+      identity,
+    );
+    assert.equal(result.status, 200);
+    const response = result.body as { draft: Record<string, unknown> };
+    assert.equal(response.draft.ownerUserId, userId);
+    assert.equal(response.draft.insuredName, "Updated Insured");
+    assert.equal(response.draft.agencyCommissionAmount, "125.00");
+    assert.equal("producerPayout" in response.draft, false);
+    assert.deepEqual(fixture.editCalls, [
+      {
+        draftId: DRAFT_ID,
+        input: { insuredName: "Updated Insured" },
+        userId,
+      },
+    ]);
+  }
+});
+
+test("draft edit hides missing ownership and rejects closed states and system fields", async () => {
+  const missing = await invokeEditRoute(
+    createFixture(),
+    OTHER_DRAFT_ID,
+    { insuredName: "No access" },
+    "employee",
+  );
+  assert.deepEqual(missing, {
+    body: { error: { code: "not_found", message: "Draft not found" } },
+    headers: {},
+    status: 404,
+  });
+
+  const locked = await invokeEditRoute(
+    createFixture(),
+    DRAFT_ID,
+    { notes: "locked" },
+    "employee",
+  );
+  assert.equal(locked.status, 409);
+
+  for (const input of [
+    { ownerUserId: ADMIN_ID },
+    { status: "draft" },
+    { history: [] },
+    { producerPayout: "10.00" },
+  ]) {
+    const fixture = createFixture();
+    const result = await invokeEditRoute(
+      fixture,
+      DRAFT_ID,
+      input,
+      "producer",
+    );
+    assert.equal(result.status, 400);
+    assert.deepEqual(fixture.editCalls, []);
+  }
+});
+
+test("sent-back edit returns a reopened active draft without lifecycle internals", async () => {
+  const result = await invokeEditRoute(
+    createFixture(),
+    DRAFT_ID,
+    { notes: "reopen" },
+    "employee",
+  );
+  assert.equal(result.status, 200);
+  const body = result.body as { draft: Record<string, unknown> };
+  assert.equal(body.draft.status, "draft");
+  assert.equal("previousStatus" in body, false);
+  assert.equal(body.draft.basePremium, "1000.00");
+});
+
+test("draft edit route is explicitly authorized and fails closed without its guard", async () => {
+  const fixture = createFixture();
+  const app = createApp({
+    registerRoutes(routes) {
+      registerDraftEditRoute(routes, fixture.editOptions);
+    },
+  });
+  assert.deepEqual(
+    auditRouteAccessDeclarations(app).find(
+      ({ method, path }) => method === "PATCH" && path === DRAFT_PATH,
+    ),
+    {
+      access: { type: "authorized" },
+      method: "PATCH",
+      path: DRAFT_PATH,
+    },
+  );
+
+  let calls = 0;
+  const handler = createDraftEditHandler({
+    async edit() {
+      calls += 1;
+      return { draft: draft(EMPLOYEE_ID), previousStatus: "draft" };
+    },
+    logger,
+  });
+  const response = createTestResponse();
+  handler(
+    {
+      body: { insuredName: "No guard" },
+      params: { draftId: DRAFT_ID },
+    } as unknown as Request,
+    response.res,
+    response.next,
+  );
+  const error = await response.completed;
+  assert.ok(error);
+  assert.equal(errorResult(error).status, 500);
+  assert.equal(calls, 0);
+});
+
 function validBody() {
   return {
     basePremium: "1000.00",
@@ -529,6 +701,47 @@ async function invokeListRoute(
     originalUrl: DRAFTS_PATH,
     query,
     route: { path: DRAFTS_PATH },
+    session: fakeSession(userId),
+  } as unknown as Request;
+  const response = createTestResponse();
+  const guardError = await invokeNextMiddleware(guard, req, response.res);
+  if (guardError !== null) {
+    return errorResult(guardError);
+  }
+  registration.handler(req, response.res, response.next);
+  const handlerError = await response.completed;
+  return handlerError === null ? response.result() : errorResult(handlerError);
+}
+
+async function invokeEditRoute(
+  fixture: ReturnType<typeof createFixture>,
+  draftId: string,
+  body: unknown,
+  identity?: "admin" | "employee" | "producer" | "unassigned",
+): Promise<TestResult> {
+  const registration = fixture.registrations.find(
+    ({ method }) => method === "PATCH",
+  );
+  assert.ok(registration);
+  const guard = registration.access.authorization;
+  assert.ok(guard);
+  const userId =
+    identity === "admin"
+      ? ADMIN_ID
+      : identity === "producer"
+        ? PRODUCER_ID
+        : identity === "employee"
+          ? EMPLOYEE_ID
+          : identity === "unassigned"
+            ? UNASSIGNED_ID
+            : undefined;
+  const req = {
+    body,
+    headers: {},
+    method: "PATCH",
+    originalUrl: `/api/drafts/${draftId}`,
+    params: { draftId },
+    route: { path: DRAFT_PATH },
     session: fakeSession(userId),
   } as unknown as Request;
   const response = createTestResponse();

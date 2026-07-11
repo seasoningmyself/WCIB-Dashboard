@@ -191,6 +191,24 @@ export async function flagDraftForHelp(
   );
 }
 
+export async function reopenSentBackDraft(
+  database: PolicyLifecycleDatabase,
+  context: AuthorizedRequestContext,
+  draftId: string,
+  reopenedAt = new Date(),
+): Promise<void> {
+  requireLifecycleStaff(context);
+  requireValidTimestamp(reopenedAt);
+  await database.execute(
+    sql`select transition_draft_status(
+      ${draftId}::uuid,
+      'sent_back'::draft_status,
+      'draft'::draft_status,
+      ${reopenedAt}::timestamp with time zone
+    )`,
+  );
+}
+
 export async function sendBackQueuedDraft(
   database: PolicyLifecycleDatabase,
   context: AuthorizedRequestContext,

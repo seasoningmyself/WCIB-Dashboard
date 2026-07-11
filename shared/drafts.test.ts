@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   createDraftRequestSchema,
   listDraftsQuerySchema,
+  updateDraftRequestSchema,
 } from "./drafts.js";
 
 const PRODUCER_ID = "00000000-0000-4000-8000-000000000001";
@@ -24,6 +25,22 @@ test("draft input normalizes exact decimal and text values", () => {
       producerUserId: PRODUCER_ID,
     },
   );
+});
+
+test("draft edits require at least one allowlisted content field", () => {
+  assert.equal(updateDraftRequestSchema.safeParse({}).success, false);
+  assert.deepEqual(updateDraftRequestSchema.parse({ insuredName: " Updated " }), {
+    insuredName: "Updated",
+  });
+  for (const input of [
+    { ownerUserId: PRODUCER_ID },
+    { status: "draft" },
+    { history: [] },
+    { linkedQueueEntryId: PRODUCER_ID },
+    { producerPayout: "100.00" },
+  ]) {
+    assert.equal(updateDraftRequestSchema.safeParse(input).success, false);
+  }
 });
 
 test("draft input rejects system fields, unsafe amounts, and broken assignments", () => {

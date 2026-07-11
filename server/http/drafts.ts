@@ -3,8 +3,11 @@ import { apiErrorCodes } from "../../shared/api-errors.js";
 import {
   createDraftRequestSchema,
   createDraftResponseSchema,
+  draftIdParamsSchema,
+  editDraftResponseSchema,
   listDraftsQuerySchema,
   listDraftsResponseSchema,
+  updateDraftRequestSchema,
   type CreateDraftResponse,
   type ListDraftsResponse,
 } from "../../shared/drafts.js";
@@ -18,6 +21,11 @@ import {
   DraftInputValidationError,
 } from "../drafts/create.js";
 import { projectDraftForAuthorizedContext } from "../drafts/projection.js";
+import {
+  DraftNotEditableError,
+  DraftNotFoundError,
+  type DraftEditResult,
+} from "../drafts/edit.js";
 import type { DraftRecord } from "../db/schema.js";
 import type { AppLogger } from "../logging/logger.js";
 import { projectAuthorizedFields } from "../security/field-projection.js";
@@ -25,6 +33,7 @@ import { asyncRoute, HttpError } from "./errors.js";
 import type { RouteRegistrar } from "./routes.js";
 
 export const DRAFTS_PATH = "/api/drafts";
+export const DRAFT_PATH = "/api/drafts/:draftId";
 
 export interface DraftCreateHandlerDependencies {
   create(
@@ -49,6 +58,20 @@ export interface DraftListHandlerDependencies {
 
 export interface RegisterDraftListRouteOptions
   extends DraftListHandlerDependencies {
+  authorization: AuthorizationGuards;
+}
+
+export interface DraftEditHandlerDependencies {
+  edit(
+    context: AuthorizedRequestContext,
+    draftId: string,
+    input: unknown,
+  ): Promise<DraftEditResult>;
+  logger: AppLogger;
+}
+
+export interface RegisterDraftEditRouteOptions
+  extends DraftEditHandlerDependencies {
   authorization: AuthorizationGuards;
 }
 
@@ -144,5 +167,65 @@ export function registerDraftListRoute(
       authorization: options.authorization.require(DRAFT_SELF_SERVICE_ACCESS),
     },
     createDraftListHandler(options),
+  );
+}
+
+export function createDraftEditHandler(
+  dependencies: DraftEditHandlerDependencies,
+): RequestHandler {
+  return asyncRoute(async (req, res) => {
+    const context = getAuthorizedRequestContext(res);
+    const { draftId } = draftIdParamsSchema.parse(req.params);
+    const input = updateDraftRequestSchema.parse(req.body);
+    let result: DraftEditResult;
+    try {
+      result = await dependencies.edit(context, draftId, input);
+    } catch (error) {
+      if (error instanceof DraftInputValidationError) {
+        throw new HttpError(
+          400,
+          apiErrorCodes.validation,
+          "Request validation failed",
+          error.details,
+        );
+      }
+      if (error instanceof DraftNotFoundError) {
+        throw new HttpError(404, apiErrorCodes.notFound, "Draft not found");
+      }
+      if (error instanceof DraftNotEditableError) {
+        throw new HttpError(409, apiErrorCodes.badRequest, "Draft is not editable");
+      }
+      throw error;
+    }
+    const projected = projectAuthorizedFields(
+      res,
+      result.draft,
+      projectDraftForAuthorizedContext,
+    );
+    if (projected === null) {
+      throw new HttpError(403, apiErrorCodes.forbidden, "Forbidden");
+    }
+    const response = editDraftResponseSchema.parse({ draft: projected });
+    dependencies.logger.info("Own draft edited", {
+      component: "drafts",
+      draftId: response.draft.id,
+      event: "own_draft_edited",
+      previousStatus: result.previousStatus,
+      userId: context.principal.userId,
+    });
+    res.set("Cache-Control", "no-store").json(response);
+  });
+}
+
+export function registerDraftEditRoute(
+  routes: RouteRegistrar,
+  options: RegisterDraftEditRouteOptions,
+): void {
+  routes.patch(
+    DRAFT_PATH,
+    {
+      authorization: options.authorization.require(DRAFT_SELF_SERVICE_ACCESS),
+    },
+    createDraftEditHandler(options),
   );
 }

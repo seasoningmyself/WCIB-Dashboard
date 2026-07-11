@@ -52,10 +52,10 @@ export async function createOwnDraft(
     ]);
   }
   const input = createDraftRequestSchema.parse(rawInput);
-  validateProducerSelfAssignment(context, input);
+  validateDraftProducerAssignment(context, input);
 
   return database.transaction(async (transaction) => {
-    await validateActiveReferences(transaction, input);
+    await validateActiveDraftReferences(transaction, input);
     const [record] = await transaction
       .insert(drafts)
       .values(buildDraftInsert(ownerUserId, input, createdAt))
@@ -67,7 +67,7 @@ export async function createOwnDraft(
   });
 }
 
-function validateProducerSelfAssignment(
+export function validateDraftProducerAssignment(
   context: AuthorizedRequestContext,
   input: CreateDraftRequest,
 ): void {
@@ -90,6 +90,22 @@ function buildDraftInsert(
   input: CreateDraftRequest,
   createdAt: Date,
 ): NewDraftRecord {
+  return {
+    ...buildDraftContentValues(input),
+    createdAt,
+    history: [],
+    ipfsPushed: false,
+    ipfsPushedAt: null,
+    lastEditedAt: createdAt,
+    linkedPolicyId: null,
+    linkedQueueEntryId: null,
+    ownerUserId,
+    schemaVersion: 1,
+    status: "draft",
+  };
+}
+
+export function buildDraftContentValues(input: CreateDraftRequest) {
   const commissionMode = input.commissionMode ?? null;
   const commissionRate =
     commissionMode === "tbd" || commissionMode === "na"
@@ -117,7 +133,6 @@ function buildDraftInsert(
     commissionMode,
     commissionRate,
     companyName: input.companyName ?? null,
-    createdAt,
     depositOption: input.depositOption ?? null,
     effectiveDate: input.effectiveDate ?? null,
     expirationDate: input.expirationDate ?? null,
@@ -130,17 +145,11 @@ function buildDraftInsert(
     financeMeta: usesIpfs ? IPFS_FINANCE_META : null,
     financeReference:
       paymentMode === "deposit" ? (input.financeReference ?? null) : null,
-    history: [],
     insuredName: input.insuredName ?? null,
     invoiceNumber: input.invoiceNumber ?? null,
     ipfsFinanced,
     ipfsManual: usesIpfs ? (input.ipfsManual ?? false) : false,
-    ipfsPushed: false,
-    ipfsPushedAt: null,
     ipfsReturning: usesIpfs ? (input.ipfsReturning ?? null) : null,
-    lastEditedAt: createdAt,
-    linkedPolicyId: null,
-    linkedQueueEntryId: null,
     mgaFee: input.mgaFee ?? null,
     mgaId: input.mgaId ?? null,
     netDue: calculateDraftNetDue({
@@ -150,21 +159,18 @@ function buildDraftInsert(
     }),
     notes: input.notes ?? null,
     officeLocationId: input.officeLocationId ?? null,
-    ownerUserId,
     paymentMode,
     policyNumber: input.policyNumber ?? null,
     policyTypeId: input.policyTypeId ?? null,
     producerUserId: input.producerUserId ?? null,
     proposalTotal: input.proposalTotal ?? null,
-    schemaVersion: 1,
-    status: "draft",
     taxes: input.taxes ?? null,
     transactionNotes: input.transactionNotes ?? null,
     transactionType: input.transactionType ?? null,
   };
 }
 
-async function validateActiveReferences(
+export async function validateActiveDraftReferences(
   database: DraftPersistenceDatabase,
   input: CreateDraftRequest,
 ): Promise<void> {

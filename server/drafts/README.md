@@ -20,6 +20,13 @@ orders by most recent edit. Admin's My Drafts remains admin-owned; all-user
 review belongs to the approval workflow. Run `npm run test:db:draft-list` for
 the ownership and ordering boundary.
 
+`PATCH /api/drafts/:draftId` edits only the authenticated UUID's `draft` or
+`sent_back` record. The transaction locks and re-reads the owned row, validates
+the merged content, and uses the existing lifecycle transition when reopening
+sent-back work. Submitted, flagged, and approved drafts remain immutable through
+this endpoint. Run `npm run test:db:draft-edit` for ownership, lifecycle, and
+atomic rollback coverage.
+
 PostgreSQL migration `0013_draft_integrity` owns status transitions and stale
 state checks through `transition_draft_status`. Direct status updates are
 rejected. Financial values, insured/contact fields, and transition reasons must

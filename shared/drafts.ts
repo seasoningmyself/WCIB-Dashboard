@@ -38,42 +38,55 @@ const financeMetaSchema = z
   })
   .strict();
 
+const draftWritableFields = {
+  accountAssignment: z.enum(ACCOUNT_ASSIGNMENTS).nullable().optional(),
+  amountPaid: nullableMoneySchema,
+  basePremium: nullableMoneySchema,
+  brokerFee: nullableMoneySchema,
+  carrierId: nullableUuidSchema,
+  commissionConfirmed: z.boolean().optional(),
+  commissionMode: z.enum(COMMISSION_MODES).nullable().optional(),
+  commissionRate: nullableRateSchema,
+  companyName: nullableTextSchema(300),
+  depositOption: nullableMoneySchema,
+  effectiveDate: nullableDateSchema,
+  expirationDate: nullableDateSchema,
+  financeContact: financeContactSchema.nullable().optional(),
+  financeReference: nullableTextSchema(300),
+  insuredName: nullableTextSchema(300),
+  invoiceNumber: nullableTextSchema(200),
+  ipfsFinanced: z.enum(IPFS_FINANCING_CHOICES).nullable().optional(),
+  ipfsManual: z.boolean().optional(),
+  ipfsReturning: z.enum(IPFS_CUSTOMER_TYPES).nullable().optional(),
+  mgaFee: nullableMoneySchema,
+  mgaId: nullableUuidSchema,
+  notes: nullableTextSchema(4_000),
+  officeLocationId: nullableUuidSchema,
+  paymentMode: z.enum(PAYMENT_MODES).nullable().optional(),
+  policyNumber: nullableTextSchema(200),
+  policyTypeId: nullableUuidSchema,
+  producerUserId: nullableUuidSchema,
+  proposalTotal: nullableMoneySchema,
+  taxes: nullableMoneySchema,
+  transactionNotes: nullableTextSchema(2_000),
+  transactionType: nullableTextSchema(100),
+} as const;
+
 export const createDraftRequestSchema = z
-  .object({
-    accountAssignment: z.enum(ACCOUNT_ASSIGNMENTS).nullable().optional(),
-    amountPaid: nullableMoneySchema,
-    basePremium: nullableMoneySchema,
-    brokerFee: nullableMoneySchema,
-    carrierId: nullableUuidSchema,
-    commissionConfirmed: z.boolean().optional(),
-    commissionMode: z.enum(COMMISSION_MODES).nullable().optional(),
-    commissionRate: nullableRateSchema,
-    companyName: nullableTextSchema(300),
-    depositOption: nullableMoneySchema,
-    effectiveDate: nullableDateSchema,
-    expirationDate: nullableDateSchema,
-    financeContact: financeContactSchema.nullable().optional(),
-    financeReference: nullableTextSchema(300),
-    insuredName: nullableTextSchema(300),
-    invoiceNumber: nullableTextSchema(200),
-    ipfsFinanced: z.enum(IPFS_FINANCING_CHOICES).nullable().optional(),
-    ipfsManual: z.boolean().optional(),
-    ipfsReturning: z.enum(IPFS_CUSTOMER_TYPES).nullable().optional(),
-    mgaFee: nullableMoneySchema,
-    mgaId: nullableUuidSchema,
-    notes: nullableTextSchema(4_000),
-    officeLocationId: nullableUuidSchema,
-    paymentMode: z.enum(PAYMENT_MODES).nullable().optional(),
-    policyNumber: nullableTextSchema(200),
-    policyTypeId: nullableUuidSchema,
-    producerUserId: nullableUuidSchema,
-    proposalTotal: nullableMoneySchema,
-    taxes: nullableMoneySchema,
-    transactionNotes: nullableTextSchema(2_000),
-    transactionType: nullableTextSchema(100),
-  })
+  .object(draftWritableFields)
   .strict()
   .superRefine(validateAssignmentPair);
+
+export const updateDraftRequestSchema = z
+  .object(draftWritableFields)
+  .strict()
+  .refine((input) => Object.keys(input).length > 0, {
+    message: "At least one editable field is required",
+  });
+
+export const draftIdParamsSchema = z
+  .object({ draftId: z.string().uuid() })
+  .strict();
 
 export const listDraftsQuerySchema = z
   .object({
@@ -154,6 +167,8 @@ export const createDraftResponseSchema = z
   .object({ draft: draftResponseSchema })
   .strict();
 
+export const editDraftResponseSchema = createDraftResponseSchema;
+
 export const listDraftsResponseSchema = z
   .object({ drafts: z.array(draftResponseSchema) })
   .strict();
@@ -161,6 +176,7 @@ export const listDraftsResponseSchema = z
 export type CreateDraftRequest = z.output<typeof createDraftRequestSchema>;
 export type DraftResponse = z.output<typeof draftResponseSchema>;
 export type CreateDraftResponse = z.output<typeof createDraftResponseSchema>;
+export type UpdateDraftRequest = z.output<typeof updateDraftRequestSchema>;
 export type ListDraftsQuery = z.output<typeof listDraftsQuerySchema>;
 export type ListDraftsResponse = z.output<typeof listDraftsResponseSchema>;
 

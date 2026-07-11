@@ -26,10 +26,12 @@ import {
 import { createMgaVocabulary } from "./vocabulary/mga-create.js";
 import {
   registerDraftCreateRoute,
+  registerDraftEditRoute,
   registerDraftListRoute,
 } from "./http/drafts.js";
 import { createOwnDraft } from "./drafts/create.js";
 import { listOwnDrafts } from "./drafts/list.js";
+import { editOwnDraft } from "./drafts/edit.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -71,6 +73,12 @@ const app = createApp({
     registerDraftListRoute(routes, {
       authorization,
       list: (context, query) => listOwnDrafts(database, context, query),
+      logger,
+    });
+    registerDraftEditRoute(routes, {
+      authorization,
+      edit: (context, draftId, input) =>
+        editOwnDraft(database, context, draftId, input),
       logger,
     });
   },
