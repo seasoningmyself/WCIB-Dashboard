@@ -27,6 +27,7 @@ import { createMgaVocabulary } from "./vocabulary/mga-create.js";
 import {
   registerDraftCreateRoute,
   registerDraftEditRoute,
+  registerDraftFlagRoute,
   registerDraftListRoute,
   registerDraftSubmitRoute,
 } from "./http/drafts.js";
@@ -34,6 +35,7 @@ import { createOwnDraft } from "./drafts/create.js";
 import { listOwnDrafts } from "./drafts/list.js";
 import { editOwnDraft } from "./drafts/edit.js";
 import { submitOwnDraft } from "./drafts/submit.js";
+import { flagOwnDraft } from "./drafts/flag.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -87,6 +89,12 @@ const app = createApp({
       authorization,
       logger,
       submit: (context, draftId) => submitOwnDraft(database, context, draftId),
+    });
+    registerDraftFlagRoute(routes, {
+      authorization,
+      flag: (context, draftId, input) =>
+        flagOwnDraft(database, context, draftId, input),
+      logger,
     });
   },
   sessionMiddleware: createSessionMiddleware(pool, {

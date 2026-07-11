@@ -22,22 +22,30 @@ import {
   DraftSubmissionNotFoundError,
   DraftSubmissionValidationError,
 } from "../drafts/submit.js";
+import {
+  DraftFlagNotFoundError,
+  DraftNotFlaggableError,
+} from "../drafts/flag.js";
 import type { AppLogger } from "../logging/logger.js";
 import { toErrorResponse } from "./errors.js";
 import {
   DRAFTS_PATH,
   DRAFT_PATH,
+  DRAFT_FLAG_PATH,
   DRAFT_SUBMIT_PATH,
   createDraftCreateHandler,
   createDraftEditHandler,
+  createDraftFlagHandler,
   createDraftListHandler,
   createDraftSubmitHandler,
   registerDraftCreateRoute,
   registerDraftEditRoute,
+  registerDraftFlagRoute,
   registerDraftListRoute,
   registerDraftSubmitRoute,
   type RegisterDraftCreateRouteOptions,
   type RegisterDraftEditRouteOptions,
+  type RegisterDraftFlagRouteOptions,
   type RegisterDraftListRouteOptions,
   type RegisterDraftSubmitRouteOptions,
 } from "./drafts.js";
@@ -95,6 +103,11 @@ function createFixture(options: { emptyList?: boolean } = {}) {
   const listCalls: Array<{ query: unknown; userId: string }> = [];
   const editCalls: Array<{ draftId: string; input: unknown; userId: string }> = [];
   const submitCalls: Array<{ draftId: string; userId: string }> = [];
+  const flagCalls: Array<{
+    draftId: string;
+    input: unknown;
+    userId: string;
+  }> = [];
   const authorization = createAuthorizationGuards({
     async findUser(userId) {
       return users.get(userId) ?? null;
@@ -192,6 +205,26 @@ function createFixture(options: { emptyList?: boolean } = {}) {
       };
     },
   };
+  const flagOptions: RegisterDraftFlagRouteOptions = {
+    authorization,
+    async flag(context, draftId, input) {
+      flagCalls.push({
+        draftId,
+        input,
+        userId: context.principal.userId,
+      });
+      if (draftId === OTHER_DRAFT_ID) {
+        throw new DraftFlagNotFoundError();
+      }
+      if (draftId === LOCKED_DRAFT_ID) {
+        throw new DraftNotFlaggableError();
+      }
+      const record = draft(context.principal.userId, "flagged");
+      record.flagReason = (input as { reason: string }).reason;
+      return record;
+    },
+    logger,
+  };
   const routes = {
     get(
       path: string,
@@ -225,11 +258,14 @@ function createFixture(options: { emptyList?: boolean } = {}) {
   registerDraftListRoute(routes, listOptions);
   registerDraftEditRoute(routes, editOptions);
   registerDraftSubmitRoute(routes, submitOptions);
+  registerDraftFlagRoute(routes, flagOptions);
   return {
     calls,
     createOptions,
     editCalls,
     editOptions,
+    flagCalls,
+    flagOptions,
     listCalls,
     listOptions,
     registrations,
@@ -722,6 +758,134 @@ test("draft submit route is explicitly authorized and fails closed without its g
   assert.equal(calls, 0);
 });
 
+test("employee and producer help flags return exact nonfinancial projections", async () => {
+  for (const [identity, userId] of [
+    ["employee", EMPLOYEE_ID],
+    ["producer", PRODUCER_ID],
+  ] as const) {
+    const fixture = createFixture();
+    const result = await invokeFlagRoute(
+      fixture,
+      DRAFT_ID,
+      { reason: "  Need help selecting an MGA  " },
+      identity,
+    );
+    assert.equal(result.status, 200);
+    assert.equal(result.headers["cache-control"], "no-store");
+    const response = result.body as { draft: Record<string, unknown> };
+    assert.equal(response.draft.ownerUserId, userId);
+    assert.equal(response.draft.status, "flagged");
+    assert.equal(response.draft.flagReason, "Need help selecting an MGA");
+    for (const field of [
+      ...DRAFT_FINANCIAL_FIELDS,
+      "agencyCommissionAmount",
+      "applicableProducerRate",
+      "producerPayout",
+      "producerRate",
+      "producerRateHistory",
+    ]) {
+      assert.equal(field in response.draft, false, `${identity}:${field}`);
+    }
+    assert.deepEqual(fixture.flagCalls, [
+      {
+        draftId: DRAFT_ID,
+        input: { reason: "Need help selecting an MGA" },
+        userId,
+      },
+    ]);
+  }
+});
+
+test("help flags validate reasons and hide ownership/state failures", async () => {
+  for (const body of [
+    {},
+    { reason: "   " },
+    { reason: "x".repeat(501) },
+    { ownerUserId: EMPLOYEE_ID, reason: "Help" },
+  ]) {
+    const fixture = createFixture();
+    const result = await invokeFlagRoute(
+      fixture,
+      DRAFT_ID,
+      body,
+      "employee",
+    );
+    assert.equal(result.status, 400);
+    assert.deepEqual(fixture.flagCalls, []);
+  }
+
+  const missing = await invokeFlagRoute(
+    createFixture(),
+    OTHER_DRAFT_ID,
+    { reason: "Other owner" },
+    "producer",
+  );
+  assert.deepEqual(missing, {
+    body: { error: { code: "not_found", message: "Draft not found" } },
+    headers: {},
+    status: 404,
+  });
+  const locked = await invokeFlagRoute(
+    createFixture(),
+    LOCKED_DRAFT_ID,
+    { reason: "Too late" },
+    "employee",
+  );
+  assert.equal(locked.status, 409);
+});
+
+test("help flags deny admin-only, inactive, unassigned, and unauthenticated principals", async () => {
+  for (const [identity, status] of [
+    [undefined, 401],
+    ["inactive", 401],
+    ["unassigned", 403],
+    ["admin", 403],
+  ] as const) {
+    const fixture = createFixture();
+    const result = await invokeFlagRoute(
+      fixture,
+      DRAFT_ID,
+      { reason: "Need help" },
+      identity,
+    );
+    assert.equal(result.status, status);
+    assert.deepEqual(fixture.flagCalls, []);
+  }
+});
+
+test("draft flag route is explicitly staff-authorized and fails closed without its guard", async () => {
+  const fixture = createFixture();
+  const app = createApp({
+    registerRoutes(routes) {
+      registerDraftFlagRoute(routes, fixture.flagOptions);
+    },
+  });
+  assert.deepEqual(
+    auditRouteAccessDeclarations(app).find(
+      ({ method, path }) => method === "POST" && path === DRAFT_FLAG_PATH,
+    ),
+    {
+      access: { type: "authorized" },
+      method: "POST",
+      path: DRAFT_FLAG_PATH,
+    },
+  );
+
+  let calls = 0;
+  const handler = createDraftFlagHandler({
+    async flag() {
+      calls += 1;
+      return draft(EMPLOYEE_ID, "flagged");
+    },
+    logger,
+  });
+  const result = await invokeHandlerWithoutGuard(handler, {
+    reason: "No guard",
+  });
+  assert.equal(result.status, 500);
+  assert.equal(calls, 0);
+});
+
 function validBody() {
   return {
     basePremium: "1000.00",
@@ -996,6 +1160,49 @@ async function invokeSubmitRoute(
     originalUrl: `/api/drafts/${draftId}/submit`,
     params: { draftId },
     route: { path: DRAFT_SUBMIT_PATH },
+    session: fakeSession(userId),
+  } as unknown as Request;
+  const response = createTestResponse();
+  const guardError = await invokeNextMiddleware(guard, req, response.res);
+  if (guardError !== null) {
+    return errorResult(guardError);
+  }
+  registration.handler(req, response.res, response.next);
+  const handlerError = await response.completed;
+  return handlerError === null ? response.result() : errorResult(handlerError);
+}
+
+async function invokeFlagRoute(
+  fixture: ReturnType<typeof createFixture>,
+  draftId: string,
+  body: unknown,
+  identity?: "admin" | "employee" | "inactive" | "producer" | "unassigned",
+): Promise<TestResult> {
+  const registration = fixture.registrations.find(
+    ({ method, path }) => method === "POST" && path === DRAFT_FLAG_PATH,
+  );
+  assert.ok(registration);
+  const guard = registration.access.authorization;
+  assert.ok(guard);
+  const userId =
+    identity === "admin"
+      ? ADMIN_ID
+      : identity === "producer"
+        ? PRODUCER_ID
+        : identity === "employee"
+          ? EMPLOYEE_ID
+          : identity === "inactive"
+            ? INACTIVE_ID
+            : identity === "unassigned"
+              ? UNASSIGNED_ID
+              : undefined;
+  const req = {
+    body,
+    headers: {},
+    method: "POST",
+    originalUrl: `/api/drafts/${draftId}/flag`,
+    params: { draftId },
+    route: { path: DRAFT_FLAG_PATH },
     session: fakeSession(userId),
   } as unknown as Request;
   const response = createTestResponse();

@@ -5,6 +5,8 @@ import {
   createDraftResponseSchema,
   draftIdParamsSchema,
   editDraftResponseSchema,
+  flagDraftRequestSchema,
+  flagDraftResponseSchema,
   listDraftsQuerySchema,
   listDraftsResponseSchema,
   submitDraftRequestSchema,
@@ -19,7 +21,10 @@ import {
   type AuthorizationGuards,
   type AuthorizedRequestContext,
 } from "../auth/authorization.js";
-import { DRAFT_SELF_SERVICE_ACCESS } from "../drafts/access.js";
+import {
+  DRAFT_HELP_ACCESS,
+  DRAFT_SELF_SERVICE_ACCESS,
+} from "../drafts/access.js";
 import {
   DraftInputValidationError,
 } from "../drafts/create.js";
@@ -35,6 +40,10 @@ import {
   DraftSubmissionValidationError,
   type DraftSubmissionResult,
 } from "../drafts/submit.js";
+import {
+  DraftFlagNotFoundError,
+  DraftNotFlaggableError,
+} from "../drafts/flag.js";
 import type { DraftRecord } from "../db/schema.js";
 import type { AppLogger } from "../logging/logger.js";
 import { projectAuthorizedFields } from "../security/field-projection.js";
@@ -44,6 +53,7 @@ import type { RouteRegistrar } from "./routes.js";
 export const DRAFTS_PATH = "/api/drafts";
 export const DRAFT_PATH = "/api/drafts/:draftId";
 export const DRAFT_SUBMIT_PATH = "/api/drafts/:draftId/submit";
+export const DRAFT_FLAG_PATH = "/api/drafts/:draftId/flag";
 
 export interface DraftCreateHandlerDependencies {
   create(
@@ -95,6 +105,20 @@ export interface DraftSubmitHandlerDependencies {
 
 export interface RegisterDraftSubmitRouteOptions
   extends DraftSubmitHandlerDependencies {
+  authorization: AuthorizationGuards;
+}
+
+export interface DraftFlagHandlerDependencies {
+  flag(
+    context: AuthorizedRequestContext,
+    draftId: string,
+    input: unknown,
+  ): Promise<DraftRecord>;
+  logger: AppLogger;
+}
+
+export interface RegisterDraftFlagRouteOptions
+  extends DraftFlagHandlerDependencies {
   authorization: AuthorizationGuards;
 }
 
@@ -326,5 +350,61 @@ export function registerDraftSubmitRoute(
       authorization: options.authorization.require(DRAFT_SELF_SERVICE_ACCESS),
     },
     createDraftSubmitHandler(options),
+  );
+}
+
+export function createDraftFlagHandler(
+  dependencies: DraftFlagHandlerDependencies,
+): RequestHandler {
+  return asyncRoute(async (req, res) => {
+    const context = getAuthorizedRequestContext(res);
+    const { draftId } = draftIdParamsSchema.parse(req.params);
+    const input = flagDraftRequestSchema.parse(req.body);
+    let record: DraftRecord;
+    try {
+      record = await dependencies.flag(context, draftId, input);
+    } catch (error) {
+      if (error instanceof DraftFlagNotFoundError) {
+        throw new HttpError(404, apiErrorCodes.notFound, "Draft not found");
+      }
+      if (error instanceof DraftNotFlaggableError) {
+        throw new HttpError(
+          409,
+          apiErrorCodes.badRequest,
+          "Draft is not flaggable",
+        );
+      }
+      throw error;
+    }
+
+    const draft = projectAuthorizedFields(
+      res,
+      record,
+      projectDraftForAuthorizedContext,
+    );
+    if (draft === null) {
+      throw new HttpError(403, apiErrorCodes.forbidden, "Forbidden");
+    }
+    const response = flagDraftResponseSchema.parse({ draft });
+    dependencies.logger.info("Own draft flagged for help", {
+      component: "drafts",
+      draftId: response.draft.id,
+      event: "own_draft_flagged",
+      userId: context.principal.userId,
+    });
+    res.set("Cache-Control", "no-store").json(response);
+  });
+}
+
+export function registerDraftFlagRoute(
+  routes: RouteRegistrar,
+  options: RegisterDraftFlagRouteOptions,
+): void {
+  routes.post(
+    DRAFT_FLAG_PATH,
+    {
+      authorization: options.authorization.require(DRAFT_HELP_ACCESS),
+    },
+    createDraftFlagHandler(options),
   );
 }

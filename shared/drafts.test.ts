@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   createDraftRequestSchema,
+  flagDraftRequestSchema,
   listDraftsQuerySchema,
   submitDraftRequestSchema,
   updateDraftRequestSchema,
@@ -26,6 +27,20 @@ test("draft input normalizes exact decimal and text values", () => {
       producerUserId: PRODUCER_ID,
     },
   );
+});
+
+test("draft help reasons are trimmed, bounded, and reason-only", () => {
+  assert.deepEqual(flagDraftRequestSchema.parse({ reason: "  Need MGA help  " }), {
+    reason: "Need MGA help",
+  });
+  for (const input of [
+    {},
+    { reason: "   " },
+    { reason: "x".repeat(501) },
+    { reason: "Help", ownerUserId: PRODUCER_ID },
+  ]) {
+    assert.equal(flagDraftRequestSchema.safeParse(input).success, false);
+  }
 });
 
 test("draft submission accepts no client-authored policy payload", () => {

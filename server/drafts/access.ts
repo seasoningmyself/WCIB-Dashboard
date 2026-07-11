@@ -6,6 +6,10 @@ export const DRAFT_SELF_SERVICE_ACCESS = {
   staffRoles: ["employee", "producer"],
 } as const satisfies AccessRequirement;
 
+export const DRAFT_HELP_ACCESS = {
+  staffRoles: ["employee", "producer"],
+} as const satisfies AccessRequirement;
+
 export class DraftAccessDeniedError extends Error {
   constructor() {
     super("Draft access is denied");
@@ -21,6 +25,18 @@ export function requireDraftSelfServiceActor(
   const isStaff =
     principal.staffRole === "employee" || principal.staffRole === "producer";
   if (!principal.userActive || (!isAdmin && !isStaff)) {
+    throw new DraftAccessDeniedError();
+  }
+  return principal.userId;
+}
+
+export function requireDraftStaffActor(
+  context: AuthorizedRequestContext,
+): string {
+  const { principal } = context;
+  const isStaff =
+    principal.staffRole === "employee" || principal.staffRole === "producer";
+  if (!principal.userActive || !isStaff) {
     throw new DraftAccessDeniedError();
   }
   return principal.userId;

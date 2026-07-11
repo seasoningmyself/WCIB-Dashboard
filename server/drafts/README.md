@@ -35,6 +35,13 @@ directly to the ledger through the existing audited lifecycle transaction. Run
 `npm run test:db:draft-submit` for replay, concurrency, audit rollback, and
 queue/ledger mapping coverage.
 
+`POST /api/drafts/:draftId/flag` is employee/producer-only. It requires a
+trimmed reason, locks the authenticated UUID's active draft, and delegates the
+status change and audit event to `flagDraftForHelp`. The existing lifecycle
+contract creates no approval-queue row for help flags. Run
+`npm run test:db:draft-flag` for ownership, replay/concurrency, and audit
+rollback coverage.
+
 PostgreSQL migration `0013_draft_integrity` owns status transitions and stale
 state checks through `transition_draft_status`. Direct status updates are
 rejected. Financial values, insured/contact fields, and transition reasons must

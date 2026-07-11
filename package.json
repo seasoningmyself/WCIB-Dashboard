@@ -44,6 +44,7 @@
     "test:db:draft-list": "node --import tsx --test server/drafts/list.db-test.ts",
     "test:db:draft-edit": "node --import tsx --test server/drafts/edit.db-test.ts",
     "test:db:draft-submit": "node --import tsx --test server/drafts/submit.db-test.ts",
+    "test:db:draft-flag": "node --import tsx --test server/drafts/flag.db-test.ts",
     "test:db:approval-queue": "node --import tsx --test server/db/approval-queue.db-test.ts",
     "test:db:policies": "node --import tsx --test server/db/policies.db-test.ts",
     "test:db:policy-payment-stub": "node --import tsx --test server/db/policy-payment-stub.db-test.ts",
