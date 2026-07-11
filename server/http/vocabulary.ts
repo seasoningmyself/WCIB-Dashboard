@@ -4,9 +4,12 @@ import {
   activeVocabularyResponseSchema,
   carrierMutationResponseSchema,
   createCarrierRequestSchema,
+  createMgaRequestSchema,
   createPolicyTypeRequestSchema,
+  mgaMutationResponseSchema,
   policyTypeMutationResponseSchema,
   type CarrierMutationResponse,
+  type MgaMutationResponse,
   type PolicyTypeMutationResponse,
 } from "../../shared/vocabulary.js";
 import {
@@ -26,11 +29,14 @@ import {
   projectPolicyTypeMutation,
 } from "../vocabulary/create.js";
 import { VOCABULARY_ADD_ACCESS } from "../vocabulary/add-rules.js";
+import { projectMgaMutation } from "../vocabulary/mga-create.js";
+import { MGA_ADD_ACCESS } from "../vocabulary/mgas.js";
 import { asyncRoute, HttpError } from "./errors.js";
 import type { RouteRegistrar } from "./routes.js";
 
 export const ACTIVE_VOCABULARY_PATH = "/api/vocabulary";
 export const CREATE_CARRIER_PATH = "/api/vocabulary/carriers";
+export const CREATE_MGA_PATH = "/api/vocabulary/mgas";
 export const CREATE_POLICY_TYPE_PATH = "/api/vocabulary/policy-types";
 
 export interface ActiveVocabularyHandlerDependencies {
@@ -57,6 +63,18 @@ export interface VocabularyMutationHandlerDependencies {
 
 export interface RegisterVocabularyMutationRoutesOptions
   extends VocabularyMutationHandlerDependencies {
+  authorization: AuthorizationGuards;
+}
+
+export interface MgaMutationHandlerDependencies {
+  createMga(
+    context: AuthorizedRequestContext,
+    input: unknown,
+  ): Promise<MgaMutationResponse>;
+}
+
+export interface RegisterMgaMutationRouteOptions
+  extends MgaMutationHandlerDependencies {
   authorization: AuthorizationGuards;
 }
 
@@ -151,6 +169,30 @@ export function createPolicyTypeMutationHandler(
   });
 }
 
+export function createMgaMutationHandler(
+  dependencies: MgaMutationHandlerDependencies,
+): RequestHandler {
+  return asyncRoute(async (req, res) => {
+    const context = getAuthorizedRequestContext(res);
+    const request = createMgaRequestSchema.parse(req.body);
+    const result = await dependencies.createMga(context, request);
+    const projected = projectAuthorizedFields(
+      res,
+      result,
+      projectMgaMutation,
+    );
+    if (projected === null) {
+      throw new HttpError(403, apiErrorCodes.forbidden, "Forbidden");
+    }
+
+    const response = mgaMutationResponseSchema.parse(projected);
+    res
+      .status(response.outcome === "created" ? 201 : 409)
+      .set("Cache-Control", "no-store")
+      .json(response);
+  });
+}
+
 export function registerVocabularyMutationRoutes(
   routes: RouteRegistrar,
   options: RegisterVocabularyMutationRoutesOptions,
@@ -167,5 +209,18 @@ export function registerVocabularyMutationRoutes(
     CREATE_POLICY_TYPE_PATH,
     access,
     createPolicyTypeMutationHandler(options),
+  );
+}
+
+export function registerMgaMutationRoute(
+  routes: RouteRegistrar,
+  options: RegisterMgaMutationRouteOptions,
+): void {
+  routes.post(
+    CREATE_MGA_PATH,
+    {
+      authorization: options.authorization.require(MGA_ADD_ACCESS),
+    },
+    createMgaMutationHandler(options),
   );
 }

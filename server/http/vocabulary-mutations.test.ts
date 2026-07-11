@@ -19,9 +19,13 @@ import {
 } from "./routes.js";
 import {
   CREATE_CARRIER_PATH,
+  CREATE_MGA_PATH,
   CREATE_POLICY_TYPE_PATH,
   createCarrierMutationHandler,
+  createMgaMutationHandler,
+  registerMgaMutationRoute,
   registerVocabularyMutationRoutes,
+  type RegisterMgaMutationRouteOptions,
   type RegisterVocabularyMutationRoutesOptions,
 } from "./vocabulary.js";
 
@@ -34,7 +38,7 @@ const ITEM_ID = "00000000-0000-4000-8000-000000000010";
 interface MutationCall {
   input: unknown;
   userId: string;
-  vocabulary: "carrier" | "policy_type";
+  vocabulary: "carrier" | "mga" | "policy_type";
 }
 
 interface RegisteredPostRoute {
@@ -152,6 +156,42 @@ function createFixture() {
       } as never;
     },
   };
+  const mgaOptions: RegisterMgaMutationRouteOptions = {
+    authorization,
+    async createMga(context, input) {
+      calls.push({
+        input,
+        userId: context.principal.userId,
+        vocabulary: "mga",
+      });
+      const request = input as {
+        confirmNearDuplicate: boolean;
+        name: string;
+      };
+      if (request.name === "ABCD" && !request.confirmNearDuplicate) {
+        return {
+          candidates: [
+            {
+              createdBy: context.principal.userId,
+              id: ITEM_ID,
+              name: "ABCE",
+              premiumTotal: "1000.00",
+            },
+          ],
+          outcome: "confirmation_required",
+        } as never;
+      }
+      return {
+        item: {
+          createdBy: context.principal.userId,
+          id: ITEM_ID,
+          name: request.name,
+          policyCount: 9,
+        },
+        outcome: request.name === "Existing MGA" ? "duplicate" : "created",
+      } as never;
+    },
+  };
   const registrations: RegisteredPostRoute[] = [];
   const routes = {
     post(
@@ -165,7 +205,8 @@ function createFixture() {
     },
   } as unknown as RouteRegistrar;
   registerVocabularyMutationRoutes(routes, options);
-  return { calls, options, registrations, users };
+  registerMgaMutationRoute(routes, mgaOptions);
+  return { calls, mgaOptions, options, registrations, users };
 }
 
 test("carrier and policy-type creation accept every approved WCIB role", async () => {
@@ -251,6 +292,90 @@ test("vocabulary creation returns picker-safe duplicate conflicts", async () => 
   }
 });
 
+test("MGA creation is admin-only and requires explicit near-duplicate confirmation", async () => {
+  const fixture = createFixture();
+  const created = await invokeRoute(
+    fixture,
+    CREATE_MGA_PATH,
+    { name: "  New MGA  " },
+    "admin",
+  );
+  const duplicate = await invokeRoute(
+    fixture,
+    CREATE_MGA_PATH,
+    { name: "Existing MGA" },
+    "admin",
+  );
+  const confirmation = await invokeRoute(
+    fixture,
+    CREATE_MGA_PATH,
+    { name: "ABCD" },
+    "admin",
+  );
+  const confirmed = await invokeRoute(
+    fixture,
+    CREATE_MGA_PATH,
+    { confirmNearDuplicate: true, name: "ABCD" },
+    "admin",
+  );
+
+  assert.deepEqual(created, {
+    body: {
+      item: { id: ITEM_ID, name: "New MGA" },
+      outcome: "created",
+    },
+    headers: { "cache-control": "no-store" },
+    status: 201,
+  });
+  assert.equal(duplicate.status, 409);
+  assert.deepEqual(duplicate.body, {
+    item: { id: ITEM_ID, name: "Existing MGA" },
+    outcome: "duplicate",
+  });
+  assert.equal(confirmation.status, 409);
+  assert.deepEqual(confirmation.body, {
+    candidates: [{ id: ITEM_ID, name: "ABCE" }],
+    outcome: "confirmation_required",
+  });
+  assert.equal(confirmed.status, 201);
+  assert.deepEqual(confirmed.body, {
+    item: { id: ITEM_ID, name: "ABCD" },
+    outcome: "created",
+  });
+  const responseKeys = collectKeys([
+    created.body,
+    duplicate.body,
+    confirmation.body,
+    confirmed.body,
+  ]);
+  for (const forbidden of [
+    "createdBy",
+    "policyCount",
+    "premiumTotal",
+  ]) {
+    assert.equal(responseKeys.has(forbidden), false, forbidden);
+  }
+});
+
+test("MGA creation rejects every non-admin principal before service access", async () => {
+  const fixture = createFixture();
+  for (const identity of [
+    undefined,
+    "employee",
+    "producer",
+    "unassigned",
+  ] as const) {
+    const response = await invokeRoute(
+      fixture,
+      CREATE_MGA_PATH,
+      { name: "Private MGA" },
+      identity,
+    );
+    assert.equal(response.status, identity === undefined ? 401 : 403);
+  }
+  assert.deepEqual(fixture.calls, []);
+});
+
 test("vocabulary creation denies unauthenticated and default-deny users", async () => {
   const fixture = createFixture();
   const unauthenticated = await invokeRoute(
@@ -282,13 +407,21 @@ test("vocabulary creation rejects invalid and forged request fields", async () =
     [CREATE_CARRIER_PATH, { name: "   " }],
     [CREATE_CARRIER_PATH, { name: "x".repeat(201) }],
     [CREATE_CARRIER_PATH, { actorUserId: ADMIN_ID, name: "Carrier" }],
+    [CREATE_MGA_PATH, { name: "   " }],
+    [CREATE_MGA_PATH, { confirmNearDuplicate: "yes", name: "MGA" }],
+    [CREATE_MGA_PATH, { actorUserId: ADMIN_ID, name: "MGA" }],
     [CREATE_POLICY_TYPE_PATH, { name: "Policy Type" }],
     [
       CREATE_POLICY_TYPE_PATH,
       { classTag: "Unknown", name: "Policy Type" },
     ],
   ] as const) {
-    const response = await invokeRoute(fixture, path, body, "employee");
+    const response = await invokeRoute(
+      fixture,
+      path,
+      body,
+      path === CREATE_MGA_PATH ? "admin" : "employee",
+    );
     assert.equal(response.status, 400);
     assert.equal(
       (response.body as { error: { code: string } }).error.code,
@@ -298,16 +431,19 @@ test("vocabulary creation rejects invalid and forged request fields", async () =
   assert.deepEqual(fixture.calls, []);
 });
 
-test("both mutation routes have explicit authorization declarations", () => {
+test("all mutation routes have explicit authorization declarations", () => {
   const fixture = createFixture();
   const app = createApp({
     registerRoutes(routes) {
       registerVocabularyMutationRoutes(routes, fixture.options);
+      registerMgaMutationRoute(routes, fixture.mgaOptions);
     },
   });
   const declarations = auditRouteAccessDeclarations(app).filter(
     ({ path }) =>
-      path === CREATE_CARRIER_PATH || path === CREATE_POLICY_TYPE_PATH,
+      path === CREATE_MGA_PATH ||
+      path === CREATE_CARRIER_PATH ||
+        path === CREATE_POLICY_TYPE_PATH,
   );
 
   assert.deepEqual(declarations, [
@@ -321,7 +457,34 @@ test("both mutation routes have explicit authorization declarations", () => {
       method: "POST",
       path: CREATE_POLICY_TYPE_PATH,
     },
+    {
+      access: { type: "authorized" },
+      method: "POST",
+      path: CREATE_MGA_PATH,
+    },
   ]);
+});
+
+test("MGA mutation handler fails before writing when authorization is omitted", async () => {
+  let calls = 0;
+  const handler = createMgaMutationHandler({
+    async createMga() {
+      calls += 1;
+      return {
+        item: { id: ITEM_ID, name: "Must not persist" },
+        outcome: "created",
+      };
+    },
+  });
+  const result = await invokeHandlerWithoutGuard(handler, {
+    name: "Must not persist",
+  });
+
+  assert.equal(result.status, 500);
+  assert.equal(calls, 0);
+  assert.deepEqual(result.body, {
+    error: { code: "internal_error", message: "Internal server error" },
+  });
 });
 
 test("mutation handler fails before writing when authorization is omitted", async () => {

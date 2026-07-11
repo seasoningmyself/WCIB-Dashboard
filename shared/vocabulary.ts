@@ -44,6 +44,13 @@ export const createPolicyTypeRequestSchema = z
   })
   .strict();
 
+export const createMgaRequestSchema = z
+  .object({
+    confirmNearDuplicate: z.boolean().optional().default(false),
+    name: vocabularyNameSchema,
+  })
+  .strict();
+
 export const vocabularyMutationOutcomeSchema = z.enum([
   "created",
   "duplicate",
@@ -63,6 +70,27 @@ export const policyTypeMutationResponseSchema = z
   })
   .strict();
 
+export const mgaMutationResponseSchema = z.union([
+  z
+    .object({
+      item: vocabularyOptionSchema,
+      outcome: z.literal("created"),
+    })
+    .strict(),
+  z
+    .object({
+      item: vocabularyOptionSchema,
+      outcome: z.literal("duplicate"),
+    })
+    .strict(),
+  z
+    .object({
+      candidates: z.array(vocabularyOptionSchema).min(1),
+      outcome: z.literal("confirmation_required"),
+    })
+    .strict(),
+]);
+
 export type VocabularyOption = z.output<typeof vocabularyOptionSchema>;
 export type PolicyTypeOption = z.output<typeof policyTypeOptionSchema>;
 export type ActiveVocabularyResponse = z.output<
@@ -72,9 +100,11 @@ export type CreateCarrierRequest = z.output<typeof createCarrierRequestSchema>;
 export type CreatePolicyTypeRequest = z.output<
   typeof createPolicyTypeRequestSchema
 >;
+export type CreateMgaRequest = z.output<typeof createMgaRequestSchema>;
 export type CarrierMutationResponse = z.output<
   typeof carrierMutationResponseSchema
 >;
 export type PolicyTypeMutationResponse = z.output<
   typeof policyTypeMutationResponseSchema
 >;
+export type MgaMutationResponse = z.output<typeof mgaMutationResponseSchema>;

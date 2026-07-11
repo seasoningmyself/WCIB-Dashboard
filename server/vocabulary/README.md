@@ -15,10 +15,13 @@ return picker-safe HTTP 409 duplicates, and commit each new row with its
 append-only creation event in one database transaction. Audit actor identity
 comes only from the trusted authorization context.
 
-`mgas.ts` is the entry point for the admin-only MGA-add decision and reproduces
-the active v15 similarity advisory at its actual 75% threshold. Exact database
-uniqueness remains in migration `0009_mgas`; in-use deletion protection belongs
-to the later policy foreign-key migration.
+`mgas.ts` owns the admin-only MGA-add decision and reproduces the active v15
+similarity advisory at its actual 75% threshold. `mga-create.ts` applies that
+decision to `POST /api/vocabulary/mgas`: exact duplicates return a safe existing
+option, near duplicates require explicit confirmation, and a new row commits
+atomically with its append-only `mga_created` event. Exact database uniqueness
+remains in migration `0009_mgas`; in-use deletion protection belongs to the
+later policy foreign-key migration.
 
 `add-rules.ts` exports the explicit route requirement and vocabulary-only insert
 decisions for carriers and policy types. Callers must pass all existing names,
@@ -26,3 +29,4 @@ including inactive rows, so a deactivated name cannot be silently reused.
 
 Run contract tests with `npm test`. Run the database-backed active read check
 with `npm run test:db:vocabulary-read` against a migrated database.
+Run the audited MGA write check with `npm run test:db:mga-create`.

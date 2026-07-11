@@ -14,6 +14,7 @@ import { registerAuthRoutes } from "./http/auth.js";
 import { registerCurrentUserRoute } from "./http/current-user.js";
 import {
   registerActiveVocabularyRoute,
+  registerMgaMutationRoute,
   registerVocabularyMutationRoutes,
 } from "./http/vocabulary.js";
 import { StructuredLogger } from "./logging/logger.js";
@@ -22,6 +23,7 @@ import {
   createCarrierVocabulary,
   createPolicyTypeVocabulary,
 } from "./vocabulary/create.js";
+import { createMgaVocabulary } from "./vocabulary/mga-create.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -48,6 +50,11 @@ const app = createApp({
         createCarrierVocabulary(database, context, input, logger),
       createPolicyType: (context, input) =>
         createPolicyTypeVocabulary(database, context, input, logger),
+    });
+    registerMgaMutationRoute(routes, {
+      authorization,
+      createMga: (context, input) =>
+        createMgaVocabulary(database, context, input, logger),
     });
   },
   sessionMiddleware: createSessionMiddleware(pool, {

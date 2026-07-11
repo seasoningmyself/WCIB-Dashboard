@@ -37,6 +37,7 @@
     "test:db:vocabulary-integrity": "node --import tsx --test server/db/carriers.db-test.ts server/db/policy-types.db-test.ts",
     "test:db:vocabulary-read": "node --import tsx --test server/vocabulary/active.db-test.ts",
     "test:db:vocabulary-create": "node --import tsx --test server/vocabulary/create.db-test.ts",
+    "test:db:mga-create": "node --import tsx --test server/vocabulary/mga-create.db-test.ts",
     "test:db:drafts": "node --import tsx --test server/db/drafts.db-test.ts",
     "test:db:draft-integrity": "node --import tsx --test server/db/draft-integrity.db-test.ts",
     "test:db:approval-queue": "node --import tsx --test server/db/approval-queue.db-test.ts",

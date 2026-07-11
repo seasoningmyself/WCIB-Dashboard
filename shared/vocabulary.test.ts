@@ -4,7 +4,9 @@ import {
   activeVocabularyResponseSchema,
   carrierMutationResponseSchema,
   createCarrierRequestSchema,
+  createMgaRequestSchema,
   createPolicyTypeRequestSchema,
+  mgaMutationResponseSchema,
   policyTypeMutationResponseSchema,
   VOCABULARY_NAME_MAX_LENGTH,
 } from "./vocabulary.js";
@@ -109,6 +111,35 @@ test("vocabulary mutation responses are exact picker-safe contracts", () => {
     carrierMutationResponseSchema.safeParse({
       item: { createdBy: ID, id: ID, name: "Travelers" },
       outcome: "created",
+    }).success,
+    false,
+  );
+
+  assert.deepEqual(
+    createMgaRequestSchema.parse({ name: "  RPS  " }),
+    { confirmNearDuplicate: false, name: "RPS" },
+  );
+  assert.deepEqual(
+    mgaMutationResponseSchema.parse({
+      candidates: [{ id: ID, name: "RPS Group" }],
+      outcome: "confirmation_required",
+    }),
+    {
+      candidates: [{ id: ID, name: "RPS Group" }],
+      outcome: "confirmation_required",
+    },
+  );
+  assert.equal(
+    createMgaRequestSchema.safeParse({
+      confirmNearDuplicate: "yes",
+      name: "RPS",
+    }).success,
+    false,
+  );
+  assert.equal(
+    mgaMutationResponseSchema.safeParse({
+      candidates: [],
+      outcome: "confirmation_required",
     }).success,
     false,
   );
