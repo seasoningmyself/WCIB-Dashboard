@@ -27,23 +27,23 @@ test("My Drafts selection accepts one opaque UUID and rejects ambiguous guesses"
   );
 });
 
-test("new projections replace rather than merge sensitive draft state", () => {
+test("flagged projections replace rather than merge sensitive draft state", () => {
   const financialDraft = draft({
     agencyCommissionAmount: "100.00",
     basePremium: "1000.00",
     id: DRAFT_ID,
     status: "draft",
   });
-  const submitted = draft({
+  const flagged = draft({
+    flagReason: "Need MGA guidance",
     id: DRAFT_ID,
     lastEditedAt: "2026-07-10T13:00:00.000Z",
-    status: "submitted",
-    submittedAt: "2026-07-10T13:00:00.000Z",
+    status: "flagged",
   });
 
-  const result = replaceProjectedDraft([financialDraft], submitted);
+  const result = replaceProjectedDraft([financialDraft], flagged);
 
-  assert.deepEqual(result, [submitted]);
+  assert.deepEqual(result, [flagged]);
   assert.equal("basePremium" in result[0]!, false);
   assert.equal("agencyCommissionAmount" in result[0]!, false);
 });

@@ -3,12 +3,15 @@ import {
   createDraftRequestSchema,
   createDraftResponseSchema,
   editDraftResponseSchema,
+  flagDraftRequestSchema,
+  flagDraftResponseSchema,
   listDraftsQuerySchema,
   listDraftsResponseSchema,
   submitDraftResponseSchema,
   updateDraftRequestSchema,
   type CreateDraftRequest,
   type CreateDraftResponse,
+  type FlagDraftRequest,
   type ListDraftsQuery,
   type ListDraftsResponse,
   type SubmitDraftResponse,
@@ -49,6 +52,7 @@ export class DraftApiError extends Error {
 export interface DraftApi {
   create(input: CreateDraftRequest): Promise<CreateDraftResponse>;
   edit(draftId: string, input: UpdateDraftRequest): Promise<CreateDraftResponse>;
+  flag(draftId: string, input: FlagDraftRequest): Promise<CreateDraftResponse>;
   list(query?: ListDraftsQuery): Promise<ListDraftsResponse>;
   listAssignmentOptions(): Promise<DraftAssignmentOptionsResponse>;
   submit(draftId: string): Promise<SubmitDraftResponse>;
@@ -74,6 +78,16 @@ export function createDraftApi(client: ApiClient): DraftApi {
         parseRequest(updateDraftRequestSchema, input),
         200,
         editDraftResponseSchema,
+      );
+    },
+    async flag(draftId, input) {
+      return mutate(
+        client,
+        `/drafts/${encodeURIComponent(draftId)}/flag`,
+        "POST",
+        parseRequest(flagDraftRequestSchema, input),
+        200,
+        flagDraftResponseSchema,
       );
     },
     async list(query = {}) {

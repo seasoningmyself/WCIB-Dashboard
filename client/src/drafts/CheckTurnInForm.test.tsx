@@ -7,7 +7,10 @@ import type { DraftResponse } from "../../../shared/drafts.js";
 import { ApiClientProvider } from "../api/context.js";
 import { createSessionBoundary } from "../auth/session-boundary.js";
 import { VocabularyProvider } from "../vocabulary/context.js";
-import { CheckTurnInFormView } from "./CheckTurnInForm.js";
+import {
+  CheckTurnInFormView,
+  type DraftHelpControl,
+} from "./CheckTurnInForm.js";
 import {
   buildAssignmentChoices,
   createEmptyTurnInState,
@@ -125,16 +128,76 @@ test("pending writes disable the complete form and duplicate action buttons", ()
   assert.match(markup, /<button[^>]*disabled=""[^>]*type="button"/);
 });
 
+test("eligible staff see Request Help only on their owned active draft", () => {
+  const active = draftWithStatus("draft");
+  const eligible = renderView({
+    draft: active,
+    form: createEmptyTurnInState(),
+    help: helpControl({ canRequest: true }),
+    user: producer(),
+  });
+  const admin = renderView({
+    draft: active,
+    form: createEmptyTurnInState(),
+    help: helpControl({ canRequest: false }),
+    user: { ...producer(), capabilities: ["admin"], role: "admin" },
+  });
+
+  assert.match(eligible, />Request help</);
+  assert.doesNotMatch(admin, />Request help</);
+});
+
+test("help dialog is bounded, accessible, cancellable, and single-flight", () => {
+  const markup = renderView({
+    draft: draftWithStatus("draft"),
+    form: createEmptyTurnInState(),
+    help: helpControl({
+      canRequest: true,
+      error: "Explain what you need help with.",
+      open: true,
+      pending: true,
+    }),
+    user: producer(),
+  });
+
+  assert.match(markup, /role="dialog"/);
+  assert.match(markup, /aria-modal="true"/);
+  assert.match(markup, /maxLength="500"/);
+  assert.match(markup, /aria-invalid="true"/);
+  assert.match(markup, /Explain what you need help with/);
+  assert.match(markup, /<button[^>]*disabled=""[^>]*>Cancel</);
+  assert.match(markup, /Requesting\.\.\./);
+});
+
+test("flagged completion immediately renders no financial or IPFS controls", () => {
+  const markup = renderView({
+    draft: draftWithStatus("flagged", {
+      basePremium: "1000.00",
+      commissionRate: "10.0000",
+      ipfsFinanced: "yes",
+    }),
+    form: { ...createEmptyTurnInState(), basePremium: "1000.00" },
+    user: producer(),
+  });
+
+  assert.match(markup, /Help requested/);
+  assert.match(markup, /admin Help Requests queue/);
+  assert.doesNotMatch(markup, /Base premium|Agency commission total|IPFS financing/);
+  assert.doesNotMatch(markup, /value="1000\.00"/);
+});
+
 function renderView({
   draft = null,
   errors = {},
   form,
+  help,
   saveState = "idle",
   user,
 }: {
   draft?: DraftResponse | null;
   errors?: Readonly<Record<string, string>>;
   form: TurnInFormState;
+  help?: DraftHelpControl;
   saveState?: "dirty" | "error" | "idle" | "saved" | "saving";
   user: CurrentUser;
 }): string {
@@ -151,6 +214,7 @@ function renderView({
           draft={draft}
           errors={errors}
           form={form}
+          help={help}
           onAssignmentChange={() => {}}
           onFieldChange={() => {}}
           onRetryAssignments={() => {}}
@@ -206,6 +270,36 @@ function submittedDraft(): DraftResponse {
     submittedAt: "2026-07-10T12:05:00.000Z",
     transactionNotes: null,
     transactionType: "New",
+  };
+}
+
+function draftWithStatus(
+  status: DraftResponse["status"],
+  overrides: Partial<DraftResponse> = {},
+): DraftResponse {
+  return {
+    ...submittedDraft(),
+    linkedQueueEntryId: null,
+    status,
+    submittedAt: status === "submitted" ? "2026-07-10T12:05:00.000Z" : null,
+    ...overrides,
+  };
+}
+
+function helpControl(
+  overrides: Partial<DraftHelpControl> = {},
+): DraftHelpControl {
+  return {
+    canRequest: false,
+    error: null,
+    onCancel() {},
+    onOpen() {},
+    onReasonChange() {},
+    onSubmit() {},
+    open: false,
+    pending: false,
+    reason: "",
+    ...overrides,
   };
 }
 

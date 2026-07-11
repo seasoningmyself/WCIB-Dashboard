@@ -18,6 +18,7 @@ import {
 import { useVocabulary } from "../vocabulary/context.js";
 import { OfficeLocationPicker } from "../vocabulary/pickers.js";
 import { createDraftApi, DraftApiError } from "./api.js";
+import { canRequestDraftHelp, parseHelpReason } from "./help-request.js";
 import {
   assignmentKey,
   buildAssignmentChoices,
@@ -69,9 +70,16 @@ export function CheckTurnInForm({
   const [producerOptions, setProducerOptions] = useState<
     Awaited<ReturnType<typeof api.listAssignmentOptions>>["producers"]
   >([]);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpReason, setHelpReason] = useState("");
+  const [helpError, setHelpError] = useState<string | null>(null);
+  const [helpPending, setHelpPending] = useState(false);
   const pendingRef = useRef(false);
   const autoExpirationRef = useRef<string | null>(null);
   const expirationSuggestionKeyRef = useRef("");
+  const helpReasonRef = useRef<HTMLTextAreaElement>(null);
+  const helpTriggerRef = useRef<HTMLButtonElement>(null);
+  const completionRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     setDraft(initialDraft);
@@ -84,9 +92,31 @@ export function CheckTurnInForm({
     );
     setErrors({});
     setSaveState(initialDraft === null ? "idle" : "saved");
+    setHelpOpen(false);
+    setHelpReason("");
+    setHelpError(null);
+    setHelpPending(false);
     autoExpirationRef.current = null;
     expirationSuggestionKeyRef.current = "";
   }, [initialDraft]);
+
+  useEffect(() => {
+    if (!helpOpen) {
+      return;
+    }
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    requestAnimationFrame(() => helpReasonRef.current?.focus());
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [helpOpen]);
+
+  useEffect(() => {
+    if (draft !== null && !isEditableDraft(draft)) {
+      requestAnimationFrame(() => completionRef.current?.focus());
+    }
+  }, [draft]);
 
   useEffect(() => {
     let active = true;
@@ -157,6 +187,10 @@ export function CheckTurnInForm({
     setErrors({});
     setProducerOptions([]);
     setSaveState("idle");
+    setHelpOpen(false);
+    setHelpReason("");
+    setHelpError(null);
+    setHelpPending(false);
     autoExpirationRef.current = null;
     expirationSuggestionKeyRef.current = "";
   }, []);
@@ -166,6 +200,7 @@ export function CheckTurnInForm({
     () => buildAssignmentChoices(user, producerOptions),
     [producerOptions, user],
   );
+  const canRequestHelp = canRequestDraftHelp(user, draft);
 
   const changeField = useCallback(
     <Key extends keyof TurnInFormState>(
@@ -266,13 +301,77 @@ export function CheckTurnInForm({
     }
   }, [acceptDraft, api, draft, form]);
 
+  const openHelp = useCallback(() => {
+    if (!canRequestHelp || pendingRef.current) {
+      return;
+    }
+    setHelpError(null);
+    setHelpOpen(true);
+  }, [canRequestHelp]);
+
+  const cancelHelp = useCallback(() => {
+    if (helpPending) {
+      return;
+    }
+    setHelpOpen(false);
+    setHelpReason("");
+    setHelpError(null);
+    requestAnimationFrame(() => helpTriggerRef.current?.focus());
+  }, [helpPending]);
+
+  const requestHelp = useCallback(async () => {
+    if (!canRequestHelp || draft === null || pendingRef.current) {
+      return;
+    }
+    const reason = parseHelpReason(helpReason);
+    if (!reason.success) {
+      setHelpError(reason.error);
+      requestAnimationFrame(() => helpReasonRef.current?.focus());
+      return;
+    }
+    pendingRef.current = true;
+    setHelpPending(true);
+    setHelpError(null);
+    setSaveState("saving");
+    try {
+      const saved = await api.edit(draft.id, turnInFormToDraftInput(form));
+      const flagged = await api.flag(saved.draft.id, { reason: reason.reason });
+      setHelpReason("");
+      setHelpError(null);
+      setHelpOpen(false);
+      acceptDraft(flagged.draft);
+      setSaveState("saved");
+    } catch (error) {
+      setHelpError(helpFailureMessage(error));
+      setSaveState("error");
+      requestAnimationFrame(() => helpReasonRef.current?.focus());
+    } finally {
+      pendingRef.current = false;
+      setHelpPending(false);
+    }
+  }, [acceptDraft, api, canRequestHelp, draft, form, helpReason]);
+
   return (
     <CheckTurnInFormView
       assignmentChoices={choices}
       assignmentState={assignmentState}
+      completionRef={completionRef}
       draft={draft}
       errors={errors}
       form={form}
+      help={{
+        canRequest: canRequestHelp,
+        error: helpError,
+        onCancel: cancelHelp,
+        onOpen: openHelp,
+        onReasonChange: setHelpReason,
+        onSubmit: () => void requestHelp(),
+        open: helpOpen,
+        pending: helpPending,
+        reason: helpReason,
+        reasonRef: helpReasonRef,
+        triggerRef: helpTriggerRef,
+      }}
       onAssignmentChange={changeAssignment}
       onFieldChange={changeField}
       onRetryAssignments={() => setAssignmentAttempt((value) => value + 1)}
@@ -287,9 +386,11 @@ export function CheckTurnInForm({
 interface CheckTurnInFormViewProps {
   assignmentChoices: readonly AssignmentChoice[];
   assignmentState: AssignmentLoadState;
+  completionRef?: React.RefObject<HTMLHeadingElement>;
   draft: DraftResponse | null;
   errors: TurnInValidationErrors;
   form: TurnInFormState;
+  help?: DraftHelpControl;
   onAssignmentChange(choice: AssignmentChoice | null): void;
   onFieldChange<Key extends keyof TurnInFormState>(
     field: Key,
@@ -302,12 +403,28 @@ interface CheckTurnInFormViewProps {
   user: CurrentUser;
 }
 
+export interface DraftHelpControl {
+  canRequest: boolean;
+  error: string | null;
+  onCancel(): void;
+  onOpen(): void;
+  onReasonChange(value: string): void;
+  onSubmit(): void;
+  open: boolean;
+  pending: boolean;
+  reason: string;
+  reasonRef?: React.RefObject<HTMLTextAreaElement>;
+  triggerRef?: React.RefObject<HTMLButtonElement>;
+}
+
 export function CheckTurnInFormView({
   assignmentChoices,
   assignmentState,
+  completionRef,
   draft,
   errors,
   form,
+  help,
   onAssignmentChange,
   onFieldChange,
   onRetryAssignments,
@@ -329,15 +446,12 @@ export function CheckTurnInFormView({
   const soleOffice = offices.length === 1 ? offices[0] ?? null : null;
 
   if (completed) {
+    const copy = completionCopy(draft.status);
     return (
       <section className="turn-in-complete" aria-labelledby="turn-in-title">
         <p className="turn-in-kicker">Policy intake</p>
-        <h1 id="turn-in-title">Turn-in submitted</h1>
-        <p>
-          {draft.status === "submitted"
-            ? "This turn-in is in the approval queue."
-            : "This turn-in has moved to the policy ledger."}
-        </p>
+        <h1 id="turn-in-title" ref={completionRef} tabIndex={-1}>{copy.title}</h1>
+        <p>{copy.body}</p>
         <a href="#/my-drafts">View My Drafts</a>
       </section>
     );
@@ -368,6 +482,10 @@ export function CheckTurnInFormView({
           <p>{draft.sentBackReason ?? "Review the turn-in details before reopening it."}</p>
           <span>Save once to reopen this draft. Financial fields return only after the server confirms active draft status.</span>
         </div>
+      ) : null}
+
+      {help?.open && help.canRequest ? (
+        <DraftHelpDialog control={help} />
       ) : null}
 
       <form
@@ -695,6 +813,17 @@ export function CheckTurnInFormView({
           <div aria-live="polite" className="turn-in-action-status">
             {saveMessage(saveState, sentBack)}
           </div>
+          {help?.canRequest ? (
+            <button
+              className="turn-in-help"
+              disabled={pending}
+              onClick={help.onOpen}
+              ref={help.triggerRef}
+              type="button"
+            >
+              Request help
+            </button>
+          ) : null}
           <button className="turn-in-save" disabled={pending} type="submit">
             {saveActionLabel(pending, sentBack, draft)}
           </button>
@@ -706,6 +835,65 @@ export function CheckTurnInFormView({
         </footer>
       </form>
     </section>
+  );
+}
+
+function DraftHelpDialog({ control }: { control: DraftHelpControl }) {
+  return (
+    <div className="turn-in-dialog-backdrop">
+      <section
+        aria-describedby="turn-in-help-description"
+        aria-labelledby="turn-in-help-title"
+        aria-modal="true"
+        className="turn-in-dialog"
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            control.onCancel();
+            return;
+          }
+          containDialogFocus(event);
+        }}
+        role="dialog"
+      >
+        <header>
+          <p>Admin assistance</p>
+          <h2 id="turn-in-help-title">Request help with this draft</h2>
+        </header>
+        <p id="turn-in-help-description">
+          Your current draft will be saved and moved to Help Requests for admin review.
+        </p>
+        <label htmlFor="turn-in-help-reason">What do you need help with?</label>
+        <textarea
+          aria-describedby={control.error === null ? "turn-in-help-description" : "turn-in-help-error"}
+          aria-invalid={control.error !== null}
+          autoFocus
+          disabled={control.pending}
+          id="turn-in-help-reason"
+          maxLength={500}
+          onChange={(event) => control.onReasonChange(event.currentTarget.value)}
+          ref={control.reasonRef}
+          rows={5}
+          value={control.reason}
+        />
+        <div aria-live="polite" className="turn-in-dialog-error" id="turn-in-help-error">
+          {control.error}
+        </div>
+        <footer>
+          <button disabled={control.pending} onClick={control.onCancel} type="button">
+            Cancel
+          </button>
+          <button
+            className="turn-in-dialog-submit"
+            disabled={control.pending}
+            onClick={control.onSubmit}
+            type="button"
+          >
+            {control.pending ? "Requesting..." : "Send help request"}
+          </button>
+        </footer>
+      </section>
+    </div>
   );
 }
 
@@ -848,6 +1036,34 @@ function errorsFromApi(error: unknown): TurnInValidationErrors {
   return { form: "The draft could not be saved. Check your connection and try again." };
 }
 
+function helpFailureMessage(error: unknown): string {
+  if (error instanceof DraftApiError && error.kind === "conflict") {
+    return "This draft changed or is no longer active. Return to My Drafts and refresh before trying again.";
+  }
+  return "The help request could not be sent. Your draft remains available; check your connection and try again.";
+}
+
+function containDialogFocus(event: React.KeyboardEvent<HTMLElement>): void {
+  if (event.key !== "Tab") {
+    return;
+  }
+  const focusable = [...event.currentTarget.querySelectorAll<HTMLElement>(
+    "textarea:not([disabled]), button:not([disabled])",
+  )];
+  const first = focusable[0];
+  const last = focusable.at(-1);
+  if (first === undefined || last === undefined) {
+    return;
+  }
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
 function omitError(errors: TurnInValidationErrors, field: PropertyKey): TurnInValidationErrors {
   const next = { ...errors };
   delete next[String(field)];
@@ -925,6 +1141,36 @@ function maxLengthForField(field: keyof TurnInFormState): number {
 
 function isEditableDraft(draft: DraftResponse): boolean {
   return draft.status === "draft" || draft.status === "sent_back";
+}
+
+function completionCopy(status: DraftResponse["status"]): {
+  body: string;
+  title: string;
+} {
+  switch (status) {
+    case "flagged":
+      return {
+        body: "This turn-in is in the admin Help Requests queue.",
+        title: "Help requested",
+      };
+    case "submitted":
+      return {
+        body: "This turn-in is in the approval queue.",
+        title: "Turn-in submitted",
+      };
+    case "approved":
+      return {
+        body: "This turn-in has moved to the policy ledger.",
+        title: "Turn-in approved",
+      };
+    case "draft":
+      return { body: "This turn-in is ready to edit.", title: "Draft saved" };
+    case "sent_back":
+      return {
+        body: "This turn-in needs changes before it can be resubmitted.",
+        title: "Changes requested",
+      };
+  }
 }
 
 function saveActionLabel(

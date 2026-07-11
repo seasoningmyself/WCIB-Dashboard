@@ -209,6 +209,11 @@ function DraftList({ drafts }: { drafts: readonly DraftResponse[] }) {
 }
 
 function DraftStatusView({ draft }: { draft: DraftResponse }) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    requestAnimationFrame(() => headingRef.current?.focus());
+  }, []);
+
   return (
     <section className="draft-status-view" aria-labelledby="draft-status-title">
       <a className="my-drafts-back" href="#/my-drafts">Back to My Drafts</a>
@@ -216,7 +221,9 @@ function DraftStatusView({ draft }: { draft: DraftResponse }) {
         <span className={`draft-status is-${draft.status}`}>
           {draftStatusLabel(draft.status)}
         </span>
-        <h1 id="draft-status-title">{draft.insuredName ?? "Unnamed insured"}</h1>
+        <h1 id="draft-status-title" ref={headingRef} tabIndex={-1}>
+          {draft.insuredName ?? "Unnamed insured"}
+        </h1>
         <p>{statusSummary(draft.status)}</p>
       </header>
       <dl>
