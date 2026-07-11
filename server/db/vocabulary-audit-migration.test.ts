@@ -42,9 +42,18 @@ test("one migration owns the vocabulary creation audit values", () => {
   const owners = readdirSync(resolve(process.cwd(), "drizzle"))
     .filter((name) => /^\d{4}_.*\.sql$/.test(name))
     .filter((name) => {
-      const sql = readFileSync(resolve(process.cwd(), "drizzle", name), "utf8");
-      return actions.some((action) =>
-        enumBlock(sql, "audit_action").includes(`'${action}'`),
+      const forward = readFileSync(
+        resolve(process.cwd(), "drizzle", name),
+        "utf8",
+      );
+      const backout = readFileSync(
+        resolve(process.cwd(), "drizzle/backout", name),
+        "utf8",
+      );
+      return actions.some(
+        (action) =>
+          enumBlock(forward, "audit_action").includes(`'${action}'`) &&
+          !enumBlock(backout, "audit_action").includes(`'${action}'`),
       );
     });
 

@@ -135,11 +135,12 @@ owners, not every transitive predecessor.
 | `0033_policy_corrected_audit_action` | Dedicated general policy-correction audit action | `0018`, `0020` | Pre-use enum reversal only; forward-fix after the action is recorded |
 | `0034_policy_correction` | Audited allowlisted policy-correction function and direct-write guard | `0020`, `0022`, `0033` | Pre-use function/guard removal only; forward-fix after a correction |
 | `0035_vocabulary_creation_audit_vocabulary` | Dedicated carrier, policy-type, and MGA creation audit values | `0018`, `0034` | Pre-use enum reversal only; forward-fix after any new value is recorded |
+| `0036_flagged_help_resolution` | Audited admin send-back and owner-withdrawal transitions for flagged drafts | `0013`, `0018`, `0020`, `0035` | Refuses reversal after either resolution action records audit history; forward-fix after use |
 
 ## Dependency-safe full reverse order
 
 For a disposable or confirmed-empty database only, execute backouts from
-`0035` down through `0000`, deleting the matching Drizzle history row in the
+`0036` down through `0000`, deleting the matching Drizzle history row in the
 same transaction as each backout. The automated verifier is the reference
 implementation. There is intentionally no production `db:rollback` command:
 an operator must make and document the recovery decision rather than invoke a
