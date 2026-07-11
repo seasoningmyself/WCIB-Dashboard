@@ -36,6 +36,8 @@ import { listOwnDrafts } from "./drafts/list.js";
 import { editOwnDraft } from "./drafts/edit.js";
 import { submitOwnDraft } from "./drafts/submit.js";
 import { flagOwnDraft } from "./drafts/flag.js";
+import { listDraftAssignmentOptions } from "./drafts/assignment-options.js";
+import { registerDraftAssignmentOptionsRoute } from "./http/draft-assignment-options.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -94,6 +96,11 @@ const app = createApp({
       authorization,
       flag: (context, draftId, input) =>
         flagOwnDraft(database, context, draftId, input),
+      logger,
+    });
+    registerDraftAssignmentOptionsRoute(routes, {
+      authorization,
+      list: () => listDraftAssignmentOptions(database),
       logger,
     });
   },

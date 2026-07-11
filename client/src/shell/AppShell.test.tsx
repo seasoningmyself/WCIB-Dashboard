@@ -3,6 +3,8 @@ import { test } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { CurrentUser } from "../../../shared/current-user.js";
+import { ApiClientProvider } from "../api/context.js";
+import { createSessionBoundary } from "../auth/session-boundary.js";
 import { AppShellView } from "./AppShell.js";
 
 const baseUser: CurrentUser = {
@@ -89,15 +91,17 @@ test("unknown IDs and unauthorized URLs fail closed in the shell", () => {
   } as unknown as CurrentUser;
   const unknownNavigation = shellMarkup(unknownUser);
   const unauthorizedPath = renderToStaticMarkup(
-    <AppShellView
-      currentPath="/pay-sheets"
-      onLogout={() => {}}
-      user={{
-        ...baseUser,
-        allowedNavigation: ["my_commissions"],
-        role: "producer",
-      }}
-    />,
+    withApi(
+      <AppShellView
+        currentPath="/pay-sheets"
+        onLogout={() => {}}
+        user={{
+          ...baseUser,
+          allowedNavigation: ["my_commissions"],
+          role: "producer",
+        }}
+      />,
+    ),
   );
 
   assert.match(unknownNavigation, /Workspace access unavailable/);
@@ -108,7 +112,18 @@ test("unknown IDs and unauthorized URLs fail closed in the shell", () => {
 });
 
 function shellMarkup(user: CurrentUser): string {
-  return renderToStaticMarkup(
+  return renderToStaticMarkup(withApi(
     <AppShellView currentPath="/" onLogout={() => {}} user={user} />,
+  ));
+}
+
+function withApi(children: React.ReactNode) {
+  return (
+    <ApiClientProvider
+      boundary={createSessionBoundary(() => {})}
+      client={{ async request() { return Response.json({}); } }}
+    >
+      {children}
+    </ApiClientProvider>
   );
 }

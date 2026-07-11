@@ -6,6 +6,8 @@ import React, {
   type ChangeEvent,
 } from "react";
 import type { CurrentUser } from "../../../shared/current-user.js";
+import { CheckTurnInForm } from "../drafts/CheckTurnInForm.js";
+import { VocabularyProvider } from "../vocabulary/context.js";
 import {
   resolveAuthorizedNavigation,
   resolveShellRoute,
@@ -137,7 +139,7 @@ export function AppShellView({
           ref={mainRef}
           tabIndex={-1}
         >
-          <ShellContent route={route} />
+          <ShellContent route={route} user={user} />
         </main>
       </div>
     </div>
@@ -146,10 +148,19 @@ export function AppShellView({
 
 function ShellContent({
   route,
+  user,
 }: {
   route: ReturnType<typeof resolveShellRoute>;
+  user: CurrentUser;
 }) {
   if (route.status === "ready") {
+    if (route.item.id === "turn_in") {
+      return (
+        <VocabularyProvider>
+          <CheckTurnInForm user={user} />
+        </VocabularyProvider>
+      );
+    }
     return (
       <section className="workspace-page" aria-labelledby="workspace-page-title">
         <header className="workspace-page-header">

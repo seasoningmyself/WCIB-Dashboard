@@ -27,6 +27,11 @@ import {
   DraftNotFlaggableError,
 } from "../drafts/flag.js";
 import type { AppLogger } from "../logging/logger.js";
+import {
+  createDraftAssignmentOptionsHandler,
+  DRAFT_ASSIGNMENT_OPTIONS_PATH,
+  registerDraftAssignmentOptionsRoute,
+} from "./draft-assignment-options.js";
 import { toErrorResponse } from "./errors.js";
 import {
   DRAFTS_PATH,
@@ -260,6 +265,7 @@ function createFixture(options: { emptyList?: boolean } = {}) {
   registerDraftSubmitRoute(routes, submitOptions);
   registerDraftFlagRoute(routes, flagOptions);
   return {
+    authorization,
     calls,
     createOptions,
     editCalls,
@@ -883,6 +889,115 @@ test("draft flag route is explicitly staff-authorized and fails closed without i
     reason: "No guard",
   });
   assert.equal(result.status, 500);
+  assert.equal(calls, 0);
+});
+
+test("draft assignment options are explicitly guarded and projected to nonfinancial fields", async () => {
+  const fixture = createFixture();
+  const producerOption = {
+    displayName: "Kaylee",
+    userId: PRODUCER_ID,
+    email: "must-not-leak@example.test",
+    producerRate: "25.0000",
+  };
+  const options = {
+    authorization: fixture.authorization,
+    async list() {
+      return [producerOption];
+    },
+    logger,
+  };
+  const app = createApp({
+    registerRoutes(routes) {
+      registerDraftAssignmentOptionsRoute(routes, options);
+    },
+  });
+  assert.deepEqual(
+    auditRouteAccessDeclarations(app).find(
+      ({ method, path }) =>
+        method === "GET" && path === DRAFT_ASSIGNMENT_OPTIONS_PATH,
+    ),
+    {
+      access: { type: "authorized" },
+      method: "GET",
+      path: DRAFT_ASSIGNMENT_OPTIONS_PATH,
+    },
+  );
+
+  const registrations: RegisteredRoute[] = [];
+  const routes = {
+    get(
+      path: string,
+      access: RouteAccessDeclaration,
+      ...handlers: RequestHandler[]
+    ) {
+      const handler = handlers[0];
+      assert.ok(handler);
+      registrations.push({ access, handler, method: "GET", path });
+    },
+  } as unknown as RouteRegistrar;
+  registerDraftAssignmentOptionsRoute(routes, options);
+  const registration = registrations[0];
+  assert.ok(registration);
+  const guard = registration.access.authorization;
+  assert.ok(guard);
+
+  for (const [identity, userId] of [
+    ["admin", ADMIN_ID],
+    ["producer", PRODUCER_ID],
+    ["employee", EMPLOYEE_ID],
+  ] as const) {
+    const req = {
+      headers: {},
+      method: "GET",
+      originalUrl: DRAFT_ASSIGNMENT_OPTIONS_PATH,
+      route: { path: DRAFT_ASSIGNMENT_OPTIONS_PATH },
+      session: fakeSession(userId),
+    } as unknown as Request;
+    const response = createTestResponse();
+    assert.equal(await invokeNextMiddleware(guard, req, response.res), null);
+    registration.handler(req, response.res, response.next);
+    assert.equal(await response.completed, null);
+    assert.deepEqual(response.result(), {
+      body: {
+        producers: [{ displayName: "Kaylee", userId: PRODUCER_ID }],
+      },
+      headers: { "cache-control": "no-store" },
+      status: 200,
+    }, identity);
+  }
+
+  const deniedReq = {
+    headers: {},
+    method: "GET",
+    originalUrl: DRAFT_ASSIGNMENT_OPTIONS_PATH,
+    route: { path: DRAFT_ASSIGNMENT_OPTIONS_PATH },
+    session: fakeSession(UNASSIGNED_ID),
+  } as unknown as Request;
+  const deniedResponse = createTestResponse();
+  const denied = await invokeNextMiddleware(
+    guard,
+    deniedReq,
+    deniedResponse.res,
+  );
+  assert.ok(denied);
+  assert.equal(errorResult(denied).status, 403);
+});
+
+test("draft assignment option projection fails closed when its guard is omitted", async () => {
+  let calls = 0;
+  const handler = createDraftAssignmentOptionsHandler({
+    async list() {
+      calls += 1;
+      return [{ displayName: "Kaylee", userId: PRODUCER_ID }];
+    },
+    logger,
+  });
+  const response = createTestResponse();
+  handler({} as Request, response.res, response.next);
+  const error = await response.completed;
+  assert.ok(error);
+  assert.equal(errorResult(error).status, 500);
   assert.equal(calls, 0);
 });
 
