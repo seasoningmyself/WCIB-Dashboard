@@ -44,6 +44,18 @@ the last observed `updatedAt` version. General fields call only
 `apply_policy_correction`; the four override-managed fields call only
 `apply_policy_override`. Mixed requests reject before either mutation runs.
 
+## Admin MGA payables
+
+`mga-payables.ts` loads a bounded continuous payable set, verifies the mirrored
+policy/payment state, and projects a narrow admin-only response. The payable
+amount is always the stored `netDue`, including approved overrides. Group and
+summary totals use integer cents; unpaid/all/paid filters change visible rows
+without changing the totals' definitions. `http/mga-payables.ts` registers the
+explicitly admin-guarded route and runs every source row through
+`projectAuthorizedFields`. Run `npm run test:db:mga-payables` against local
+Postgres for the real-session, projection, override, sorting, and totals smoke
+test.
+
 ## Override value contract
 
 `override-values.ts` accepts only the four figures exposed by v15's override
