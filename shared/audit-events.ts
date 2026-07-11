@@ -16,6 +16,9 @@ export const AUDIT_ACTIONS = [
   "policy_approved",
   "admin_policy_submitted",
   "policy_corrected",
+  "carrier_created",
+  "policy_type_created",
+  "mga_created",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -31,6 +34,9 @@ export const AUDIT_ENTITY_TYPES = [
   "producer_rate_history",
   "draft",
   "approval_queue_entry",
+  "carrier",
+  "policy_type",
+  "mga",
 ] as const;
 
 export type AuditEntityType = (typeof AUDIT_ENTITY_TYPES)[number];

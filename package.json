@@ -43,6 +43,7 @@
     "test:db:policy-payment-stub": "node --import tsx --test server/db/policy-payment-stub.db-test.ts",
     "test:db:audit-events": "node --import tsx --test server/db/audit-events.db-test.ts",
     "test:db:audit-integrity": "node --import tsx --test server/db/audit-integrity.db-test.ts",
+    "test:db:vocabulary-audit": "node --import tsx --test server/db/vocabulary-audit-migration.db-test.ts",
     "test:db:policy-corrected-audit": "node --import tsx --test server/db/policy-corrected-audit-migration.db-test.ts",
     "test:db:policy-correction": "node --import tsx --test server/db/policy-correction.db-test.ts",
     "test:db:policy-references": "node --import tsx --test server/db/policy-referential-integrity.db-test.ts",

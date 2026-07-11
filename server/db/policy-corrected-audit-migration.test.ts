@@ -26,8 +26,15 @@ test("one migration owns the policy_corrected audit action", () => {
         resolve(process.cwd(), "drizzle", name),
         "utf8",
       );
-      return /CREATE TYPE[\s\S]*?"audit_action" AS ENUM\([\s\S]*?'policy_corrected'[\s\S]*?\);/.test(
-        sql,
+      const reverseSql = readFileSync(
+        resolve(process.cwd(), "drizzle/backout", name),
+        "utf8",
+      );
+      const includesPolicyCorrected =
+        /CREATE TYPE[\s\S]*?"audit_action" AS ENUM\([\s\S]*?'policy_corrected'[\s\S]*?\);/;
+      return (
+        includesPolicyCorrected.test(sql) &&
+        !includesPolicyCorrected.test(reverseSql)
       );
     });
 
