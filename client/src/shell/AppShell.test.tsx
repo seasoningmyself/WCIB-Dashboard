@@ -141,6 +141,26 @@ test("server-authorized policy ledger route mounts the real admin ledger", () =>
   assert.doesNotMatch(markup, /WCIB workspace/);
 });
 
+test("server-authorized MGA payables route mounts the real admin workspace", () => {
+  const markup = renderToStaticMarkup(
+    withApi(
+      <AppShellView
+        currentPath="/mga-payables"
+        onLogout={() => {}}
+        user={{
+          ...baseUser,
+          allowedNavigation: ["mga_payables"],
+          capabilities: ["admin"],
+          role: "admin",
+        }}
+      />,
+    ),
+  );
+
+  assert.match(markup, /Loading MGA payables/);
+  assert.doesNotMatch(markup, /WCIB workspace/);
+});
+
 test("unknown IDs and unauthorized URLs fail closed in the shell", () => {
   const unknownUser = {
     ...baseUser,

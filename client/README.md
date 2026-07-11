@@ -22,3 +22,10 @@ MGA creation is shown only for the server-derived admin role and preserves the
 API's explicit near-duplicate confirmation step. Office locations remain
 selection-only. All writes still pass through the guarded, audited server
 endpoints; the client never writes or audits vocabulary directly.
+
+The admin MGA Payables workspace lives under `src/mga-payables`. It renders
+server-provided groups and exact stored `netDue` totals without recalculating
+financial values in the browser. Mark-paid and unmark actions call only the
+atomic payment-state endpoint, stay single-flight, and refresh the complete
+server view after success. The client never calls pay-sheet placement directly
+and does not implement the inert payment-tracking fields.
