@@ -101,6 +101,26 @@ test("server-authorized my_items route mounts the real My Drafts screen", () => 
   assert.doesNotMatch(markup, /WCIB workspace/);
 });
 
+test("server-authorized approvals route mounts the real admin queue", () => {
+  const markup = renderToStaticMarkup(
+    withApi(
+      <AppShellView
+        currentPath="/approvals"
+        onLogout={() => {}}
+        user={{
+          ...baseUser,
+          allowedNavigation: ["approvals"],
+          capabilities: ["admin"],
+          role: "admin",
+        }}
+      />,
+    ),
+  );
+
+  assert.match(markup, /Loading approvals/);
+  assert.doesNotMatch(markup, /WCIB workspace/);
+});
+
 test("unknown IDs and unauthorized URLs fail closed in the shell", () => {
   const unknownUser = {
     ...baseUser,

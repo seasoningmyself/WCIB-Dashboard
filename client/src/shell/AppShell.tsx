@@ -8,6 +8,7 @@ import React, {
 import type { CurrentUser } from "../../../shared/current-user.js";
 import { CheckTurnInForm } from "../drafts/CheckTurnInForm.js";
 import { MyDrafts } from "../drafts/MyDrafts.js";
+import { ApprovalQueue } from "../approvals/ApprovalQueue.js";
 import { VocabularyProvider } from "../vocabulary/context.js";
 import {
   resolveAuthorizedNavigation,
@@ -157,6 +158,13 @@ function ShellContent({
   user: CurrentUser;
 }) {
   if (route.status === "ready") {
+    if (route.item.id === "approvals") {
+      return (
+        <VocabularyProvider>
+          <ApprovalQueue user={user} />
+        </VocabularyProvider>
+      );
+    }
     if (route.item.id === "turn_in") {
       return (
         <VocabularyProvider>
