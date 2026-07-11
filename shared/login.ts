@@ -1,5 +1,10 @@
 import { z } from "zod";
-import type { AccessCapability, StaffRole } from "./access.js";
+import {
+  ACCESS_CAPABILITIES,
+  STAFF_ROLES,
+  type AccessCapability,
+  type StaffRole,
+} from "./access.js";
 import { userEmailSchema } from "./user-credentials.js";
 
 export const loginRequestSchema = z
@@ -24,3 +29,16 @@ export interface LoginUserSummary {
 export interface LoginResponse {
   user: LoginUserSummary;
 }
+
+export const loginResponseSchema = z
+  .object({
+    user: z
+      .object({
+        capabilities: z.array(z.enum(ACCESS_CAPABILITIES)),
+        email: z.string().email(),
+        id: z.string().uuid(),
+        staffRole: z.enum(STAFF_ROLES).nullable(),
+      })
+      .strict(),
+  })
+  .strict();
