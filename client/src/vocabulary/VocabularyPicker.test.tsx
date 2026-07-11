@@ -6,6 +6,7 @@ import {
   pickerMessage,
   rankVocabularyOptions,
   resolvePickerKey,
+  shouldOfferInlineAction,
   VocabularyPicker,
   type PickerOption,
 } from "./VocabularyPicker.js";
@@ -96,6 +97,12 @@ test("fixed carrier conveniences resolve only an existing active MGA", () => {
   assert.equal(resolveCarrierConvenienceMga("Unmapped Carrier", mgas), null);
 });
 
+test("inline creation is offered only when no exact active name exists", () => {
+  assert.equal(shouldOfferInlineAction(options, "am"), true);
+  assert.equal(shouldOfferInlineAction(options, "  AMTRUST  "), false);
+  assert.equal(shouldOfferInlineAction(options, ""), false);
+});
+
 test("picker renders stable UUID, class metadata, and accessible combobox semantics", () => {
   const markup = renderToStaticMarkup(
     <VocabularyPicker
@@ -120,6 +127,7 @@ test("picker renders stable UUID, class metadata, and accessible combobox semant
   assert.match(markup, /role="combobox"/);
   assert.match(markup, /aria-autocomplete="list"/);
   assert.match(markup, /aria-expanded="false"/);
+  assert.match(markup, /maxLength="200"/i);
   assert.match(markup, /name="policyTypeId"/);
   assert.match(markup, new RegExp(`value="${options[0]!.id}"`));
   assert.match(markup, /General Liability/);

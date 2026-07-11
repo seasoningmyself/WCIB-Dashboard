@@ -683,6 +683,109 @@ h1 {
   font-size: 12px;
 }
 
+.vocabulary-inline-footer {
+  border-top: 1px solid #d9dfe2;
+  padding: 8px 10px;
+}
+
+.vocabulary-create-action,
+.vocabulary-confirmation {
+  width: 100%;
+  display: grid;
+  gap: 8px;
+}
+
+.vocabulary-create-action label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  color: #4d5a63;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.vocabulary-create-action select {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  border: 1px solid #aeb9c0;
+  border-radius: 4px;
+  background: #ffffff;
+  padding: 0 8px;
+  color: #26343e;
+}
+
+.vocabulary-create-action button,
+.vocabulary-confirmation button {
+  min-height: 38px;
+  border: 1px solid #9aabb2;
+  border-radius: 5px;
+  background: #ffffff;
+  padding: 0 10px;
+  color: #31414b;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.vocabulary-create-action button.is-emphasis,
+.vocabulary-confirmation button.is-emphasis {
+  border-color: #27634d;
+  background: #27634d;
+  color: #ffffff;
+}
+
+.vocabulary-create-action button:disabled,
+.vocabulary-confirmation button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.vocabulary-create-action button:focus-visible,
+.vocabulary-confirmation button:focus-visible,
+.vocabulary-create-action select:focus-visible {
+  outline: 2px solid rgba(39, 99, 77, 0.3);
+  outline-offset: 2px;
+}
+
+.vocabulary-create-error,
+.vocabulary-admin-note {
+  color: #7c3434;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.vocabulary-confirmation strong {
+  color: #26343e;
+  font-size: 12px;
+}
+
+.vocabulary-confirmation ul {
+  max-height: 112px;
+  margin: 0;
+  overflow-y: auto;
+  padding: 0 0 0 18px;
+  color: #4d5a63;
+  font-size: 11px;
+}
+
+.vocabulary-action-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.vocabulary-mutation-status {
+  margin-top: 5px;
+  border-left: 3px solid #27634d;
+  background: #eef8f3;
+  padding: 7px 9px;
+  color: #1f503e;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .vocabulary-message {
   min-height: 18px;
   display: flex;
@@ -811,6 +914,12 @@ h1 {
   }
 
   .vocabulary-message button {
+    min-height: 44px;
+  }
+
+  .vocabulary-create-action select,
+  .vocabulary-create-action button,
+  .vocabulary-confirmation button {
     min-height: 44px;
   }
 }

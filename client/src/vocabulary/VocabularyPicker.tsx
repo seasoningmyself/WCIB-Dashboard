@@ -7,6 +7,7 @@ import React, {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
+import { VOCABULARY_NAME_MAX_LENGTH } from "../../../shared/vocabulary.js";
 
 export interface PickerOption {
   id: string;
@@ -17,6 +18,7 @@ export type PickerLoadStatus = "error" | "loading" | "ready";
 
 export interface VocabularyPickerProps<TOption extends PickerOption> {
   disabled?: boolean;
+  focusRequestKey?: number;
   getMeta?(option: TOption): string | null;
   helpText?: string;
   id: string;
@@ -28,7 +30,7 @@ export interface VocabularyPickerProps<TOption extends PickerOption> {
   onValidityChange?(valid: boolean): void;
   options: readonly TOption[];
   placeholder?: string;
-  renderNoMatchAction?(query: string): ReactNode;
+  renderInlineAction?(query: string): ReactNode;
   required?: boolean;
   value: string | null;
 }
@@ -42,6 +44,7 @@ export interface PickerKeyDecision {
 
 export function VocabularyPicker<TOption extends PickerOption>({
   disabled = false,
+  focusRequestKey = 0,
   getMeta,
   helpText,
   id,
@@ -53,7 +56,7 @@ export function VocabularyPicker<TOption extends PickerOption>({
   onValidityChange,
   options,
   placeholder = "Search and select",
-  renderNoMatchAction,
+  renderInlineAction,
   required = false,
   value,
 }: VocabularyPickerProps<TOption>) {
@@ -62,6 +65,7 @@ export function VocabularyPicker<TOption extends PickerOption>({
   const messageId = `${id}-message-${listboxSuffix}`;
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const lastHandledFocusRequest = useRef(focusRequestKey);
   const selected = options.find((option) => option.id === value) ?? null;
   const [query, setQuery] = useState(selected?.name ?? "");
   const [open, setOpen] = useState(false);
@@ -83,6 +87,10 @@ export function VocabularyPicker<TOption extends PickerOption>({
       (!required || selected !== null));
   const selectedMeta = selected === null ? null : getMeta?.(selected) ?? null;
   const unavailable = disabled || loadStatus !== "ready";
+  const inlineAction =
+    shouldOfferInlineAction(options, query)
+      ? renderInlineAction?.(query.trim())
+      : null;
 
   useEffect(() => {
     if (selected !== null) {
@@ -102,6 +110,16 @@ export function VocabularyPicker<TOption extends PickerOption>({
     );
     onValidityChange?.(valid);
   }, [invalid, onValidityChange, valid]);
+
+  useEffect(() => {
+    if (
+      loadStatus === "ready" &&
+      focusRequestKey !== lastHandledFocusRequest.current
+    ) {
+      lastHandledFocusRequest.current = focusRequestKey;
+      inputRef.current?.focus();
+    }
+  }, [focusRequestKey, loadStatus]);
 
   const choose = (option: TOption) => {
     setQuery(option.name);
@@ -191,6 +209,7 @@ export function VocabularyPicker<TOption extends PickerOption>({
           onClick={() => setOpen(true)}
           onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
+          maxLength={VOCABULARY_NAME_MAX_LENGTH}
           placeholder={loadStatus === "loading" ? "Loading..." : placeholder}
           ref={inputRef}
           required={required}
@@ -222,34 +241,41 @@ export function VocabularyPicker<TOption extends PickerOption>({
         {showListbox ? (
           <div className="vocabulary-popover">
             {matches.length > 0 ? (
-              <ul id={listboxId} role="listbox">
-                {matches.map((option, index) => {
-                  const meta = getMeta?.(option) ?? null;
-                  return (
-                    <li
-                      aria-selected={option.id === selected?.id}
-                      className={index === activeIndex ? "is-active" : undefined}
-                      id={`${listboxId}-option-${index}`}
-                      key={option.id}
-                      onClick={() => choose(option)}
-                      onMouseEnter={() => setActiveIndex(index)}
-                      onPointerDown={(event) => event.preventDefault()}
-                      role="option"
-                    >
-                      <span>{option.name}</span>
-                      {meta === null ? null : <small>{meta}</small>}
-                    </li>
-                  );
-                })}
-              </ul>
+              <>
+                <ul id={listboxId} role="listbox">
+                  {matches.map((option, index) => {
+                    const meta = getMeta?.(option) ?? null;
+                    return (
+                      <li
+                        aria-selected={option.id === selected?.id}
+                        className={
+                          index === activeIndex ? "is-active" : undefined
+                        }
+                        id={`${listboxId}-option-${index}`}
+                        key={option.id}
+                        onClick={() => choose(option)}
+                        onMouseEnter={() => setActiveIndex(index)}
+                        onPointerDown={(event) => event.preventDefault()}
+                        role="option"
+                      >
+                        <span>{option.name}</span>
+                        {meta === null ? null : <small>{meta}</small>}
+                      </li>
+                    );
+                  })}
+                </ul>
+                {inlineAction === null ? null : (
+                  <div className="vocabulary-inline-footer">
+                    {inlineAction}
+                  </div>
+                )}
+              </>
             ) : (
               <div className="vocabulary-no-match">
                 <span>
                   {options.length === 0 ? "No options available" : "No matches"}
                 </span>
-                {query.trim().length > 0
-                  ? renderNoMatchAction?.(query.trim())
-                  : null}
+                {inlineAction}
               </div>
             )}
           </div>
@@ -302,6 +328,20 @@ export function rankVocabularyOptions<TOption extends PickerOption>(
         left.rank - right.rank || compareOptions(left.option, right.option),
     )
     .map(({ option }) => option);
+}
+
+export function shouldOfferInlineAction(
+  options: readonly PickerOption[],
+  query: string,
+): boolean {
+  const normalizedQuery = query.trim().toLowerCase();
+  return (
+    normalizedQuery.length > 0 &&
+    !options.some(
+      ({ name: optionName }) =>
+        optionName.toLowerCase() === normalizedQuery,
+    )
+  );
 }
 
 export function resolvePickerKey({

@@ -6,14 +6,15 @@ import type {
 import { useVocabulary } from "./context.js";
 import { VocabularyPicker } from "./VocabularyPicker.js";
 
-interface CommonPickerProps {
+export interface CommonPickerProps {
   disabled?: boolean;
+  focusRequestKey?: number;
   id: string;
   label?: string;
   name?: string;
   onChange(value: string | null): void;
   onValidityChange?(valid: boolean): void;
-  renderNoMatchAction?(query: string): ReactNode;
+  renderInlineAction?(query: string): ReactNode;
   required?: boolean;
   value: string | null;
 }

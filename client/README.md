@@ -15,3 +15,10 @@ the narrow picker adapters from `pickers.tsx`. They load only active options
 from `GET /api/vocabulary`, keep the response in memory, and clear it through
 the authenticated session boundary. Typed text is never submitted as identity;
 forms receive only a selected UUID.
+
+`InlineVocabularyPickers.tsx` layers add-as-you-go controls on those pickers.
+Carrier and policy-type creation is available to the three approved WCIB roles;
+MGA creation is shown only for the server-derived admin role and preserves the
+API's explicit near-duplicate confirmation step. Office locations remain
+selection-only. All writes still pass through the guarded, audited server
+endpoints; the client never writes or audits vocabulary directly.

@@ -51,12 +51,16 @@ export function VocabularyProvider({ children }: { children: ReactNode }) {
   const clear = useCallback(() => {
     setState({ status: "loading" });
   }, []);
+  const retry = useCallback(() => {
+    setState({ status: "loading" });
+    setAttempt((value) => value + 1);
+  }, []);
   useSensitiveSessionCleanup(clear);
 
   return (
     <VocabularyContext.Provider
       value={{
-        retry: () => setAttempt((value) => value + 1),
+        retry,
         state,
       }}
     >
