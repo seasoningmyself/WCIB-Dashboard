@@ -53,6 +53,11 @@ import {
   sendBackFlaggedHelp,
   sendBackPendingSubmission,
 } from "./approval-queue/send-back.js";
+import { registerPolicyLedgerRoutes } from "./http/policies.js";
+import {
+  getPolicyLedgerItem,
+  listPolicyLedger,
+} from "./policies/ledger.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -144,6 +149,13 @@ const app = createApp({
         sendBackFlaggedHelp(database, context, draftId, input),
       sendBackSubmission: (context, queueEntryId, input) =>
         sendBackPendingSubmission(database, context, queueEntryId, input),
+    });
+    registerPolicyLedgerRoutes(routes, {
+      authorization,
+      get: (context, policyId) =>
+        getPolicyLedgerItem(database, context, policyId),
+      list: (context, query) => listPolicyLedger(database, context, query),
+      logger,
     });
   },
   sessionMiddleware: createSessionMiddleware(pool, {

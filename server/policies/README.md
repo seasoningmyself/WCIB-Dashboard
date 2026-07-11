@@ -29,6 +29,15 @@ Run the fast contract tests with `npm test`. After applying migrations to a
 disposable database, run `npm run test:db:policy-lifecycle` for the full atomic
 lifecycle and rollback coverage.
 
+## Admin policy ledger
+
+`ledger.ts` owns the bounded month query, v15 search/filter/sort behavior,
+duplicate classification, label joins, pagination, and exact-cent summary
+totals. `http/policies.ts` registers list and detail routes with an explicit
+admin guard and projects every policy through `projectAdminPolicy` before
+response validation. Run `npm run test:db:policy-ledger` against local
+Postgres for the real-session authorization and query smoke test.
+
 ## Override value contract
 
 `override-values.ts` accepts only the four figures exposed by v15's override
