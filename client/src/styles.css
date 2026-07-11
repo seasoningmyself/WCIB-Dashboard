@@ -538,6 +538,179 @@ h1 {
   font-size: 14px;
 }
 
+.vocabulary-field {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.vocabulary-field > label {
+  color: #26343e;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.vocabulary-combobox {
+  position: relative;
+  min-width: 0;
+}
+
+.vocabulary-combobox input[type="text"] {
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+  border: 1px solid #aeb9c0;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 0 78px 0 11px;
+  color: #182630;
+  outline: none;
+}
+
+.vocabulary-combobox input[type="text"]:focus {
+  border-color: #27634d;
+  box-shadow: 0 0 0 3px rgba(39, 99, 77, 0.14);
+}
+
+.vocabulary-combobox input[type="text"]:disabled {
+  background: #edf0f1;
+  color: #78838a;
+}
+
+.vocabulary-combobox.is-invalid input[type="text"] {
+  border-color: #a53b3b;
+}
+
+.vocabulary-clear {
+  position: absolute;
+  top: 1px;
+  right: 30px;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #5d6971;
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.vocabulary-clear:hover:not(:disabled),
+.vocabulary-clear:focus-visible {
+  background: #e8eeee;
+  color: #1f503e;
+}
+
+.vocabulary-clear:focus-visible {
+  outline: 2px solid rgba(39, 99, 77, 0.3);
+}
+
+.vocabulary-chevron {
+  position: absolute;
+  top: 16px;
+  right: 13px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid #68757d;
+  border-bottom: 2px solid #68757d;
+  pointer-events: none;
+  transform: rotate(45deg);
+}
+
+.vocabulary-popover {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 2px);
+  right: 0;
+  left: 0;
+  overflow: hidden;
+  border: 1px solid #aeb9c0;
+  border-radius: 6px;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(24, 38, 48, 0.16);
+}
+
+.vocabulary-popover ul {
+  max-height: 248px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+}
+
+.vocabulary-popover li {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 4px;
+  padding: 8px 10px;
+  color: #26343e;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.vocabulary-popover li.is-active,
+.vocabulary-popover li:hover {
+  background: #e8f2ed;
+  color: #183f31;
+}
+
+.vocabulary-popover li[aria-selected="true"] {
+  font-weight: 750;
+}
+
+.vocabulary-popover small {
+  flex: 0 0 auto;
+  color: #67747c;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.vocabulary-no-match {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  color: #65717a;
+  font-size: 12px;
+}
+
+.vocabulary-message {
+  min-height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #66737b;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.vocabulary-message.is-invalid {
+  color: #852f2f;
+}
+
+.vocabulary-message button {
+  min-height: 40px;
+  flex: 0 0 auto;
+  border: 1px solid #8ca89b;
+  border-radius: 4px;
+  background: #ffffff;
+  padding: 0 9px;
+  color: #245541;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 @media (max-width: 600px) {
   .app-header {
     padding: 0 18px;
@@ -621,5 +794,23 @@ h1 {
     width: min(100% - 28px, 1240px);
     min-height: calc(100vh - 112px);
     padding-top: 24px;
+  }
+
+  .vocabulary-combobox input[type="text"] {
+    height: 44px;
+  }
+
+  .vocabulary-clear {
+    top: 0;
+    width: 44px;
+    height: 44px;
+  }
+
+  .vocabulary-popover li {
+    min-height: 44px;
+  }
+
+  .vocabulary-message button {
+    min-height: 44px;
   }
 }
