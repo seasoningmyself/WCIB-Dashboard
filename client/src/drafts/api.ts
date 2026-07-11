@@ -3,10 +3,14 @@ import {
   createDraftRequestSchema,
   createDraftResponseSchema,
   editDraftResponseSchema,
+  listDraftsQuerySchema,
+  listDraftsResponseSchema,
   submitDraftResponseSchema,
   updateDraftRequestSchema,
   type CreateDraftRequest,
   type CreateDraftResponse,
+  type ListDraftsQuery,
+  type ListDraftsResponse,
   type SubmitDraftResponse,
   type UpdateDraftRequest,
 } from "../../../shared/drafts.js";
@@ -45,6 +49,7 @@ export class DraftApiError extends Error {
 export interface DraftApi {
   create(input: CreateDraftRequest): Promise<CreateDraftResponse>;
   edit(draftId: string, input: UpdateDraftRequest): Promise<CreateDraftResponse>;
+  list(query?: ListDraftsQuery): Promise<ListDraftsResponse>;
   listAssignmentOptions(): Promise<DraftAssignmentOptionsResponse>;
   submit(draftId: string): Promise<SubmitDraftResponse>;
 }
@@ -70,6 +75,15 @@ export function createDraftApi(client: ApiClient): DraftApi {
         200,
         editDraftResponseSchema,
       );
+    },
+    async list(query = {}) {
+      const normalized = parseRequest(listDraftsQuerySchema, query);
+      const params = new URLSearchParams();
+      if (normalized.status !== undefined) {
+        params.set("status", normalized.status);
+      }
+      const suffix = params.size === 0 ? "" : `?${params.toString()}`;
+      return read(client, `/drafts${suffix}`, listDraftsResponseSchema);
     },
     listAssignmentOptions: () =>
       read(

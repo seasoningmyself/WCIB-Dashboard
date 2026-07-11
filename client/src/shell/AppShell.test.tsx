@@ -82,6 +82,25 @@ test("producer and employee shells render only their universal draft navigation"
   assert.doesNotMatch(employee, />Policy Ledger</);
 });
 
+test("server-authorized my_items route mounts the real My Drafts screen", () => {
+  const markup = renderToStaticMarkup(
+    withApi(
+      <AppShellView
+        currentPath="/my-drafts"
+        onLogout={() => {}}
+        user={{
+          ...baseUser,
+          allowedNavigation: ["turn_in", "my_items"],
+          role: "employee",
+        }}
+      />,
+    ),
+  );
+
+  assert.match(markup, /Loading drafts/);
+  assert.doesNotMatch(markup, /WCIB workspace/);
+});
+
 test("unknown IDs and unauthorized URLs fail closed in the shell", () => {
   const unknownUser = {
     ...baseUser,

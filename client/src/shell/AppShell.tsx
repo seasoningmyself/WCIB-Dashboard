@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import type { CurrentUser } from "../../../shared/current-user.js";
 import { CheckTurnInForm } from "../drafts/CheckTurnInForm.js";
+import { MyDrafts } from "../drafts/MyDrafts.js";
 import { VocabularyProvider } from "../vocabulary/context.js";
 import {
   resolveAuthorizedNavigation,
@@ -139,7 +140,7 @@ export function AppShellView({
           ref={mainRef}
           tabIndex={-1}
         >
-          <ShellContent route={route} user={user} />
+          <ShellContent currentPath={currentPath} route={route} user={user} />
         </main>
       </div>
     </div>
@@ -147,9 +148,11 @@ export function AppShellView({
 }
 
 function ShellContent({
+  currentPath,
   route,
   user,
 }: {
+  currentPath: string;
   route: ReturnType<typeof resolveShellRoute>;
   user: CurrentUser;
 }) {
@@ -158,6 +161,13 @@ function ShellContent({
       return (
         <VocabularyProvider>
           <CheckTurnInForm user={user} />
+        </VocabularyProvider>
+      );
+    }
+    if (route.item.id === "my_items") {
+      return (
+        <VocabularyProvider>
+          <MyDrafts currentPath={currentPath} user={user} />
         </VocabularyProvider>
       );
     }

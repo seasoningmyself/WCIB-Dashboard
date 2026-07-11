@@ -1,0 +1,214 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import type { CurrentUser } from "../../../shared/current-user.js";
+import type { DraftResponse } from "../../../shared/drafts.js";
+import { ApiClientProvider } from "../api/context.js";
+import { createSessionBoundary } from "../auth/session-boundary.js";
+import { VocabularyProvider } from "../vocabulary/context.js";
+import { MyDraftsView, type MyDraftsState } from "./MyDrafts.js";
+
+const DRAFT_ID = "00000000-0000-4000-8000-000000000301";
+const OTHER_ID = "00000000-0000-4000-8000-000000000302";
+const USER_ID = "00000000-0000-4000-8000-000000000303";
+
+test("My Drafts lists only projected identifying fields and status actions", () => {
+  const markup = renderView({
+    currentPath: "/my-drafts",
+    state: {
+      drafts: [
+        draft(),
+        draft({ id: OTHER_ID, status: "sent_back" }),
+        draft({ id: uuid(4), status: "submitted" }),
+        draft({ id: uuid(5), status: "flagged" }),
+        draft({ id: uuid(6), status: "approved" }),
+      ],
+      status: "ready",
+    },
+  });
+
+  assert.match(markup, /My Drafts/);
+  assert.match(markup, /Acme LLC/);
+  assert.match(markup, /WCIB-100/);
+  assert.match(markup, />Edit</);
+  assert.match(markup, />Review and reopen</);
+  assert.match(markup, /View status/);
+  assert.doesNotMatch(markup, /Base premium|Agency commission total|IPFS financing/);
+  assert.doesNotMatch(markup, /ownerUserId|producerUserId/);
+});
+
+test("active producer draft editing renders agency inputs but no personal split", () => {
+  const markup = renderView({
+    currentPath: `/my-drafts?draft=${DRAFT_ID}`,
+    state: {
+      drafts: [draft({
+        agencyCommissionAmount: "100.00",
+        amountPaid: "500.00",
+        basePremium: "1000.00",
+        brokerFee: "50.00",
+        commissionConfirmed: true,
+        commissionMode: "pct",
+        commissionRate: "10.0000",
+        depositOption: "500.00",
+        financeBalance: "600.00",
+        ipfsFinanced: "yes",
+        ipfsManual: true,
+        mgaFee: "25.00",
+        netDue: "350.00",
+        paymentMode: "deposit",
+        proposalTotal: "1100.00",
+        taxes: "25.00",
+      })],
+      status: "ready",
+    },
+  });
+
+  assert.match(markup, /Premium, fees, and agency commission/);
+  assert.match(markup, /Agency commission total/);
+  assert.match(markup, /IPFS financing/);
+  assert.match(markup, /value="1000.00"/);
+  assert.doesNotMatch(markup, /producer payout|personal split|producer rate/i);
+});
+
+test("sent-back editing exposes only nonfinancial fields until C3 reopens it", () => {
+  const markup = renderView({
+    currentPath: `/my-drafts?draft=${DRAFT_ID}`,
+    state: {
+      drafts: [draft({
+        basePremium: "1000.00",
+        financeContact: {
+          address: "Private address",
+          email: "private@example.test",
+          mobile: "555-0100",
+        },
+        ipfsFinanced: "yes",
+        sentBackAt: "2026-07-10T14:00:00.000Z",
+        sentBackReason: "Correct the policy number.",
+        status: "sent_back",
+      })],
+      status: "ready",
+    },
+  });
+
+  assert.match(markup, /Changes requested/);
+  assert.match(markup, /Correct the policy number/);
+  assert.match(markup, />Reopen draft</);
+  assert.doesNotMatch(markup, /Submit for approval|Submit to ledger/);
+  assert.doesNotMatch(markup, /Base premium|Agency commission total|IPFS financing/);
+  assert.doesNotMatch(markup, /Private address|private@example\.test|555-0100/);
+});
+
+test("immutable status views contain no edit control or financial placeholder", () => {
+  for (const status of ["submitted", "flagged", "approved"] as const) {
+    const markup = renderView({
+      currentPath: `/my-drafts?draft=${DRAFT_ID}`,
+      state: {
+        drafts: [draft({
+          flagReason: status === "flagged" ? "Need carrier help." : null,
+          status,
+          submittedAt: "2026-07-10T13:00:00.000Z",
+        })],
+        status: "ready",
+      },
+    });
+
+    assert.match(markup, /Back to My Drafts/);
+    assert.doesNotMatch(markup, />Edit<|Reopen draft|Submit for approval/);
+    assert.doesNotMatch(markup, /Base premium|Broker fee|Agency commission|IPFS|Finance balance/);
+  }
+});
+
+test("another-owner URL guess and list failures disclose no draft data", () => {
+  const guessed = renderView({
+    currentPath: `/my-drafts?draft=${OTHER_ID}`,
+    state: { drafts: [draft()], status: "ready" },
+  });
+  assert.match(guessed, /Draft not available/);
+  assert.doesNotMatch(guessed, /Acme LLC|WCIB-100/);
+
+  const loading = renderView({ currentPath: "/my-drafts", state: { status: "loading" } });
+  const error = renderView({ currentPath: "/my-drafts", state: { status: "error" } });
+  const empty = renderView({
+    currentPath: "/my-drafts",
+    state: { drafts: [], status: "ready" },
+  });
+  assert.match(loading, /Loading drafts/);
+  assert.match(error, /Drafts unavailable/);
+  assert.match(empty, /No turn-ins yet/);
+});
+
+function renderView({
+  currentPath,
+  state,
+}: {
+  currentPath: string;
+  state: MyDraftsState;
+}): string {
+  return renderToStaticMarkup(
+    <ApiClientProvider
+      boundary={createSessionBoundary(() => {})}
+      client={{ async request() { return Response.json({}); } }}
+    >
+      <VocabularyProvider>
+        <MyDraftsView
+          currentPath={currentPath}
+          onDraftChange={() => {}}
+          onRetry={() => {}}
+          state={state}
+          user={producer()}
+        />
+      </VocabularyProvider>
+    </ApiClientProvider>,
+  );
+}
+
+function producer(): CurrentUser {
+  return {
+    allowedNavigation: ["turn_in", "my_items", "my_commissions"],
+    capabilities: [],
+    displayName: "Kaylee",
+    email: "kaylee@example.test",
+    id: USER_ID,
+    role: "producer",
+  };
+}
+
+function draft(overrides: Partial<DraftResponse> = {}): DraftResponse {
+  return {
+    accountAssignment: "book",
+    carrierId: null,
+    companyName: "Acme Incorporated",
+    createdAt: "2026-07-10T12:00:00.000Z",
+    effectiveDate: "2026-07-10",
+    expirationDate: "2027-07-10",
+    flagReason: null,
+    history: [],
+    id: DRAFT_ID,
+    insuredName: "Acme LLC",
+    invoiceNumber: null,
+    lastEditedAt: "2026-07-10T12:00:00.000Z",
+    linkedPolicyId: null,
+    linkedQueueEntryId: null,
+    mgaId: null,
+    notes: null,
+    officeLocationId: null,
+    ownerUserId: USER_ID,
+    policyNumber: "WCIB-100",
+    policyTypeId: null,
+    producerUserId: USER_ID,
+    schemaVersion: 1,
+    sentBackAt: null,
+    sentBackByUserId: null,
+    sentBackReason: null,
+    status: "draft",
+    submittedAt: null,
+    transactionNotes: null,
+    transactionType: "New",
+    ...overrides,
+  };
+}
+
+function uuid(suffix: number): string {
+  return `00000000-0000-4000-8000-${String(suffix).padStart(12, "0")}`;
+}

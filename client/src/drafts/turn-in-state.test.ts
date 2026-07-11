@@ -8,6 +8,7 @@ import {
   createEmptyTurnInState,
   suggestAnnualExpiration,
   turnInFormToDraftInput,
+  turnInFormToNonfinancialDraftUpdate,
   updateTurnInField,
   validateTurnInForSubmit,
   type TurnInFormState,
@@ -107,6 +108,47 @@ test("agency totals are deterministic and are not a personal producer payout", (
     netDue: "375.00",
     proposalTotal: "1135.00",
   });
+});
+
+test("sent-back reopen input contains only projected nonfinancial fields", () => {
+  const input = turnInFormToNonfinancialDraftUpdate(completeState());
+
+  assert.deepEqual(input, {
+    accountAssignment: "book",
+    carrierId: OPTION_ID,
+    companyName: "Acme Holdings",
+    effectiveDate: "2026-07-10",
+    expirationDate: "2027-07-10",
+    insuredName: "Acme LLC",
+    invoiceNumber: "INV-9",
+    mgaId: OPTION_ID,
+    notes: "General note",
+    officeLocationId: OPTION_ID,
+    policyNumber: "POL-1",
+    policyTypeId: OPTION_ID,
+    producerUserId: USER_ID,
+    transactionNotes: "Endorsement note",
+    transactionType: "Endorsement",
+  });
+  for (const forbidden of [
+    "amountPaid",
+    "basePremium",
+    "brokerFee",
+    "commissionMode",
+    "commissionRate",
+    "depositOption",
+    "financeContact",
+    "financeReference",
+    "ipfsFinanced",
+    "ipfsManual",
+    "ipfsReturning",
+    "mgaFee",
+    "paymentMode",
+    "proposalTotal",
+    "taxes",
+  ]) {
+    assert.equal(forbidden in input, false, forbidden);
+  }
 });
 
 test("producer assignment labels map exactly onto existing assignment values", () => {

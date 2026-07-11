@@ -7,7 +7,7 @@ const DRAFT_ID = "00000000-0000-4000-8000-000000000101";
 const USER_ID = "00000000-0000-4000-8000-000000000102";
 const PRODUCER_ID = "00000000-0000-4000-8000-000000000103";
 
-test("draft API uses the documented create, edit, submit, and assignment paths", async () => {
+test("draft API uses the documented create, edit, list, submit, and assignment paths", async () => {
   const calls: Array<{
     options?: ApiRequestOptions;
     path: string;
@@ -22,6 +22,7 @@ test("draft API uses the documented create, edit, submit, and assignment paths",
       destination: "approval",
       draft: draftResponse({ status: "submitted" }),
     }),
+    Response.json({ drafts: [draftResponse()] }),
     Response.json({
       producers: [{ displayName: "Kaylee", userId: PRODUCER_ID }],
     }),
@@ -39,6 +40,7 @@ test("draft API uses the documented create, edit, submit, and assignment paths",
   await api.create({ insuredName: "  Acme LLC  ", taxes: "4.5" });
   await api.edit(DRAFT_ID, { notes: "Updated" });
   await api.submit(DRAFT_ID);
+  assert.equal((await api.list()).drafts.length, 1);
   assert.deepEqual(await api.listAssignmentOptions(), {
     producers: [{ displayName: "Kaylee", userId: PRODUCER_ID }],
   });
@@ -53,8 +55,11 @@ test("draft API uses the documented create, edit, submit, and assignment paths",
   assert.equal(calls[1]?.options?.method, "PATCH");
   assert.equal(calls[2]?.path, `/drafts/${DRAFT_ID}/submit`);
   assert.equal(calls[2]?.options?.method, "POST");
-  assert.equal(calls[3]?.path, "/draft-assignment-options");
+  assert.equal(calls[3]?.path, "/drafts");
+  assert.equal(calls[3]?.options?.method, "GET");
   assert.equal(calls[3]?.options?.cache, "no-store");
+  assert.equal(calls[4]?.path, "/draft-assignment-options");
+  assert.equal(calls[4]?.options?.cache, "no-store");
 });
 
 test("draft API normalizes input, network, status, and response failures", async () => {
@@ -70,6 +75,11 @@ test("draft API normalizes input, network, status, and response failures", async
       error.kind === "rejected" &&
       error.details[0]?.field === "taxes" &&
       error.message === "Draft request could not be completed",
+  );
+  await assert.rejects(
+    invalidInputApi.list({ ownerUserId: USER_ID } as never),
+    (error: unknown) =>
+      error instanceof DraftApiError && error.kind === "rejected",
   );
 
   for (const client of [

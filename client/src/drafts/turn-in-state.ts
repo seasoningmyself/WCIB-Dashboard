@@ -12,6 +12,7 @@ import {
 import type {
   CreateDraftRequest,
   DraftResponse,
+  UpdateDraftRequest,
 } from "../../../shared/drafts.js";
 import type {
   AccountAssignment,
@@ -208,6 +209,28 @@ export function turnInFormToDraftInput(
     producerUserId: state.producerUserId,
     proposalTotal: moneyOrNull(state.proposalTotal),
     taxes: moneyOrNull(state.taxes),
+    transactionNotes: textOrNull(state.transactionNotes),
+    transactionType: textOrNull(state.transactionType),
+  };
+}
+
+export function turnInFormToNonfinancialDraftUpdate(
+  state: TurnInFormState,
+): UpdateDraftRequest {
+  return {
+    accountAssignment: state.accountAssignment || null,
+    carrierId: state.carrierId,
+    companyName: textOrNull(state.companyName),
+    effectiveDate: textOrNull(state.effectiveDate),
+    expirationDate: textOrNull(state.expirationDate),
+    insuredName: textOrNull(state.insuredName),
+    invoiceNumber: textOrNull(state.invoiceNumber),
+    mgaId: state.mgaId,
+    notes: textOrNull(state.notes),
+    officeLocationId: state.officeLocationId,
+    policyNumber: textOrNull(state.policyNumber),
+    policyTypeId: state.policyTypeId,
+    producerUserId: state.producerUserId,
     transactionNotes: textOrNull(state.transactionNotes),
     transactionType: textOrNull(state.transactionType),
   };

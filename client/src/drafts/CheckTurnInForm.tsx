@@ -27,6 +27,7 @@ import {
   suggestAnnualExpiration,
   TURN_IN_TRANSACTION_TYPES,
   turnInFormToDraftInput,
+  turnInFormToNonfinancialDraftUpdate,
   turnInStateFromDraft,
   updateTurnInField,
   validateTurnInForSubmit,
@@ -75,9 +76,11 @@ export function CheckTurnInForm({
   useEffect(() => {
     setDraft(initialDraft);
     setForm(
-      initialDraft === null || initialDraft.status !== "draft"
+      initialDraft === null
         ? createEmptyTurnInState()
-        : turnInStateFromDraft(initialDraft),
+        : isEditableDraft(initialDraft)
+          ? turnInStateFromDraft(initialDraft)
+          : createEmptyTurnInState(),
     );
     setErrors({});
     setSaveState(initialDraft === null ? "idle" : "saved");
@@ -194,7 +197,7 @@ export function CheckTurnInForm({
       setDraft(next);
       autoExpirationRef.current = null;
       setForm(
-        next.status === "draft"
+        isEditableDraft(next)
           ? turnInStateFromDraft(next)
           : createEmptyTurnInState(),
       );
@@ -204,14 +207,17 @@ export function CheckTurnInForm({
   );
 
   const save = useCallback(async () => {
-    if (pendingRef.current || (draft !== null && draft.status !== "draft")) {
+    if (pendingRef.current || (draft !== null && !isEditableDraft(draft))) {
       return null;
     }
     pendingRef.current = true;
     setErrors({});
     setSaveState("saving");
     try {
-      const input = turnInFormToDraftInput(form);
+      const input =
+        draft?.status === "sent_back"
+          ? turnInFormToNonfinancialDraftUpdate(form)
+          : turnInFormToDraftInput(form);
       const result =
         draft === null
           ? await api.create(input)
@@ -313,7 +319,9 @@ export function CheckTurnInFormView({
   const vocabulary = useVocabulary();
   const summary = calculateTurnInSummary(form);
   const pending = saveState === "saving";
-  const completed = draft !== null && draft.status !== "draft";
+  const completed = draft !== null && !isEditableDraft(draft);
+  const sentBack = draft?.status === "sent_back";
+  const showFinancialFields = draft === null || draft.status === "draft";
   const offices =
     vocabulary.state.status === "ready"
       ? vocabulary.state.data.officeLocations
@@ -353,6 +361,14 @@ export function CheckTurnInFormView({
       {errors.form === undefined ? null : (
         <div className="turn-in-alert" role="alert">{errors.form}</div>
       )}
+
+      {sentBack ? (
+        <div className="turn-in-sent-back" role="status">
+          <strong>Changes requested</strong>
+          <p>{draft.sentBackReason ?? "Review the turn-in details before reopening it."}</p>
+          <span>Save once to reopen this draft. Financial fields return only after the server confirms active draft status.</span>
+        </div>
+      ) : null}
 
       <form
         className="turn-in-form"
@@ -540,7 +556,8 @@ export function CheckTurnInFormView({
           </div>
         </FormSection>
 
-        <FormSection title="Premium, fees, and agency commission">
+        {showFinancialFields ? (
+          <FormSection title="Premium, fees, and agency commission">
           <div className="turn-in-grid turn-in-grid-four">
             <MoneyField field="basePremium" label="Base premium" onChange={(value) => onFieldChange("basePremium", value)} value={form.basePremium} />
             <MoneyField field="taxes" label="Taxes" onChange={(value) => onFieldChange("taxes", value)} value={form.taxes} />
@@ -599,9 +616,11 @@ export function CheckTurnInFormView({
               </label>
             ) : null}
           </div>
-        </FormSection>
+          </FormSection>
+        ) : null}
 
-        <FormSection title="Payment and premium financing">
+        {showFinancialFields ? (
+          <FormSection title="Payment and premium financing">
           <SegmentedField
             legend="Payment mode"
             name="payment-mode"
@@ -664,7 +683,8 @@ export function CheckTurnInFormView({
               ) : null}
             </div>
           ) : null}
-        </FormSection>
+          </FormSection>
+        ) : null}
 
         <FormSection title="Notes">
           <TextAreaField field="notes" label="General notes" onChange={(value) => onFieldChange("notes", value)} value={form.notes} wide />
@@ -673,14 +693,16 @@ export function CheckTurnInFormView({
 
         <footer className="turn-in-actions">
           <div aria-live="polite" className="turn-in-action-status">
-            {saveMessage(saveState)}
+            {saveMessage(saveState, sentBack)}
           </div>
           <button className="turn-in-save" disabled={pending} type="submit">
-            {pending ? "Saving..." : draft === null ? "Save draft" : "Save changes"}
+            {saveActionLabel(pending, sentBack, draft)}
           </button>
-          <button className="turn-in-submit" disabled={pending} onClick={onSubmit} type="button">
-            {user.capabilities.includes("admin") ? "Submit to ledger" : "Submit for approval"}
-          </button>
+          {sentBack ? null : (
+            <button className="turn-in-submit" disabled={pending} onClick={onSubmit} type="button">
+              {user.capabilities.includes("admin") ? "Submit to ledger" : "Submit for approval"}
+            </button>
+          )}
         </footer>
       </form>
     </section>
@@ -807,7 +829,7 @@ function FieldError({ error, field }: { error?: string; field: string }) {
 function SaveIndicator({ draft, state }: { draft: DraftResponse | null; state: SaveState }) {
   return (
     <span className={`turn-in-save-indicator is-${state}`}>
-      {state === "saving" ? "Saving" : state === "dirty" ? "Unsaved changes" : state === "error" ? "Needs attention" : draft === null ? "New draft" : "Draft saved"}
+      {state === "saving" ? "Saving" : state === "dirty" ? "Unsaved changes" : state === "error" ? "Needs attention" : draft === null ? "New draft" : draft.status === "sent_back" ? "Changes requested" : "Draft saved"}
     </span>
   );
 }
@@ -862,9 +884,10 @@ function formatMoney(value: string | null): string {
   return new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" }).format(Number(value));
 }
 
-function saveMessage(state: SaveState): string {
+function saveMessage(state: SaveState, sentBack: boolean): string {
   if (state === "error") return "Review the highlighted fields and try again.";
   if (state === "saving") return "Saving securely...";
+  if (sentBack && state === "saved") return "Ready to reopen.";
   if (state === "saved") return "All changes saved.";
   if (state === "dirty") return "Unsaved changes.";
   return "Draft not yet saved.";
@@ -898,4 +921,18 @@ function maxLengthForField(field: keyof TurnInFormState): number {
     default:
       return 300;
   }
+}
+
+function isEditableDraft(draft: DraftResponse): boolean {
+  return draft.status === "draft" || draft.status === "sent_back";
+}
+
+function saveActionLabel(
+  pending: boolean,
+  sentBack: boolean,
+  draft: DraftResponse | null,
+): string {
+  if (pending) return "Saving...";
+  if (sentBack) return "Reopen draft";
+  return draft === null ? "Save draft" : "Save changes";
 }
