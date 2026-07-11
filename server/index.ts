@@ -38,6 +38,8 @@ import { submitOwnDraft } from "./drafts/submit.js";
 import { flagOwnDraft } from "./drafts/flag.js";
 import { listDraftAssignmentOptions } from "./drafts/assignment-options.js";
 import { registerDraftAssignmentOptionsRoute } from "./http/draft-assignment-options.js";
+import { registerApprovalWorkRoute } from "./http/approval-queue.js";
+import { listApprovalWork } from "./approval-queue/list.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -101,6 +103,11 @@ const app = createApp({
     registerDraftAssignmentOptionsRoute(routes, {
       authorization,
       list: () => listDraftAssignmentOptions(database),
+      logger,
+    });
+    registerApprovalWorkRoute(routes, {
+      authorization,
+      list: (context, query) => listApprovalWork(database, context, query),
       logger,
     });
   },
