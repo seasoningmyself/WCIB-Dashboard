@@ -6,6 +6,7 @@ import {
   approvalSendBackRequestSchema,
   flaggedHelpSendBackResponseSchema,
 } from "../../shared/approval-queue.js";
+import { approveWithOverrideRequestSchema } from "../../shared/policy-overrides.js";
 import {
   submitDraftRequestSchema,
   updateDraftRequestSchema,
@@ -16,6 +17,10 @@ import {
   type AuthorizedRequestContext,
 } from "../auth/authorization.js";
 import { APPROVAL_ADMIN_ACCESS } from "../approval-queue/access.js";
+import {
+  ApprovalOverrideValidationError,
+  type ApprovalWithOverrideResult,
+} from "../approval-queue/approve-with-override.js";
 import { projectAdminApprovalQueueEntry } from "../approval-queue/projection.js";
 import {
   ApprovalItemNotFoundError,
@@ -36,6 +41,8 @@ import type { RouteRegistrar } from "./routes.js";
 
 export const APPROVE_SUBMISSION_PATH =
   "/api/approvals/:queueEntryId/approve";
+export const APPROVE_WITH_OVERRIDE_PATH =
+  "/api/approvals/:queueEntryId/approve-with-override";
 export const PUSH_THROUGH_HELP_PATH =
   "/api/approvals/help/:draftId/push-through";
 export const OPEN_FIX_HELP_PATH = "/api/approvals/help/:draftId/open-fix";
@@ -58,6 +65,11 @@ export interface ApprovalActionHandlerDependencies {
     draftId: string,
     patch: unknown,
   ): Promise<PolicyRecord>;
+  approveWithOverride(
+    context: AuthorizedRequestContext,
+    queueEntryId: string,
+    input: unknown,
+  ): Promise<ApprovalWithOverrideResult>;
   logger: AppLogger;
   pushThroughHelp(
     context: AuthorizedRequestContext,
@@ -95,6 +107,47 @@ export function createApproveSubmissionHandler(
       };
     },
   );
+}
+
+export function createApproveWithOverrideHandler(
+  dependencies: ApprovalActionHandlerDependencies,
+): RequestHandler {
+  return asyncRoute(async (req, res) => {
+    const context = getAuthorizedRequestContext(res);
+    const input = approveWithOverrideRequestSchema.parse(req.body);
+    const { queueEntryId } = queueEntryParamsSchema.parse(req.params);
+    let result: ApprovalWithOverrideResult;
+    try {
+      result = await dependencies.approveWithOverride(
+        context,
+        queueEntryId,
+        input,
+      );
+    } catch (error) {
+      throw mapApprovalActionError(error);
+    }
+
+    const policy = projectAuthorizedFields(
+      res,
+      result.policy,
+      projectAdminPolicy,
+    );
+    if (policy === null) {
+      throw new HttpError(403, apiErrorCodes.forbidden, "Forbidden");
+    }
+    dependencies.logger.info("Approval override completed", {
+      component: "approval_queue",
+      event: "queue_submission_approved_with_override",
+      overrideId: result.overrideId,
+      policyId: policy.id,
+      sourceId: queueEntryId,
+      userId: context.principal.userId,
+    });
+    res.status(201).set("Cache-Control", "no-store").json({
+      overrideId: result.overrideId,
+      policy,
+    });
+  });
 }
 
 export function createPushThroughHelpHandler(
@@ -182,6 +235,11 @@ export function registerApprovalActionRoutes(
     APPROVE_SUBMISSION_PATH,
     access,
     createApproveSubmissionHandler(options),
+  );
+  routes.post(
+    APPROVE_WITH_OVERRIDE_PATH,
+    access,
+    createApproveWithOverrideHandler(options),
   );
   routes.post(
     PUSH_THROUGH_HELP_PATH,
@@ -314,6 +372,13 @@ function mapApprovalActionError(error: unknown): unknown {
       409,
       apiErrorCodes.badRequest,
       "Approval item is not actionable",
+    );
+  }
+  if (error instanceof ApprovalOverrideValidationError) {
+    return new HttpError(
+      400,
+      apiErrorCodes.badRequest,
+      "Approval override is invalid",
     );
   }
   return error;

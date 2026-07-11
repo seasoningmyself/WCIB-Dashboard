@@ -47,6 +47,9 @@ import {
   pushThroughFlaggedHelp,
 } from "./approval-queue/approve.js";
 import {
+  approvePendingSubmissionWithOverride,
+} from "./approval-queue/approve-with-override.js";
+import {
   sendBackFlaggedHelp,
   sendBackPendingSubmission,
 } from "./approval-queue/send-back.js";
@@ -125,6 +128,14 @@ const app = createApp({
         approvePendingSubmission(database, context, queueEntryId),
       approveFixedHelp: (context, draftId, patch) =>
         approveCorrectedFlaggedHelp(database, context, draftId, patch),
+      approveWithOverride: (context, queueEntryId, input) =>
+        approvePendingSubmissionWithOverride(
+          database,
+          context,
+          queueEntryId,
+          input,
+          logger,
+        ),
       authorization,
       logger,
       pushThroughHelp: (context, draftId) =>

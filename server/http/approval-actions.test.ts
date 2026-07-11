@@ -15,10 +15,12 @@ import type {
   PolicyRecord,
 } from "../db/schema.js";
 import type { AppLogger } from "../logging/logger.js";
+import { ApprovalOverrideValidationError } from "../approval-queue/approve-with-override.js";
 import { ApprovalItemStateError } from "../approval-queue/approve.js";
 import { toErrorResponse } from "./errors.js";
 import {
   APPROVE_SUBMISSION_PATH,
+  APPROVE_WITH_OVERRIDE_PATH,
   OPEN_FIX_HELP_PATH,
   PUSH_THROUGH_HELP_PATH,
   SEND_BACK_HELP_PATH,
@@ -37,6 +39,7 @@ const EMPLOYEE_ID = "00000000-0000-4000-8000-000000000003";
 const QUEUE_ID = "00000000-0000-4000-8000-000000000010";
 const DRAFT_ID = "00000000-0000-4000-8000-000000000011";
 const POLICY_ID = "00000000-0000-4000-8000-000000000012";
+const OVERRIDE_ID = "00000000-0000-4000-8000-000000000013";
 
 const logger: AppLogger = { error() {}, info() {}, warn() {} };
 
@@ -46,7 +49,13 @@ interface Registration {
   path: string;
 }
 
-function createFixture(options: { fail?: boolean; failSendBack?: boolean } = {}) {
+function createFixture(
+  options: {
+    fail?: boolean;
+    failOverride?: boolean;
+    failSendBack?: boolean;
+  } = {},
+) {
   const users = new Map<string, UserAccount>([
     [ADMIN_ID, account(ADMIN_ID)],
     [PRODUCER_ID, account(PRODUCER_ID)],
@@ -77,6 +86,17 @@ function createFixture(options: { fail?: boolean; failSendBack?: boolean } = {})
     async approveFixedHelp(_context, draftId, body) {
       calls.push({ body, id: draftId, kind: "fix" });
       return policy();
+    },
+    async approveWithOverride(_context, queueEntryId, body) {
+      calls.push({ body, id: queueEntryId, kind: "approve-with-override" });
+      if (options.failOverride === true) {
+        throw new ApprovalOverrideValidationError();
+      }
+      return {
+        originalValues: { brokerFee: "20.00" },
+        overrideId: OVERRIDE_ID,
+        policy: { ...policy(), brokerFee: "30.00", overridden: true },
+      };
     },
     authorization,
     logger,
@@ -134,6 +154,95 @@ test("admin approval accepts identity only and returns the admin policy projecti
   );
   assert.equal(rejected.status, 400);
   assert.deepEqual(forged.calls, []);
+});
+
+test("approval-time override returns only the final admin policy and safe identity", async () => {
+  const fixture = createFixture();
+  const response = await invoke(
+    fixture,
+    APPROVE_WITH_OVERRIDE_PATH,
+    { queueEntryId: QUEUE_ID },
+    {
+      changedFields: ["commissionAmount", "brokerFee"],
+      reason: "  Carrier corrected the bound figures  ",
+      replacementValues: {
+        brokerFee: "30.00",
+        commissionAmount: "150.00",
+      },
+    },
+    "admin",
+  );
+  assert.equal(response.status, 201);
+  assert.equal(response.headers["cache-control"], "no-store");
+  assert.equal((response.body as any).overrideId, OVERRIDE_ID);
+  assert.equal((response.body as any).policy.id, POLICY_ID);
+  assert.equal((response.body as any).policy.brokerFee, "30.00");
+  assert.equal((response.body as any).policy.overridden, true);
+  assert.equal("originalValues" in (response.body as any), false);
+  assert.equal("passwordHash" in (response.body as any).policy, false);
+  assert.deepEqual(fixture.calls, [
+    {
+      body: {
+        changedFields: ["commissionAmount", "brokerFee"],
+        reason: "Carrier corrected the bound figures",
+        replacementValues: {
+          brokerFee: "30.00",
+          commissionAmount: "150.00",
+        },
+      },
+      id: QUEUE_ID,
+      kind: "approve-with-override",
+    },
+  ]);
+
+  for (const body of [
+    {
+      changedFields: ["brokerFee"],
+      reason: "   ",
+      replacementValues: { brokerFee: "30.00" },
+    },
+    {
+      changedFields: ["brokerFee"],
+      reason: "Required",
+      replacementValues: { brokerFee: "30.00", netDue: "70.00" },
+    },
+    {
+      changedFields: ["insuredName"],
+      reason: "Required",
+      replacementValues: { insuredName: "Forged insured" },
+    },
+    {
+      changedFields: ["brokerFee"],
+      reason: "Required",
+      replacementValues: { brokerFee: "30.00" },
+      submittedPayload: { basePremium: "0.00" },
+    },
+  ]) {
+    const invalid = createFixture();
+    const invalidResponse = await invoke(
+      invalid,
+      APPROVE_WITH_OVERRIDE_PATH,
+      { queueEntryId: QUEUE_ID },
+      body,
+      "admin",
+    );
+    assert.equal(invalidResponse.status, 400);
+    assert.deepEqual(invalid.calls, []);
+  }
+
+  const rejected = createFixture({ failOverride: true });
+  const rejectedResponse = await invoke(
+    rejected,
+    APPROVE_WITH_OVERRIDE_PATH,
+    { queueEntryId: QUEUE_ID },
+    {
+      changedFields: ["brokerFee"],
+      reason: "No actual change",
+      replacementValues: { brokerFee: "20.00" },
+    },
+    "admin",
+  );
+  assert.equal(rejectedResponse.status, 400);
 });
 
 test("flagged push-through and open-fix are distinct allowlisted admin actions", async () => {
@@ -239,6 +348,15 @@ test("employee and producer are denied on every approval action before service a
   for (const identity of [undefined, "employee", "producer"] as const) {
     for (const [path, params, body] of [
       [APPROVE_SUBMISSION_PATH, { queueEntryId: QUEUE_ID }, {}],
+      [
+        APPROVE_WITH_OVERRIDE_PATH,
+        { queueEntryId: QUEUE_ID },
+        {
+          changedFields: ["brokerFee"],
+          reason: "No access",
+          replacementValues: { brokerFee: "30.00" },
+        },
+      ],
       [PUSH_THROUGH_HELP_PATH, { draftId: DRAFT_ID }, {}],
       [OPEN_FIX_HELP_PATH, { draftId: DRAFT_ID }, { insuredName: "No" }],
       [
@@ -307,6 +425,33 @@ test("send-back handlers fail closed when route authorization is omitted", async
     assert.equal(errorResult(error).status, 500);
     assert.deepEqual(fixture.calls, []);
   }
+});
+
+test("approval override fails closed when route authorization is omitted", async () => {
+  const fixture = createFixture();
+  const registration = fixture.registrations.find(
+    (item) => item.path === APPROVE_WITH_OVERRIDE_PATH,
+  );
+  assert.ok(registration);
+  const req = {
+    body: {
+      changedFields: ["brokerFee"],
+      reason: "Must not run",
+      replacementValues: { brokerFee: "30.00" },
+    },
+    headers: {},
+    method: "POST",
+    originalUrl: APPROVE_WITH_OVERRIDE_PATH,
+    params: { queueEntryId: QUEUE_ID },
+    route: { path: APPROVE_WITH_OVERRIDE_PATH },
+    session: fakeSession(ADMIN_ID),
+  } as unknown as Request;
+  const response = createTestResponse();
+  registration.handler(req, response.res, response.next);
+  const error = await response.completed;
+  assert.notEqual(error, null);
+  assert.equal(errorResult(error).status, 500);
+  assert.deepEqual(fixture.calls, []);
 });
 
 function queueEntry(
