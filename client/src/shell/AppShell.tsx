@@ -9,6 +9,7 @@ import type { CurrentUser } from "../../../shared/current-user.js";
 import { CheckTurnInForm } from "../drafts/CheckTurnInForm.js";
 import { MyDrafts } from "../drafts/MyDrafts.js";
 import { ApprovalQueue } from "../approvals/ApprovalQueue.js";
+import { PolicyLedger } from "../ledger/PolicyLedger.js";
 import { VocabularyProvider } from "../vocabulary/context.js";
 import {
   resolveAuthorizedNavigation,
@@ -176,6 +177,13 @@ function ShellContent({
       return (
         <VocabularyProvider>
           <MyDrafts currentPath={currentPath} user={user} />
+        </VocabularyProvider>
+      );
+    }
+    if (route.item.id === "policy_ledger") {
+      return (
+        <VocabularyProvider>
+          <PolicyLedger user={user} />
         </VocabularyProvider>
       );
     }

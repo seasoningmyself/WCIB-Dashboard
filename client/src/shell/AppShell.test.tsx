@@ -121,6 +121,26 @@ test("server-authorized approvals route mounts the real admin queue", () => {
   assert.doesNotMatch(markup, /WCIB workspace/);
 });
 
+test("server-authorized policy ledger route mounts the real admin ledger", () => {
+  const markup = renderToStaticMarkup(
+    withApi(
+      <AppShellView
+        currentPath="/policy-ledger"
+        onLogout={() => {}}
+        user={{
+          ...baseUser,
+          allowedNavigation: ["policy_ledger"],
+          capabilities: ["admin"],
+          role: "admin",
+        }}
+      />,
+    ),
+  );
+
+  assert.match(markup, /Loading policy ledger/);
+  assert.doesNotMatch(markup, /WCIB workspace/);
+});
+
 test("unknown IDs and unauthorized URLs fail closed in the shell", () => {
   const unknownUser = {
     ...baseUser,
