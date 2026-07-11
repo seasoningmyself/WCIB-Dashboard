@@ -24,8 +24,12 @@ import {
   createPolicyTypeVocabulary,
 } from "./vocabulary/create.js";
 import { createMgaVocabulary } from "./vocabulary/mga-create.js";
-import { registerDraftCreateRoute } from "./http/drafts.js";
+import {
+  registerDraftCreateRoute,
+  registerDraftListRoute,
+} from "./http/drafts.js";
 import { createOwnDraft } from "./drafts/create.js";
+import { listOwnDrafts } from "./drafts/list.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -62,6 +66,11 @@ const app = createApp({
       authorization,
       create: (context, input) =>
         createOwnDraft(database, context, input),
+      logger,
+    });
+    registerDraftListRoute(routes, {
+      authorization,
+      list: (context, query) => listOwnDrafts(database, context, query),
       logger,
     });
   },

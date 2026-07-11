@@ -14,6 +14,12 @@ commission for the active editor but never a producer's personal rate or
 payout. Run `npm run test:db:draft-create` against a migrated disposable local
 PostgreSQL target for the persistence boundary.
 
+`GET /api/drafts` is the My Drafts boundary. Its SQL always starts with the
+authenticated `owner_user_id`, optionally adds one approved status filter, and
+orders by most recent edit. Admin's My Drafts remains admin-owned; all-user
+review belongs to the approval workflow. Run `npm run test:db:draft-list` for
+the ownership and ordering boundary.
+
 PostgreSQL migration `0013_draft_integrity` owns status transitions and stale
 state checks through `transition_draft_status`. Direct status updates are
 rejected. Financial values, insured/contact fields, and transition reasons must

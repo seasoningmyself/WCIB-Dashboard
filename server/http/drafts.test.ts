@@ -11,13 +11,17 @@ import type { AccessPrincipal } from "../auth/access.js";
 import { createAuthorizationGuards } from "../auth/authorization.js";
 import type { UserAccount } from "../auth/users.js";
 import type { DraftRecord } from "../db/schema.js";
+import { DRAFT_FINANCIAL_FIELDS } from "../drafts/projection.js";
 import type { AppLogger } from "../logging/logger.js";
 import { toErrorResponse } from "./errors.js";
 import {
   DRAFTS_PATH,
   createDraftCreateHandler,
+  createDraftListHandler,
   registerDraftCreateRoute,
+  registerDraftListRoute,
   type RegisterDraftCreateRouteOptions,
+  type RegisterDraftListRouteOptions,
 } from "./drafts.js";
 import {
   auditRouteAccessDeclarations,
@@ -29,11 +33,13 @@ const ADMIN_ID = "00000000-0000-4000-8000-000000000001";
 const PRODUCER_ID = "00000000-0000-4000-8000-000000000002";
 const EMPLOYEE_ID = "00000000-0000-4000-8000-000000000003";
 const UNASSIGNED_ID = "00000000-0000-4000-8000-000000000004";
+const INACTIVE_ID = "00000000-0000-4000-8000-000000000005";
 const DRAFT_ID = "00000000-0000-4000-8000-000000000010";
 
-interface RegisteredPostRoute {
+interface RegisteredRoute {
   access: RouteAccessDeclaration;
   handler: RequestHandler;
+  method: "GET" | "POST";
   path: string;
 }
 
@@ -45,20 +51,25 @@ interface TestResult {
 
 const logger: AppLogger = { error() {}, info() {}, warn() {} };
 
-function createFixture() {
-  const users = new Map<string, UserAccount>(
-    [ADMIN_ID, PRODUCER_ID, EMPLOYEE_ID, UNASSIGNED_ID].map((id) => [
-      id,
-      account(id),
-    ]),
-  );
+function createFixture(options: { emptyList?: boolean } = {}) {
+  const users = new Map<string, UserAccount>([
+    ...[ADMIN_ID, PRODUCER_ID, EMPLOYEE_ID, UNASSIGNED_ID].map(
+      (id) => [id, account(id)] as const,
+    ),
+    [INACTIVE_ID, account(INACTIVE_ID, false)],
+  ]);
   const principals = new Map<string, AccessPrincipal>([
     [ADMIN_ID, principal(ADMIN_ID, { capabilities: ["admin"] })],
     [PRODUCER_ID, principal(PRODUCER_ID, { staffRole: "producer" })],
     [EMPLOYEE_ID, principal(EMPLOYEE_ID, { staffRole: "employee" })],
     [UNASSIGNED_ID, principal(UNASSIGNED_ID)],
+    [
+      INACTIVE_ID,
+      principal(INACTIVE_ID, { staffRole: "employee", userActive: false }),
+    ],
   ]);
   const calls: Array<{ input: unknown; userId: string }> = [];
+  const listCalls: Array<{ query: unknown; userId: string }> = [];
   const authorization = createAuthorizationGuards({
     async findUser(userId) {
       return users.get(userId) ?? null;
@@ -68,8 +79,8 @@ function createFixture() {
     },
     logger,
   });
-  const registrations: RegisteredPostRoute[] = [];
-  const options: RegisterDraftCreateRouteOptions = {
+  const registrations: RegisteredRoute[] = [];
+  const createOptions: RegisterDraftCreateRouteOptions = {
     authorization,
     async create(context, input) {
       calls.push({ input, userId: context.principal.userId });
@@ -77,7 +88,37 @@ function createFixture() {
     },
     logger,
   };
+  const listOptions: RegisterDraftListRouteOptions = {
+    authorization,
+    async list(context, query) {
+      listCalls.push({ query, userId: context.principal.userId });
+      if (options.emptyList === true) {
+        return [];
+      }
+      const records = [
+        draft(context.principal.userId, "draft", 10),
+        draft(context.principal.userId, "submitted", 11),
+        draft(context.principal.userId, "flagged", 12),
+        draft(context.principal.userId, "sent_back", 13),
+        draft(context.principal.userId, "approved", 14),
+      ];
+      const status = (query as { status?: DraftRecord["status"] }).status;
+      return status === undefined
+        ? records
+        : records.filter((record) => record.status === status);
+    },
+    logger,
+  };
   const routes = {
+    get(
+      path: string,
+      access: RouteAccessDeclaration,
+      ...handlers: RequestHandler[]
+    ) {
+      const handler = handlers[0];
+      assert.ok(handler);
+      registrations.push({ access, handler, method: "GET", path });
+    },
     post(
       path: string,
       access: RouteAccessDeclaration,
@@ -85,11 +126,18 @@ function createFixture() {
     ) {
       const handler = handlers[0];
       assert.ok(handler);
-      registrations.push({ access, handler, path });
+      registrations.push({ access, handler, method: "POST", path });
     },
   } as unknown as RouteRegistrar;
-  registerDraftCreateRoute(routes, options);
-  return { calls, options, registrations };
+  registerDraftCreateRoute(routes, createOptions);
+  registerDraftListRoute(routes, listOptions);
+  return {
+    calls,
+    createOptions,
+    listCalls,
+    listOptions,
+    registrations,
+  };
 }
 
 test("all three authenticated WCIB roles create UUID-owned active drafts", async () => {
@@ -146,7 +194,7 @@ test("draft route is explicitly authorized and fails closed without its guard", 
   const fixture = createFixture();
   const app = createApp({
     registerRoutes(routes) {
-      registerDraftCreateRoute(routes, fixture.options);
+      registerDraftCreateRoute(routes, fixture.createOptions);
     },
   });
   assert.deepEqual(
@@ -171,6 +219,126 @@ test("draft route is explicitly authorized and fails closed without its guard", 
   assert.equal(calls, 0);
 });
 
+test("own-draft list projects staff financial fields by exact status", async () => {
+  for (const [identity, userId] of [
+    ["employee", EMPLOYEE_ID],
+    ["producer", PRODUCER_ID],
+  ] as const) {
+    const fixture = createFixture();
+    const response = await invokeListRoute(fixture, {}, identity);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers["cache-control"], "no-store");
+    const rows = (response.body as { drafts: Array<Record<string, unknown>> })
+      .drafts;
+    assert.equal(rows.length, 5);
+    assert.equal(rows.every((row) => row.ownerUserId === userId), true);
+    const active = rows.find((row) => row.status === "draft");
+    assert.ok(active);
+    assert.equal(active.agencyCommissionAmount, "125.00");
+    assert.equal(active.basePremium, "1000.00");
+
+    for (const row of rows.filter((candidate) => candidate.status !== "draft")) {
+      for (const field of [
+        ...DRAFT_FINANCIAL_FIELDS,
+        "agencyCommissionAmount",
+      ]) {
+        assert.equal(field in row, false, `${String(row.status)}:${field}`);
+      }
+    }
+    for (const row of rows) {
+      for (const field of [
+        "applicableProducerRate",
+        "producerPayout",
+        "producerRate",
+        "producerRateHistory",
+      ]) {
+        assert.equal(field in row, false, field);
+      }
+    }
+    assert.deepEqual(fixture.listCalls, [{ query: {}, userId }]);
+  }
+});
+
+test("admin My Drafts remains owner-scoped and empty/filter states are exact", async () => {
+  const fixture = createFixture();
+  const filtered = await invokeListRoute(
+    fixture,
+    { status: "flagged" },
+    "admin",
+  );
+  assert.equal(filtered.status, 200);
+  const rows = (filtered.body as { drafts: Array<Record<string, unknown>> })
+    .drafts;
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0]?.ownerUserId, ADMIN_ID);
+  assert.equal(rows[0]?.status, "flagged");
+  assert.equal(rows[0]?.basePremium, "1000.00");
+
+  const empty = await invokeListRoute(
+    createFixture({ emptyList: true }),
+    {},
+    "employee",
+  );
+  assert.deepEqual(empty.body, { drafts: [] });
+});
+
+test("own-draft list rejects owner broadening, invalid filters, and missing guards", async () => {
+  for (const query of [
+    { ownerUserId: ADMIN_ID },
+    { status: "unknown" },
+    { status: ["draft", "submitted"] },
+  ]) {
+    const fixture = createFixture();
+    const result = await invokeListRoute(fixture, query, "employee");
+    assert.equal(result.status, 400);
+    assert.deepEqual(fixture.listCalls, []);
+  }
+
+  let calls = 0;
+  const handler = createDraftListHandler({
+    async list() {
+      calls += 1;
+      return [];
+    },
+    logger,
+  });
+  const result = await invokeHandlerWithoutGuard(handler, undefined, {});
+  assert.equal(result.status, 500);
+  assert.equal(calls, 0);
+});
+
+test("own-draft list denies unauthenticated, inactive, and default-deny identities", async () => {
+  for (const [identity, status] of [
+    [undefined, 401],
+    ["inactive", 401],
+    ["unassigned", 403],
+  ] as const) {
+    const fixture = createFixture();
+    const result = await invokeListRoute(fixture, {}, identity);
+    assert.equal(result.status, status);
+    assert.deepEqual(fixture.listCalls, []);
+  }
+});
+
+test("own-draft list route is explicitly authorized", () => {
+  const fixture = createFixture();
+  const app = createApp({
+    registerRoutes(routes) {
+      registerDraftListRoute(routes, fixture.listOptions);
+    },
+  });
+  assert.deepEqual(
+    auditRouteAccessDeclarations(app).find(
+      ({ method, path }) => method === "GET" && path === DRAFTS_PATH,
+    ),
+    {
+      access: { type: "authorized" },
+      method: "GET",
+      path: DRAFTS_PATH,
+    },
+  );
+});
+
 function validBody() {
   return {
     basePremium: "1000.00",
@@ -181,7 +349,11 @@ function validBody() {
   };
 }
 
-function draft(ownerUserId: string): DraftRecord & Record<string, unknown> {
+function draft(
+  ownerUserId: string,
+  status: DraftRecord["status"] = "draft",
+  idSuffix = 10,
+): DraftRecord & Record<string, unknown> {
   return {
     accountAssignment: null,
     amountPaid: "300.00",
@@ -203,7 +375,7 @@ function draft(ownerUserId: string): DraftRecord & Record<string, unknown> {
     financeReference: null,
     flagReason: null,
     history: [],
-    id: DRAFT_ID,
+    id: `00000000-0000-4000-8000-${String(idSuffix).padStart(12, "0")}`,
     insuredName: "Test Insured",
     invoiceNumber: null,
     ipfsFinanced: null,
@@ -232,7 +404,7 @@ function draft(ownerUserId: string): DraftRecord & Record<string, unknown> {
     sentBackAt: null,
     sentBackByUserId: null,
     sentBackReason: null,
-    status: "draft",
+    status,
     submittedAt: null,
     taxes: "5.00",
     transactionNotes: null,
@@ -240,12 +412,12 @@ function draft(ownerUserId: string): DraftRecord & Record<string, unknown> {
   };
 }
 
-function account(id: string): UserAccount {
+function account(id: string, isActive = true): UserAccount {
   return {
     createdAt: new Date("2026-07-10T00:00:00.000Z"),
     email: `${id}@example.test`,
     id,
-    isActive: true,
+    isActive,
     sessionVersion: 0,
   };
 }
@@ -282,7 +454,9 @@ async function invokeRoute(
   body: unknown,
   identity?: "admin" | "employee" | "producer" | "unassigned",
 ): Promise<TestResult> {
-  const registration = fixture.registrations[0];
+  const registration = fixture.registrations.find(
+    ({ method }) => method === "POST",
+  );
   assert.ok(registration);
   const guard = registration.access.authorization;
   assert.ok(guard);
@@ -317,12 +491,54 @@ async function invokeRoute(
 async function invokeHandlerWithoutGuard(
   handler: RequestHandler,
   body: unknown,
+  query: unknown = {},
 ): Promise<TestResult> {
-  const req = { body } as Request;
+  const req = { body, query } as Request;
   const response = createTestResponse();
   handler(req, response.res, response.next);
   const error = await response.completed;
   return error === null ? response.result() : errorResult(error);
+}
+
+async function invokeListRoute(
+  fixture: ReturnType<typeof createFixture>,
+  query: unknown,
+  identity?: "admin" | "employee" | "inactive" | "producer" | "unassigned",
+): Promise<TestResult> {
+  const registration = fixture.registrations.find(
+    ({ method }) => method === "GET",
+  );
+  assert.ok(registration);
+  const guard = registration.access.authorization;
+  assert.ok(guard);
+  const userId =
+    identity === "admin"
+      ? ADMIN_ID
+      : identity === "producer"
+        ? PRODUCER_ID
+        : identity === "employee"
+          ? EMPLOYEE_ID
+          : identity === "inactive"
+            ? INACTIVE_ID
+            : identity === "unassigned"
+              ? UNASSIGNED_ID
+              : undefined;
+  const req = {
+    headers: {},
+    method: "GET",
+    originalUrl: DRAFTS_PATH,
+    query,
+    route: { path: DRAFTS_PATH },
+    session: fakeSession(userId),
+  } as unknown as Request;
+  const response = createTestResponse();
+  const guardError = await invokeNextMiddleware(guard, req, response.res);
+  if (guardError !== null) {
+    return errorResult(guardError);
+  }
+  registration.handler(req, response.res, response.next);
+  const handlerError = await response.completed;
+  return handlerError === null ? response.result() : errorResult(handlerError);
 }
 
 function createTestResponse(): {

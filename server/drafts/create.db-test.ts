@@ -18,9 +18,9 @@ import {
 import * as databaseSchema from "../db/schema.js";
 import {
   createOwnDraft,
-  DraftAccessDeniedError,
   DraftInputValidationError,
 } from "./create.js";
+import { DraftAccessDeniedError } from "./access.js";
 import { projectDraftForAuthorizedContext } from "./projection.js";
 
 test("own draft creation enforces UUID ownership, active references, and clean defaults", async () => {

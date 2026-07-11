@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createDraftRequestSchema } from "./drafts.js";
+import {
+  createDraftRequestSchema,
+  listDraftsQuerySchema,
+} from "./drafts.js";
 
 const PRODUCER_ID = "00000000-0000-4000-8000-000000000001";
 
@@ -34,5 +37,19 @@ test("draft input rejects system fields, unsafe amounts, and broken assignments"
     { accountAssignment: "none", producerUserId: PRODUCER_ID },
   ]) {
     assert.equal(createDraftRequestSchema.safeParse(input).success, false);
+  }
+});
+
+test("own-draft filters accept only one supported status and no owner input", () => {
+  assert.deepEqual(listDraftsQuerySchema.parse({}), {});
+  assert.deepEqual(listDraftsQuerySchema.parse({ status: "flagged" }), {
+    status: "flagged",
+  });
+  for (const query of [
+    { status: "unknown" },
+    { status: ["draft", "submitted"] },
+    { ownerUserId: PRODUCER_ID },
+  ]) {
+    assert.equal(listDraftsQuerySchema.safeParse(query).success, false);
   }
 });

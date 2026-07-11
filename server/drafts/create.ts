@@ -11,6 +11,7 @@ import {
 import type { ApiErrorDetail } from "../../shared/api-errors.js";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AuthDatabase } from "../auth/users.js";
+import { requireDraftSelfServiceActor } from "./access.js";
 import {
   carriers,
   drafts,
@@ -31,13 +32,6 @@ const IPFS_FINANCE_META = Object.freeze({
   minEarnedPct: null,
 });
 
-export class DraftAccessDeniedError extends Error {
-  constructor() {
-    super("Draft access is denied");
-    this.name = "DraftAccessDeniedError";
-  }
-}
-
 export class DraftInputValidationError extends Error {
   constructor(readonly details: ApiErrorDetail[]) {
     super("Draft input is invalid");
@@ -51,7 +45,7 @@ export async function createOwnDraft(
   rawInput: unknown,
   createdAt = new Date(),
 ): Promise<DraftRecord> {
-  const ownerUserId = requireDraftCreator(context);
+  const ownerUserId = requireDraftSelfServiceActor(context);
   if (Number.isNaN(createdAt.getTime())) {
     throw new DraftInputValidationError([
       { field: "createdAt", message: "A valid creation time is required" },
@@ -71,17 +65,6 @@ export async function createOwnDraft(
     }
     return record;
   });
-}
-
-function requireDraftCreator(context: AuthorizedRequestContext): string {
-  const { principal } = context;
-  const isAdmin = principal.capabilities.includes("admin");
-  const isStaff =
-    principal.staffRole === "employee" || principal.staffRole === "producer";
-  if (!principal.userActive || (!isAdmin && !isStaff)) {
-    throw new DraftAccessDeniedError();
-  }
-  return principal.userId;
 }
 
 function validateProducerSelfAssignment(

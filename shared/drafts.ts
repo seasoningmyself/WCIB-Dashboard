@@ -75,6 +75,12 @@ export const createDraftRequestSchema = z
   .strict()
   .superRefine(validateAssignmentPair);
 
+export const listDraftsQuerySchema = z
+  .object({
+    status: z.enum(DRAFT_STATUSES).optional(),
+  })
+  .strict();
+
 const apiTimestampSchema = z.preprocess(
   (value) => (value instanceof Date ? value.toISOString() : value),
   z.string().datetime(),
@@ -148,9 +154,15 @@ export const createDraftResponseSchema = z
   .object({ draft: draftResponseSchema })
   .strict();
 
+export const listDraftsResponseSchema = z
+  .object({ drafts: z.array(draftResponseSchema) })
+  .strict();
+
 export type CreateDraftRequest = z.output<typeof createDraftRequestSchema>;
 export type DraftResponse = z.output<typeof draftResponseSchema>;
 export type CreateDraftResponse = z.output<typeof createDraftResponseSchema>;
+export type ListDraftsQuery = z.output<typeof listDraftsQuerySchema>;
+export type ListDraftsResponse = z.output<typeof listDraftsResponseSchema>;
 
 function fixedDecimalSchema(integerDigits: number, scale: number) {
   const pattern = new RegExp(
