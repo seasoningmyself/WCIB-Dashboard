@@ -8,6 +8,13 @@ import {
   type LoginRequest,
 } from "../../../shared/login.js";
 import { apiErrorCodes } from "../../../shared/api-errors.js";
+import {
+  passwordResetConfirmSchema,
+  passwordResetRequestResponseSchema,
+  passwordResetRequestSchema,
+  type PasswordResetConfirm,
+  type PasswordResetRequest,
+} from "../../../shared/password-reset.js";
 import { apiBaseUrl } from "../config.js";
 
 export type AuthApiErrorKind =
@@ -28,9 +35,28 @@ export class AuthApiError extends Error {
 }
 
 export interface AuthApi {
+  confirmPasswordReset(request: PasswordResetConfirm): Promise<void>;
   login(request: LoginRequest): Promise<CurrentUser>;
   logout(): Promise<void>;
+  requestPasswordReset(request: PasswordResetRequest): Promise<void>;
   restoreCurrentUser(): Promise<CurrentUser | null>;
+}
+
+export type PasswordResetApiErrorKind =
+  | "invalid_response"
+  | "invalid_token"
+  | "network"
+  | "server"
+  | "validation";
+
+export class PasswordResetApiError extends Error {
+  readonly kind: PasswordResetApiErrorKind;
+
+  constructor(kind: PasswordResetApiErrorKind) {
+    super(passwordResetErrorMessage(kind));
+    this.name = "PasswordResetApiError";
+    this.kind = kind;
+  }
 }
 
 export type AuthFetch = (
@@ -43,6 +69,35 @@ export function createAuthApi(
   baseUrl = apiBaseUrl,
 ): AuthApi {
   return {
+    async confirmPasswordReset(rawRequest) {
+      const request = passwordResetConfirmSchema.safeParse(rawRequest);
+      if (!request.success) {
+        throw new PasswordResetApiError("validation");
+      }
+      const response = await safePasswordResetFetch(
+        fetchRequest,
+        endpoint(baseUrl, "/auth/password-reset/confirm"),
+        {
+          body: JSON.stringify(request.data),
+          credentials: "same-origin",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          method: "POST",
+        },
+      );
+      if (
+        response.status === 400 &&
+        (await readErrorCode(response)) === apiErrorCodes.invalidResetToken
+      ) {
+        throw new PasswordResetApiError("invalid_token");
+      }
+      if (response.status !== 204) {
+        throw new PasswordResetApiError("server");
+      }
+    },
+
     async login(rawRequest) {
       const request = loginRequestSchema.safeParse(rawRequest);
       if (!request.success) {
@@ -98,10 +153,59 @@ export function createAuthApi(
       }
     },
 
+    async requestPasswordReset(rawRequest) {
+      const request = passwordResetRequestSchema.safeParse(rawRequest);
+      if (!request.success) {
+        throw new PasswordResetApiError("validation");
+      }
+      const response = await safePasswordResetFetch(
+        fetchRequest,
+        endpoint(baseUrl, "/auth/password-reset/request"),
+        {
+          body: JSON.stringify(request.data),
+          credentials: "same-origin",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          method: "POST",
+        },
+      );
+      if (response.status !== 202) {
+        throw new PasswordResetApiError("server");
+      }
+      const accepted = passwordResetRequestResponseSchema.safeParse(
+        await readPasswordResetJson(response),
+      );
+      if (!accepted.success) {
+        throw new PasswordResetApiError("invalid_response");
+      }
+    },
+
     restoreCurrentUser() {
       return loadCurrentUser(fetchRequest, baseUrl);
     },
   };
+}
+
+async function safePasswordResetFetch(
+  fetchRequest: AuthFetch,
+  input: RequestInfo | URL,
+  init: RequestInit,
+): Promise<Response> {
+  try {
+    return await fetchRequest(input, init);
+  } catch {
+    throw new PasswordResetApiError("network");
+  }
+}
+
+async function readPasswordResetJson(response: Response): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch {
+    throw new PasswordResetApiError("invalid_response");
+  }
 }
 
 async function loadCurrentUser(
@@ -177,5 +281,21 @@ function authErrorMessage(kind: AuthApiErrorKind): string {
     case "invalid_response":
     case "server":
       return "Sign-in is temporarily unavailable";
+  }
+}
+
+function passwordResetErrorMessage(
+  kind: PasswordResetApiErrorKind,
+): string {
+  switch (kind) {
+    case "invalid_token":
+      return "Password reset link is invalid or expired";
+    case "network":
+      return "WCIB could not be reached";
+    case "validation":
+      return "Password reset details are invalid";
+    case "invalid_response":
+    case "server":
+      return "Password reset is temporarily unavailable";
   }
 }

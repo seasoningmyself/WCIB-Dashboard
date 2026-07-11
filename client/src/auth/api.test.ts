@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AuthApiError, createAuthApi, type AuthFetch } from "./api.js";
+import {
+  AuthApiError,
+  createAuthApi,
+  PasswordResetApiError,
+  type AuthFetch,
+} from "./api.js";
 
 const USER_ID = "00000000-0000-4000-8000-000000000001";
+const RESET_TOKEN = "a".repeat(43);
 
 const loginResponse = {
   user: {
@@ -85,6 +91,95 @@ test("logout calls the idempotent Foundation endpoint once", async () => {
   assert.equal(requests[0]?.input, "/api/auth/logout");
   assert.equal(requests[0]?.init?.method, "POST");
   assert.equal(requests[0]?.init?.credentials, "same-origin");
+});
+
+test("password-reset requests preserve the enumeration-safe contract", async () => {
+  const requests: Array<{ init?: RequestInit; input: string }> = [];
+  const api = createAuthApi(async (input, init) => {
+    requests.push({ init, input: String(input) });
+    return jsonResponse({ status: "accepted" }, 202);
+  }, "/api");
+
+  const existing = await api.requestPasswordReset({
+    email: "existing@example.test",
+  });
+  const missing = await api.requestPasswordReset({
+    email: "missing@example.test",
+  });
+
+  assert.equal(existing, undefined);
+  assert.equal(missing, undefined);
+  assert.deepEqual(
+    requests.map(({ input }) => input),
+    [
+      "/api/auth/password-reset/request",
+      "/api/auth/password-reset/request",
+    ],
+  );
+  assert.deepEqual(JSON.parse(String(requests[0]?.init?.body)), {
+    email: "existing@example.test",
+  });
+  assert.deepEqual(JSON.parse(String(requests[1]?.init?.body)), {
+    email: "missing@example.test",
+  });
+});
+
+test("password-reset confirmation sends only the token and new password", async () => {
+  const requests: Array<{ init?: RequestInit; input: string }> = [];
+  const api = createAuthApi(async (input, init) => {
+    requests.push({ init, input: String(input) });
+    return new Response(null, { status: 204 });
+  }, "/api");
+
+  await api.confirmPasswordReset({
+    password: "StrongerPass123!",
+    token: RESET_TOKEN,
+  });
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0]?.input, "/api/auth/password-reset/confirm");
+  assert.deepEqual(JSON.parse(String(requests[0]?.init?.body)), {
+    password: "StrongerPass123!",
+    token: RESET_TOKEN,
+  });
+  assert.equal(requests[0]?.init?.credentials, "same-origin");
+});
+
+test("invalid reset tokens use one safe client error", async () => {
+  let calls = 0;
+  const api = createAuthApi(async () => {
+    calls += 1;
+    return jsonResponse(
+      {
+        error: {
+          code: "invalid_reset_token",
+          message: "private token lookup detail",
+        },
+      },
+      400,
+    );
+  }, "/api");
+
+  await assert.rejects(
+    api.confirmPasswordReset({
+      password: "StrongerPass123!",
+      token: RESET_TOKEN,
+    }),
+    (error: unknown) =>
+      error instanceof PasswordResetApiError &&
+      error.kind === "invalid_token" &&
+      !error.message.includes("private"),
+  );
+  await assert.rejects(
+    api.confirmPasswordReset({
+      password: "StrongerPass123!",
+      token: "malformed",
+    }),
+    (error: unknown) =>
+      error instanceof PasswordResetApiError &&
+      error.kind === "validation",
+  );
+  assert.equal(calls, 1);
 });
 
 test("login separates credential, network, and invalid-contract failures", async () => {

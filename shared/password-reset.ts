@@ -6,13 +6,15 @@ export const passwordResetRequestSchema = z
   .object({ email: userEmailSchema })
   .strict();
 
+export const passwordResetTokenSchema = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9_-]{43}$/, "Reset token is invalid");
+
 export const passwordResetConfirmSchema = z
   .object({
     password: passwordSchema,
-    token: z
-      .string()
-      .trim()
-      .regex(/^[A-Za-z0-9_-]{43}$/, "Reset token is invalid"),
+    token: passwordResetTokenSchema,
   })
   .strict();
 
@@ -26,3 +28,7 @@ export type PasswordResetConfirm = z.output<
 export interface PasswordResetRequestResponse {
   status: "accepted";
 }
+
+export const passwordResetRequestResponseSchema = z
+  .object({ status: z.literal("accepted") })
+  .strict();

@@ -9,7 +9,7 @@ import type { CurrentUser } from "../../shared/current-user.js";
 import { createApiClient } from "./api/client.js";
 import { ApiClientProvider } from "./api/context.js";
 import { createAuthApi, type AuthApi } from "./auth/api.js";
-import { LoginScreen } from "./auth/LoginScreen.js";
+import { SignedOutExperience } from "./auth/SignedOutExperience.js";
 import {
   createLogoutAction,
   createSessionBoundary,
@@ -126,7 +126,10 @@ export function App({ authApi = defaultAuthApi }: AppProps) {
   }
   if (auth.status === "signed_out") {
     return (
-      <LoginScreen api={authApi} onAuthenticated={handleAuthenticated} />
+      <SignedOutExperience
+        api={authApi}
+        onAuthenticated={handleAuthenticated}
+      />
     );
   }
 
