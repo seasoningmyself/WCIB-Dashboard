@@ -65,8 +65,8 @@ test("manual logout clears locally once even when the endpoint fails", async () 
 
 test("return paths accept internal paths and reject open redirects", () => {
   assert.equal(
-    safeInternalReturnPath("/my-items?draft=private"),
-    "/my-items",
+    safeInternalReturnPath("/my-drafts?draft=private"),
+    "/my-drafts",
   );
   assert.equal(
     safeInternalReturnPath("/my-commissions/"),
@@ -74,5 +74,5 @@ test("return paths accept internal paths and reject open redirects", () => {
   );
   assert.equal(safeInternalReturnPath("https://outside.example"), null);
   assert.equal(safeInternalReturnPath("//outside.example/path"), null);
-  assert.equal(safeInternalReturnPath("my-items"), null);
+  assert.equal(safeInternalReturnPath("my-drafts"), null);
 });

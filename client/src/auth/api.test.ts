@@ -21,7 +21,7 @@ const loginResponse = {
 
 const currentUserResponse = {
   user: {
-    allowedNavigation: ["my_commissions"],
+    allowedNavigation: ["turn_in", "my_items", "my_commissions"],
     capabilities: [],
     displayName: "Kaylee",
     email: "producer@example.test",

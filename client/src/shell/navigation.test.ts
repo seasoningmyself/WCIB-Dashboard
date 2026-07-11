@@ -8,12 +8,18 @@ import {
 
 test("navigation maps only explicit server-issued identifiers", () => {
   const navigation = resolveAuthorizedNavigation([
+    "my_items",
     "my_commissions",
     "future_admin_page",
     "my_commissions",
   ]);
 
   assert.deepEqual(navigation, [
+    {
+      id: "my_items",
+      label: "My Drafts",
+      path: "/my-drafts",
+    },
     {
       id: "my_commissions",
       label: "My Commissions",
@@ -23,14 +29,22 @@ test("navigation maps only explicit server-issued identifiers", () => {
 });
 
 test("shell routes cannot select an unauthorized or external destination", () => {
-  const navigation = resolveAuthorizedNavigation(["my_commissions"]);
+  const navigation = resolveAuthorizedNavigation([
+    "turn_in",
+    "my_items",
+    "my_commissions",
+  ]);
 
   assert.deepEqual(resolveShellRoute("/", navigation), {
     item: navigation[0],
     status: "ready",
   });
+  assert.deepEqual(resolveShellRoute("/my-drafts", navigation), {
+    item: navigation[1],
+    status: "ready",
+  });
   assert.deepEqual(resolveShellRoute("/my-commissions", navigation), {
-    item: navigation[0],
+    item: navigation[2],
     status: "ready",
   });
   assert.deepEqual(resolveShellRoute("/pay-sheets", navigation), {

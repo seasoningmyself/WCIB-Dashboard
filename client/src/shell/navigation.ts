@@ -41,7 +41,7 @@ const NAVIGATION_ITEMS: Readonly<
   },
   settings: { id: "settings", label: "Settings", path: "/settings" },
   turn_in: { id: "turn_in", label: "Check Turn-In", path: "/turn-in" },
-  my_items: { id: "my_items", label: "My Items", path: "/my-items" },
+  my_items: { id: "my_items", label: "My Drafts", path: "/my-drafts" },
   my_commissions: {
     id: "my_commissions",
     label: "My Commissions",

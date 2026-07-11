@@ -27,6 +27,8 @@ test("shell renders the exact admin navigation supplied by /api/me", () => {
       "manage_staff",
       "settings",
       "turn_in",
+      "my_items",
+      "my_commissions",
     ],
     capabilities: ["admin"],
     displayName: "Sophia",
@@ -43,19 +45,20 @@ test("shell renders the exact admin navigation supplied by /api/me", () => {
     "Manage Staff",
     "Settings",
     "Check Turn-In",
+    "My Drafts",
+    "My Commissions",
   ]) {
     assert.match(markup, new RegExp(`>${label}<`));
   }
-  assert.doesNotMatch(markup, />My Commissions</);
   assert.match(markup, /aria-label="Primary navigation"/);
   assert.match(markup, /<main[^>]*tabindex="-1"/i);
   assert.match(markup, /<button[^>]*>Sign out<\/button>/);
 });
 
-test("producer and employee shells do not infer additional links", () => {
+test("producer and employee shells render only their universal draft navigation", () => {
   const producer = shellMarkup({
     ...baseUser,
-    allowedNavigation: ["my_commissions"],
+    allowedNavigation: ["turn_in", "my_items", "my_commissions"],
     displayName: "Kaylee",
     role: "producer",
   });
@@ -66,13 +69,13 @@ test("producer and employee shells do not infer additional links", () => {
     role: "employee",
   });
 
+  assert.match(producer, />Check Turn-In</);
+  assert.match(producer, />My Drafts</);
   assert.match(producer, />My Commissions</);
-  assert.doesNotMatch(producer, />Check Turn-In</);
-  assert.doesNotMatch(producer, />My Items</);
   assert.doesNotMatch(producer, />Pay Sheets</);
 
   assert.match(employee, />Check Turn-In</);
-  assert.match(employee, />My Items</);
+  assert.match(employee, />My Drafts</);
   assert.doesNotMatch(employee, />My Commissions</);
   assert.doesNotMatch(employee, />Policy Ledger</);
 });
