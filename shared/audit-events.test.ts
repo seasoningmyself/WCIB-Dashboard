@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { AUDIT_ACTIONS, AUDIT_ENTITY_TYPES } from "./audit-events.js";
 
 test("audit vocabulary covers every named sensitive mutation contract", () => {
-  for (const action of [
+  const expectedActions = [
     "policy_override_applied",
     "mga_payment_marked_paid",
     "mga_payment_marked_unpaid",
@@ -20,9 +20,11 @@ test("audit vocabulary covers every named sensitive mutation contract", () => {
     "draft_sent_back",
     "policy_approved",
     "admin_policy_submitted",
-  ]) {
-    assert.equal(AUDIT_ACTIONS.includes(action as never), true, action);
-  }
+    "policy_corrected",
+  ] as const;
+
+  assert.deepEqual(AUDIT_ACTIONS, expectedActions);
+  assert.equal(new Set(AUDIT_ACTIONS).size, AUDIT_ACTIONS.length);
 
   for (const entityType of [
     "policy",

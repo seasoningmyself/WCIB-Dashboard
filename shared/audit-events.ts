@@ -15,6 +15,7 @@ export const AUDIT_ACTIONS = [
   "draft_sent_back",
   "policy_approved",
   "admin_policy_submitted",
+  "policy_corrected",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

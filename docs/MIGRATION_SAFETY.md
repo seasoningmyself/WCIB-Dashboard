@@ -132,11 +132,12 @@ owners, not every transitive predecessor.
 | `0030_pay_sheet_single_settlement` | Single-settlement owner-chain guards | `0025`, `0026`, `0029` | Guard removal only before settlement |
 | `0031_pay_sheet_adjustments` | Audited next-sheet corrections/income | `0025`, `0029`, `0011`, `0001`, `0002` | Refuses populated rows; forward-fix after use |
 | `0032_kpi_targets` | Company/producer KPI targets | `0002` | Refuses populated rows; forward-fix after use |
+| `0033_policy_corrected_audit_action` | Dedicated general policy-correction audit action | `0018`, `0020` | Pre-use enum reversal only; forward-fix after the action is recorded |
 
 ## Dependency-safe full reverse order
 
 For a disposable or confirmed-empty database only, execute backouts from
-`0032` down through `0000`, deleting the matching Drizzle history row in the
+`0033` down through `0000`, deleting the matching Drizzle history row in the
 same transaction as each backout. The automated verifier is the reference
 implementation. There is intentionally no production `db:rollback` command:
 an operator must make and document the recovery decision rather than invoke a
