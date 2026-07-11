@@ -20,9 +20,11 @@ const NAVIGATION_BY_ROLE = {
     "manage_staff",
     "settings",
     "turn_in",
+    "my_items",
+    "my_commissions",
   ],
   employee: ["turn_in", "my_items"],
-  producer: ["my_commissions"],
+  producer: ["turn_in", "my_items", "my_commissions"],
 } as const satisfies Readonly<
   Record<CurrentUserRole, readonly AppNavigationId[]>
 >;
