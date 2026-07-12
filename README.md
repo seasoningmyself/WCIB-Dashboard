@@ -748,6 +748,21 @@ creating policy snapshots or changing KPI policy actuals. Run:
 npm run test:db:pay-sheet-adjustments
 ```
 
+Admin pay-sheet reads use `GET /api/pay-sheets` and
+`GET /api/pay-sheets/:paySheetId`. Both routes are explicitly admin-guarded and
+project their summary/detail contracts before serialization. Open sheets derive
+current policy, effective-rate, adjustment, and total views with exact cent
+math. Closed sheets read their policy, rate, and total values only from frozen
+history; live policy or rate changes cannot change a closed response. Sophia
+agency gross, Sophia share, and Sophia take-home remain separate fields.
+
+Run the route and disposable-database read contracts with:
+
+```sh
+node --import tsx --test server/http/pay-sheets.test.ts
+npm run test:db:pay-sheet-read
+```
+
 ## Structured logging
 
 The backend writes newline-delimited JSON records with a timestamp, level,

@@ -64,6 +64,11 @@ import { registerMgaPayableRoute } from "./http/mga-payables.js";
 import { listMgaPayableSources } from "./policies/mga-payables.js";
 import { registerMgaPayableStateRoute } from "./http/mga-payable-state.js";
 import { changeMgaPayableState } from "./policies/mga-payable-state.js";
+import { registerPaySheetReadRoutes } from "./http/pay-sheets.js";
+import {
+  getPaySheetSource,
+  listPaySheetSources,
+} from "./pay-sheets/read.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -191,6 +196,14 @@ const app = createApp({
           input,
           logger,
         ),
+      logger,
+    });
+    registerPaySheetReadRoutes(routes, {
+      authorization,
+      get: (context, paySheetId) =>
+        getPaySheetSource(database, context, paySheetId),
+      list: (context, query) =>
+        listPaySheetSources(database, context, query),
       logger,
     });
   },
