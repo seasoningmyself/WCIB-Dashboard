@@ -13,6 +13,8 @@ import { PolicyLedger } from "../ledger/PolicyLedger.js";
 import { MgaPayables } from "../mga-payables/MgaPayables.js";
 import { PaySheets } from "../pay-sheets/PaySheets.js";
 import { MyCommissions } from "../commissions/MyCommissions.js";
+import { MyItems } from "../my-items/MyItems.js";
+import { resolveDraftSelection } from "../drafts/my-drafts-state.js";
 import { VocabularyProvider } from "../vocabulary/context.js";
 import {
   resolveAuthorizedNavigation,
@@ -177,6 +179,10 @@ function ShellContent({
       );
     }
     if (route.item.id === "my_items") {
+      const draftSelection = resolveDraftSelection(currentPath);
+      if (user.role !== "admin" && draftSelection.status === "list") {
+        return <MyItems user={user} />;
+      }
       return (
         <VocabularyProvider>
           <MyDrafts currentPath={currentPath} user={user} />

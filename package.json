@@ -66,6 +66,7 @@
     "test:db:producer-commission-receipt-audit": "node --import tsx --test server/db/producer-commission-receipt-audit-migration.db-test.ts",
     "test:db:my-commissions": "node --import tsx --test server/http/my-commissions.db-test.ts",
     "test:db:my-commission-receipts": "node --import tsx --test server/http/my-commission-receipts.db-test.ts",
+    "test:db:my-items": "node --import tsx --test server/drafts/my-items.db-test.ts",
     "test:db:policy-references": "node --import tsx --test server/db/policy-referential-integrity.db-test.ts",
     "test:db:policy-lifecycle": "node --import tsx --test server/db/policy-lifecycle.db-test.ts",
     "test:db:flagged-help-resolution": "node --import tsx --test server/db/flagged-help-resolution.db-test.ts",

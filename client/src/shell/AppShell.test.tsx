@@ -80,7 +80,7 @@ test("producer and employee shells render only their universal draft navigation"
   assert.doesNotMatch(employee, />Policy Ledger</);
 });
 
-test("server-authorized my_items route mounts the real My Drafts screen", () => {
+test("server-authorized staff my_items route mounts the status-only My Items screen", () => {
   const markup = renderToStaticMarkup(
     withApi(
       <AppShellView
@@ -95,8 +95,42 @@ test("server-authorized my_items route mounts the real My Drafts screen", () => 
     ),
   );
 
-  assert.match(markup, /Loading drafts/);
+  assert.match(markup, /Loading My Items/);
   assert.doesNotMatch(markup, /WCIB workspace/);
+});
+
+test("admin My Drafts and staff edit links preserve the Parent C editor flow", () => {
+  const admin = renderToStaticMarkup(
+    withApi(
+      <AppShellView
+        currentPath="/my-drafts"
+        onLogout={() => {}}
+        user={{
+          ...baseUser,
+          allowedNavigation: ["turn_in", "my_items"],
+          capabilities: ["admin"],
+          role: "admin",
+        }}
+      />,
+    ),
+  );
+  const employeeEdit = renderToStaticMarkup(
+    withApi(
+      <AppShellView
+        currentPath="/my-drafts?draft=00000000-0000-4000-8000-000000000010"
+        onLogout={() => {}}
+        user={{
+          ...baseUser,
+          allowedNavigation: ["turn_in", "my_items"],
+          role: "employee",
+        }}
+      />,
+    ),
+  );
+
+  assert.match(admin, /Loading drafts/);
+  assert.match(employeeEdit, /Loading drafts/);
+  assert.doesNotMatch(employeeEdit, /Loading My Items/);
 });
 
 test("server-authorized approvals route mounts the real admin queue", () => {

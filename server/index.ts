@@ -84,6 +84,8 @@ import {
 } from "./http/my-commissions.js";
 import { listMyCommissionSources } from "./commissions/read.js";
 import { setProducerCommissionReceipt } from "./commissions/receipts.js";
+import { listOwnMyItemSources } from "./drafts/my-items.js";
+import { registerMyItemsRoute } from "./http/my-items.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -265,6 +267,11 @@ const app = createApp({
           input,
           logger,
         ),
+    });
+    registerMyItemsRoute(routes, {
+      authorization,
+      list: (context) => listOwnMyItemSources(database, context),
+      logger,
     });
   },
   sessionMiddleware: createSessionMiddleware(pool, {
