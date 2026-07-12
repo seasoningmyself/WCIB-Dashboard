@@ -161,6 +161,26 @@ test("server-authorized MGA payables route mounts the real admin workspace", () 
   assert.doesNotMatch(markup, /WCIB workspace/);
 });
 
+test("server-authorized pay sheets route mounts the real admin workspace", () => {
+  const markup = renderToStaticMarkup(
+    withApi(
+      <AppShellView
+        currentPath="/pay-sheets"
+        onLogout={() => {}}
+        user={{
+          ...baseUser,
+          allowedNavigation: ["pay_sheets"],
+          capabilities: ["admin"],
+          role: "admin",
+        }}
+      />,
+    ),
+  );
+
+  assert.match(markup, /Loading pay sheets/);
+  assert.doesNotMatch(markup, /WCIB workspace/);
+});
+
 test("unknown IDs and unauthorized URLs fail closed in the shell", () => {
   const unknownUser = {
     ...baseUser,

@@ -11,6 +11,7 @@ import { MyDrafts } from "../drafts/MyDrafts.js";
 import { ApprovalQueue } from "../approvals/ApprovalQueue.js";
 import { PolicyLedger } from "../ledger/PolicyLedger.js";
 import { MgaPayables } from "../mga-payables/MgaPayables.js";
+import { PaySheets } from "../pay-sheets/PaySheets.js";
 import { VocabularyProvider } from "../vocabulary/context.js";
 import {
   resolveAuthorizedNavigation,
@@ -190,6 +191,13 @@ function ShellContent({
     }
     if (route.item.id === "mga_payables") {
       return <MgaPayables user={user} />;
+    }
+    if (route.item.id === "pay_sheets") {
+      return (
+        <VocabularyProvider>
+          <PaySheets user={user} />
+        </VocabularyProvider>
+      );
     }
     return (
       <section className="workspace-page" aria-labelledby="workspace-page-title">

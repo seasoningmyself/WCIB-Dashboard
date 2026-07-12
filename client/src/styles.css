@@ -3986,3 +3986,1059 @@ h1 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Pay sheets */
+.pay-sheets-page,
+.pay-sheets-message {
+  width: min(100% - 48px, 1440px);
+  margin: 0 auto;
+  padding: 30px 0 52px;
+  color: #24343c;
+}
+
+.pay-sheets-page-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  border-bottom: 2px solid #263b47;
+  padding-bottom: 16px;
+}
+
+.pay-sheets-page-header p,
+.pay-sheet-section-heading p,
+.pay-sheet-dialog > header p {
+  margin: 0 0 4px;
+  color: #66767d;
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.pay-sheets-page-header h1,
+.pay-sheet-section-heading h2,
+.pay-sheet-dialog > header h2 {
+  margin: 0;
+  color: #20313a;
+  letter-spacing: 0;
+}
+
+.pay-sheets-page-header h1 {
+  font-size: 30px;
+  line-height: 1.05;
+}
+
+.pay-sheets-period-count {
+  display: grid;
+  min-width: 82px;
+  text-align: right;
+}
+
+.pay-sheets-period-count strong {
+  color: #27634d;
+  font-size: 25px;
+  line-height: 1;
+}
+
+.pay-sheets-period-count span {
+  margin-top: 4px;
+  color: #68777e;
+  font-size: 9px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.pay-sheet-owner-tabs {
+  display: flex;
+  min-width: 0;
+  gap: 1px;
+  overflow-x: auto;
+  margin-top: 18px;
+  border-bottom: 1px solid #b9c5c9;
+}
+
+.pay-sheet-owner-tabs button {
+  display: grid;
+  min-width: 142px;
+  min-height: 54px;
+  align-content: center;
+  border: 1px solid #c2ccd0;
+  border-bottom: 0;
+  border-radius: 5px 5px 0 0;
+  background: #eef2f3;
+  padding: 8px 16px;
+  color: #42545d;
+  cursor: pointer;
+  text-align: left;
+}
+
+.pay-sheet-owner-tabs button:hover:not(:disabled) {
+  background: #e4eaec;
+}
+
+.pay-sheet-owner-tabs button[aria-pressed="true"] {
+  border-color: #315d50;
+  background: #315d50;
+  color: #ffffff;
+}
+
+.pay-sheet-owner-tabs button span {
+  font-size: 12px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.pay-sheet-owner-tabs button small {
+  margin-top: 2px;
+  color: inherit;
+  font-size: 9px;
+  font-weight: 700;
+  opacity: 0.76;
+  text-transform: uppercase;
+}
+
+.pay-sheets-notice {
+  margin-top: 14px;
+  border-left: 4px solid #2f7257;
+  background: #edf6f1;
+  padding: 10px 13px;
+  color: #285442;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pay-sheet-owner-workspace {
+  display: grid;
+  gap: 30px;
+  margin-top: 24px;
+}
+
+.pay-sheet-current,
+.pay-sheet-history {
+  min-width: 0;
+}
+
+.pay-sheet-section-heading {
+  display: flex;
+  min-height: 48px;
+  align-items: end;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid #aebbc0;
+  padding: 0 2px 10px;
+}
+
+.pay-sheet-section-heading h2 {
+  font-size: 19px;
+  line-height: 1.2;
+}
+
+.pay-sheet-section-heading > span:not(.pay-sheet-status) {
+  color: #68787f;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.pay-sheet-status,
+.pay-sheet-frozen-label {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  border: 1px solid #91b5a4;
+  border-radius: 4px;
+  background: #eaf5ef;
+  padding: 3px 8px;
+  color: #285e47;
+  font-size: 9px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.pay-sheet-frozen-label {
+  border-color: #9cabb1;
+  background: #edf1f2;
+  color: #53636b;
+}
+
+.pay-sheet-panel {
+  min-width: 0;
+  border: 1px solid #bec9cd;
+  border-top: 3px solid #2f7257;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.pay-sheet-panel.is-closed {
+  border-top-color: #687b84;
+  border-radius: 0;
+}
+
+.pay-sheet-totals {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 0;
+  background: #ffffff;
+}
+
+.pay-sheet-totals > div {
+  min-width: 0;
+  min-height: 82px;
+  border-right: 1px solid #d7dfe2;
+  padding: 15px 16px;
+}
+
+.pay-sheet-totals > div:last-child {
+  border-right: 0;
+}
+
+.pay-sheet-totals > div.is-primary {
+  background: #eff6f2;
+}
+
+.pay-sheet-totals dt,
+.pay-sheet-rate dt,
+.pay-sheet-close-summary dt {
+  color: #68787f;
+  font-size: 9px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.pay-sheet-totals dd {
+  margin: 7px 0 0;
+  color: #263942;
+  font-size: 20px;
+  font-weight: 820;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.pay-sheet-totals > div.is-primary dd {
+  color: #216047;
+}
+
+.pay-sheet-panel-toolbar {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-top: 1px solid #c9d2d5;
+  border-bottom: 1px solid #c9d2d5;
+  background: #f2f5f5;
+  padding: 8px 14px;
+  color: #607078;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pay-sheet-panel-toolbar > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pay-sheet-close-blocker {
+  color: #596971;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.pay-sheet-close-button,
+.pay-sheet-detail-message button,
+.pay-sheet-add-actions button,
+.pay-sheet-adjustment-actions button,
+.pay-sheets-message button,
+.pay-sheet-dialog-actions button {
+  min-height: 36px;
+  border: 1px solid #aab7bc;
+  border-radius: 5px;
+  background: #ffffff;
+  padding: 0 12px;
+  color: #2b3d46;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 780;
+}
+
+.pay-sheet-close-button {
+  border-color: #8a3d3a;
+  color: #843431;
+}
+
+.pay-sheet-close-button:hover:not(:disabled),
+.pay-sheet-dialog-actions button.is-danger:hover:not(:disabled) {
+  background: #faeeee;
+}
+
+.pay-sheet-source-strip {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-bottom: 1px solid #d4dcdf;
+  background: #fbfcfc;
+  padding: 7px 14px;
+  color: #64747b;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.pay-sheet-rate-warning {
+  border-left: 4px solid #b37b2d;
+  background: #fff7e5;
+  padding: 13px 15px;
+  color: #6c501f;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.pay-sheet-rate {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.75fr) minmax(0, 2fr);
+  align-items: stretch;
+  border-bottom: 1px solid #cbd5d8;
+  background: #f1f5f6;
+}
+
+.pay-sheet-rate > header {
+  display: grid;
+  align-content: center;
+  border-right: 1px solid #cbd5d8;
+  padding: 12px 15px;
+}
+
+.pay-sheet-rate > header strong {
+  color: #2b3e47;
+  font-size: 11px;
+}
+
+.pay-sheet-rate > header span {
+  margin-top: 3px;
+  color: #68787f;
+  font-size: 9px;
+}
+
+.pay-sheet-rate dl {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+}
+
+.pay-sheet-rate dl > div {
+  min-width: 0;
+  border-right: 1px solid #d6dee1;
+  padding: 11px 13px;
+}
+
+.pay-sheet-rate dl > div:last-child {
+  border-right: 0;
+}
+
+.pay-sheet-rate dd,
+.pay-sheet-close-summary dd {
+  margin: 4px 0 0;
+  color: #263a43;
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.pay-sheet-data-section {
+  min-width: 0;
+  border-bottom: 1px solid #d2dade;
+}
+
+.pay-sheet-data-section > header {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #ffffff;
+  padding: 0 14px;
+}
+
+.pay-sheet-data-section > header h3 {
+  margin: 0;
+  color: #394b54;
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.pay-sheet-data-section > header span {
+  display: inline-grid;
+  min-width: 24px;
+  min-height: 22px;
+  place-items: center;
+  border-radius: 4px;
+  background: #e8edef;
+  color: #56666e;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.pay-sheet-policy-header,
+.pay-sheet-policy-row {
+  display: grid;
+  grid-template-columns: minmax(185px, 1.35fr) minmax(145px, 1fr) repeat(4, minmax(112px, 0.72fr));
+  align-items: center;
+  gap: 12px;
+}
+
+.pay-sheet-policy-header,
+.pay-sheet-adjustment-header {
+  min-height: 34px;
+  border-top: 1px solid #d3dbde;
+  border-bottom: 1px solid #c2ccd0;
+  background: #eaf0f1;
+  padding: 0 14px;
+  color: #5d6d74;
+  font-size: 8px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.pay-sheet-policy-row,
+.pay-sheet-adjustment-row {
+  min-height: 68px;
+  border-bottom: 1px solid #e0e6e8;
+  padding: 10px 14px;
+  color: #35474f;
+  font-size: 11px;
+}
+
+.pay-sheet-policy-row:last-child,
+.pay-sheet-adjustment-row:last-child {
+  border-bottom: 0;
+}
+
+.pay-sheet-policy-row > span,
+.pay-sheet-adjustment-row > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pay-sheet-policy-row strong,
+.pay-sheet-policy-row small,
+.pay-sheet-adjustment-row strong,
+.pay-sheet-adjustment-row small {
+  display: block;
+}
+
+.pay-sheet-policy-row strong,
+.pay-sheet-adjustment-row strong {
+  color: #273a43;
+  font-weight: 800;
+}
+
+.pay-sheet-policy-row small,
+.pay-sheet-adjustment-row small {
+  margin-top: 3px;
+  color: #6a7980;
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.pay-sheet-policy-row > span:nth-child(n + 3),
+.pay-sheet-adjustment-row > span:nth-child(4) {
+  font-variant-numeric: tabular-nums;
+}
+
+.pay-sheet-adjustment-header,
+.pay-sheet-adjustment-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.25fr) minmax(145px, 0.9fr) minmax(100px, 0.6fr) minmax(150px, 0.9fr) minmax(170px, 1.1fr) 112px;
+  align-items: center;
+  gap: 12px;
+}
+
+.pay-sheet-adjustment-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.pay-sheet-adjustment-actions button {
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 6px;
+}
+
+.pay-sheet-adjustment-actions button:last-child {
+  border-color: #be8a87;
+  color: #853a36;
+}
+
+.pay-sheet-add-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  background: #f2f5f5;
+  padding: 12px 14px;
+}
+
+.pay-sheet-add-actions button:first-child {
+  border-color: #315f73;
+  color: #2c586b;
+}
+
+.pay-sheet-add-actions button:last-child:not(:first-child) {
+  border-color: #27634d;
+  background: #27634d;
+  color: #ffffff;
+}
+
+.pay-sheet-inline-empty {
+  border-top: 1px solid #dde4e6;
+  padding: 18px 14px;
+  color: #6a7980;
+  font-size: 11px;
+}
+
+.pay-sheet-history-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.pay-sheet-history-item {
+  min-width: 0;
+  border: 1px solid #c4ced2;
+  background: #ffffff;
+}
+
+.pay-sheet-history-toggle {
+  display: grid;
+  width: 100%;
+  min-height: 64px;
+  grid-template-columns: minmax(180px, 1fr) minmax(140px, 0.55fr) 32px;
+  align-items: center;
+  gap: 18px;
+  border: 0;
+  background: #f4f6f7;
+  padding: 9px 14px;
+  color: #2b3d46;
+  cursor: pointer;
+  text-align: left;
+}
+
+.pay-sheet-history-toggle:hover,
+.pay-sheet-history-toggle[aria-expanded="true"] {
+  background: #eaf0f2;
+}
+
+.pay-sheet-history-toggle > span {
+  display: grid;
+  min-width: 0;
+}
+
+.pay-sheet-history-toggle > span:nth-child(2) {
+  text-align: right;
+}
+
+.pay-sheet-history-toggle > span:last-child {
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid #aebbc0;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #365d6e;
+  font-size: 18px;
+}
+
+.pay-sheet-history-toggle strong {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.pay-sheet-history-toggle small {
+  margin-top: 3px;
+  color: #68787f;
+  font-size: 9px;
+}
+
+.pay-sheets-empty,
+.pay-sheets-message {
+  text-align: center;
+}
+
+.pay-sheets-empty {
+  margin-top: 18px;
+  border: 1px dashed #b9c5c9;
+  padding: 42px 20px;
+}
+
+.pay-sheets-empty.is-compact {
+  margin-top: 12px;
+  padding: 24px 18px;
+}
+
+.pay-sheets-empty h2,
+.pay-sheets-empty h3,
+.pay-sheets-message h1 {
+  margin: 0;
+  color: #273941;
+  font-size: 19px;
+}
+
+.pay-sheets-empty h3 {
+  font-size: 15px;
+}
+
+.pay-sheets-empty p,
+.pay-sheets-message p,
+.pay-sheet-detail-message p {
+  margin: 6px 0 0;
+  color: #68787f;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.pay-sheets-message button {
+  margin-top: 15px;
+}
+
+.pay-sheet-detail-message {
+  display: flex;
+  min-height: 76px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 15px;
+  text-align: center;
+}
+
+.pay-sheet-detail-message p {
+  margin: 0;
+}
+
+.pay-sheet-spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border: 2px solid #c0cbcf;
+  border-top-color: #27634d;
+  border-radius: 50%;
+  animation: pay-sheet-spin 700ms linear infinite;
+}
+
+@keyframes pay-sheet-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.pay-sheet-dialog-backdrop {
+  position: fixed;
+  z-index: 95;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  background: rgb(20 31 36 / 64%);
+  padding: 20px;
+}
+
+.pay-sheet-dialog {
+  width: min(100%, 520px);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  border: 1px solid #b8c3c7;
+  border-radius: 7px;
+  background: #ffffff;
+  box-shadow: 0 22px 65px rgb(15 25 31 / 28%);
+  padding: 20px;
+}
+
+.pay-sheet-dialog.is-wide {
+  width: min(100%, 760px);
+}
+
+.pay-sheet-dialog > header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid #d7dfe2;
+  padding-bottom: 13px;
+}
+
+.pay-sheet-dialog > header h2 {
+  font-size: 19px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.pay-sheet-dialog > header > button {
+  display: grid;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: #5e6e75;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.pay-sheet-dialog-body {
+  padding-top: 16px;
+}
+
+.pay-sheet-dialog-body > p {
+  margin: 0;
+  color: #516169;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.pay-sheet-dialog-body > strong {
+  display: block;
+  margin-top: 12px;
+  color: #263942;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pay-sheet-close-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0 0;
+  border-top: 1px solid #d6dee1;
+  padding-top: 14px;
+}
+
+.pay-sheet-adjustment-fieldset {
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.pay-sheet-adjustment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 14px;
+}
+
+.pay-sheet-dialog-field {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  margin-top: 15px;
+}
+
+.pay-sheet-dialog-field.is-wide {
+  grid-column: 1 / -1;
+}
+
+.pay-sheet-dialog-field > span {
+  color: #53636b;
+  font-size: 9px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.pay-sheet-dialog-field input,
+.pay-sheet-dialog-field select,
+.pay-sheet-dialog-field textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #b5c0c5;
+  border-radius: 5px;
+  background: #ffffff;
+  padding: 8px 10px;
+  color: #263840;
+  font-size: 13px;
+}
+
+.pay-sheet-dialog-field input,
+.pay-sheet-dialog-field select {
+  min-height: 40px;
+}
+
+.pay-sheet-dialog-field textarea {
+  resize: vertical;
+}
+
+.pay-sheet-dialog-field input:focus,
+.pay-sheet-dialog-field select:focus,
+.pay-sheet-dialog-field textarea:focus {
+  border-color: #2b6f55;
+  outline: 2px solid rgb(43 111 85 / 16%);
+  outline-offset: 0;
+}
+
+.pay-sheet-dialog-error {
+  margin-top: 12px;
+  border-left: 3px solid #a84b44;
+  background: #faeeee;
+  padding: 9px 11px;
+  color: #80332f;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pay-sheet-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+  border-top: 1px solid #d7dfe2;
+  padding-top: 14px;
+}
+
+.pay-sheet-dialog-actions button.is-primary {
+  border-color: #27634d;
+  background: #27634d;
+  color: #ffffff;
+}
+
+.pay-sheet-dialog-actions button.is-danger {
+  border-color: #9b4641;
+  color: #873733;
+}
+
+.pay-sheets-page button:focus-visible,
+.pay-sheet-dialog button:focus-visible {
+  outline: 3px solid rgb(39 99 77 / 22%);
+  outline-offset: 2px;
+}
+
+.pay-sheets-page button:disabled,
+.pay-sheet-dialog button:disabled,
+.pay-sheet-adjustment-fieldset:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+@media (max-width: 1080px) {
+  .pay-sheet-totals {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .pay-sheet-totals > div {
+    border-bottom: 1px solid #d7dfe2;
+  }
+
+  .pay-sheet-policy-header,
+  .pay-sheet-adjustment-header {
+    display: none;
+  }
+
+  .pay-sheet-policy-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+    gap: 14px;
+  }
+
+  .pay-sheet-adjustment-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) 112px;
+    align-items: start;
+    gap: 14px;
+  }
+
+  .pay-sheet-policy-row > span::before,
+  .pay-sheet-adjustment-row > span::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    color: #718087;
+    font-size: 8px;
+    font-weight: 850;
+    text-transform: uppercase;
+  }
+
+  .pay-sheet-adjustment-row > span:nth-child(5) {
+    grid-column: 1 / 4;
+  }
+
+  .pay-sheet-adjustment-actions {
+    grid-column: 4;
+    grid-row: 1;
+  }
+}
+
+@media (max-width: 760px) {
+  .pay-sheets-page,
+  .pay-sheets-message {
+    width: min(100% - 24px, 1440px);
+    padding-top: 22px;
+  }
+
+  .pay-sheets-page-header {
+    align-items: start;
+  }
+
+  .pay-sheets-page-header h1 {
+    font-size: 25px;
+  }
+
+  .pay-sheet-owner-tabs button {
+    min-width: 126px;
+    min-height: 58px;
+  }
+
+  .pay-sheet-section-heading {
+    align-items: center;
+  }
+
+  .pay-sheet-panel-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pay-sheet-panel-toolbar > div {
+    justify-content: space-between;
+  }
+
+  .pay-sheet-close-button {
+    min-height: 42px;
+  }
+
+  .pay-sheet-totals {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pay-sheet-totals > div {
+    min-height: 72px;
+    padding: 13px;
+  }
+
+  .pay-sheet-totals dd {
+    font-size: 17px;
+  }
+
+  .pay-sheet-source-strip {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .pay-sheet-rate {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pay-sheet-rate > header {
+    border-right: 0;
+    border-bottom: 1px solid #cbd5d8;
+  }
+
+  .pay-sheet-rate dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pay-sheet-policy-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pay-sheet-adjustment-row {
+    grid-template-columns: minmax(0, 1fr) 112px;
+  }
+
+  .pay-sheet-adjustment-row > span:not(.pay-sheet-adjustment-actions) {
+    grid-column: 1;
+  }
+
+  .pay-sheet-adjustment-row > span:nth-child(5) {
+    grid-column: 1 / 3;
+  }
+
+  .pay-sheet-adjustment-actions {
+    grid-column: 2;
+  }
+
+  .pay-sheet-history-toggle {
+    grid-template-columns: minmax(0, 1fr) 36px;
+    gap: 10px;
+  }
+
+  .pay-sheet-history-toggle > span:nth-child(2) {
+    grid-column: 1;
+    text-align: left;
+  }
+
+  .pay-sheet-history-toggle > span:last-child {
+    grid-column: 2;
+    grid-row: 1 / 3;
+  }
+
+  .pay-sheet-dialog-backdrop {
+    align-items: end;
+    padding: 10px;
+  }
+
+  .pay-sheet-dialog,
+  .pay-sheet-dialog.is-wide {
+    max-height: calc(100vh - 20px);
+    padding: 16px;
+  }
+
+  .pay-sheet-adjustment-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pay-sheet-dialog-field.is-wide {
+    grid-column: auto;
+  }
+
+  .pay-sheet-dialog-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pay-sheet-dialog-actions button,
+  .pay-sheet-add-actions button {
+    min-width: 0;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 480px) {
+  .pay-sheet-totals,
+  .pay-sheet-rate dl,
+  .pay-sheet-policy-row,
+  .pay-sheet-close-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pay-sheet-panel-toolbar > div,
+  .pay-sheet-add-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pay-sheet-close-blocker {
+    text-align: left;
+  }
+
+  .pay-sheet-adjustment-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pay-sheet-adjustment-row > span:nth-child(5),
+  .pay-sheet-adjustment-actions {
+    grid-column: 1;
+  }
+
+  .pay-sheet-adjustment-actions {
+    grid-row: auto;
+  }
+
+  .pay-sheet-dialog-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
