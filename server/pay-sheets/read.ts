@@ -1,5 +1,6 @@
 import { and, desc, eq, getTableColumns, lte, type SQL } from "drizzle-orm";
 import {
+  paySheetCloseResultSchema,
   paySheetAdjustmentViewSchema,
   paySheetDetailSchema,
   paySheetListQuerySchema,
@@ -8,6 +9,7 @@ import {
   paySheetSophiaTotalsSchema,
   paySheetSummarySchema,
   type PaySheetAdjustmentView,
+  type PaySheetCloseResult as ProjectedPaySheetCloseResult,
   type PaySheetDetail,
   type PaySheetListQuery,
   type PaySheetPolicyView,
@@ -32,6 +34,7 @@ import {
   type ProducerRateHistoryRecord,
 } from "../db/schema.js";
 import { requirePolicyLedgerAdmin } from "../policies/ledger-access.js";
+import type { PaySheetCloseResult } from "./close.js";
 import { buildPaySheetFrozenTotals } from "./frozen-totals.js";
 import {
   buildPaySheetPolicySnapshot,
@@ -174,6 +177,21 @@ export function projectAdminPaySheetDetail(
     ...projected.summary,
     adjustments: projected.adjustments,
     policies: projected.policies,
+  });
+}
+
+export function projectAdminPaySheetCloseResult(
+  source: Readonly<PaySheetCloseResult>,
+  context: AuthorizedRequestContext,
+): ProjectedPaySheetCloseResult | null {
+  requirePolicyLedgerAdmin(context);
+  return paySheetCloseResultSchema.parse({
+    closed: source.closed,
+    nextSheetId: source.nextSheetId,
+    ownerType: source.ownerType,
+    periodMonth: source.periodMonth,
+    periodYear: source.periodYear,
+    policyCount: source.policyCount,
   });
 }
 

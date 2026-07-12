@@ -203,6 +203,56 @@ export const paySheetDetailResponseSchema = z
   .object({ sheet: paySheetDetailSchema })
   .strict();
 
+export const paySheetCloseRequestSchema = z.object({}).strict();
+
+export const paySheetCloseResultSchema = z
+  .object({
+    closed: z.boolean(),
+    nextSheetId: uuidSchema,
+    ownerType: z.enum(PAY_SHEET_OWNER_TYPES),
+    periodMonth: z.number().int().min(1).max(12),
+    periodYear: z.number().int().min(2000).max(9999),
+    policyCount: z.number().int().positive(),
+  })
+  .strict();
+
+export const paySheetCloseResponseSchema = z
+  .object({
+    close: paySheetCloseResultSchema,
+    closedSheet: paySheetDetailSchema,
+    nextSheet: paySheetSummarySchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const nextPeriod =
+      value.close.periodMonth === 12
+        ? { month: 1, year: value.close.periodYear + 1 }
+        : {
+            month: value.close.periodMonth + 1,
+            year: value.close.periodYear,
+          };
+    if (
+      value.closedSheet.id === value.close.nextSheetId ||
+      value.closedSheet.ownerType !== value.close.ownerType ||
+      value.closedSheet.ownerUserId !== value.nextSheet.ownerUserId ||
+      value.closedSheet.periodMonth !== value.close.periodMonth ||
+      value.closedSheet.periodYear !== value.close.periodYear ||
+      value.closedSheet.policyCount !== value.close.policyCount ||
+      value.closedSheet.policies.length !== value.close.policyCount ||
+      value.closedSheet.status !== "closed" ||
+      value.nextSheet.id !== value.close.nextSheetId ||
+      value.nextSheet.ownerType !== value.close.ownerType ||
+      value.nextSheet.periodMonth !== nextPeriod.month ||
+      value.nextSheet.periodYear !== nextPeriod.year ||
+      value.nextSheet.status !== "open"
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Pay-sheet close response is inconsistent",
+      });
+    }
+  });
+
 export type PaySheetListQuery = z.output<typeof paySheetListQuerySchema>;
 export type PaySheetRate = z.output<typeof paySheetRateSchema>;
 export type PaySheetSophiaTotals = z.output<typeof paySheetSophiaTotalsSchema>;
@@ -214,6 +264,8 @@ export type PaySheetSummary = z.output<typeof paySheetSummarySchema>;
 export type PaySheetDetail = z.output<typeof paySheetDetailSchema>;
 export type PaySheetListResponse = z.output<typeof paySheetListResponseSchema>;
 export type PaySheetDetailResponse = z.output<typeof paySheetDetailResponseSchema>;
+export type PaySheetCloseResult = z.output<typeof paySheetCloseResultSchema>;
+export type PaySheetCloseResponse = z.output<typeof paySheetCloseResponseSchema>;
 
 function requireConsistentProducerTotals(
   value: { closeBlocker: string | null; ownerType: string; totals: unknown },

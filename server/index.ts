@@ -69,6 +69,8 @@ import {
   getPaySheetSource,
   listPaySheetSources,
 } from "./pay-sheets/read.js";
+import { registerPaySheetCloseRoute } from "./http/pay-sheet-close.js";
+import { closePaySheet } from "./pay-sheets/close.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -204,6 +206,14 @@ const app = createApp({
         getPaySheetSource(database, context, paySheetId),
       list: (context, query) =>
         listPaySheetSources(database, context, query),
+      logger,
+    });
+    registerPaySheetCloseRoute(routes, {
+      authorization,
+      close: (context, paySheetId) =>
+        closePaySheet(database, context, paySheetId, logger),
+      get: (context, paySheetId) =>
+        getPaySheetSource(database, context, paySheetId),
       logger,
     });
   },

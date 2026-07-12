@@ -763,6 +763,13 @@ node --import tsx --test server/http/pay-sheets.test.ts
 npm run test:db:pay-sheet-read
 ```
 
+`POST /api/pay-sheets/:paySheetId/close` accepts an empty body and delegates the
+entire close to the atomic `closePaySheet` boundary. The actor, timestamp,
+totals, snapshots, rate, owner, and next period are server-derived. Its result,
+closed detail, and next-sheet summary all pass through admin-only field
+projection. Repeated and concurrent requests reuse the one established next
+period; no reopen endpoint exists.
+
 ## Structured logging
 
 The backend writes newline-delimited JSON records with a timestamp, level,

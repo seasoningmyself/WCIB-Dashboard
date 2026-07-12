@@ -7,6 +7,7 @@ import type {
 } from "../../shared/pay-sheet-api.js";
 import {
   calculateOpenPaySheetTotals,
+  projectAdminPaySheetCloseResult,
   projectAdminPaySheetDetail,
   projectAdminPaySheetSummary,
   type PaySheetSource,
@@ -117,6 +118,37 @@ test("closed admin projection reads exact frozen history and rejects non-admins"
         context(),
       ),
     /field contract/,
+  );
+});
+
+test("close result projection is an exact admin-only allowlist", () => {
+  const projected = projectAdminPaySheetCloseResult(
+    {
+      closed: true,
+      nextSheetId: uuid(3),
+      ownerType: "sophia",
+      periodMonth: 7,
+      periodYear: 2026,
+      policyCount: 1,
+      privateSnapshot: "must-not-leak",
+    } as never,
+    context(),
+  );
+  assert.deepEqual(projected, {
+    closed: true,
+    nextSheetId: uuid(3),
+    ownerType: "sophia",
+    periodMonth: 7,
+    periodYear: 2026,
+    policyCount: 1,
+  });
+  assert.throws(
+    () =>
+      projectAdminPaySheetCloseResult(
+        projected,
+        context([]),
+      ),
+    /authorized lifecycle access is required/i,
   );
 });
 

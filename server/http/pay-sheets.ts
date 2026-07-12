@@ -67,7 +67,7 @@ export function createPaySheetListHandler(
       throw error;
     }
     const response = paySheetListResponseSchema.parse({
-      items: source.items.map((item) => projectSummary(res, item)),
+      items: source.items.map((item) => projectPaySheetSummary(res, item)),
       query: source.query,
     });
     dependencies.logger.info("Pay sheets loaded", {
@@ -99,7 +99,7 @@ export function createPaySheetDetailHandler(
       }
       throw error;
     }
-    const sheet = projectDetail(res, source);
+    const sheet = projectPaySheetDetail(res, source);
     const response = paySheetDetailResponseSchema.parse({ sheet });
     dependencies.logger.info("Pay sheet loaded", {
       component: "pay_sheets",
@@ -132,7 +132,7 @@ export function registerPaySheetReadRoutes(
   );
 }
 
-function projectSummary(
+export function projectPaySheetSummary(
   res: Response,
   source: PaySheetSource,
 ): PaySheetSummary {
@@ -147,7 +147,7 @@ function projectSummary(
   return projected;
 }
 
-function projectDetail(
+export function projectPaySheetDetail(
   res: Response,
   source: PaySheetSource,
 ): PaySheetDetail {

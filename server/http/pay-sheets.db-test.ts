@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { once } from "node:events";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { Express } from "express";
 import { test } from "node:test";
@@ -21,6 +21,7 @@ import {
   paySheets,
   policies,
   producerRateHistory,
+  auditEvents,
   userCapabilities,
   users,
 } from "../db/schema.js";
@@ -41,6 +42,10 @@ import {
   PAY_SHEETS_PATH,
   registerPaySheetReadRoutes,
 } from "./pay-sheets.js";
+import {
+  PAY_SHEET_CLOSE_PATH,
+  registerPaySheetCloseRoute,
+} from "./pay-sheet-close.js";
 
 const PASSWORD = "StrongPass123!";
 const SESSION_SECRET = "pay-sheet-read-db-test-secret-at-least-32-characters";
@@ -208,6 +213,14 @@ test("pay-sheet endpoints compose open totals and immutable closed history", asy
                 listPaySheetSources(database, context, query),
               logger,
             });
+            registerPaySheetCloseRoute(routes, {
+              authorization,
+              close: (context, paySheetId) =>
+                closePaySheet(database, context, paySheetId, logger),
+              get: (context, paySheetId) =>
+                getPaySheetSource(database, context, paySheetId),
+              logger,
+            });
           },
           sessionMiddleware: createSessionMiddleware(pool, {
             logger,
@@ -261,18 +274,64 @@ test("pay-sheet endpoints compose open totals and immutable closed history", asy
         );
         assert.equal(producerOpen.totals.producerPayout, "50.00");
 
-        await closePaySheet(
-          database,
-          adminContext,
+        const sophiaClose = await closeSheet(
+          running.baseUrl,
+          adminCookie,
           sophiaSheet.id,
-          logger,
         );
-        await closePaySheet(
-          database,
-          adminContext,
-          producerSheet.id,
-          logger,
+        assert.equal(sophiaClose.close.closed, true);
+        assert.equal(sophiaClose.closedSheet.id, sophiaSheet.id);
+        assert.equal(sophiaClose.nextSheet.periodMonth, 8);
+        assert.deepEqual(sophiaClose.closedSheet.totals, sophiaOpen.totals);
+
+        const sophiaRepeat = await closeSheet(
+          running.baseUrl,
+          adminCookie,
+          sophiaSheet.id,
         );
+        assert.equal(sophiaRepeat.close.closed, false);
+        assert.equal(
+          sophiaRepeat.close.nextSheetId,
+          sophiaClose.close.nextSheetId,
+        );
+
+        const concurrentProducerCloses = await Promise.all([
+          closeSheet(running.baseUrl, adminCookie, producerSheet.id),
+          closeSheet(running.baseUrl, adminCookie, producerSheet.id),
+        ]);
+        assert.deepEqual(
+          concurrentProducerCloses
+            .map((response) => response.close.closed)
+            .sort(),
+          [false, true],
+        );
+        assert.equal(
+          concurrentProducerCloses[0].close.nextSheetId,
+          concurrentProducerCloses[1].close.nextSheetId,
+        );
+        assert.deepEqual(
+          concurrentProducerCloses[0].closedSheet.totals,
+          producerOpen.totals,
+        );
+
+        const closeAudits = await database
+          .select({ entityId: auditEvents.entityId })
+          .from(auditEvents)
+          .where(
+            and(
+              eq(auditEvents.action, "pay_sheet_closed"),
+              inArray(auditEvents.entityId, [sophiaSheet.id, producerSheet.id]),
+            ),
+          );
+        assert.deepEqual(
+          closeAudits.map(({ entityId }) => entityId).sort(),
+          [producerSheet.id, sophiaSheet.id].sort(),
+        );
+        const nextOpenSheets = await database
+          .select({ id: paySheets.id })
+          .from(paySheets)
+          .where(eq(paySheets.status, "open"));
+        assert.equal(nextOpenSheets.length, 2);
         const sophiaClosed = await readSheet(
           running.baseUrl,
           adminCookie,
@@ -333,6 +392,19 @@ test("pay-sheet endpoints compose open totals and immutable closed history", asy
             assert.equal(serialized.includes(policy.id), false);
             assert.equal(serialized.includes("sophiaAgencyGross"), false);
           }
+          const deniedClose = await request(running.baseUrl, {
+            body: {},
+            cookie,
+            method: "POST",
+            path: PAY_SHEET_CLOSE_PATH.replace(
+              ":paySheetId",
+              sophiaSheet.id,
+            ),
+          });
+          assert.equal(deniedClose.statusCode, 403);
+          assert.deepEqual(deniedClose.body, {
+            error: { code: "forbidden", message: "Forbidden" },
+          });
         }
       } finally {
         if (server !== null) {
@@ -355,6 +427,21 @@ async function readSheet(
   });
   assert.equal(response.statusCode, 200);
   return (response.body as any).sheet;
+}
+
+async function closeSheet(
+  baseUrl: string,
+  cookie: string,
+  paySheetId: string,
+): Promise<any> {
+  const response = await request(baseUrl, {
+    body: {},
+    cookie,
+    method: "POST",
+    path: PAY_SHEET_CLOSE_PATH.replace(":paySheetId", paySheetId),
+  });
+  assert.equal(response.statusCode, 200);
+  return response.body as any;
 }
 
 async function startServer(app: Express): Promise<{
