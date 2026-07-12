@@ -104,6 +104,11 @@ import {
   renameAdminOfficeLocation,
   setAdminOfficeLocationActive,
 } from "./offices/admin.js";
+import { registerKpiTargetRoutes } from "./http/kpi-targets.js";
+import {
+  listKpiTargetSources,
+  upsertKpiTarget,
+} from "./kpi/targets.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -341,6 +346,21 @@ const app = createApp({
           context,
           officeLocationId,
           active,
+          logger,
+        ),
+    });
+    registerKpiTargetRoutes(routes, {
+      authorization,
+      list: (context, query) =>
+        listKpiTargetSources(database, context, query),
+      logger,
+      upsert: (context, scopeType, year, input) =>
+        upsertKpiTarget(
+          database,
+          context,
+          scopeType,
+          year,
+          input,
           logger,
         ),
     });
