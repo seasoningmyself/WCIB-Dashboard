@@ -56,6 +56,14 @@ export const myCommissionsResponseSchema = z
   })
   .strict();
 
+export const myCommissionReceiptParamsSchema = z
+  .object({ policyId: z.string().uuid() })
+  .strict();
+
+export const myCommissionReceiptRequestSchema = z
+  .object({ received: z.boolean() })
+  .strict();
+
 export type MyCommissionItem = z.output<typeof myCommissionItemSchema>;
 export type MyCommissionsListQuery = z.output<
   typeof myCommissionsListQuerySchema
@@ -65,4 +73,7 @@ export type MyCommissionsResponse = z.output<
 >;
 export type MyCommissionsSummary = z.output<
   typeof myCommissionsSummarySchema
+>;
+export type MyCommissionReceiptRequest = z.output<
+  typeof myCommissionReceiptRequestSchema
 >;

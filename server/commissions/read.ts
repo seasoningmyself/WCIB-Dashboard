@@ -52,7 +52,7 @@ export class MyCommissionsConsistencyError extends Error {
 }
 
 export async function listMyCommissionSources(
-  database: AuthDatabase,
+  database: Pick<AuthDatabase, "select">,
   context: AuthorizedRequestContext,
   rawQuery: unknown,
   asOf = new Date(),

@@ -4,8 +4,11 @@ import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { createAuthorizationGuards } from "../auth/authorization.js";
 import type { AppLogger } from "../logging/logger.js";
 import {
+  MY_COMMISSION_RECEIPT_PATH,
   MY_COMMISSIONS_PATH,
+  createMyCommissionReceiptHandler,
   createMyCommissionsListHandler,
+  registerMyCommissionReceiptRoute,
   registerMyCommissionsRoute,
 } from "./my-commissions.js";
 import type { RouteAccessDeclaration, RouteRegistrar } from "./routes.js";
@@ -65,6 +68,58 @@ test("My Commissions handler fails closed without authorization context", async 
       throw new Error("must not run");
     },
     logger,
+  });
+  const error = await invoke(handler);
+  assert.equal(error?.name, "MissingAuthorizationContextError");
+  assert.equal(called, false);
+});
+
+test("commission receipt route is producer-only and fails closed without context", async () => {
+  let requirement: unknown;
+  let registration:
+    | { access: RouteAccessDeclaration; handler: RequestHandler; path: string }
+    | undefined;
+  const authorization = createAuthorizationGuards({
+    async findUser() {
+      return null;
+    },
+    async loadPrincipal() {
+      return null;
+    },
+    logger,
+  });
+  const routes = {
+    put(
+      path: string,
+      access: RouteAccessDeclaration,
+      ...handlers: RequestHandler[]
+    ) {
+      assert.ok(handlers[0]);
+      registration = { access, handler: handlers[0], path };
+    },
+  } as unknown as RouteRegistrar;
+  registerMyCommissionReceiptRoute(routes, {
+    authorization: {
+      require(value) {
+        requirement = value;
+        return authorization.require(value);
+      },
+    },
+    async change() {
+      throw new Error("not called");
+    },
+  });
+  assert.deepEqual(requirement, { staffRoles: ["producer"] });
+  assert.equal(registration?.path, MY_COMMISSION_RECEIPT_PATH);
+  assert.equal(typeof registration?.access.authorization, "function");
+  assert.equal("public" in (registration?.access ?? {}), false);
+
+  let called = false;
+  const handler = createMyCommissionReceiptHandler({
+    async change() {
+      called = true;
+      throw new Error("must not run");
+    },
   });
   const error = await invoke(handler);
   assert.equal(error?.name, "MissingAuthorizationContextError");
