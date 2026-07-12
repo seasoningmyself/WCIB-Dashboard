@@ -5,9 +5,10 @@ database row directly. The general ledger projection is default-deny and
 `projectAdminPolicy` returns an explicit full allowlist only to an active admin
 principal through `projectAuthorizedFields`.
 
-Producer `My Commissions` and employee `My Items` are separate feature-specific
-projections. They must not broaden this general ledger contract. Policy rows,
-insured names, finance contacts, and monetary values must never be logged.
+Producer `My Commissions` and role-universal `My Drafts` are separate
+feature-specific projections. They must not broaden this general ledger
+contract. Policy rows, insured names, finance contacts, and monetary values
+must never be logged.
 
 The payment-tracking shape is inert. Only its four true numeric inputs, two
 statuses, and due date are stored. Read models compute
@@ -27,6 +28,41 @@ deferred constraints reject partial draft, queue, and policy states at commit.
 Run the fast contract tests with `npm test`. After applying migrations to a
 disposable database, run `npm run test:db:policy-lifecycle` for the full atomic
 lifecycle and rollback coverage.
+
+## Admin policy ledger
+
+`ledger.ts` owns the bounded month query, v15 search/filter/sort behavior,
+duplicate classification, label joins, pagination, and exact-cent summary
+totals. `http/policies.ts` registers list and detail routes with an explicit
+admin guard and projects every policy through `projectAdminPolicy` before
+response validation. Run `npm run test:db:policy-ledger` against local
+Postgres for the real-session authorization and query smoke test.
+
+Ledger corrections use `ledger-corrections.ts` as the transaction boundary.
+The request declares either a general correction or an override and supplies
+the last observed `updatedAt` version. General fields call only
+`apply_policy_correction`; the four override-managed fields call only
+`apply_policy_override`. Mixed requests reject before either mutation runs.
+
+## Admin MGA payables
+
+`mga-payables.ts` loads a bounded continuous payable set, verifies the mirrored
+policy/payment state, and projects a narrow admin-only response. The payable
+amount is always the stored `netDue`, including approved overrides. Group and
+summary totals use integer cents; unpaid/all/paid filters change visible rows
+without changing the totals' definitions. `http/mga-payables.ts` registers the
+explicitly admin-guarded route and runs every source row through
+`projectAuthorizedFields`. Run `npm run test:db:mga-payables` against local
+Postgres for the real-session, projection, override, sorting, and totals smoke
+test.
+
+`mga-payable-state.ts` owns the paid/unpaid transaction boundary. It calls the
+audited state function first, synchronizes eligible open-sheet placement with
+the same transaction/actor/timestamp, and only then reloads the projected
+payable. State, placement, and audit failures therefore roll back together;
+closed associations and frozen snapshots are never mutation targets. Run
+`npm run test:db:mga-payable-state` for the composed endpoint, concurrency,
+rollback, and closed-history verification.
 
 ## Override value contract
 

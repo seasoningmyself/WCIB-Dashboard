@@ -4,6 +4,7 @@ import {
   MAX_PAY_SHEET_POLICY_SNAPSHOT_BYTES,
   MAX_PAY_SHEET_RATE_SNAPSHOT_BYTES,
   PAY_SHEET_POLICY_SNAPSHOT_FIELDS,
+  PAY_SHEET_RATE_SNAPSHOT_FIELDS,
   type PaySheetPolicySnapshot,
   type PaySheetRateSnapshot,
 } from "../../shared/pay-sheet-snapshots.js";
@@ -94,6 +95,24 @@ export function buildPaySheetRateSnapshot(
     throw new Error("Rate snapshot exceeds the byte limit");
   }
   return snapshot;
+}
+
+export function parsePaySheetRateSnapshot(
+  value: unknown,
+): PaySheetRateSnapshot {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Rate snapshot is missing or invalid");
+  }
+  const source = value as Readonly<Record<string, unknown>>;
+  const actualFields = Object.keys(source).sort();
+  const expectedFields = [...PAY_SHEET_RATE_SNAPSHOT_FIELDS].sort();
+  if (
+    actualFields.length !== expectedFields.length ||
+    actualFields.some((field, index) => field !== expectedFields[index])
+  ) {
+    throw new Error("Rate snapshot fields are missing or invalid");
+  }
+  return buildPaySheetRateSnapshot(source);
 }
 
 function requireText(

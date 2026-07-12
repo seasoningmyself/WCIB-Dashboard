@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { IncomingMessage, ServerResponse } from "node:http";
 import type { Socket } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Duplex } from "node:stream";
 import { test } from "node:test";
 import { z } from "zod";
 import { createApp } from "./app.js";
 import { asyncRoute, type UnexpectedErrorEvent } from "./http/errors.js";
+import { auditRouteAccessDeclarations } from "./http/routes.js";
 
 class MemorySocket extends Duplex {
   readonly chunks: Buffer[] = [];
@@ -52,9 +56,10 @@ async function request(
 
   const rawResponse = Buffer.concat(socket.chunks).toString("utf8");
   const body = rawResponse.split("\r\n\r\n", 2)[1];
+  const contentType = String(res.getHeader("content-type") ?? "");
 
   return {
-    body: JSON.parse(body),
+    body: contentType.includes("application/json") ? JSON.parse(body) : body,
     headers: res.getHeaders(),
     statusCode: res.statusCode,
   };
@@ -107,6 +112,50 @@ test("production proxy trust can be enabled before secure cookies", () => {
   const app = createApp({ trustProxy: true });
 
   assert.equal(app.get("trust proxy"), 1);
+});
+
+test("production client assets serve the public shell with bounded caching", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "wcib-client-assets-"));
+  context.after(() => rm(directory, { force: true, recursive: true }));
+  await mkdir(join(directory, "assets"));
+  await writeFile(
+    join(directory, "index.html"),
+    "<!doctype html><html><body><div id=\"root\"></div></body></html>",
+  );
+  await writeFile(join(directory, "assets", "app-test.js"), "export {};\n");
+
+  const app = createApp({ clientAssetsDirectory: directory });
+  const root = await request("/", app);
+  const asset = await request("/assets/app-test.js", app);
+  const missing = await request("/missing", app);
+  const rootDeclaration = auditRouteAccessDeclarations(app).find(
+    ({ method, path }) => method === "GET" && path === "/",
+  );
+
+  assert.equal(root.statusCode, 200);
+  assert.match(String(root.body), /id="root"/);
+  assert.equal(root.headers["cache-control"], "no-store");
+  assert.equal(asset.statusCode, 200);
+  assert.equal(asset.body, "export {};\n");
+  assert.equal(
+    asset.headers["cache-control"],
+    "public, max-age=31536000, immutable",
+  );
+  assert.equal(missing.statusCode, 404);
+  assert.deepEqual(missing.body, {
+    error: { code: "not_found", message: "Route not found" },
+  });
+  assert.deepEqual(rootDeclaration?.access, {
+    reason: "Users need the public application shell before login",
+    type: "public",
+  });
+});
+
+test("production startup fails when the built client is absent", () => {
+  assert.throws(
+    () => createApp({ clientAssetsDirectory: "/missing/wcib-client-assets" }),
+    /Production client index is missing/,
+  );
 });
 
 test("GET /ready reports readiness after the database check passes", async () => {

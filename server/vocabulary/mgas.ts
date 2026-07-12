@@ -4,6 +4,10 @@ import {
   type AccessPrincipal,
 } from "../auth/access.js";
 
+export const MGA_ADD_ACCESS = {
+  capabilities: ["admin"],
+} as const;
+
 export const MGA_SIMILARITY_THRESHOLD = 0.75;
 
 export interface EvaluateMgaAdditionInput {
@@ -54,9 +58,7 @@ export function calculateMgaNameSimilarity(a: string, b: string): number {
 export function evaluateMgaAddition(
   input: EvaluateMgaAdditionInput,
 ): MgaAdditionDecision {
-  const access = evaluateAccess(input.principal, {
-    capabilities: ["admin"],
-  });
+  const access = evaluateAccess(input.principal, MGA_ADD_ACCESS);
   if (!access.allowed) {
     return { kind: "denied", reason: access.reason };
   }

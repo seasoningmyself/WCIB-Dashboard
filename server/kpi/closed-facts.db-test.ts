@@ -22,6 +22,7 @@ import type { AppLogger } from "../logging/logger.js";
 import { closePaySheet } from "../pay-sheets/close.js";
 import { syncMgaPaymentSheetPlacement } from "../pay-sheets/mga-placement.js";
 import { setMgaPaymentState } from "../policies/mga-payments.js";
+import { applyPolicyCorrection } from "../policies/corrections.js";
 import {
   deriveClosedKpiActualInputs,
   listClosedKpiFacts,
@@ -170,14 +171,25 @@ test("closed KPI facts do not drift after the live policy changes", async () => 
         assert.equal(companyAtClose[0]?.ownerType, "sophia");
         assert.equal(producerAtClose[0]?.ownerType, "producer");
 
-        await database
-          .update(policies)
-          .set({
+        const [livePolicyBeforeCorrection] = await database
+          .select({ updatedAt: policies.updatedAt })
+          .from(policies)
+          .where(eq(policies.id, policy.id));
+        assert.ok(livePolicyBeforeCorrection);
+        await applyPolicyCorrection(
+          database,
+          context,
+          policy.id,
+          "Verify frozen KPI facts against a corrected live policy",
+          {
             insuredName: "Changed Live Policy",
             transactionType: "New",
-            updatedAt: new Date("2026-08-02T12:00:00.000Z"),
-          })
-          .where(eq(policies.id, policy.id));
+          },
+          ["insuredName", "transactionType"],
+          livePolicyBeforeCorrection.updatedAt,
+          logger,
+          new Date("2026-08-02T12:00:00.000Z"),
+        );
 
         assert.deepEqual(
           await listClosedKpiFacts(database, {

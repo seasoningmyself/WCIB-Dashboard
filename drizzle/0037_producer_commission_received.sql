@@ -1,0 +1,1 @@
+ALTER TABLE "policies" ADD COLUMN "producer_commission_received_at" timestamp with time zone;

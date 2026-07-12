@@ -191,6 +191,24 @@ export async function flagDraftForHelp(
   );
 }
 
+export async function reopenSentBackDraft(
+  database: PolicyLifecycleDatabase,
+  context: AuthorizedRequestContext,
+  draftId: string,
+  reopenedAt = new Date(),
+): Promise<void> {
+  requireLifecycleStaff(context);
+  requireValidTimestamp(reopenedAt);
+  await database.execute(
+    sql`select transition_draft_status(
+      ${draftId}::uuid,
+      'sent_back'::draft_status,
+      'draft'::draft_status,
+      ${reopenedAt}::timestamp with time zone
+    )`,
+  );
+}
+
 export async function sendBackQueuedDraft(
   database: PolicyLifecycleDatabase,
   context: AuthorizedRequestContext,
@@ -203,6 +221,25 @@ export async function sendBackQueuedDraft(
   await database.execute(
     sql`select send_back_queued_draft(
       ${queueEntryId}::uuid,
+      ${actorUserId}::uuid,
+      ${reason}::text,
+      ${actedAt}::timestamp with time zone
+    )`,
+  );
+}
+
+export async function sendBackFlaggedDraft(
+  database: PolicyLifecycleDatabase,
+  context: AuthorizedRequestContext,
+  draftId: string,
+  reason: string,
+  actedAt = new Date(),
+): Promise<void> {
+  const actorUserId = requireLifecycleAdmin(context);
+  requireValidTimestamp(actedAt);
+  await database.execute(
+    sql`select send_back_flagged_draft(
+      ${draftId}::uuid,
       ${actorUserId}::uuid,
       ${reason}::text,
       ${actedAt}::timestamp with time zone

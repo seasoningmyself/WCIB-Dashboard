@@ -5,7 +5,7 @@ import type { DraftRecord } from "../db/schema.js";
 import {
   canAccessDraft,
   DRAFT_FINANCIAL_FIELDS,
-  EMPLOYEE_DRAFT_FINANCIAL_VISIBILITY,
+  OWN_ACTIVE_STAFF_DRAFT_FINANCIAL_VISIBILITY,
   projectDraftForAuthorizedContext,
   type DraftFullProjection,
   type DraftProjection,
@@ -88,9 +88,9 @@ function assertFullProjection(
   assert.ok(projected && "basePremium" in projected);
 }
 
-test("employee financial visibility is isolated to one explicit policy", () => {
+test("staff financial visibility is isolated to one explicit policy", () => {
   assert.equal(
-    EMPLOYEE_DRAFT_FINANCIAL_VISIBILITY,
+    OWN_ACTIVE_STAFF_DRAFT_FINANCIAL_VISIBILITY,
     "own_editing_draft_only",
   );
 
@@ -99,12 +99,13 @@ test("employee financial visibility is isolated to one explicit policy", () => {
   });
   assertFullProjection(projected);
   assert.equal(projected.basePremium, "1000.00");
+  assert.equal(projected.agencyCommissionAmount, "125.00");
   assert.deepEqual(projected.financeContact, {
     email: "private@example.test",
   });
 });
 
-test("every non-draft employee projection omits every financial field", () => {
+test("every non-draft staff projection omits every financial field", () => {
   for (const status of [
     "submitted",
     "flagged",
@@ -119,6 +120,11 @@ test("every non-draft employee projection omits every financial field", () => {
     for (const field of DRAFT_FINANCIAL_FIELDS) {
       assert.equal(field in projected, false, `${status} exposed ${field}`);
     }
+    assert.equal(
+      "agencyCommissionAmount" in projected,
+      false,
+      `${status} exposed agencyCommissionAmount`,
+    );
   }
 });
 
@@ -150,6 +156,7 @@ test("producer editing scope stays owner-only while admin uses an explicit full 
   });
   assertFullProjection(producerProjection);
   assert.equal(producerProjection.netDue, "125.00");
+  assert.equal(producerProjection.agencyCommissionAmount, "125.00");
 
   const producerOther = projectDraftForAuthorizedContext(
     draft({ ownerUserId: OTHER_ID }),
@@ -165,5 +172,33 @@ test("producer editing scope stays owner-only while admin uses an explicit full 
   );
   assertFullProjection(adminProjection);
   assert.equal(adminProjection.commissionRate, "12.5000");
+  assert.equal(adminProjection.agencyCommissionAmount, "125.00");
   assert.deepEqual(adminProjection.financeMeta, { billingType: "invoice" });
+});
+
+test("draft projection never emits a producer personal rate or payout", () => {
+  const source = Object.assign(draft(), {
+    applicableProducerRate: "25.0000",
+    producerPayout: "31.25",
+    producerRate: "25.0000",
+    producerRateHistory: [{ rate: "25.0000" }],
+  });
+  for (const access of [
+    principal({ staffRole: "employee" }),
+    principal({ staffRole: "producer" }),
+    principal({ capabilities: ["admin"], staffRole: null }),
+  ]) {
+    const projected = projectDraftForAuthorizedContext(source, {
+      principal: access,
+    });
+    assert.ok(projected);
+    for (const field of [
+      "applicableProducerRate",
+      "producerPayout",
+      "producerRate",
+      "producerRateHistory",
+    ]) {
+      assert.equal(field in projected, false, field);
+    }
+  }
 });

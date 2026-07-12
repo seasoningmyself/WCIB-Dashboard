@@ -5,6 +5,7 @@ import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AppLogger, LogContext } from "../logging/logger.js";
 import {
   buildTrustedAuditEvent,
+  writeAuditEventInDrizzleTransaction,
   writeAuditEventInTransaction,
   type AuditQueryClient,
 } from "./event.js";
@@ -47,6 +48,38 @@ test("trusted audit events derive actor identity from authorization context", ()
     () => buildTrustedAuditEvent(authorizedContext(actorUserId, false), input),
     /active authorized principal/,
   );
+});
+
+test("Drizzle transaction audit writes use the same trusted event contract", async () => {
+  const eventId = randomUUID();
+  const executed: unknown[] = [];
+  const transaction = {
+    async execute(query: unknown) {
+      executed.push(query);
+      return { rows: [{ event_id: eventId }] };
+    },
+  } as unknown as Parameters<typeof writeAuditEventInDrizzleTransaction>[0];
+  const logger: AppLogger = { error() {}, info() {}, warn() {} };
+
+  assert.equal(
+    await writeAuditEventInDrizzleTransaction(
+      transaction,
+      authorizedContext(),
+      {
+        action: "carrier_created",
+        after: {
+          allowedFields: ["name"],
+          source: { name: "Test Carrier", passwordHash: "hidden" },
+        },
+        entityId: randomUUID(),
+        entityType: "carrier",
+      },
+      logger,
+    ),
+    eventId,
+  );
+  assert.equal(executed.length, 1);
+  assert.equal(JSON.stringify(executed).includes("hidden"), false);
 });
 
 test("audit writer returns the database ID and logs only safe failure context", async () => {

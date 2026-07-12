@@ -2,17 +2,14 @@ import {
   evaluateAccess,
   type AccessDenialReason,
   type AccessPrincipal,
-  type AccessRequirement,
 } from "../auth/access.js";
 import {
   isPolicyTypeClass,
   type PolicyTypeClass,
 } from "../../shared/policy-types.js";
+import { VOCABULARY_USER_ACCESS } from "./access.js";
 
-export const VOCABULARY_ADD_ACCESS = {
-  capabilities: ["admin"],
-  staffRoles: ["employee", "producer"],
-} as const satisfies AccessRequirement;
+export const VOCABULARY_ADD_ACCESS = VOCABULARY_USER_ACCESS;
 
 type VocabularyDenialReason = "unauthenticated" | AccessDenialReason;
 

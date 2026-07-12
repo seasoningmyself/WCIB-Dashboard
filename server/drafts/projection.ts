@@ -1,8 +1,9 @@
 import type { AccessPrincipal } from "../auth/access.js";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { DraftRecord } from "../db/schema.js";
+import { calculateAgencyCommissionAmount } from "../../shared/draft-calculations.js";
 
-export const EMPLOYEE_DRAFT_FINANCIAL_VISIBILITY =
+export const OWN_ACTIVE_STAFF_DRAFT_FINANCIAL_VISIBILITY =
   "own_editing_draft_only" as const;
 
 export const DRAFT_NONFINANCIAL_FIELDS = [
@@ -61,7 +62,7 @@ export const DRAFT_FINANCIAL_FIELDS = [
   "ipfsPushedAt",
 ] as const satisfies readonly (keyof DraftRecord)[];
 
-const DRAFT_ALL_FIELDS = [
+const DRAFT_ALL_STORED_FIELDS = [
   ...DRAFT_NONFINANCIAL_FIELDS,
   ...DRAFT_FINANCIAL_FIELDS,
 ] as const;
@@ -73,8 +74,10 @@ export type DraftNonfinancialProjection = Pick<
 
 export type DraftFullProjection = Pick<
   DraftRecord,
-  (typeof DRAFT_ALL_FIELDS)[number]
->;
+  (typeof DRAFT_ALL_STORED_FIELDS)[number]
+> & {
+  agencyCommissionAmount: string | null;
+};
 
 export type DraftProjection =
   | DraftNonfinancialProjection
@@ -107,7 +110,10 @@ export function projectDraftForAuthorizedContext(
   }
 
   return canSeeDraftFinancialFields(principal, source)
-    ? pickFields(source, DRAFT_ALL_FIELDS)
+    ? {
+        ...pickFields(source, DRAFT_ALL_STORED_FIELDS),
+        agencyCommissionAmount: calculateAgencyCommissionAmount(source),
+      }
     : pickFields(source, DRAFT_NONFINANCIAL_FIELDS);
 }
 
@@ -119,9 +125,10 @@ function canSeeDraftFinancialFields(
     return true;
   }
 
-  // This is the single adjustment point for the pending client confirmation.
+  // Client-confirmed single adjustment point for employee and producer drafts.
   return (
-    EMPLOYEE_DRAFT_FINANCIAL_VISIBILITY === "own_editing_draft_only" &&
+    OWN_ACTIVE_STAFF_DRAFT_FINANCIAL_VISIBILITY ===
+      "own_editing_draft_only" &&
     principal.userId === source.ownerUserId &&
     source.status === "draft" &&
     (principal.staffRole === "employee" || principal.staffRole === "producer")

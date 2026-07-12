@@ -8,6 +8,7 @@ import {
   buildPaySheetPolicySnapshot,
   buildPaySheetRateSnapshot,
   parsePaySheetPolicySnapshot,
+  parsePaySheetRateSnapshot,
 } from "./snapshots.js";
 
 const policySource = {
@@ -83,6 +84,27 @@ test("rate snapshots copy the effective four-rate contract only", () => {
   assert.equal("id" in snapshot, false);
   assert.equal("producerUserId" in snapshot, false);
   assert.equal(Object.isFrozen(snapshot), true);
+});
+
+test("stored rate snapshots require the exact frozen contract", () => {
+  const source = {
+    effectiveDate: "2026-06-01",
+    newBrokerRate: "12.50",
+    newCommissionRate: "25.00",
+    renewalBrokerRate: "10.00",
+    renewalCommissionRate: "20.00",
+  };
+
+  assert.deepEqual(parsePaySheetRateSnapshot(source), source);
+  assert.throws(
+    () => parsePaySheetRateSnapshot({ ...source, privateNote: "no" }),
+    /fields are missing or invalid/,
+  );
+  const { newBrokerRate: _removed, ...missing } = source;
+  assert.throws(
+    () => parsePaySheetRateSnapshot(missing),
+    /fields are missing or invalid/,
+  );
 });
 
 test("snapshot builders fail closed with key-only validation errors", () => {
