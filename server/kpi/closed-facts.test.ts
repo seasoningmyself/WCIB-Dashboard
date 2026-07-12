@@ -6,6 +6,7 @@ import { PAY_SHEET_POLICY_SNAPSHOT_FIELDS } from "../../shared/pay-sheet-snapsho
 import { buildPaySheetPolicySnapshot } from "../pay-sheets/snapshots.js";
 import {
   deriveClosedKpiActualInputs,
+  listAllClosedProducerKpiFacts,
   listClosedKpiFacts,
   type ClosedKpiFact,
   type KpiFactDatabase,
@@ -93,6 +94,7 @@ test("KPI repository is structurally limited to closed snapshot relations", () =
     /import\s*\{[^}]*\bpolicies\b[^}]*\}\s*from\s*"\.\.\/db\/schema\.js"/s,
   );
   assert.doesNotMatch(source, /paySheetAdjustments/);
+  assert.match(source, /eq\(paySheets\.ownerType, "producer"\)/);
 });
 
 test("KPI fact scopes fail before querying on invalid identity or time", async () => {
@@ -125,6 +127,13 @@ test("KPI fact scopes fail before querying on invalid identity or time", async (
     listClosedKpiFacts(unreachableDatabase, {
       periodMonths: [13],
       scopeType: "company",
+      year: 2026,
+    }),
+    /period months/,
+  );
+  await assert.rejects(
+    listAllClosedProducerKpiFacts(unreachableDatabase, {
+      periodMonths: [0],
       year: 2026,
     }),
     /period months/,

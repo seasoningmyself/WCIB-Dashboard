@@ -88,6 +88,7 @@
     "test:db:kpi-targets": "node --import tsx --test server/db/kpi-targets.db-test.ts",
     "test:db:kpi-target-endpoints": "node --import tsx --test server/http/kpi-targets.db-test.ts",
     "test:db:kpi-closed-facts": "node --import tsx --test server/kpi/closed-facts.db-test.ts",
+    "test:db:kpi-actual-endpoints": "node --import tsx --test server/http/kpi-actuals.db-test.ts",
     "test:db:migration-safety": "node --import tsx --test server/db/migration-safety.db-test.ts",
     "test:db:managed-schema": "node --import tsx --test server/db/managed-schema-verification.db-test.ts"
   },

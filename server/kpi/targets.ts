@@ -97,7 +97,7 @@ export async function listKpiTargetSources(
         asc(kpiTargets.producerUserId),
         asc(kpiTargets.id),
       ),
-    loadProducerSources(database),
+    listKpiProducerSources(database),
   ]);
   if (items.length > KPI_TARGET_MAX_RESULTS) throw new KpiTargetBoundsError();
   return Object.freeze({ items, producers, year: query.year });
@@ -125,7 +125,7 @@ export async function upsertKpiTarget(
     const target = await database.transaction(async (transaction) => {
       const transactionalDatabase = transaction as AuthDatabase;
       if (scopeType === "producer") {
-        const producers = await loadProducerSources(transactionalDatabase);
+        const producers = await listKpiProducerSources(transactionalDatabase);
         if (!producers.some(({ producerUserId }) => producerUserId === input.producerUserId)) {
           throw new KpiTargetProducerNotFoundError();
         }
@@ -221,7 +221,7 @@ export function projectAdminKpiTargetMutationSource(
   });
 }
 
-async function loadProducerSources(
+export async function listKpiProducerSources(
   database: AuthDatabase,
 ): Promise<KpiTargetProducerSource[]> {
   const [profiles, rateOwners, sheetOwners, targetOwners] = await Promise.all([

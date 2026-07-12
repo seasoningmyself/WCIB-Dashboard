@@ -105,10 +105,12 @@ import {
   setAdminOfficeLocationActive,
 } from "./offices/admin.js";
 import { registerKpiTargetRoutes } from "./http/kpi-targets.js";
+import { registerKpiActualRoute } from "./http/kpi-actuals.js";
 import {
   listKpiTargetSources,
   upsertKpiTarget,
 } from "./kpi/targets.js";
+import { loadKpiActualSource } from "./kpi/actuals.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -363,6 +365,12 @@ const app = createApp({
           input,
           logger,
         ),
+    });
+    registerKpiActualRoute(routes, {
+      authorization,
+      list: (context, query) =>
+        loadKpiActualSource(database, context, query),
+      logger,
     });
   },
   sessionMiddleware: createSessionMiddleware(pool, {

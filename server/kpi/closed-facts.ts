@@ -31,6 +31,11 @@ export interface ClosedKpiFact {
   snapshot: PaySheetPolicySnapshot;
 }
 
+export interface ClosedKpiPeriodScope {
+  periodMonths?: readonly number[];
+  year: number;
+}
+
 export interface ClosedKpiActualInputs {
   newPolicyCount: number;
   newRevenueCents: bigint;
@@ -65,6 +70,29 @@ export async function listClosedKpiFacts(
     conditions.push(inArray(paySheets.periodMonth, periodMonths));
   }
 
+  return loadClosedKpiFacts(database, conditions);
+}
+
+export async function listAllClosedProducerKpiFacts(
+  database: KpiFactDatabase,
+  scope: ClosedKpiPeriodScope,
+): Promise<ClosedKpiFact[]> {
+  const conditions: SQL[] = [
+    eq(paySheets.status, "closed"),
+    eq(paySheets.ownerType, "producer"),
+    eq(paySheets.periodYear, requireYear(scope.year)),
+  ];
+  const periodMonths = normalizePeriodMonths(scope.periodMonths);
+  if (periodMonths !== undefined) {
+    conditions.push(inArray(paySheets.periodMonth, periodMonths));
+  }
+  return loadClosedKpiFacts(database, conditions);
+}
+
+async function loadClosedKpiFacts(
+  database: KpiFactDatabase,
+  conditions: readonly SQL[],
+): Promise<ClosedKpiFact[]> {
   const records = await database
     .select({
       addedAt: paySheetPolicies.addedAt,
