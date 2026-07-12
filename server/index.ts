@@ -78,6 +78,8 @@ import {
   updatePaySheetAdjustment,
 } from "./pay-sheets/adjustments.js";
 import { getPaySheetAdjustmentTarget } from "./pay-sheets/adjustment-target.js";
+import { registerMyCommissionsRoute } from "./http/my-commissions.js";
+import { listMyCommissionSources } from "./commissions/read.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -242,6 +244,12 @@ const app = createApp({
           input,
           logger,
         ),
+    });
+    registerMyCommissionsRoute(routes, {
+      authorization,
+      list: (context, query) =>
+        listMyCommissionSources(database, context, query),
+      logger,
     });
   },
   sessionMiddleware: createSessionMiddleware(pool, {

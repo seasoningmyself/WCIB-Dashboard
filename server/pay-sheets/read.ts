@@ -392,8 +392,11 @@ function projectRate(rate: ProducerRateHistoryRecord | null): PaySheetRate | nul
   return rate === null ? null : buildPaySheetRateSnapshot(rate);
 }
 
-function calculateProducerPayout(
-  policy: LivePolicySource,
+export function calculateProducerPayout(
+  policy: Pick<
+    LivePolicySource,
+    "brokerFee" | "commissionAmount" | "transactionType"
+  >,
   rate: PaySheetRate,
 ): string {
   const isNew = policy.transactionType === "New";
@@ -481,7 +484,7 @@ async function loadSource(
     header.sheet.status === "open" &&
     header.sheet.ownerType === "producer" &&
     policiesForSheet.length > 0
-      ? await loadEffectiveRate(
+      ? await loadEffectiveProducerRate(
           database,
           header.sheet.ownerUserId,
           asOf.toISOString().slice(0, 10),
@@ -559,7 +562,7 @@ async function loadAdjustments(
   }));
 }
 
-async function loadEffectiveRate(
+export async function loadEffectiveProducerRate(
   database: PaySheetReadDatabase,
   producerUserId: string,
   asOfDate: string,
