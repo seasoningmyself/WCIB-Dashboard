@@ -24,7 +24,18 @@ import {
   PaySheetCloseDialog,
   type PaySheetAdjustmentDialogState,
 } from "./PaySheetDialogs.js";
+import {
+  PaySheetExportControls,
+  PaySheetFullExportDialog,
+  type PaySheetExportAction,
+  type PaySheetExportUiState,
+} from "./PaySheetExportControls.js";
 import { createPaySheetsApi, PaySheetsApiError } from "./api.js";
+import {
+  PaySheetExportPopupBlockedError,
+  PaySheetExportResources,
+  type ExportPrintWindow,
+} from "./export-resources.js";
 import {
   adjustmentTypeLabel,
   closedSheetsForOwner,
@@ -35,7 +46,10 @@ import {
   groupPaySheetsByOwner,
   isDirectIncomeAdjustment,
   isPaySheetsAdmin,
+  listPaySheetPeriods,
   openSheetForOwner,
+  ownerHasPaySheetPeriod,
+  paySheetExportQueryForScope,
   paySheetAccountLabel,
   type PaySheetOwnerGroup,
 } from "./view-state.js";
@@ -79,6 +93,19 @@ function AdminPaySheets() {
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const pendingRef = useRef(false);
+  const [exportState, setExportState] = useState<PaySheetExportUiState>({
+    status: "idle",
+  });
+  const [exportConfirmation, setExportConfirmation] =
+    useState<PaySheetExportAction | null>(null);
+  const [selectedExportPeriodKey, setSelectedExportPeriodKey] =
+    useState<string | null>(null);
+  const exportPendingRef = useRef(false);
+  const exportAbortRef = useRef<AbortController | null>(null);
+  const exportResourcesRef = useRef<PaySheetExportResources | null>(null);
+  if (exportResourcesRef.current === null) {
+    exportResourcesRef.current = new PaySheetExportResources();
+  }
   const listVersion = useRef(0);
   const detailEpoch = useRef(0);
 
@@ -190,6 +217,14 @@ function AdminPaySheets() {
   );
   const activeGroup =
     groups.find(({ key }) => key === selectedOwnerKey) ?? groups[0] ?? null;
+  const exportPeriods = useMemo(
+    () => (state.status === "ready" ? listPaySheetPeriods(state.data.items) : []),
+    [state],
+  );
+  const selectedExportPeriod =
+    exportPeriods.find(({ key }) => key === selectedExportPeriodKey) ??
+    exportPeriods[0] ??
+    null;
 
   useEffect(() => {
     if (activeGroup !== null && selectedOwnerKey !== activeGroup.key) {
@@ -203,6 +238,24 @@ function AdminPaySheets() {
     if (open !== null) void ensureDetail(open.id);
   }, [activeGroup, ensureDetail]);
 
+  useEffect(() => {
+    if (
+      selectedExportPeriod !== null &&
+      selectedExportPeriodKey !== selectedExportPeriod.key
+    ) {
+      setSelectedExportPeriodKey(selectedExportPeriod.key);
+    }
+  }, [selectedExportPeriod, selectedExportPeriodKey]);
+
+  useEffect(
+    () => () => {
+      exportAbortRef.current?.abort();
+      exportAbortRef.current = null;
+      exportResourcesRef.current?.dispose();
+    },
+    [],
+  );
+
   const clearSensitiveState = useCallback(() => {
     listVersion.current += 1;
     detailEpoch.current += 1;
@@ -215,11 +268,108 @@ function AdminPaySheets() {
     setCloseDialog(null);
     setAdjustmentDialog(null);
     setDialogError(null);
+    exportAbortRef.current?.abort();
+    exportAbortRef.current = null;
+    exportResourcesRef.current?.dispose();
+    exportPendingRef.current = false;
+    setExportState({ status: "idle" });
+    setExportConfirmation(null);
+    setSelectedExportPeriodKey(null);
     setNotice(null);
     pendingRef.current = false;
     setPending(false);
   }, []);
   useSensitiveSessionCleanup(clearSensitiveState);
+
+  const runExport = useCallback(
+    async (action: PaySheetExportAction) => {
+      if (
+        exportPendingRef.current ||
+        activeGroup === null ||
+        selectedExportPeriod === null
+      ) {
+        return;
+      }
+      const exportQuery = paySheetExportQueryForScope(
+        action.scope,
+        activeGroup,
+        selectedExportPeriod,
+      );
+      if (exportQuery === null) {
+        setExportState({
+          message: "This owner has no pay sheet in the selected period.",
+          status: "error",
+        });
+        return;
+      }
+
+      const resources = exportResourcesRef.current;
+      if (resources === null) return;
+      let popup: ExportPrintWindow | null = null;
+      if (action.format === "print") {
+        try {
+          popup = resources.openPrintWindow();
+        } catch (error) {
+          setExportState({
+            message:
+              error instanceof PaySheetExportPopupBlockedError
+                ? "The print window was blocked. Allow popups and try again."
+                : "The print view could not be opened. Try again.",
+            status: "error",
+          });
+          return;
+        }
+      }
+
+      const abortController = new AbortController();
+      exportAbortRef.current = abortController;
+      exportPendingRef.current = true;
+      setExportState({ action, status: "pending" });
+      try {
+        const document = await api.exportDocument(
+          action.format,
+          exportQuery,
+          abortController.signal,
+        );
+        if (action.format === "excel") {
+          resources.download(document);
+        } else if (popup !== null) {
+          resources.print(popup, document);
+        }
+        setExportState({
+          message:
+            action.format === "excel"
+              ? "Excel download started."
+              : "Print view opened. Use the browser print dialog to save as PDF.",
+          status: "success",
+        });
+      } catch (error) {
+        if (popup !== null) resources.cancelPrint(popup);
+        if (abortController.signal.aborted) {
+          setExportState({ status: "idle" });
+          return;
+        }
+        if (error instanceof PaySheetsApiError && error.kind === "denied") {
+          clearSensitiveState();
+          setState({ status: "denied" });
+          return;
+        }
+        setExportState({
+          message:
+            error instanceof PaySheetsApiError && error.kind === "conflict"
+              ? "No pay sheet matched this owner and period. Refresh and try again."
+              : "The report could not be prepared. Try again.",
+          status: "error",
+        });
+      } finally {
+        if (exportAbortRef.current === abortController) {
+          exportAbortRef.current = null;
+        }
+        exportPendingRef.current = false;
+      }
+    },
+    [activeGroup, api, clearSensitiveState, selectedExportPeriod],
+  );
 
   const submitClose = useCallback(async () => {
     if (closeDialog === null || pendingRef.current) return;
@@ -335,6 +485,33 @@ function AdminPaySheets() {
       <PaySheetsView
         details={details}
         expandedClosedId={expandedClosedId}
+        exportControls={
+          activeGroup === null || selectedExportPeriod === null ? null : (
+            <PaySheetExportControls
+              activeOwnerAvailable={ownerHasPaySheetPeriod(
+                activeGroup,
+                selectedExportPeriod,
+              )}
+              activeOwnerLabel={activeGroup.label}
+              disabled={pending}
+              onAction={(action) => {
+                if (action.scope === "all") {
+                  setExportConfirmation(action);
+                  return;
+                }
+                void runExport(action);
+              }}
+              onPeriod={(periodKey) => {
+                setSelectedExportPeriodKey(periodKey);
+                setExportConfirmation(null);
+                setExportState({ status: "idle" });
+              }}
+              periods={exportPeriods}
+              selectedPeriodKey={selectedExportPeriod.key}
+              state={exportState}
+            />
+          )
+        }
         notice={notice}
         onClose={(sheet) => {
           setDialogError(null);
@@ -347,6 +524,8 @@ function AdminPaySheets() {
           setCloseDialog(null);
           setDialogError(null);
           setNotice(null);
+          setExportConfirmation(null);
+          setExportState({ status: "idle" });
         }}
         onOpenAdjustment={(dialog) => {
           setDialogError(null);
@@ -365,6 +544,20 @@ function AdminPaySheets() {
         pending={pending}
         selectedOwnerKey={activeGroup?.key ?? null}
         state={state}
+      />
+      <PaySheetFullExportDialog
+        action={exportConfirmation}
+        onCancel={() => {
+          if (!exportPendingRef.current) setExportConfirmation(null);
+        }}
+        onConfirm={() => {
+          const action = exportConfirmation;
+          if (action !== null) {
+            void runExport(action).finally(() => setExportConfirmation(null));
+          }
+        }}
+        pending={exportState.status === "pending"}
+        periodLabel={selectedExportPeriod?.label ?? "Selected period"}
       />
       <PaySheetCloseDialog
         error={dialogError}
@@ -401,6 +594,7 @@ function AdminPaySheets() {
 export function PaySheetsView({
   details,
   expandedClosedId,
+  exportControls = null,
   notice,
   onClose,
   onOpenAdjustment,
@@ -414,6 +608,7 @@ export function PaySheetsView({
 }: {
   details: Readonly<Record<string, PaySheetDetailState>>;
   expandedClosedId: string | null;
+  exportControls?: React.ReactNode;
   notice: string | null;
   onClose(sheet: PaySheetSummary): void;
   onOpenAdjustment(dialog: PaySheetAdjustmentDialogState): void;
@@ -489,6 +684,8 @@ export function PaySheetsView({
               </button>
             ))}
           </div>
+
+          {exportControls}
 
           {notice === null ? null : (
             <div className="pay-sheets-notice" role="status">{notice}</div>

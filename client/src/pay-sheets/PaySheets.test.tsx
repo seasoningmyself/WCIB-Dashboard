@@ -68,7 +68,7 @@ test("admin view renders owner tabs, exact totals, policy detail, and frozen his
   for (const forbidden of ["Close sheet", "Add correction", "Add direct income", ">Edit<", ">Delete<"]) {
     assert.doesNotMatch(frozenSection, new RegExp(forbidden));
   }
-  for (const forbidden of ["Reopen", "Export", "Print", "localStorage"]) {
+  for (const forbidden of ["Reopen", "localStorage"]) {
     assert.doesNotMatch(markup, new RegExp(forbidden, "i"));
   }
 });
@@ -143,7 +143,10 @@ test("non-admin entry fails closed before mounting the API-backed controller", (
     };
     const markup = renderToStaticMarkup(<PaySheets user={user} />);
     assert.match(markup, /Pay sheets unavailable/);
-    assert.doesNotMatch(markup, /Loading pay sheets|Agency gross|Producer payout/);
+    assert.doesNotMatch(
+      markup,
+      /Loading pay sheets|Agency gross|Producer payout|Export &amp; print|Excel/,
+    );
   }
 });
 
