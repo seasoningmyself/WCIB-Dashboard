@@ -770,6 +770,15 @@ closed detail, and next-sheet summary all pass through admin-only field
 projection. Repeated and concurrent requests reuse the one established next
 period; no reopen endpoint exists.
 
+Open-sheet adjustments use `POST /api/pay-sheets/:paySheetId/adjustments` plus
+`PUT`/`DELETE /api/pay-sheet-adjustments/:adjustmentId`. All three routes are
+admin-only and call the existing audited database services. Update/delete
+derive the sheet from the stored adjustment, so a client cannot move an
+adjustment across sheets. Direct income is Sophia-only; producer sheets accept
+payout reductions only. Closed-sheet writes conflict, while corrections belong
+on the next open sheet. Mutation metadata and the refreshed sheet are both
+field-projected before serialization.
+
 ## Structured logging
 
 The backend writes newline-delimited JSON records with a timestamp, level,

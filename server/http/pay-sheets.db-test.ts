@@ -27,7 +27,12 @@ import {
 } from "../db/schema.js";
 import * as databaseSchema from "../db/schema.js";
 import { StructuredLogger } from "../logging/logger.js";
-import { createPaySheetAdjustment } from "../pay-sheets/adjustments.js";
+import {
+  createPaySheetAdjustment,
+  deletePaySheetAdjustment,
+  updatePaySheetAdjustment,
+} from "../pay-sheets/adjustments.js";
+import { getPaySheetAdjustmentTarget } from "../pay-sheets/adjustment-target.js";
 import { closePaySheet } from "../pay-sheets/close.js";
 import { syncMgaPaymentSheetPlacement } from "../pay-sheets/mga-placement.js";
 import {
@@ -46,6 +51,11 @@ import {
   PAY_SHEET_CLOSE_PATH,
   registerPaySheetCloseRoute,
 } from "./pay-sheet-close.js";
+import {
+  PAY_SHEET_ADJUSTMENT_CREATE_PATH,
+  PAY_SHEET_ADJUSTMENT_PATH,
+  registerPaySheetAdjustmentRoutes,
+} from "./pay-sheet-adjustments.js";
 
 const PASSWORD = "StrongPass123!";
 const SESSION_SECRET = "pay-sheet-read-db-test-secret-at-least-32-characters";
@@ -176,27 +186,6 @@ test("pay-sheet endpoints compose open totals and immutable closed history", asy
           logger,
           paidAt,
         );
-        await createPaySheetAdjustment(
-          database,
-          adminContext,
-          {
-            accountBasis: "own",
-            adjustmentType: "check_income",
-            brokerFeeDelta: "0.00",
-            commissionDelta: "0.00",
-            effectiveDate: "2026-07-03",
-            incomeAmount: "100.00",
-            insuredOrClientLabel: "Direct check income",
-            paySheetId: sophiaSheet.id,
-            payoutDelta: "0.00",
-            policyTypeId: null,
-            producerUserId: null,
-            reasonOrNote: "Read contract verification",
-          },
-          logger,
-          new Date(paidAt.getTime() + 1),
-        );
-
         const authorization = createDatabaseAuthorizationGuards(
           database,
           logger,
@@ -221,6 +210,31 @@ test("pay-sheet endpoints compose open totals and immutable closed history", asy
                 getPaySheetSource(database, context, paySheetId),
               logger,
             });
+            registerPaySheetAdjustmentRoutes(routes, {
+              authorization,
+              create: (context, input) =>
+                createPaySheetAdjustment(database, context, input, logger),
+              delete: (context, adjustmentId) =>
+                deletePaySheetAdjustment(
+                  database,
+                  context,
+                  adjustmentId,
+                  logger,
+                ),
+              getSheet: (context, paySheetId) =>
+                getPaySheetSource(database, context, paySheetId),
+              getTarget: (context, adjustmentId) =>
+                getPaySheetAdjustmentTarget(database, context, adjustmentId),
+              logger,
+              update: (context, adjustmentId, input) =>
+                updatePaySheetAdjustment(
+                  database,
+                  context,
+                  adjustmentId,
+                  input,
+                  logger,
+                ),
+            });
           },
           sessionMiddleware: createSessionMiddleware(pool, {
             logger,
@@ -239,6 +253,100 @@ test("pay-sheet endpoints compose open totals and immutable closed history", asy
           running.baseUrl,
           emailById.get(references.producerUserId)!,
         );
+
+        const directIncome = await createAdjustment(
+          running.baseUrl,
+          adminCookie,
+          sophiaSheet.id,
+          directIncomeInput("100.00"),
+        );
+        const directIncomeId = directIncome.mutation.adjustmentId;
+        assert.equal(directIncome.mutation.action, "created");
+        assert.equal(directIncome.sheet.totals.sophiaAgencyGross, "250.00");
+
+        const temporaryCorrection = await createAdjustment(
+          running.baseUrl,
+          adminCookie,
+          sophiaSheet.id,
+          correctionInput({ brokerFeeDelta: "-10.00" }),
+        );
+        const temporaryCorrectionId =
+          temporaryCorrection.mutation.adjustmentId;
+        const updatedCorrection = await changeAdjustment(
+          running.baseUrl,
+          adminCookie,
+          "PUT",
+          temporaryCorrectionId,
+          correctionInput({ brokerFeeDelta: "-20.00" }),
+        );
+        assert.equal(updatedCorrection.mutation.action, "updated");
+        const deletedCorrection = await changeAdjustment(
+          running.baseUrl,
+          adminCookie,
+          "DELETE",
+          temporaryCorrectionId,
+          {},
+        );
+        assert.equal(deletedCorrection.mutation.action, "deleted");
+        assert.equal(
+          deletedCorrection.sheet.adjustments.some(
+            (adjustment: any) => adjustment.id === temporaryCorrectionId,
+          ),
+          false,
+        );
+
+        const producerAdjustment = await createAdjustment(
+          running.baseUrl,
+          adminCookie,
+          producerSheet.id,
+          correctionInput({
+            accountBasis: "book",
+            brokerFeeDelta: "0.00",
+            payoutDelta: "-5.00",
+            producerUserId: references.producerUserId,
+          }),
+        );
+        assert.equal(
+          producerAdjustment.sheet.totals.producerPayout,
+          "45.00",
+        );
+
+        const producerDirectIncome = await request(running.baseUrl, {
+          body: directIncomeInput("25.00"),
+          cookie: adminCookie,
+          method: "POST",
+          path: PAY_SHEET_ADJUSTMENT_CREATE_PATH.replace(
+            ":paySheetId",
+            producerSheet.id,
+          ),
+        });
+        assert.equal(producerDirectIncome.statusCode, 400);
+        const sophiaPayout = await request(running.baseUrl, {
+          body: correctionInput({
+            brokerFeeDelta: "0.00",
+            payoutDelta: "-5.00",
+          }),
+          cookie: adminCookie,
+          method: "POST",
+          path: PAY_SHEET_ADJUSTMENT_CREATE_PATH.replace(
+            ":paySheetId",
+            sophiaSheet.id,
+          ),
+        });
+        assert.equal(sophiaPayout.statusCode, 400);
+        const crossSheetUpdate = await request(running.baseUrl, {
+          body: {
+            ...directIncomeInput("100.00"),
+            paySheetId: producerSheet.id,
+          },
+          cookie: adminCookie,
+          method: "PUT",
+          path: PAY_SHEET_ADJUSTMENT_PATH.replace(
+            ":adjustmentId",
+            directIncomeId,
+          ),
+        });
+        assert.equal(crossSheetUpdate.statusCode, 400);
 
         const list = await request(running.baseUrl, {
           cookie: adminCookie,
@@ -272,7 +380,7 @@ test("pay-sheet endpoints compose open totals and immutable closed history", asy
           sophiaOpen.totals.sophiaAgencyGross,
           sophiaOpen.totals.sophiaTakeHome,
         );
-        assert.equal(producerOpen.totals.producerPayout, "50.00");
+        assert.equal(producerOpen.totals.producerPayout, "45.00");
 
         const sophiaClose = await closeSheet(
           running.baseUrl,
@@ -332,6 +440,51 @@ test("pay-sheet endpoints compose open totals and immutable closed history", asy
           .from(paySheets)
           .where(eq(paySheets.status, "open"));
         assert.equal(nextOpenSheets.length, 2);
+
+        for (const mutation of [
+          {
+            body: directIncomeInput("25.00"),
+            method: "POST",
+            path: PAY_SHEET_ADJUSTMENT_CREATE_PATH.replace(
+              ":paySheetId",
+              sophiaSheet.id,
+            ),
+          },
+          {
+            body: directIncomeInput("100.00"),
+            method: "PUT",
+            path: PAY_SHEET_ADJUSTMENT_PATH.replace(
+              ":adjustmentId",
+              directIncomeId,
+            ),
+          },
+          {
+            body: {},
+            method: "DELETE",
+            path: PAY_SHEET_ADJUSTMENT_PATH.replace(
+              ":adjustmentId",
+              directIncomeId,
+            ),
+          },
+        ]) {
+          const rejected = await request(running.baseUrl, {
+            ...mutation,
+            cookie: adminCookie,
+          });
+          assert.equal(rejected.statusCode, 409);
+        }
+
+        const nextPeriodAdjustment = await createAdjustment(
+          running.baseUrl,
+          adminCookie,
+          sophiaClose.close.nextSheetId,
+          { ...directIncomeInput("25.00"), adjustmentType: "ach_income" },
+        );
+        assert.equal(nextPeriodAdjustment.mutation.action, "created");
+        assert.equal(
+          nextPeriodAdjustment.sheet.totals.sophiaAgencyGross,
+          "25.00",
+        );
         const sophiaClosed = await readSheet(
           running.baseUrl,
           adminCookie,
@@ -405,6 +558,19 @@ test("pay-sheet endpoints compose open totals and immutable closed history", asy
           assert.deepEqual(deniedClose.body, {
             error: { code: "forbidden", message: "Forbidden" },
           });
+          const deniedAdjustment = await request(running.baseUrl, {
+            body: directIncomeInput("10.00"),
+            cookie,
+            method: "POST",
+            path: PAY_SHEET_ADJUSTMENT_CREATE_PATH.replace(
+              ":paySheetId",
+              sophiaClose.close.nextSheetId,
+            ),
+          });
+          assert.equal(deniedAdjustment.statusCode, 403);
+          assert.deepEqual(deniedAdjustment.body, {
+            error: { code: "forbidden", message: "Forbidden" },
+          });
         }
       } finally {
         if (server !== null) {
@@ -442,6 +608,78 @@ async function closeSheet(
   });
   assert.equal(response.statusCode, 200);
   return response.body as any;
+}
+
+async function createAdjustment(
+  baseUrl: string,
+  cookie: string,
+  paySheetId: string,
+  body: unknown,
+): Promise<any> {
+  const response = await request(baseUrl, {
+    body,
+    cookie,
+    method: "POST",
+    path: PAY_SHEET_ADJUSTMENT_CREATE_PATH.replace(
+      ":paySheetId",
+      paySheetId,
+    ),
+  });
+  assert.equal(response.statusCode, 200);
+  return response.body as any;
+}
+
+async function changeAdjustment(
+  baseUrl: string,
+  cookie: string,
+  method: "DELETE" | "PUT",
+  adjustmentId: string,
+  body: unknown,
+): Promise<any> {
+  const response = await request(baseUrl, {
+    body,
+    cookie,
+    method,
+    path: PAY_SHEET_ADJUSTMENT_PATH.replace(
+      ":adjustmentId",
+      adjustmentId,
+    ),
+  });
+  assert.equal(response.statusCode, 200);
+  return response.body as any;
+}
+
+function directIncomeInput(incomeAmount: string) {
+  return {
+    accountBasis: "own",
+    adjustmentType: "check_income",
+    brokerFeeDelta: "0.00",
+    commissionDelta: "0.00",
+    effectiveDate: "2026-07-03",
+    incomeAmount,
+    insuredOrClientLabel: "Direct income client",
+    payoutDelta: "0.00",
+    policyTypeId: null,
+    producerUserId: null,
+    reasonOrNote: "Adjustment endpoint verification",
+  };
+}
+
+function correctionInput(overrides: Record<string, unknown> = {}) {
+  return {
+    accountBasis: "own",
+    adjustmentType: "chargeback",
+    brokerFeeDelta: "-10.00",
+    commissionDelta: "0.00",
+    effectiveDate: "2026-07-04",
+    incomeAmount: "0.00",
+    insuredOrClientLabel: "Correction client",
+    payoutDelta: "0.00",
+    policyTypeId: null,
+    producerUserId: null,
+    reasonOrNote: "Adjustment endpoint correction",
+    ...overrides,
+  };
 }
 
 async function startServer(app: Express): Promise<{

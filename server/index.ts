@@ -71,6 +71,13 @@ import {
 } from "./pay-sheets/read.js";
 import { registerPaySheetCloseRoute } from "./http/pay-sheet-close.js";
 import { closePaySheet } from "./pay-sheets/close.js";
+import { registerPaySheetAdjustmentRoutes } from "./http/pay-sheet-adjustments.js";
+import {
+  createPaySheetAdjustment,
+  deletePaySheetAdjustment,
+  updatePaySheetAdjustment,
+} from "./pay-sheets/adjustments.js";
+import { getPaySheetAdjustmentTarget } from "./pay-sheets/adjustment-target.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -215,6 +222,26 @@ const app = createApp({
       get: (context, paySheetId) =>
         getPaySheetSource(database, context, paySheetId),
       logger,
+    });
+    registerPaySheetAdjustmentRoutes(routes, {
+      authorization,
+      create: (context, input) =>
+        createPaySheetAdjustment(database, context, input, logger),
+      delete: (context, adjustmentId) =>
+        deletePaySheetAdjustment(database, context, adjustmentId, logger),
+      getSheet: (context, paySheetId) =>
+        getPaySheetSource(database, context, paySheetId),
+      getTarget: (context, adjustmentId) =>
+        getPaySheetAdjustmentTarget(database, context, adjustmentId),
+      logger,
+      update: (context, adjustmentId, input) =>
+        updatePaySheetAdjustment(
+          database,
+          context,
+          adjustmentId,
+          input,
+          logger,
+        ),
     });
   },
   sessionMiddleware: createSessionMiddleware(pool, {

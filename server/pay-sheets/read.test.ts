@@ -5,6 +5,7 @@ import type {
   PaySheetAdjustmentView,
   PaySheetPolicyView,
 } from "../../shared/pay-sheet-api.js";
+import { projectAdminPaySheetAdjustmentMutation } from "./adjustment-target.js";
 import {
   calculateOpenPaySheetTotals,
   projectAdminPaySheetCloseResult,
@@ -148,6 +149,27 @@ test("close result projection is an exact admin-only allowlist", () => {
         projected,
         context([]),
       ),
+    /authorized lifecycle access is required/i,
+  );
+});
+
+test("adjustment mutation projection is an exact admin-only allowlist", () => {
+  const projected = projectAdminPaySheetAdjustmentMutation(
+    {
+      action: "updated",
+      adjustmentId: uuid(40),
+      paySheetId: uuid(41),
+      privateFinancialValue: "999.00",
+    } as never,
+    context(),
+  );
+  assert.deepEqual(projected, {
+    action: "updated",
+    adjustmentId: uuid(40),
+    paySheetId: uuid(41),
+  });
+  assert.throws(
+    () => projectAdminPaySheetAdjustmentMutation(projected, context([])),
     /authorized lifecycle access is required/i,
   );
 });
