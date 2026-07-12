@@ -30,7 +30,6 @@ test("shell renders the exact admin navigation supplied by /api/me", () => {
       "settings",
       "turn_in",
       "my_items",
-      "my_commissions",
     ],
     capabilities: ["admin"],
     displayName: "Sophia",
@@ -48,7 +47,6 @@ test("shell renders the exact admin navigation supplied by /api/me", () => {
     "Settings",
     "Check Turn-In",
     "My Drafts",
-    "My Commissions",
   ]) {
     assert.match(markup, new RegExp(`>${label}<`));
   }
@@ -82,7 +80,7 @@ test("producer and employee shells render only their universal draft navigation"
   assert.doesNotMatch(employee, />Policy Ledger</);
 });
 
-test("server-authorized my_items route mounts the real My Drafts screen", () => {
+test("server-authorized staff my_items route mounts the status-only My Items screen", () => {
   const markup = renderToStaticMarkup(
     withApi(
       <AppShellView
@@ -97,8 +95,42 @@ test("server-authorized my_items route mounts the real My Drafts screen", () => 
     ),
   );
 
-  assert.match(markup, /Loading drafts/);
+  assert.match(markup, /Loading My Items/);
   assert.doesNotMatch(markup, /WCIB workspace/);
+});
+
+test("admin My Drafts and staff edit links preserve the Parent C editor flow", () => {
+  const admin = renderToStaticMarkup(
+    withApi(
+      <AppShellView
+        currentPath="/my-drafts"
+        onLogout={() => {}}
+        user={{
+          ...baseUser,
+          allowedNavigation: ["turn_in", "my_items"],
+          capabilities: ["admin"],
+          role: "admin",
+        }}
+      />,
+    ),
+  );
+  const employeeEdit = renderToStaticMarkup(
+    withApi(
+      <AppShellView
+        currentPath="/my-drafts?draft=00000000-0000-4000-8000-000000000010"
+        onLogout={() => {}}
+        user={{
+          ...baseUser,
+          allowedNavigation: ["turn_in", "my_items"],
+          role: "employee",
+        }}
+      />,
+    ),
+  );
+
+  assert.match(admin, /Loading drafts/);
+  assert.match(employeeEdit, /Loading drafts/);
+  assert.doesNotMatch(employeeEdit, /Loading My Items/);
 });
 
 test("server-authorized approvals route mounts the real admin queue", () => {
@@ -178,6 +210,85 @@ test("server-authorized pay sheets route mounts the real admin workspace", () =>
   );
 
   assert.match(markup, /Loading pay sheets/);
+  assert.doesNotMatch(markup, /WCIB workspace/);
+});
+
+test("server-authorized KPI route mounts the real admin goals workspace", () => {
+  const markup = renderToStaticMarkup(
+    withApi(
+      <AppShellView
+        currentPath="/kpis"
+        onLogout={() => {}}
+        user={{
+          ...baseUser,
+          allowedNavigation: ["kpis"],
+          capabilities: ["admin"],
+          role: "admin",
+        }}
+      />,
+    ),
+  );
+
+  assert.match(markup, /Loading KPIs/);
+  assert.doesNotMatch(markup, /WCIB workspace/);
+});
+
+test("server-authorized Manage Staff route mounts the real admin workspace", () => {
+  const markup = renderToStaticMarkup(
+    withApi(
+      <AppShellView
+        currentPath="/staff"
+        onLogout={() => {}}
+        user={{
+          ...baseUser,
+          allowedNavigation: ["manage_staff"],
+          capabilities: ["admin"],
+          role: "admin",
+        }}
+      />,
+    ),
+  );
+
+  assert.match(markup, /Loading staff/);
+  assert.doesNotMatch(markup, /WCIB workspace/);
+});
+
+test("server-authorized Settings route mounts real office management", () => {
+  const markup = renderToStaticMarkup(
+    withApi(
+      <AppShellView
+        currentPath="/settings"
+        onLogout={() => {}}
+        user={{
+          ...baseUser,
+          allowedNavigation: ["settings"],
+          capabilities: ["admin"],
+          role: "admin",
+        }}
+      />,
+    ),
+  );
+
+  assert.match(markup, /Loading office locations/);
+  assert.doesNotMatch(markup, /WCIB workspace/);
+});
+
+test("server-authorized My Commissions route mounts the real producer workspace", () => {
+  const markup = renderToStaticMarkup(
+    withApi(
+      <AppShellView
+        currentPath="/my-commissions"
+        onLogout={() => {}}
+        user={{
+          ...baseUser,
+          allowedNavigation: ["turn_in", "my_items", "my_commissions"],
+          role: "producer",
+        }}
+      />,
+    ),
+  );
+
+  assert.match(markup, /Loading commissions/);
   assert.doesNotMatch(markup, /WCIB workspace/);
 });
 

@@ -18,6 +18,7 @@ test("active vocabulary response accepts only the picker contract", () => {
     activeVocabularyResponseSchema.parse({
       carriers: [{ id: ID, name: "Travelers" }],
       mgas: [{ id: ID, name: "RPS" }],
+      officeMode: { activeCount: 1, kind: "single", soleOfficeId: ID },
       officeLocations: [{ id: ID, name: "Chicago" }],
       policyTypes: [
         { classTag: "Commercial", id: ID, name: "General Liability" },
@@ -26,6 +27,7 @@ test("active vocabulary response accepts only the picker contract", () => {
     {
       carriers: [{ id: ID, name: "Travelers" }],
       mgas: [{ id: ID, name: "RPS" }],
+      officeMode: { activeCount: 1, kind: "single", soleOfficeId: ID },
       officeLocations: [{ id: ID, name: "Chicago" }],
       policyTypes: [
         { classTag: "Commercial", id: ID, name: "General Liability" },
@@ -37,6 +39,7 @@ test("active vocabulary response accepts only the picker contract", () => {
     activeVocabularyResponseSchema.safeParse({
       carriers: [{ id: ID, isActive: true, name: "Travelers" }],
       mgas: [],
+      officeMode: { activeCount: 0, kind: "unconfigured", soleOfficeId: null },
       officeLocations: [],
       policyTypes: [],
     }).success,
@@ -46,8 +49,19 @@ test("active vocabulary response accepts only the picker contract", () => {
     activeVocabularyResponseSchema.safeParse({
       carriers: [],
       mgas: [],
+      officeMode: { activeCount: 0, kind: "unconfigured", soleOfficeId: null },
       officeLocations: [],
       policyTypes: [{ classTag: "Unknown", id: ID, name: "Other" }],
+    }).success,
+    false,
+  );
+  assert.equal(
+    activeVocabularyResponseSchema.safeParse({
+      carriers: [],
+      mgas: [],
+      officeMode: { activeCount: 1, kind: "single", soleOfficeId: ID },
+      officeLocations: [],
+      policyTypes: [],
     }).success,
     false,
   );

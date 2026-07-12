@@ -5,24 +5,21 @@ import { loadActiveVocabulary, VocabularyApiError } from "./api.js";
 
 const ID = "00000000-0000-4000-8000-000000000001";
 
-test("vocabulary API loads the safe contract and ignores unknown response fields", async () => {
+test("vocabulary API loads the exact safe contract", async () => {
   const calls: Array<{ options?: ApiRequestOptions; path: string }> = [];
   const client: ApiClient = {
     async request(path, options) {
       calls.push({ options, path });
       return Response.json({
-        carriers: [
-          { id: ID, inactiveHistory: ["private"], name: "Travelers" },
-        ],
-        financialTotal: "100000.00",
-        mgas: [{ id: ID, name: "RPS", policyCount: 40 }],
+        carriers: [{ id: ID, name: "Travelers" }],
+        mgas: [{ id: ID, name: "RPS" }],
+        officeMode: { activeCount: 0, kind: "unconfigured", soleOfficeId: null },
         officeLocations: [],
         policyTypes: [
           {
             classTag: "Commercial",
             id: ID,
             name: "General Liability",
-            premiumTotal: "9000.00",
           },
         ],
       });
@@ -32,6 +29,7 @@ test("vocabulary API loads the safe contract and ignores unknown response fields
   assert.deepEqual(await loadActiveVocabulary(client), {
     carriers: [{ id: ID, name: "Travelers" }],
     mgas: [{ id: ID, name: "RPS" }],
+    officeMode: { activeCount: 0, kind: "unconfigured", soleOfficeId: null },
     officeLocations: [],
     policyTypes: [
       { classTag: "Commercial", id: ID, name: "General Liability" },
@@ -58,6 +56,30 @@ test("vocabulary API turns network, status, JSON, and contract failures into one
         return Response.json({
           carriers: [{ id: "not-a-uuid", name: "Carrier" }],
           mgas: [],
+          officeMode: { activeCount: 0, kind: "unconfigured", soleOfficeId: null },
+          officeLocations: [],
+          policyTypes: [],
+        });
+      },
+    },
+    {
+      async request() {
+        return Response.json({
+          carriers: [],
+          financialTotal: "100000.00",
+          mgas: [],
+          officeMode: { activeCount: 0, kind: "unconfigured", soleOfficeId: null },
+          officeLocations: [],
+          policyTypes: [],
+        });
+      },
+    },
+    {
+      async request() {
+        return Response.json({
+          carriers: [],
+          mgas: [],
+          officeMode: { activeCount: 1, kind: "single", soleOfficeId: ID },
           officeLocations: [],
           policyTypes: [],
         });

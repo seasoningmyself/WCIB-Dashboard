@@ -12,6 +12,12 @@ import { ApprovalQueue } from "../approvals/ApprovalQueue.js";
 import { PolicyLedger } from "../ledger/PolicyLedger.js";
 import { MgaPayables } from "../mga-payables/MgaPayables.js";
 import { PaySheets } from "../pay-sheets/PaySheets.js";
+import { MyCommissions } from "../commissions/MyCommissions.js";
+import { MyItems } from "../my-items/MyItems.js";
+import { ManageStaff } from "../staff/ManageStaff.js";
+import { OfficeLocationsSettings } from "../offices/OfficeLocationsSettings.js";
+import { KpisGoals } from "../kpis/KpisGoals.js";
+import { resolveDraftSelection } from "../drafts/my-drafts-state.js";
 import { VocabularyProvider } from "../vocabulary/context.js";
 import {
   resolveAuthorizedNavigation,
@@ -176,6 +182,10 @@ function ShellContent({
       );
     }
     if (route.item.id === "my_items") {
+      const draftSelection = resolveDraftSelection(currentPath);
+      if (user.role !== "admin" && draftSelection.status === "list") {
+        return <MyItems user={user} />;
+      }
       return (
         <VocabularyProvider>
           <MyDrafts currentPath={currentPath} user={user} />
@@ -198,6 +208,18 @@ function ShellContent({
           <PaySheets user={user} />
         </VocabularyProvider>
       );
+    }
+    if (route.item.id === "my_commissions") {
+      return <MyCommissions user={user} />;
+    }
+    if (route.item.id === "manage_staff") {
+      return <ManageStaff user={user} />;
+    }
+    if (route.item.id === "settings") {
+      return <OfficeLocationsSettings user={user} />;
+    }
+    if (route.item.id === "kpis") {
+      return <KpisGoals user={user} />;
     }
     return (
       <section className="workspace-page" aria-labelledby="workspace-page-title">

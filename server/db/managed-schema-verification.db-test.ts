@@ -15,7 +15,7 @@ test("deployed Core Schema matches the approved blank PostgreSQL 18 contract", a
       const result = await verifyManagedSchema(isolatedUrl);
 
       assert.equal(result.serverVersion.startsWith("18."), true);
-      assert.equal(result.migrationCount, 37);
+      assert.equal(result.migrationCount, 39);
       assert.equal(result.tableCount, 22);
       assert.equal(result.totalRows, 0);
       assert.equal(result.fingerprint, approvedCoreSchemaFingerprint);

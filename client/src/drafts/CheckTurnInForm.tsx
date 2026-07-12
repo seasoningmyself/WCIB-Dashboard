@@ -17,6 +17,7 @@ import {
 } from "../vocabulary/InlineVocabularyPickers.js";
 import { useVocabulary } from "../vocabulary/context.js";
 import { OfficeLocationPicker } from "../vocabulary/pickers.js";
+import { normalizeTurnInOfficeSelection } from "../offices/turn-in-office.js";
 import { createDraftApi, DraftApiError } from "./api.js";
 import { canRequestDraftHelp, parseHelpReason } from "./help-request.js";
 import {
@@ -140,16 +141,17 @@ export function CheckTurnInForm({
   }, [api, assignmentAttempt]);
 
   useEffect(() => {
-    if (
-      vocabulary.state.status === "ready" &&
-      vocabulary.state.data.officeLocations.length === 1
-    ) {
-      const officeId = vocabulary.state.data.officeLocations[0]?.id ?? null;
-      setForm((current) =>
-        current.officeLocationId !== null || officeId === null
+    if (vocabulary.state.status === "ready") {
+      const data = vocabulary.state.data;
+      setForm((current) => {
+        const officeLocationId = normalizeTurnInOfficeSelection(
+          data,
+          current.officeLocationId,
+        );
+        return current.officeLocationId === officeLocationId
           ? current
-          : { ...current, officeLocationId: officeId },
-      );
+          : { ...current, officeLocationId };
+      });
     }
   }, [vocabulary.state]);
 
@@ -201,6 +203,9 @@ export function CheckTurnInForm({
     [producerOptions, user],
   );
   const canRequestHelp = canRequestDraftHelp(user, draft);
+  const officeConfigurationBlocked =
+    vocabulary.state.status === "ready" &&
+    vocabulary.state.data.officeMode.kind === "unconfigured";
 
   const changeField = useCallback(
     <Key extends keyof TurnInFormState>(
@@ -242,7 +247,11 @@ export function CheckTurnInForm({
   );
 
   const save = useCallback(async () => {
-    if (pendingRef.current || (draft !== null && !isEditableDraft(draft))) {
+    if (
+      pendingRef.current ||
+      officeConfigurationBlocked ||
+      (draft !== null && !isEditableDraft(draft))
+    ) {
       return null;
     }
     pendingRef.current = true;
@@ -267,10 +276,14 @@ export function CheckTurnInForm({
     } finally {
       pendingRef.current = false;
     }
-  }, [acceptDraft, api, draft, form]);
+  }, [acceptDraft, api, draft, form, officeConfigurationBlocked]);
 
   const submit = useCallback(async () => {
-    if (pendingRef.current || (draft !== null && draft.status !== "draft")) {
+    if (
+      pendingRef.current ||
+      officeConfigurationBlocked ||
+      (draft !== null && draft.status !== "draft")
+    ) {
       return;
     }
     const validation = validateTurnInForSubmit(form);
@@ -299,7 +312,7 @@ export function CheckTurnInForm({
     } finally {
       pendingRef.current = false;
     }
-  }, [acceptDraft, api, draft, form]);
+  }, [acceptDraft, api, draft, form, officeConfigurationBlocked]);
 
   const openHelp = useCallback(() => {
     if (!canRequestHelp || pendingRef.current) {
@@ -443,7 +456,16 @@ export function CheckTurnInFormView({
     vocabulary.state.status === "ready"
       ? vocabulary.state.data.officeLocations
       : [];
-  const soleOffice = offices.length === 1 ? offices[0] ?? null : null;
+  const officeMode =
+    vocabulary.state.status === "ready"
+      ? vocabulary.state.data.officeMode
+      : null;
+  const officeConfigurationBlocked = officeMode?.kind === "unconfigured";
+  const soleOffice =
+    officeMode?.kind === "single"
+      ? offices.find(({ id }) => id === officeMode.soleOfficeId) ?? null
+      : null;
+  const formLocked = pending || officeConfigurationBlocked;
 
   if (completed) {
     const copy = completionCopy(draft.status);
@@ -476,6 +498,20 @@ export function CheckTurnInFormView({
         <div className="turn-in-alert" role="alert">{errors.form}</div>
       )}
 
+      {officeConfigurationBlocked ? (
+        <div className="turn-in-configuration-alert" role="alert">
+          <strong>Office setup required</strong>
+          <span>
+            A turn-in cannot be saved or submitted until an active office location exists.
+          </span>
+          {user.capabilities.includes("admin") ? (
+            <a href="#/settings">Manage office locations</a>
+          ) : (
+            <span>Ask an administrator to activate an office location.</span>
+          )}
+        </div>
+      ) : null}
+
       {sentBack ? (
         <div className="turn-in-sent-back" role="status">
           <strong>Changes requested</strong>
@@ -493,13 +529,15 @@ export function CheckTurnInFormView({
         noValidate
         onSubmit={(event: FormEvent<HTMLFormElement>) => {
           event.preventDefault();
-          onSave();
+          if (!officeConfigurationBlocked) {
+            onSave();
+          }
         }}
       >
         <fieldset
           aria-label="Turn-in details"
           className="turn-in-controls"
-          disabled={pending}
+          disabled={formLocked}
         >
         <FormSection title="Account and insured">
           <div className="turn-in-grid turn-in-grid-three">
@@ -538,10 +576,14 @@ export function CheckTurnInFormView({
               ) : null}
             </FormField>
 
-            {soleOffice === null ? (
+            {officeConfigurationBlocked ? (
+              <FormField field="officeLocationId" label="Office location">
+                <output className="turn-in-readonly">No active office configured</output>
+              </FormField>
+            ) : soleOffice === null ? (
               <FormField error={errors.officeLocationId} field="officeLocationId">
                 <OfficeLocationPicker
-                  disabled={pending}
+                  disabled={formLocked}
                   id={fieldId("officeLocationId")}
                   onChange={(value) => onFieldChange("officeLocationId", value)}
                   required
@@ -824,11 +866,11 @@ export function CheckTurnInFormView({
               Request help
             </button>
           ) : null}
-          <button className="turn-in-save" disabled={pending} type="submit">
+          <button className="turn-in-save" disabled={formLocked} type="submit">
             {saveActionLabel(pending, sentBack, draft)}
           </button>
           {sentBack ? null : (
-            <button className="turn-in-submit" disabled={pending} onClick={onSubmit} type="button">
+            <button className="turn-in-submit" disabled={formLocked} onClick={onSubmit} type="button">
               {user.capabilities.includes("admin") ? "Submit to ledger" : "Submit for approval"}
             </button>
           )}

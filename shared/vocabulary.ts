@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { POLICY_TYPE_CLASSES } from "./policy-types.js";
+import {
+  officeSelectionModeMatches,
+  officeSelectionModeSchema,
+} from "./office-selection.js";
 
 export const VOCABULARY_NAME_MAX_LENGTH = 200;
 
@@ -26,10 +30,20 @@ export const activeVocabularyResponseSchema = z
   .object({
     carriers: z.array(vocabularyOptionSchema),
     mgas: z.array(vocabularyOptionSchema),
+    officeMode: officeSelectionModeSchema,
     officeLocations: z.array(vocabularyOptionSchema),
     policyTypes: z.array(policyTypeOptionSchema),
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    if (!officeSelectionModeMatches(value.officeMode, value.officeLocations)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Office mode must match the active office list",
+        path: ["officeMode"],
+      });
+    }
+  });
 
 export const createCarrierRequestSchema = z
   .object({

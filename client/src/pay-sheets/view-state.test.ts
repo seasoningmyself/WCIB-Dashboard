@@ -9,7 +9,10 @@ import {
   formatPaySheetRate,
   groupPaySheetsByOwner,
   isPaySheetsAdmin,
+  listPaySheetPeriods,
   openSheetForOwner,
+  ownerHasPaySheetPeriod,
+  paySheetExportQueryForScope,
   paySheetAccountLabel,
 } from "./view-state.js";
 import {
@@ -28,6 +31,35 @@ test("owner grouping preserves server order and separates open from history", ()
   assert.deepEqual(
     closedSheetsForOwner(groups[0]!).map(({ periodMonth }) => periodMonth),
     [6],
+  );
+});
+
+test("export periods are unique, newest-first, and owner-scoped by UUID", () => {
+  const data = paySheetListFixture();
+  const periods = listPaySheetPeriods(data.items);
+  const groups = groupPaySheetsByOwner(data.items);
+  assert.deepEqual(
+    periods.map(({ key, label }) => [key, label]),
+    [["2026-07", "July 2026"], ["2026-06", "June 2026"]],
+  );
+  assert.equal(ownerHasPaySheetPeriod(groups[0]!, periods[1]!), true);
+  assert.equal(ownerHasPaySheetPeriod(groups[1]!, periods[1]!), false);
+  assert.deepEqual(paySheetExportQueryForScope("all", groups[1]!, periods[1]!), {
+    ownerUserId: null,
+    periodMonth: 6,
+    periodYear: 2026,
+  });
+  assert.equal(
+    paySheetExportQueryForScope("owner", groups[1]!, periods[1]!),
+    null,
+  );
+  assert.deepEqual(
+    paySheetExportQueryForScope("owner", groups[1]!, periods[0]!),
+    {
+      ownerUserId: uuid(2),
+      periodMonth: 7,
+      periodYear: 2026,
+    },
   );
 });
 

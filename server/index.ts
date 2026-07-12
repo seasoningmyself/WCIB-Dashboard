@@ -1,4 +1,5 @@
 import { drizzle } from "drizzle-orm/node-postgres";
+import { resolve } from "node:path";
 import { createApp } from "./app.js";
 import { createSessionMiddleware } from "./auth/sessions.js";
 import { createDatabaseAuthorizationGuards } from "./auth/authorization.js";
@@ -65,6 +66,7 @@ import { listMgaPayableSources } from "./policies/mga-payables.js";
 import { registerMgaPayableStateRoute } from "./http/mga-payable-state.js";
 import { changeMgaPayableState } from "./policies/mga-payable-state.js";
 import { registerPaySheetReadRoutes } from "./http/pay-sheets.js";
+import { registerPaySheetExportRoutes } from "./http/pay-sheet-exports.js";
 import {
   getPaySheetSource,
   listPaySheetSources,
@@ -78,6 +80,38 @@ import {
   updatePaySheetAdjustment,
 } from "./pay-sheets/adjustments.js";
 import { getPaySheetAdjustmentTarget } from "./pay-sheets/adjustment-target.js";
+import {
+  registerMyCommissionReceiptRoute,
+  registerMyCommissionsRoute,
+} from "./http/my-commissions.js";
+import { listMyCommissionSources } from "./commissions/read.js";
+import { setProducerCommissionReceipt } from "./commissions/receipts.js";
+import { listOwnMyItemSources } from "./drafts/my-items.js";
+import { registerMyItemsRoute } from "./http/my-items.js";
+import { registerAdminStaffRoutes } from "./http/admin-staff.js";
+import {
+  createAdminProducerRate,
+  createAdminStaff,
+  getAdminStaffSource,
+  listAdminStaffSources,
+  setAdminStaffActive,
+  updateAdminProducerRate,
+  updateAdminStaff,
+} from "./auth/admin-staff.js";
+import { registerAdminOfficeRoutes } from "./http/admin-office-locations.js";
+import {
+  createAdminOfficeLocation,
+  loadAdminOfficeManagementSource,
+  renameAdminOfficeLocation,
+  setAdminOfficeLocationActive,
+} from "./offices/admin.js";
+import { registerKpiTargetRoutes } from "./http/kpi-targets.js";
+import { registerKpiActualRoute } from "./http/kpi-actuals.js";
+import {
+  listKpiTargetSources,
+  upsertKpiTarget,
+} from "./kpi/targets.js";
+import { loadKpiActualSource } from "./kpi/actuals.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -85,6 +119,8 @@ const pool = createDatabasePool(config.databaseUrl);
 const database = drizzle(pool, { schema: databaseSchema });
 const authorization = createDatabaseAuthorizationGuards(database, logger);
 const app = createApp({
+  clientAssetsDirectory:
+    config.nodeEnv === "production" ? resolve("dist/client") : undefined,
   logger,
   readinessCheck: () => checkDatabaseConnection(pool),
   registerRoutes: (routes) => {
@@ -215,6 +251,12 @@ const app = createApp({
         listPaySheetSources(database, context, query),
       logger,
     });
+    registerPaySheetExportRoutes(routes, {
+      authorization,
+      list: (context, query) =>
+        listPaySheetSources(database, context, query),
+      logger,
+    });
     registerPaySheetCloseRoute(routes, {
       authorization,
       close: (context, paySheetId) =>
@@ -242,6 +284,96 @@ const app = createApp({
           input,
           logger,
         ),
+    });
+    registerMyCommissionsRoute(routes, {
+      authorization,
+      list: (context, query) =>
+        listMyCommissionSources(database, context, query),
+      logger,
+    });
+    registerMyCommissionReceiptRoute(routes, {
+      authorization,
+      change: (context, policyId, input) =>
+        setProducerCommissionReceipt(
+          database,
+          context,
+          policyId,
+          input,
+          logger,
+        ),
+    });
+    registerMyItemsRoute(routes, {
+      authorization,
+      list: (context) => listOwnMyItemSources(database, context),
+      logger,
+    });
+    registerAdminStaffRoutes(routes, {
+      authorization,
+      create: (context, input) =>
+        createAdminStaff(database, context, input, logger),
+      createRate: (context, userId, input) =>
+        createAdminProducerRate(database, context, userId, input, logger),
+      get: (context, userId) =>
+        getAdminStaffSource(database, context, userId),
+      list: (context) => listAdminStaffSources(database, context),
+      logger,
+      setActive: (context, userId, active) =>
+        setAdminStaffActive(database, context, userId, active, logger),
+      update: (context, userId, input) =>
+        updateAdminStaff(database, context, userId, input, logger),
+      updateRate: (context, userId, rateId, input) =>
+        updateAdminProducerRate(
+          database,
+          context,
+          userId,
+          rateId,
+          input,
+          logger,
+        ),
+    });
+    registerAdminOfficeRoutes(routes, {
+      authorization,
+      create: (context, input) =>
+        createAdminOfficeLocation(database, context, input, logger),
+      list: (context) => loadAdminOfficeManagementSource(database, context),
+      logger,
+      rename: (context, officeLocationId, input) =>
+        renameAdminOfficeLocation(
+          database,
+          context,
+          officeLocationId,
+          input,
+          logger,
+        ),
+      setActive: (context, officeLocationId, active) =>
+        setAdminOfficeLocationActive(
+          database,
+          context,
+          officeLocationId,
+          active,
+          logger,
+        ),
+    });
+    registerKpiTargetRoutes(routes, {
+      authorization,
+      list: (context, query) =>
+        listKpiTargetSources(database, context, query),
+      logger,
+      upsert: (context, scopeType, year, input) =>
+        upsertKpiTarget(
+          database,
+          context,
+          scopeType,
+          year,
+          input,
+          logger,
+        ),
+    });
+    registerKpiActualRoute(routes, {
+      authorization,
+      list: (context, query) =>
+        loadKpiActualSource(database, context, query),
+      logger,
     });
   },
   sessionMiddleware: createSessionMiddleware(pool, {

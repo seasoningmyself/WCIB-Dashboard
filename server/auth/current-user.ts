@@ -21,7 +21,6 @@ const NAVIGATION_BY_ROLE = {
     "settings",
     "turn_in",
     "my_items",
-    "my_commissions",
   ],
   employee: ["turn_in", "my_items"],
   producer: ["turn_in", "my_items", "my_commissions"],

@@ -9,7 +9,7 @@ import {
   uuid,
 } from "./test-fixture.js";
 
-test("pay-sheets API uses only the real read, close, and adjustment routes", async () => {
+test("pay-sheets API uses only the real data and streamed export routes", async () => {
   const calls: Array<{ options?: ApiRequestOptions; path: string }> = [];
   const detail = paySheetDetailFixture();
   const mutation = (action: "created" | "deleted" | "updated") => ({
@@ -66,6 +66,8 @@ test("pay-sheets API uses only the real read, close, and adjustment routes", asy
     Response.json(mutation("updated")),
     Response.json(mutation("deleted")),
     Response.json({ producers: [] }),
+    exportResponse("excel", "WCIB_Pay_Sheets_2026-07.xlsx"),
+    exportResponse("print", "WCIB_Pay_Sheet_2026-07.html"),
   ];
   const api = createPaySheetsApi({
     async request(path, options) {
@@ -81,6 +83,16 @@ test("pay-sheets API uses only the real read, close, and adjustment routes", asy
   await api.updateAdjustment(detail.adjustments[0]!.id, adjustmentInput());
   await api.deleteAdjustment(detail.adjustments[0]!.id);
   await api.listAssignmentOptions();
+  const excel = await api.exportDocument("excel", {
+    ownerUserId: null,
+    periodMonth: 7,
+    periodYear: 2026,
+  });
+  const print = await api.exportDocument("print", {
+    ownerUserId: uuid(2),
+    periodMonth: 7,
+    periodYear: 2026,
+  });
 
   assert.deepEqual(
     calls.map(({ options, path }) => [options?.method, path]),
@@ -92,11 +104,19 @@ test("pay-sheets API uses only the real read, close, and adjustment routes", asy
       ["PUT", `/pay-sheet-adjustments/${detail.adjustments[0]!.id}`],
       ["DELETE", `/pay-sheet-adjustments/${detail.adjustments[0]!.id}`],
       ["GET", "/draft-assignment-options"],
+      ["GET", "/pay-sheets/exports/excel?periodMonth=7&periodYear=2026"],
+      ["GET", `/pay-sheets/exports/print?periodMonth=7&periodYear=2026&ownerUserId=${uuid(2)}`],
     ],
   );
+  assert.equal(excel.filename, "WCIB_Pay_Sheets_2026-07.xlsx");
+  assert.equal(excel.blob.size, 4);
+  assert.equal(print.filename, "WCIB_Pay_Sheet_2026-07.html");
+  assert.equal(print.blob.size, 4);
+  assert.equal(calls[7]?.options?.cache, "no-store");
+  assert.equal(calls[8]?.options?.cache, "no-store");
   assert.deepEqual(JSON.parse(String(calls[2]?.options?.body)), {});
   assert.equal(
-    calls.some(({ path }) => /reopen|export|print|localStorage/i.test(path)),
+    calls.some(({ path }) => /reopen|localStorage/i.test(path)),
     false,
   );
 });
@@ -118,6 +138,39 @@ test("pay-sheets API rejects unsafe adjustment input before a request", async ()
       error instanceof PaySheetsApiError && error.kind === "rejected",
   );
   assert.equal(requests, 0);
+});
+
+test("pay-sheets export rejects unsafe scope and malformed document headers", async () => {
+  let requests = 0;
+  const api = createPaySheetsApi({
+    async request() {
+      requests += 1;
+      return new Response("xlsx", {
+        headers: {
+          "content-disposition": 'attachment; filename="../../unsafe.xlsx"',
+          "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        },
+      });
+    },
+  });
+  await assert.rejects(
+    api.exportDocument("excel", {
+      ownerUserId: "not-a-uuid",
+      periodMonth: 7,
+      periodYear: 2026,
+    }),
+    isPaySheetsError("rejected"),
+  );
+  assert.equal(requests, 0);
+  await assert.rejects(
+    api.exportDocument("excel", {
+      ownerUserId: null,
+      periodMonth: 7,
+      periodYear: 2026,
+    }),
+    isPaySheetsError("invalid_response"),
+  );
+  assert.equal(requests, 1);
 });
 
 test("pay-sheets API normalizes denied, conflict, rejected, network, and response failures", async () => {
@@ -165,4 +218,23 @@ function adjustmentInput() {
 
 function client(response: Response): ApiClient {
   return { async request() { return response; } };
+}
+
+function exportResponse(
+  format: "excel" | "print",
+  filename: string,
+): Response {
+  return new Response(format === "excel" ? "xlsx" : "html", {
+    headers: {
+      "content-disposition": `${format === "excel" ? "attachment" : "inline"}; filename="${filename}"`,
+      "content-type": format === "excel"
+        ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        : "text/html; charset=utf-8",
+    },
+  });
+}
+
+function isPaySheetsError(kind: PaySheetsApiError["kind"]) {
+  return (error: unknown) =>
+    error instanceof PaySheetsApiError && error.kind === kind;
 }

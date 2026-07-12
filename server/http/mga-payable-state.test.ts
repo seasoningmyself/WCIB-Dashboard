@@ -251,6 +251,7 @@ function sourceItem(): MgaPayableSourceItem {
       mgaId: MGA_ID,
       mgaPaid: true,
       mgaPaidAt: at,
+      producerCommissionReceivedAt: null,
       mgaPayReference: "WIRE-123",
       netDue: "175.00",
       netDueTotal: "0.00",

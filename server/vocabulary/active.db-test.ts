@@ -95,6 +95,9 @@ test("active vocabulary read is filtered, deterministic, and picker-safe", async
       createdIds.policyTypes.includes(id),
     );
 
+    assert.equal(vocabulary.officeMode.kind, "multiple");
+    assert.ok(vocabulary.officeMode.activeCount >= 2);
+
     assert.deepEqual(
       ownCarriers.map(({ name }) => name),
       [

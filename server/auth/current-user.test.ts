@@ -37,7 +37,6 @@ test("current-user navigation is an exact server-owned role policy", () => {
       "settings",
       "turn_in",
       "my_items",
-      "my_commissions",
     ],
   );
   assert.deepEqual(
@@ -78,7 +77,6 @@ test("current-user projection exposes only the explicit account contract", () =>
         "settings",
         "turn_in",
         "my_items",
-        "my_commissions",
       ],
       capabilities: ["admin"],
       displayName: "Sophia",

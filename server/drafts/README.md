@@ -20,6 +20,13 @@ orders by most recent edit. Admin's My Drafts remains admin-owned; all-user
 review belongs to the approval workflow. Run `npm run test:db:draft-list` for
 the ownership and ordering boundary.
 
+`GET /api/my-items` is the employee/producer status-only boundary. It scopes by
+the authenticated staff UUID before projection, omits untouched blank drafts,
+and returns only ID, display title, status, activity/submission timestamps, and
+the bounded help or send-back reason. It never reuses the richer draft response
+contract, including for an active draft. Run `npm run test:db:my-items` for the
+real-session ownership, role, query-injection, and exact-field boundary.
+
 `PATCH /api/drafts/:draftId` edits only the authenticated UUID's `draft` or
 `sent_back` record. The transaction locks and re-reads the owned row, validates
 the merged content, and uses the existing lifecycle transition when reopening

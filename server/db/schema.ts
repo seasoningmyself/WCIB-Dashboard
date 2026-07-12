@@ -855,6 +855,10 @@ export const policies = pgTable(
     mgaPaid: boolean("mga_paid").notNull().default(false),
     mgaPayReference: text("mga_pay_reference"),
     mgaPaidAt: timestamp("mga_paid_at", { withTimezone: true }),
+    producerCommissionReceivedAt: timestamp(
+      "producer_commission_received_at",
+      { withTimezone: true },
+    ),
     premiumTotal: numeric("premium_total", { precision: 14, scale: 2 })
       .notNull()
       .default("0"),

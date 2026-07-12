@@ -1,4 +1,5 @@
 import type { CurrentUser } from "../../../shared/current-user.js";
+import type { PaySheetExportQuery } from "../../../shared/pay-sheet-export.js";
 import type {
   PaySheetAdjustmentView,
   PaySheetDetail,
@@ -11,6 +12,13 @@ export interface PaySheetOwnerGroup {
   ownerType: "producer" | "sophia";
   ownerUserId: string;
   sheets: readonly PaySheetSummary[];
+}
+
+export interface PaySheetPeriodOption {
+  key: string;
+  label: string;
+  periodMonth: number;
+  periodYear: number;
 }
 
 export function isPaySheetsAdmin(user: CurrentUser): boolean {
@@ -49,6 +57,53 @@ export function closedSheetsForOwner(
   group: PaySheetOwnerGroup,
 ): readonly PaySheetSummary[] {
   return group.sheets.filter(({ status }) => status === "closed");
+}
+
+export function listPaySheetPeriods(
+  sheets: readonly PaySheetSummary[],
+): readonly PaySheetPeriodOption[] {
+  const periods = new Map<string, PaySheetPeriodOption>();
+  for (const sheet of sheets) {
+    const key = paySheetPeriodKey(sheet.periodMonth, sheet.periodYear);
+    periods.set(key, {
+      key,
+      label: formatPaySheetPeriod(sheet.periodMonth, sheet.periodYear),
+      periodMonth: sheet.periodMonth,
+      periodYear: sheet.periodYear,
+    });
+  }
+  return [...periods.values()].sort(
+    (left, right) =>
+      right.periodYear - left.periodYear || right.periodMonth - left.periodMonth,
+  );
+}
+
+export function ownerHasPaySheetPeriod(
+  group: PaySheetOwnerGroup,
+  period: PaySheetPeriodOption,
+): boolean {
+  return group.sheets.some(
+    (sheet) =>
+      sheet.periodMonth === period.periodMonth &&
+      sheet.periodYear === period.periodYear,
+  );
+}
+
+export function paySheetExportQueryForScope(
+  scope: "all" | "owner",
+  group: PaySheetOwnerGroup,
+  period: PaySheetPeriodOption,
+): PaySheetExportQuery | null {
+  if (scope === "owner" && !ownerHasPaySheetPeriod(group, period)) return null;
+  return {
+    ownerUserId: scope === "owner" ? group.ownerUserId : null,
+    periodMonth: period.periodMonth,
+    periodYear: period.periodYear,
+  };
+}
+
+export function paySheetPeriodKey(periodMonth: number, periodYear: number): string {
+  return `${periodYear}-${String(periodMonth).padStart(2, "0")}`;
 }
 
 export function formatPaySheetPeriod(

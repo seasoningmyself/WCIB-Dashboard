@@ -196,7 +196,6 @@ test("GET /api/me returns exact server-derived role navigation", async () => {
         "settings",
         "turn_in",
         "my_items",
-        "my_commissions",
       ],
       capabilities: ["admin"],
       displayName: "Sophia",

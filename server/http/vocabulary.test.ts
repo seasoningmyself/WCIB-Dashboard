@@ -69,6 +69,7 @@ const source = {
       netDue: "100.00",
     },
   ],
+  officeMode: { activeCount: 1, kind: "single", soleOfficeId: OPTION_ID },
   officeLocations: [
     { id: OPTION_ID, name: "Chicago", premiumTotal: "1000.00" },
   ],
@@ -185,6 +186,7 @@ test("GET /api/vocabulary returns the same exact contract to all WCIB roles", as
   const expected = {
     carriers: [{ id: OPTION_ID, name: "Travelers" }],
     mgas: [{ id: OPTION_ID, name: "RPS" }],
+    officeMode: { activeCount: 1, kind: "single", soleOfficeId: OPTION_ID },
     officeLocations: [{ id: OPTION_ID, name: "Chicago" }],
     policyTypes: [
       { classTag: "Commercial", id: OPTION_ID, name: "General Liability" },
@@ -253,6 +255,7 @@ test("GET /api/vocabulary supports a blank WCIB vocabulary", async () => {
   const fixture = createFixture({
     carriers: [],
     mgas: [],
+    officeMode: { activeCount: 0, kind: "unconfigured", soleOfficeId: null },
     officeLocations: [],
     policyTypes: [],
   });
@@ -264,6 +267,7 @@ test("GET /api/vocabulary supports a blank WCIB vocabulary", async () => {
   assert.deepEqual(response.body, {
     carriers: [],
     mgas: [],
+    officeMode: { activeCount: 0, kind: "unconfigured", soleOfficeId: null },
     officeLocations: [],
     policyTypes: [],
   });

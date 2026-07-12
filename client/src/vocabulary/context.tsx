@@ -22,14 +22,26 @@ interface VocabularyContextValue {
 
 const VocabularyContext = createContext<VocabularyContextValue | null>(null);
 
-export function VocabularyProvider({ children }: { children: ReactNode }) {
+export function VocabularyProvider({
+  children,
+  initialData,
+}: {
+  children: ReactNode;
+  initialData?: ActiveVocabularyResponse;
+}) {
   const client = useApiClient();
   const [attempt, setAttempt] = useState(0);
-  const [state, setState] = useState<VocabularyLoadState>({
-    status: "loading",
-  });
+  const [state, setState] = useState<VocabularyLoadState>(
+    initialData === undefined
+      ? { status: "loading" }
+      : { data: initialData, status: "ready" },
+  );
 
   useEffect(() => {
+    if (initialData !== undefined) {
+      setState({ data: initialData, status: "ready" });
+      return;
+    }
     let active = true;
     setState({ status: "loading" });
     void loadActiveVocabulary(client)
@@ -46,7 +58,7 @@ export function VocabularyProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, [attempt, client]);
+  }, [attempt, client, initialData]);
 
   const clear = useCallback(() => {
     setState({ status: "loading" });

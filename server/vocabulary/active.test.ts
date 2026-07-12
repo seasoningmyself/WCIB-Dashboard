@@ -29,6 +29,7 @@ const source = {
       netDue: "100.00",
     },
   ],
+  officeMode: { activeCount: 1, kind: "single", soleOfficeId: OPTION_ID },
   officeLocations: [
     { id: OPTION_ID, name: "Chicago", premiumTotal: "1000.00" },
   ],
@@ -58,6 +59,7 @@ test("active vocabulary projection allows approved roles and exact fields", () =
   const expected = {
     carriers: [{ id: OPTION_ID, name: "Travelers" }],
     mgas: [{ id: OPTION_ID, name: "RPS" }],
+    officeMode: { activeCount: 1, kind: "single", soleOfficeId: OPTION_ID },
     officeLocations: [{ id: OPTION_ID, name: "Chicago" }],
     policyTypes: [
       { classTag: "Commercial", id: OPTION_ID, name: "General Liability" },

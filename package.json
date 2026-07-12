@@ -27,10 +27,12 @@
     "test:db:session": "node --import tsx --test server/auth/sessions.db-test.ts",
     "test:db:user": "node --import tsx --test server/auth/users.db-test.ts",
     "test:db:staff": "node --import tsx --test server/auth/staff-accounts.db-test.ts",
+    "test:db:admin-staff": "node --import tsx --test server/http/admin-staff.db-test.ts",
     "test:db:access": "node --import tsx --test server/auth/access-model.db-test.ts",
     "test:db:producer-rate-history": "node --import tsx --test server/db/producer-rate-history.db-test.ts",
     "test:db:producer-rate-integrity": "node --import tsx --test server/db/producer-rate-integrity.db-test.ts",
     "test:db:office-locations": "node --import tsx --test server/db/office-locations.db-test.ts",
+    "test:db:admin-office-locations": "node --import tsx --test server/http/admin-office-locations.db-test.ts",
     "test:db:mgas": "node --import tsx --test server/db/mgas.db-test.ts",
     "test:db:carriers": "node --import tsx --test server/db/carriers.db-test.ts",
     "test:db:policy-types": "node --import tsx --test server/db/policy-types.db-test.ts",
@@ -62,6 +64,11 @@
     "test:db:vocabulary-audit": "node --import tsx --test server/db/vocabulary-audit-migration.db-test.ts",
     "test:db:policy-corrected-audit": "node --import tsx --test server/db/policy-corrected-audit-migration.db-test.ts",
     "test:db:policy-correction": "node --import tsx --test server/db/policy-correction.db-test.ts",
+    "test:db:producer-commission-received": "node --import tsx --test server/db/producer-commission-received-migration.db-test.ts",
+    "test:db:producer-commission-receipt-audit": "node --import tsx --test server/db/producer-commission-receipt-audit-migration.db-test.ts",
+    "test:db:my-commissions": "node --import tsx --test server/http/my-commissions.db-test.ts",
+    "test:db:my-commission-receipts": "node --import tsx --test server/http/my-commission-receipts.db-test.ts",
+    "test:db:my-items": "node --import tsx --test server/drafts/my-items.db-test.ts",
     "test:db:policy-references": "node --import tsx --test server/db/policy-referential-integrity.db-test.ts",
     "test:db:policy-lifecycle": "node --import tsx --test server/db/policy-lifecycle.db-test.ts",
     "test:db:flagged-help-resolution": "node --import tsx --test server/db/flagged-help-resolution.db-test.ts",
@@ -74,11 +81,14 @@
     "test:db:mga-pay-sheet-attachment": "node --import tsx --test server/db/mga-pay-sheet-attachment.db-test.ts",
     "test:db:pay-sheet-close": "node --import tsx --test server/db/pay-sheet-close.db-test.ts",
     "test:db:pay-sheet-read": "node --import tsx --test server/http/pay-sheets.db-test.ts",
+    "test:db:pay-sheet-exports": "node --import tsx --test server/http/pay-sheet-exports.db-test.ts",
     "test:db:closed-pay-sheet-immutability": "node --import tsx --test server/db/closed-pay-sheet-immutability.db-test.ts",
     "test:db:pay-sheet-single-settlement": "node --import tsx --test server/db/pay-sheet-single-settlement.db-test.ts",
     "test:db:pay-sheet-adjustments": "node --import tsx --test server/db/pay-sheet-adjustments.db-test.ts",
     "test:db:kpi-targets": "node --import tsx --test server/db/kpi-targets.db-test.ts",
+    "test:db:kpi-target-endpoints": "node --import tsx --test server/http/kpi-targets.db-test.ts",
     "test:db:kpi-closed-facts": "node --import tsx --test server/kpi/closed-facts.db-test.ts",
+    "test:db:kpi-actual-endpoints": "node --import tsx --test server/http/kpi-actuals.db-test.ts",
     "test:db:migration-safety": "node --import tsx --test server/db/migration-safety.db-test.ts",
     "test:db:managed-schema": "node --import tsx --test server/db/managed-schema-verification.db-test.ts"
   },
@@ -87,6 +97,7 @@
     "connect-pg-simple": "^10.0.0",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
+    "exceljs": "^4.4.0",
     "express": "^5.0.1",
     "express-session": "^1.19.0",
     "pg": "^8.16.3",
@@ -111,6 +122,9 @@
   "overrides": {
     "drizzle-kit": {
       "@esbuild-kit/esm-loader": "npm:tsx@^4.20.4"
+    },
+    "exceljs": {
+      "uuid": "^11.1.1"
     }
   }
 }
