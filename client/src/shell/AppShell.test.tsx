@@ -30,7 +30,6 @@ test("shell renders the exact admin navigation supplied by /api/me", () => {
       "settings",
       "turn_in",
       "my_items",
-      "my_commissions",
     ],
     capabilities: ["admin"],
     displayName: "Sophia",
@@ -48,7 +47,6 @@ test("shell renders the exact admin navigation supplied by /api/me", () => {
     "Settings",
     "Check Turn-In",
     "My Drafts",
-    "My Commissions",
   ]) {
     assert.match(markup, new RegExp(`>${label}<`));
   }
@@ -178,6 +176,25 @@ test("server-authorized pay sheets route mounts the real admin workspace", () =>
   );
 
   assert.match(markup, /Loading pay sheets/);
+  assert.doesNotMatch(markup, /WCIB workspace/);
+});
+
+test("server-authorized My Commissions route mounts the real producer workspace", () => {
+  const markup = renderToStaticMarkup(
+    withApi(
+      <AppShellView
+        currentPath="/my-commissions"
+        onLogout={() => {}}
+        user={{
+          ...baseUser,
+          allowedNavigation: ["turn_in", "my_items", "my_commissions"],
+          role: "producer",
+        }}
+      />,
+    ),
+  );
+
+  assert.match(markup, /Loading commissions/);
   assert.doesNotMatch(markup, /WCIB workspace/);
 });
 

@@ -12,6 +12,7 @@ import { ApprovalQueue } from "../approvals/ApprovalQueue.js";
 import { PolicyLedger } from "../ledger/PolicyLedger.js";
 import { MgaPayables } from "../mga-payables/MgaPayables.js";
 import { PaySheets } from "../pay-sheets/PaySheets.js";
+import { MyCommissions } from "../commissions/MyCommissions.js";
 import { VocabularyProvider } from "../vocabulary/context.js";
 import {
   resolveAuthorizedNavigation,
@@ -198,6 +199,9 @@ function ShellContent({
           <PaySheets user={user} />
         </VocabularyProvider>
       );
+    }
+    if (route.item.id === "my_commissions") {
+      return <MyCommissions user={user} />;
     }
     return (
       <section className="workspace-page" aria-labelledby="workspace-page-title">
