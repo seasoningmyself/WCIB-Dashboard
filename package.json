@@ -81,6 +81,7 @@
     "test:db:mga-pay-sheet-attachment": "node --import tsx --test server/db/mga-pay-sheet-attachment.db-test.ts",
     "test:db:pay-sheet-close": "node --import tsx --test server/db/pay-sheet-close.db-test.ts",
     "test:db:pay-sheet-read": "node --import tsx --test server/http/pay-sheets.db-test.ts",
+    "test:db:pay-sheet-exports": "node --import tsx --test server/http/pay-sheet-exports.db-test.ts",
     "test:db:closed-pay-sheet-immutability": "node --import tsx --test server/db/closed-pay-sheet-immutability.db-test.ts",
     "test:db:pay-sheet-single-settlement": "node --import tsx --test server/db/pay-sheet-single-settlement.db-test.ts",
     "test:db:pay-sheet-adjustments": "node --import tsx --test server/db/pay-sheet-adjustments.db-test.ts",
@@ -94,6 +95,7 @@
     "connect-pg-simple": "^10.0.0",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
+    "exceljs": "^4.4.0",
     "express": "^5.0.1",
     "express-session": "^1.19.0",
     "pg": "^8.16.3",
@@ -118,6 +120,9 @@
   "overrides": {
     "drizzle-kit": {
       "@esbuild-kit/esm-loader": "npm:tsx@^4.20.4"
+    },
+    "exceljs": {
+      "uuid": "^11.1.1"
     }
   }
 }

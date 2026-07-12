@@ -65,6 +65,7 @@ import { listMgaPayableSources } from "./policies/mga-payables.js";
 import { registerMgaPayableStateRoute } from "./http/mga-payable-state.js";
 import { changeMgaPayableState } from "./policies/mga-payable-state.js";
 import { registerPaySheetReadRoutes } from "./http/pay-sheets.js";
+import { registerPaySheetExportRoutes } from "./http/pay-sheet-exports.js";
 import {
   getPaySheetSource,
   listPaySheetSources,
@@ -236,6 +237,12 @@ const app = createApp({
       authorization,
       get: (context, paySheetId) =>
         getPaySheetSource(database, context, paySheetId),
+      list: (context, query) =>
+        listPaySheetSources(database, context, query),
+      logger,
+    });
+    registerPaySheetExportRoutes(routes, {
+      authorization,
       list: (context, query) =>
         listPaySheetSources(database, context, query),
       logger,
