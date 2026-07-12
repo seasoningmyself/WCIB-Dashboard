@@ -1,4 +1,6 @@
 import express, { type Express, type RequestHandler } from "express";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   createErrorHandler,
   notFoundHandler,
@@ -17,6 +19,7 @@ import {
 } from "./http/routes.js";
 
 export interface CreateAppOptions {
+  clientAssetsDirectory?: string;
   logger?: AppLogger;
   logUnexpectedError?: UnexpectedErrorLogger;
   readinessCheck?: ReadinessCheck;
@@ -54,6 +57,9 @@ export function createApp(options: CreateAppOptions = {}): Express {
   );
 
   options.registerRoutes?.(routes);
+  if (options.clientAssetsDirectory !== undefined) {
+    registerClientAssets(app, routes, options.clientAssetsDirectory);
+  }
   auditRouteAccessDeclarations(app);
   app.use(notFoundHandler);
   const logUnexpectedError =
@@ -66,4 +72,34 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use(createErrorHandler(logUnexpectedError));
 
   return app;
+}
+
+function registerClientAssets(
+  app: Express,
+  routes: RouteRegistrar,
+  assetsDirectory: string,
+): void {
+  const directory = resolve(assetsDirectory);
+  const indexPath = resolve(directory, "index.html");
+  if (!existsSync(indexPath)) {
+    throw new Error("Production client index is missing");
+  }
+
+  app.use(
+    express.static(directory, {
+      immutable: true,
+      index: false,
+      maxAge: "1y",
+    }),
+  );
+  routes.get(
+    "/",
+    {
+      public: true,
+      reason: "Users need the public application shell before login",
+    },
+    (_req, res) => {
+      res.set("Cache-Control", "no-store").sendFile(indexPath);
+    },
+  );
 }

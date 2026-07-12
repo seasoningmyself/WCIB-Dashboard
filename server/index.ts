@@ -1,4 +1,5 @@
 import { drizzle } from "drizzle-orm/node-postgres";
+import { resolve } from "node:path";
 import { createApp } from "./app.js";
 import { createSessionMiddleware } from "./auth/sessions.js";
 import { createDatabaseAuthorizationGuards } from "./auth/authorization.js";
@@ -118,6 +119,8 @@ const pool = createDatabasePool(config.databaseUrl);
 const database = drizzle(pool, { schema: databaseSchema });
 const authorization = createDatabaseAuthorizationGuards(database, logger);
 const app = createApp({
+  clientAssetsDirectory:
+    config.nodeEnv === "production" ? resolve("dist/client") : undefined,
   logger,
   readinessCheck: () => checkDatabaseConnection(pool),
   registerRoutes: (routes) => {
