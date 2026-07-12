@@ -27,6 +27,7 @@
     "test:db:session": "node --import tsx --test server/auth/sessions.db-test.ts",
     "test:db:user": "node --import tsx --test server/auth/users.db-test.ts",
     "test:db:staff": "node --import tsx --test server/auth/staff-accounts.db-test.ts",
+    "test:db:admin-staff": "node --import tsx --test server/http/admin-staff.db-test.ts",
     "test:db:access": "node --import tsx --test server/auth/access-model.db-test.ts",
     "test:db:producer-rate-history": "node --import tsx --test server/db/producer-rate-history.db-test.ts",
     "test:db:producer-rate-integrity": "node --import tsx --test server/db/producer-rate-integrity.db-test.ts",

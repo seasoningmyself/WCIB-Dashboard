@@ -86,6 +86,16 @@ import { listMyCommissionSources } from "./commissions/read.js";
 import { setProducerCommissionReceipt } from "./commissions/receipts.js";
 import { listOwnMyItemSources } from "./drafts/my-items.js";
 import { registerMyItemsRoute } from "./http/my-items.js";
+import { registerAdminStaffRoutes } from "./http/admin-staff.js";
+import {
+  createAdminProducerRate,
+  createAdminStaff,
+  getAdminStaffSource,
+  listAdminStaffSources,
+  setAdminStaffActive,
+  updateAdminProducerRate,
+  updateAdminStaff,
+} from "./auth/admin-staff.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -272,6 +282,30 @@ const app = createApp({
       authorization,
       list: (context) => listOwnMyItemSources(database, context),
       logger,
+    });
+    registerAdminStaffRoutes(routes, {
+      authorization,
+      create: (context, input) =>
+        createAdminStaff(database, context, input, logger),
+      createRate: (context, userId, input) =>
+        createAdminProducerRate(database, context, userId, input, logger),
+      get: (context, userId) =>
+        getAdminStaffSource(database, context, userId),
+      list: (context) => listAdminStaffSources(database, context),
+      logger,
+      setActive: (context, userId, active) =>
+        setAdminStaffActive(database, context, userId, active, logger),
+      update: (context, userId, input) =>
+        updateAdminStaff(database, context, userId, input, logger),
+      updateRate: (context, userId, rateId, input) =>
+        updateAdminProducerRate(
+          database,
+          context,
+          userId,
+          rateId,
+          input,
+          logger,
+        ),
     });
   },
   sessionMiddleware: createSessionMiddleware(pool, {
