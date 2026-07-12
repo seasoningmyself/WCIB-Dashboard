@@ -96,6 +96,13 @@ import {
   updateAdminProducerRate,
   updateAdminStaff,
 } from "./auth/admin-staff.js";
+import { registerAdminOfficeRoutes } from "./http/admin-office-locations.js";
+import {
+  createAdminOfficeLocation,
+  loadAdminOfficeManagementSource,
+  renameAdminOfficeLocation,
+  setAdminOfficeLocationActive,
+} from "./offices/admin.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -304,6 +311,29 @@ const app = createApp({
           userId,
           rateId,
           input,
+          logger,
+        ),
+    });
+    registerAdminOfficeRoutes(routes, {
+      authorization,
+      create: (context, input) =>
+        createAdminOfficeLocation(database, context, input, logger),
+      list: (context) => loadAdminOfficeManagementSource(database, context),
+      logger,
+      rename: (context, officeLocationId, input) =>
+        renameAdminOfficeLocation(
+          database,
+          context,
+          officeLocationId,
+          input,
+          logger,
+        ),
+      setActive: (context, officeLocationId, active) =>
+        setAdminOfficeLocationActive(
+          database,
+          context,
+          officeLocationId,
+          active,
           logger,
         ),
     });

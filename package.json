@@ -32,6 +32,7 @@
     "test:db:producer-rate-history": "node --import tsx --test server/db/producer-rate-history.db-test.ts",
     "test:db:producer-rate-integrity": "node --import tsx --test server/db/producer-rate-integrity.db-test.ts",
     "test:db:office-locations": "node --import tsx --test server/db/office-locations.db-test.ts",
+    "test:db:admin-office-locations": "node --import tsx --test server/http/admin-office-locations.db-test.ts",
     "test:db:mgas": "node --import tsx --test server/db/mgas.db-test.ts",
     "test:db:carriers": "node --import tsx --test server/db/carriers.db-test.ts",
     "test:db:policy-types": "node --import tsx --test server/db/policy-types.db-test.ts",
