@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  officeSelectionModeMatches,
+  officeSelectionModeSchema,
+  type OfficeSelectionMode,
+} from "./office-selection.js";
 
 export const OFFICE_LOCATION_NAME_MAX_LENGTH = 200;
 export const ADMIN_OFFICE_LOCATION_MAX_RESULTS = 500;
@@ -24,36 +29,24 @@ export const adminOfficeLocationSchema = z
   })
   .strict();
 
-export const adminOfficeModeSchema = z.discriminatedUnion("kind", [
-  z
-    .object({
-      activeCount: z.literal(0),
-      kind: z.literal("unconfigured"),
-      soleOfficeId: z.null(),
-    })
-    .strict(),
-  z
-    .object({
-      activeCount: z.literal(1),
-      kind: z.literal("single"),
-      soleOfficeId: uuidSchema,
-    })
-    .strict(),
-  z
-    .object({
-      activeCount: z.number().int().min(2).max(ADMIN_OFFICE_LOCATION_MAX_RESULTS),
-      kind: z.literal("multiple"),
-      soleOfficeId: z.null(),
-    })
-    .strict(),
-]);
+export const adminOfficeModeSchema = officeSelectionModeSchema;
 
 export const adminOfficeManagementResponseSchema = z
   .object({
     items: z.array(adminOfficeLocationSchema).max(ADMIN_OFFICE_LOCATION_MAX_RESULTS),
     mode: adminOfficeModeSchema,
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    const activeOffices = value.items.filter(({ isActive }) => isActive);
+    if (!officeSelectionModeMatches(value.mode, activeOffices)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Office mode must match the active office rows",
+        path: ["mode"],
+      });
+    }
+  });
 
 export const createAdminOfficeRequestSchema = z
   .object({ name: officeNameSchema })
@@ -68,7 +61,7 @@ export const adminOfficeParamsSchema = z
   .strict();
 
 export type AdminOfficeLocation = z.output<typeof adminOfficeLocationSchema>;
-export type AdminOfficeMode = z.output<typeof adminOfficeModeSchema>;
+export type AdminOfficeMode = OfficeSelectionMode;
 export type AdminOfficeManagementResponse = z.output<
   typeof adminOfficeManagementResponseSchema
 >;

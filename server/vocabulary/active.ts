@@ -1,6 +1,10 @@
 import { asc, eq, sql } from "drizzle-orm";
 import type { PolicyTypeClass } from "../../shared/policy-types.js";
 import type { ActiveVocabularyResponse } from "../../shared/vocabulary.js";
+import {
+  deriveOfficeSelectionMode,
+  type OfficeSelectionMode,
+} from "../../shared/office-selection.js";
 import { evaluateAccess } from "../auth/access.js";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AuthDatabase } from "../auth/users.js";
@@ -18,6 +22,7 @@ export const VOCABULARY_READ_ACCESS = VOCABULARY_USER_ACCESS;
 export interface ActiveVocabularySource {
   carriers: readonly { id: string; name: string }[];
   mgas: readonly { id: string; name: string }[];
+  officeMode: OfficeSelectionMode;
   officeLocations: readonly { id: string; name: string }[];
   policyTypes: readonly {
     classTag: PolicyTypeClass;
@@ -68,6 +73,7 @@ export async function loadActiveVocabulary(
   return {
     carriers: carrierRows,
     mgas: mgaRows,
+    officeMode: deriveOfficeSelectionMode(officeRows),
     officeLocations: officeRows,
     policyTypes: policyTypeRows,
   };
@@ -84,6 +90,7 @@ export function projectActiveVocabulary(
   return {
     carriers: source.carriers.map(({ id, name }) => ({ id, name })),
     mgas: source.mgas.map(({ id, name }) => ({ id, name })),
+    officeMode: source.officeMode,
     officeLocations: source.officeLocations.map(({ id, name }) => ({
       id,
       name,

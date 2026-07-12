@@ -145,7 +145,7 @@ function readyOptions(
 ): readonly PolicyTypeOption[];
 function readyOptions(
   state: ReturnType<typeof useVocabulary>["state"],
-  key: keyof NonNullable<Extract<typeof state, { status: "ready" }>["data"]>,
+  key: "carriers" | "mgas" | "officeLocations" | "policyTypes",
 ): readonly VocabularyOption[] | readonly PolicyTypeOption[] {
   return state.status === "ready" ? state.data[key] : [];
 }

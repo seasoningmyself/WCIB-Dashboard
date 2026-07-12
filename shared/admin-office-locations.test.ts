@@ -28,14 +28,24 @@ test("office management mode is a strict zero, one, or many contract", () => {
     name: "Chicago",
     updatedAt: "2026-07-01T00:00:00.000Z",
   };
-  for (const mode of [
-    { activeCount: 0, kind: "unconfigured", soleOfficeId: null },
-    { activeCount: 1, kind: "single", soleOfficeId: ID },
-    { activeCount: 2, kind: "multiple", soleOfficeId: null },
+  const SECOND_ID = "00000000-0000-4000-8000-000000000002";
+  for (const fixture of [
+    {
+      items: [{ ...item, isActive: false }],
+      mode: { activeCount: 0, kind: "unconfigured", soleOfficeId: null },
+    },
+    {
+      items: [item],
+      mode: { activeCount: 1, kind: "single", soleOfficeId: ID },
+    },
+    {
+      items: [item, { ...item, id: SECOND_ID, name: "Oakland" }],
+      mode: { activeCount: 2, kind: "multiple", soleOfficeId: null },
+    },
   ] as const) {
     assert.equal(
-      adminOfficeManagementResponseSchema.parse({ items: [item], mode }).mode.kind,
-      mode.kind,
+      adminOfficeManagementResponseSchema.parse(fixture).mode.kind,
+      fixture.mode.kind,
     );
   }
   assert.throws(() =>
@@ -48,6 +58,12 @@ test("office management mode is a strict zero, one, or many contract", () => {
     adminOfficeManagementResponseSchema.parse({
       items: [item],
       mode: { activeCount: 2, kind: "multiple", soleOfficeId: ID },
+    }),
+  );
+  assert.throws(() =>
+    adminOfficeManagementResponseSchema.parse({
+      items: [],
+      mode: { activeCount: 1, kind: "single", soleOfficeId: ID },
     }),
   );
 });

@@ -4,6 +4,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { CurrentUser } from "../../../shared/current-user.js";
 import type { DraftResponse } from "../../../shared/drafts.js";
+import type { ActiveVocabularyResponse } from "../../../shared/vocabulary.js";
 import { ApiClientProvider } from "../api/context.js";
 import { createSessionBoundary } from "../auth/session-boundary.js";
 import { VocabularyProvider } from "../vocabulary/context.js";
@@ -128,6 +129,52 @@ test("pending writes disable the complete form and duplicate action buttons", ()
   assert.match(markup, /<button[^>]*disabled=""[^>]*type="button"/);
 });
 
+test("zero, one, and many office modes drive the turn-in controls", () => {
+  const zero = renderView({
+    form: createEmptyTurnInState(),
+    user: producer(),
+    vocabulary: vocabulary([]),
+  });
+  assert.match(zero, /Office setup required/);
+  assert.match(zero, /No active office configured/);
+  assert.match(zero, /Ask an administrator/);
+  assert.doesNotMatch(zero, /Manage office locations/);
+  assert.match(zero, /<fieldset[^>]*class="turn-in-controls"[^>]*disabled=""/);
+  assert.match(zero, /<button[^>]*class="turn-in-save"[^>]*disabled=""/);
+  assert.match(zero, /<button[^>]*class="turn-in-submit"[^>]*disabled=""/);
+
+  const single = renderView({
+    form: createEmptyTurnInState(),
+    user: producer(),
+    vocabulary: vocabulary([{ id: OFFICE_A, name: "San Francisco" }]),
+  });
+  assert.match(single, /San Francisco/);
+  assert.doesNotMatch(single, /Office setup required|Select an active office location/);
+
+  const multiple = renderView({
+    form: createEmptyTurnInState(),
+    user: producer(),
+    vocabulary: vocabulary([
+      { id: OFFICE_A, name: "San Francisco" },
+      { id: OFFICE_B, name: "Oakland" },
+    ]),
+  });
+  assert.match(multiple, /Select an active office location/);
+  assert.match(multiple, /role="combobox"/);
+  assert.match(multiple, /aria-required="true"/);
+});
+
+test("an admin receives a direct office-configuration action", () => {
+  const markup = renderView({
+    form: createEmptyTurnInState(),
+    user: { ...producer(), capabilities: ["admin"], role: "admin" },
+    vocabulary: vocabulary([]),
+  });
+  assert.match(markup, /href="#\/settings"/);
+  assert.match(markup, /Manage office locations/);
+  assert.doesNotMatch(markup, /Ask an administrator/);
+});
+
 test("eligible staff see Request Help only on their owned active draft", () => {
   const active = draftWithStatus("draft");
   const eligible = renderView({
@@ -193,6 +240,7 @@ function renderView({
   help,
   saveState = "idle",
   user,
+  vocabulary,
 }: {
   draft?: DraftResponse | null;
   errors?: Readonly<Record<string, string>>;
@@ -200,6 +248,7 @@ function renderView({
   help?: DraftHelpControl;
   saveState?: "dirty" | "error" | "idle" | "saved" | "saving";
   user: CurrentUser;
+  vocabulary?: ActiveVocabularyResponse;
 }): string {
   const choices = buildAssignmentChoices(user, []);
   return renderToStaticMarkup(
@@ -207,7 +256,7 @@ function renderView({
       boundary={createSessionBoundary(() => {})}
       client={{ async request() { return Response.json({}); } }}
     >
-      <VocabularyProvider>
+      <VocabularyProvider initialData={vocabulary}>
         <CheckTurnInFormView
           assignmentChoices={choices}
           assignmentState="ready"
@@ -226,6 +275,27 @@ function renderView({
       </VocabularyProvider>
     </ApiClientProvider>,
   );
+}
+
+const OFFICE_A = "00000000-0000-4000-8000-000000000010";
+const OFFICE_B = "00000000-0000-4000-8000-000000000011";
+
+function vocabulary(
+  officeLocations: ActiveVocabularyResponse["officeLocations"],
+): ActiveVocabularyResponse {
+  const activeCount = officeLocations.length;
+  return {
+    carriers: [],
+    mgas: [],
+    officeLocations,
+    officeMode:
+      activeCount === 0
+        ? { activeCount: 0, kind: "unconfigured", soleOfficeId: null }
+        : activeCount === 1
+          ? { activeCount: 1, kind: "single", soleOfficeId: officeLocations[0]!.id }
+          : { activeCount, kind: "multiple", soleOfficeId: null },
+    policyTypes: [],
+  };
 }
 
 function producer(): CurrentUser {

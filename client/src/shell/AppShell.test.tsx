@@ -233,6 +233,26 @@ test("server-authorized Manage Staff route mounts the real admin workspace", () 
   assert.doesNotMatch(markup, /WCIB workspace/);
 });
 
+test("server-authorized Settings route mounts real office management", () => {
+  const markup = renderToStaticMarkup(
+    withApi(
+      <AppShellView
+        currentPath="/settings"
+        onLogout={() => {}}
+        user={{
+          ...baseUser,
+          allowedNavigation: ["settings"],
+          capabilities: ["admin"],
+          role: "admin",
+        }}
+      />,
+    ),
+  );
+
+  assert.match(markup, /Loading office locations/);
+  assert.doesNotMatch(markup, /WCIB workspace/);
+});
+
 test("server-authorized My Commissions route mounts the real producer workspace", () => {
   const markup = renderToStaticMarkup(
     withApi(

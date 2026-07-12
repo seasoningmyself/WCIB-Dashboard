@@ -1,21 +1,8 @@
-import { z } from "zod";
-import { POLICY_TYPE_CLASSES } from "../../../shared/policy-types.js";
-import type { ActiveVocabularyResponse } from "../../../shared/vocabulary.js";
+import {
+  activeVocabularyResponseSchema,
+  type ActiveVocabularyResponse,
+} from "../../../shared/vocabulary.js";
 import type { ApiClient } from "../api/client.js";
-
-const optionSchema = z.object({
-  id: z.string().uuid(),
-  name: z.string().min(1),
-});
-
-const activeVocabularyClientSchema = z.object({
-  carriers: z.array(optionSchema),
-  mgas: z.array(optionSchema),
-  officeLocations: z.array(optionSchema),
-  policyTypes: z.array(
-    optionSchema.extend({ classTag: z.enum(POLICY_TYPE_CLASSES) }),
-  ),
-});
 
 export class VocabularyApiError extends Error {
   constructor() {
@@ -47,7 +34,7 @@ export async function loadActiveVocabulary(
   } catch {
     throw new VocabularyApiError();
   }
-  const parsed = activeVocabularyClientSchema.safeParse(body);
+  const parsed = activeVocabularyResponseSchema.safeParse(body);
   if (!parsed.success) {
     throw new VocabularyApiError();
   }

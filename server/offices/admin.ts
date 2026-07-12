@@ -17,6 +17,7 @@ import {
   type AdminOfficeManagementResponse,
   type AdminOfficeMode,
 } from "../../shared/admin-office-locations.js";
+import { deriveOfficeSelectionMode } from "../../shared/office-selection.js";
 
 export const ADMIN_OFFICE_ACCESS = {
   capabilities: ["admin"],
@@ -173,22 +174,7 @@ export function projectAdminOfficeManagementSource(
 export function deriveAdminOfficeMode(
   items: readonly Pick<OfficeLocationRecord, "id" | "isActive">[],
 ): AdminOfficeMode {
-  const active = items.filter(({ isActive }) => isActive);
-  if (active.length === 0) {
-    return { activeCount: 0, kind: "unconfigured", soleOfficeId: null };
-  }
-  if (active.length === 1) {
-    return {
-      activeCount: 1,
-      kind: "single",
-      soleOfficeId: active[0]!.id,
-    };
-  }
-  return {
-    activeCount: active.length,
-    kind: "multiple",
-    soleOfficeId: null,
-  };
+  return deriveOfficeSelectionMode(items.filter(({ isActive }) => isActive));
 }
 
 function requireAdminOfficeAccess(context: AuthorizedRequestContext): void {
