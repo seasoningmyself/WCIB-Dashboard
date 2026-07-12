@@ -20,6 +20,8 @@ export const AUDIT_ACTIONS = [
   "carrier_created",
   "policy_type_created",
   "mga_created",
+  "producer_commission_receipt_marked",
+  "producer_commission_receipt_unmarked",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
