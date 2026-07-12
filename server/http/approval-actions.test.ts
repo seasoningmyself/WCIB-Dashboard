@@ -572,6 +572,7 @@ function policy(): PolicyRecord & Record<string, unknown> {
     mgaId: "00000000-0000-4000-8000-000000000022",
     mgaPaid: false,
     mgaPaidAt: null,
+    producerCommissionReceivedAt: null,
     mgaPayReference: null,
     netDue: "895.00",
     netDueTotal: "0.00",

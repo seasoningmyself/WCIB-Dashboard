@@ -157,6 +157,7 @@ function policyRecord(overrides: Partial<PolicyRecord> = {}): PolicyRecord {
     mgaId: MGA_A,
     mgaPaid: false,
     mgaPaidAt: null,
+    producerCommissionReceivedAt: null,
     mgaPayReference: null,
     netDue: "175.00",
     netDueTotal: "0.00",

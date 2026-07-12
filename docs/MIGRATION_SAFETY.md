@@ -136,6 +136,7 @@ owners, not every transitive predecessor.
 | `0034_policy_correction` | Audited allowlisted policy-correction function and direct-write guard | `0020`, `0022`, `0033` | Pre-use function/guard removal only; forward-fix after a correction |
 | `0035_vocabulary_creation_audit_vocabulary` | Dedicated carrier, policy-type, and MGA creation audit values | `0018`, `0034` | Pre-use enum reversal only; forward-fix after any new value is recorded |
 | `0036_flagged_help_resolution` | Audited admin send-back and owner-withdrawal transitions for flagged drafts | `0013`, `0018`, `0020`, `0035` | Refuses reversal after either resolution action records audit history; forward-fix after use |
+| `0037_producer_commission_received` | Nullable producer commission-receipt timestamp on canonical policies | `0015`, `0036` | Refuses reversal after any receipt timestamp is recorded; forward-fix after use |
 
 ## Dependency-safe full reverse order
 

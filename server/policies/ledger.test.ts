@@ -195,6 +195,7 @@ function policy(id: string, input: Partial<PolicyRecord>): PolicyRecord {
     mgaId: "00000000-0000-4000-8000-000000000003",
     mgaPaid: false,
     mgaPaidAt: null,
+    producerCommissionReceivedAt: null,
     mgaPayReference: null,
     netDue: "175.00",
     netDueTotal: "0.00",

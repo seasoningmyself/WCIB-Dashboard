@@ -231,6 +231,7 @@ function policyRecord(): PolicyRecord {
     mgaId: MGA_ID,
     mgaPaid: false,
     mgaPaidAt: null,
+    producerCommissionReceivedAt: null,
     mgaPayReference: null,
     netDue: "175.00",
     netDueTotal: "0.00",
