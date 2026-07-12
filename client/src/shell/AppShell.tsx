@@ -16,6 +16,7 @@ import { MyCommissions } from "../commissions/MyCommissions.js";
 import { MyItems } from "../my-items/MyItems.js";
 import { ManageStaff } from "../staff/ManageStaff.js";
 import { OfficeLocationsSettings } from "../offices/OfficeLocationsSettings.js";
+import { KpisGoals } from "../kpis/KpisGoals.js";
 import { resolveDraftSelection } from "../drafts/my-drafts-state.js";
 import { VocabularyProvider } from "../vocabulary/context.js";
 import {
@@ -216,6 +217,9 @@ function ShellContent({
     }
     if (route.item.id === "settings") {
       return <OfficeLocationsSettings user={user} />;
+    }
+    if (route.item.id === "kpis") {
+      return <KpisGoals user={user} />;
     }
     return (
       <section className="workspace-page" aria-labelledby="workspace-page-title">
