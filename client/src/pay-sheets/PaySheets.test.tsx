@@ -44,11 +44,18 @@ test("admin view renders owner tabs, exact totals, policy detail, and frozen his
     "July 2026",
     "Agency gross",
     "$250.00",
+    "Broker fees",
+    "$50.00",
+    "Commissions",
+    "$100.00",
+    "Trust pull",
+    "$150.00",
+    "Direct income",
+    "Grand total income",
     "Sophia take-home",
     "$212.50",
     "Sophia share",
     "$112.50",
-    "Trust pull",
     "Acme Construction",
     "GL-100",
     "General Liability",
@@ -62,6 +69,20 @@ test("admin view renders owner tabs, exact totals, policy detail, and frozen his
     "Frozen history",
   ]) {
     assert.match(markup, new RegExp(escapeRegExp(visible)));
+  }
+  for (const [label, value] of [
+    ["Broker fees", "$50.00"],
+    ["Commissions", "$100.00"],
+    ["Trust pull", "$150.00"],
+    ["Direct income", "$100.00"],
+    ["Grand total income", "$250.00"],
+    ["Agency gross", "$250.00"],
+    ["Sophia take-home", "$212.50"],
+  ]) {
+    assert.match(
+      markup,
+      new RegExp(`<dt>${escapeRegExp(label)}</dt><dd>${escapeRegExp(value)}</dd>`),
+    );
   }
   assert.notEqual(markup.indexOf("Agency gross"), markup.indexOf("Sophia take-home"));
   const frozenSection = markup.slice(markup.lastIndexOf("June 2026"));
@@ -93,6 +114,11 @@ test("producer view renders payout and rate context without Sophia controls", ()
   for (const visible of [
     "Producer payout",
     "$45.00",
+    "Broker fees",
+    "Commissions",
+    "Trust pull",
+    "Direct income",
+    "Grand total income",
     "Current payout rate",
     "New commission",
     "25.00%",
@@ -101,6 +127,18 @@ test("producer view renders payout and rate context without Sophia controls", ()
     "Add correction",
   ]) {
     assert.match(markup, new RegExp(escapeRegExp(visible)));
+  }
+  for (const [label, value] of [
+    ["Broker fees", "$50.00"],
+    ["Commissions", "$100.00"],
+    ["Trust pull", "$150.00"],
+    ["Direct income", "$0.00"],
+    ["Grand total income", "$150.00"],
+  ]) {
+    assert.match(
+      markup,
+      new RegExp(`<dt>${escapeRegExp(label)}</dt><dd>${escapeRegExp(value)}</dd>`),
+    );
   }
   assert.doesNotMatch(markup, /Add direct income|Sophia take-home|Agency gross/);
 });

@@ -888,16 +888,21 @@ function PaySheetTotals({ summary }: { summary: PaySheetSummary }) {
     summary.ownerType === "sophia"
       ? [
           ["Agency gross", summary.totals.sophiaAgencyGross],
-          ["Sophia take-home", summary.totals.sophiaTakeHome],
-          ["Sophia share", summary.totals.sophiaShare],
+          ["Broker fees", summary.totals.brokerFees],
+          ["Commissions", summary.totals.commissions],
           ["Trust pull", summary.totals.trustPull],
           ["Direct income", summary.totals.directCheckAchIncome],
+          ["Grand total income", summary.totals.grandTotalIncome],
+          ["Sophia take-home", summary.totals.sophiaTakeHome],
+          ["Sophia share", summary.totals.sophiaShare],
         ]
       : [
           ["Producer payout", summary.totals.producerPayout],
-          ["Trust pull", summary.totals.trustPull],
-          ["Commission", summary.totals.commissions],
           ["Broker fees", summary.totals.brokerFees],
+          ["Commissions", summary.totals.commissions],
+          ["Trust pull", summary.totals.trustPull],
+          ["Direct income", summary.totals.directCheckAchIncome],
+          ["Grand total income", summary.totals.grandTotalIncome],
         ];
   return (
     <dl className="pay-sheet-totals" aria-label={`${summary.ownerDisplayName} totals`}>
