@@ -22,6 +22,7 @@ export const AUDIT_ACTIONS = [
   "mga_created",
   "producer_commission_receipt_marked",
   "producer_commission_receipt_unmarked",
+  "pay_sheet_initialized",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

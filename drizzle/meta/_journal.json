@@ -274,6 +274,13 @@
       "when": 1783818737095,
       "tag": "0038_producer_commission_receipt_audit_actions",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1783983295398,
+      "tag": "0039_pay_sheet_initialization",
+      "breakpoints": true
     }
   ]
 }

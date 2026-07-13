@@ -203,6 +203,20 @@ export const paySheetDetailResponseSchema = z
   .object({ sheet: paySheetDetailSchema })
   .strict();
 
+export const paySheetBootstrapRequestSchema = z
+  .object({
+    periodMonth: z.number().int().min(1).max(12),
+    periodYear: z.number().int().min(2000).max(9999),
+  })
+  .strict();
+
+export const paySheetBootstrapResponseSchema = z
+  .object({
+    created: z.boolean(),
+    sheet: paySheetSophiaSummarySchema,
+  })
+  .strict();
+
 export const paySheetCloseRequestSchema = z.object({}).strict();
 
 export const paySheetCloseResultSchema = z
@@ -264,6 +278,8 @@ export type PaySheetSummary = z.output<typeof paySheetSummarySchema>;
 export type PaySheetDetail = z.output<typeof paySheetDetailSchema>;
 export type PaySheetListResponse = z.output<typeof paySheetListResponseSchema>;
 export type PaySheetDetailResponse = z.output<typeof paySheetDetailResponseSchema>;
+export type PaySheetBootstrapRequest = z.output<typeof paySheetBootstrapRequestSchema>;
+export type PaySheetBootstrapResponse = z.output<typeof paySheetBootstrapResponseSchema>;
 export type PaySheetCloseResult = z.output<typeof paySheetCloseResultSchema>;
 export type PaySheetCloseResponse = z.output<typeof paySheetCloseResponseSchema>;
 

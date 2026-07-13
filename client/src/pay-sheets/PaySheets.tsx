@@ -10,6 +10,7 @@ import type { DraftAssignmentOption } from "../../../shared/draft-assignment-opt
 import type { PaySheetAdjustmentInput } from "../../../shared/pay-sheet-adjustment-api.js";
 import type {
   PaySheetAdjustmentView,
+  PaySheetBootstrapRequest,
   PaySheetDetail,
   PaySheetListResponse,
   PaySheetPolicyView,
@@ -65,6 +66,16 @@ export type PaySheetDetailState =
   | { status: "loading" }
   | { data: PaySheetDetail; status: "ready" };
 
+const DEFAULT_BOOTSTRAP_PERIOD: PaySheetBootstrapRequest = Object.freeze({
+  periodMonth: 6,
+  periodYear: 2026,
+});
+
+export interface PaySheetBootstrapViewState {
+  readonly error: string | null;
+  readonly period: PaySheetBootstrapRequest;
+}
+
 export function PaySheets({ user }: { user: CurrentUser }) {
   return isPaySheetsAdmin(user) ? (
     <AdminPaySheets />
@@ -91,6 +102,10 @@ function AdminPaySheets() {
     useState<PaySheetAdjustmentDialogState | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [bootstrap, setBootstrap] = useState<PaySheetBootstrapViewState>({
+    error: null,
+    period: DEFAULT_BOOTSTRAP_PERIOD,
+  });
   const [pending, setPending] = useState(false);
   const pendingRef = useRef(false);
   const [exportState, setExportState] = useState<PaySheetExportUiState>({
@@ -276,10 +291,56 @@ function AdminPaySheets() {
     setExportConfirmation(null);
     setSelectedExportPeriodKey(null);
     setNotice(null);
+    setBootstrap({ error: null, period: DEFAULT_BOOTSTRAP_PERIOD });
     pendingRef.current = false;
     setPending(false);
   }, []);
   useSensitiveSessionCleanup(clearSensitiveState);
+
+  const submitBootstrap = useCallback(async () => {
+    if (pendingRef.current) return;
+    pendingRef.current = true;
+    setPending(true);
+    setNotice(null);
+    setBootstrap((current) => ({ ...current, error: null }));
+    try {
+      const response = await api.bootstrap(bootstrap.period);
+      setNotice(
+        response.created
+          ? `${formatPaySheetPeriod(response.sheet.periodMonth, response.sheet.periodYear)} opened for Sophia.`
+          : "Pay sheets were already initialized. Current periods have been refreshed.",
+      );
+      await load(false);
+    } catch (error) {
+      if (error instanceof PaySheetsApiError && error.kind === "denied") {
+        clearSensitiveState();
+        setState({ status: "denied" });
+      } else if (
+        error instanceof PaySheetsApiError && error.kind === "conflict"
+      ) {
+        setBootstrap((current) => ({
+          ...current,
+          error: "Pay sheets were initialized elsewhere or their history needs review.",
+        }));
+        await load(false);
+      } else if (
+        error instanceof PaySheetsApiError && error.kind === "rejected"
+      ) {
+        setBootstrap((current) => ({
+          ...current,
+          error: "Choose a valid starting month and year.",
+        }));
+      } else {
+        setBootstrap((current) => ({
+          ...current,
+          error: "Pay sheets could not be initialized. Try again.",
+        }));
+      }
+    } finally {
+      pendingRef.current = false;
+      setPending(false);
+    }
+  }, [api, bootstrap.period, clearSensitiveState, load]);
 
   const runExport = useCallback(
     async (action: PaySheetExportAction) => {
@@ -483,6 +544,7 @@ function AdminPaySheets() {
   return (
     <>
       <PaySheetsView
+        bootstrap={bootstrap}
         details={details}
         expandedClosedId={expandedClosedId}
         exportControls={
@@ -517,6 +579,10 @@ function AdminPaySheets() {
           setDialogError(null);
           setCloseDialog(sheet);
         }}
+        onBootstrapChange={(period) => {
+          setBootstrap({ error: null, period });
+        }}
+        onBootstrap={() => void submitBootstrap()}
         onOwner={(key) => {
           setSelectedOwnerKey(key);
           setExpandedClosedId(null);
@@ -592,10 +658,13 @@ function AdminPaySheets() {
 }
 
 export function PaySheetsView({
+  bootstrap,
   details,
   expandedClosedId,
   exportControls = null,
   notice,
+  onBootstrap,
+  onBootstrapChange,
   onClose,
   onOpenAdjustment,
   onOwner,
@@ -606,10 +675,13 @@ export function PaySheetsView({
   selectedOwnerKey,
   state,
 }: {
+  bootstrap: PaySheetBootstrapViewState;
   details: Readonly<Record<string, PaySheetDetailState>>;
   expandedClosedId: string | null;
   exportControls?: React.ReactNode;
   notice: string | null;
+  onBootstrap(): void;
+  onBootstrapChange(period: PaySheetBootstrapRequest): void;
   onClose(sheet: PaySheetSummary): void;
   onOpenAdjustment(dialog: PaySheetAdjustmentDialogState): void;
   onOwner(key: string): void;
@@ -664,10 +736,13 @@ export function PaySheetsView({
       </header>
 
       {groups.length === 0 || activeGroup === null ? (
-        <div className="pay-sheets-empty">
-          <h2>No pay sheets yet</h2>
-          <p>Paid MGA policies will populate the open payroll periods.</p>
-        </div>
+        <PaySheetBootstrap
+          disabled={pending}
+          error={bootstrap.error}
+          onChange={onBootstrapChange}
+          onSubmit={onBootstrap}
+          period={bootstrap.period}
+        />
       ) : (
         <>
           <div className="pay-sheet-owner-tabs" aria-label="Pay-sheet owner">
@@ -704,6 +779,79 @@ export function PaySheetsView({
         </>
       )}
     </section>
+  );
+}
+
+export function PaySheetBootstrap({
+  disabled,
+  error,
+  onChange,
+  onSubmit,
+  period,
+}: {
+  disabled: boolean;
+  error: string | null;
+  onChange(period: PaySheetBootstrapRequest): void;
+  onSubmit(): void;
+  period: PaySheetBootstrapRequest;
+}) {
+  return (
+    <form
+      className="pay-sheets-empty pay-sheet-bootstrap"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit();
+      }}
+    >
+      <h2>Start pay sheets</h2>
+      <div className="pay-sheet-bootstrap-fields">
+        <label>
+          <span>Starting month</span>
+          <select
+            disabled={disabled}
+            onChange={(event) =>
+              onChange({ ...period, periodMonth: Number(event.target.value) })
+            }
+            value={period.periodMonth}
+          >
+            {[
+              "January",
+              "February",
+              "March",
+              "April",
+              "May",
+              "June",
+              "July",
+              "August",
+              "September",
+              "October",
+              "November",
+              "December",
+            ].map((month, index) => (
+              <option key={month} value={index + 1}>{month}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Starting year</span>
+          <input
+            disabled={disabled}
+            inputMode="numeric"
+            max={9999}
+            min={2000}
+            onChange={(event) =>
+              onChange({ ...period, periodYear: Number(event.target.value) })
+            }
+            type="number"
+            value={period.periodYear}
+          />
+        </label>
+      </div>
+      {error === null ? null : <p className="pay-sheet-bootstrap-error" role="alert">{error}</p>}
+      <button disabled={disabled} type="submit">
+        {disabled ? "Starting..." : "Start pay sheets"}
+      </button>
+    </form>
   );
 }
 

@@ -5,10 +5,14 @@ import {
   type PaySheetAdjustmentInput,
 } from "../../../shared/pay-sheet-adjustment-api.js";
 import {
+  paySheetBootstrapRequestSchema,
+  paySheetBootstrapResponseSchema,
   paySheetCloseRequestSchema,
   paySheetCloseResponseSchema,
   paySheetDetailResponseSchema,
   paySheetListResponseSchema,
+  type PaySheetBootstrapRequest,
+  type PaySheetBootstrapResponse,
   type PaySheetCloseResponse,
   type PaySheetDetailResponse,
   type PaySheetListResponse,
@@ -45,6 +49,7 @@ export interface PaySheetExportDocument {
 }
 
 export interface PaySheetsApi {
+  bootstrap(input: PaySheetBootstrapRequest): Promise<PaySheetBootstrapResponse>;
   close(paySheetId: string): Promise<PaySheetCloseResponse>;
   createAdjustment(
     paySheetId: string,
@@ -67,6 +72,14 @@ export interface PaySheetsApi {
 
 export function createPaySheetsApi(client: ApiClient): PaySheetsApi {
   return {
+    bootstrap: (input) =>
+      mutate(
+        client,
+        "/pay-sheets/bootstrap",
+        "POST",
+        parseRequest(paySheetBootstrapRequestSchema, input),
+        paySheetBootstrapResponseSchema,
+      ),
     close: (paySheetId) =>
       mutate(
         client,

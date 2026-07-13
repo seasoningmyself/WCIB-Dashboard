@@ -1,7 +1,17 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 13, 2026 (recorded the production app's add-as-you-go vocabulary decision, pending client confirmation.)
+**Last updated:** July 13, 2026 (recorded production pay-sheet initialization and add-as-you-go vocabulary decisions.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
+
+---
+
+## July 13, 2026 — Production pay-sheet initialization
+
+**Recorded production decision:** v15's render-time Sophia-sheet ensure and placement-time producer-sheet creation are implemented in the multi-user app as two authenticated, transactional paths. An admin explicitly starts the first Sophia owner chain through `POST /api/pay-sheets/bootstrap`; the inline empty-state selector defaults to June 2026 but allows the one-time starting period to be changed before creation. The first Sophia pay-sheet row is the durable record of that period, so no separate settings table is added.
+
+Producer chains remain lazy. When a producer's first eligible MGA-paid policy is placed, the producer sheet is created in Sophia's **current open period**, not the original bootstrap period, and the creation and policy attachment commit atomically. No producer sheets are bulk-provisioned.
+
+Initialization requires an authenticated admin actor, writes the append-only `pay_sheet_initialized` audit action, serializes competing owner-chain creation attempts, and is idempotent for the established period. If an owner has closed history but no open successor, initialization reports an integrity conflict for review rather than silently repairing financial history.
 
 ---
 

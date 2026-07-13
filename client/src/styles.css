@@ -6510,6 +6510,51 @@ h1 {
   line-height: 1.45;
 }
 
+.pay-sheet-bootstrap {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+}
+
+.pay-sheet-bootstrap-fields {
+  display: grid;
+  width: min(100%, 420px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  text-align: left;
+}
+
+.pay-sheet-bootstrap-fields label {
+  display: grid;
+  gap: 6px;
+  color: #40545c;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pay-sheet-bootstrap-fields select,
+.pay-sheet-bootstrap-fields input {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid #aebdc2;
+  border-radius: 4px;
+  background: #ffffff;
+  padding: 8px 10px;
+  color: #273941;
+  font: inherit;
+}
+
+.pay-sheet-bootstrap .pay-sheet-bootstrap-error {
+  margin: 0;
+  color: #a52222;
+}
+
+@media (max-width: 520px) {
+  .pay-sheet-bootstrap-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
 .pay-sheets-message button {
   margin-top: 15px;
 }

@@ -73,6 +73,8 @@ import {
 } from "./pay-sheets/read.js";
 import { registerPaySheetCloseRoute } from "./http/pay-sheet-close.js";
 import { closePaySheet } from "./pay-sheets/close.js";
+import { registerPaySheetBootstrapRoute } from "./http/pay-sheet-bootstrap.js";
+import { initializeSophiaPaySheet } from "./pay-sheets/initialize.js";
 import { registerPaySheetAdjustmentRoutes } from "./http/pay-sheet-adjustments.js";
 import {
   createPaySheetAdjustment,
@@ -261,6 +263,14 @@ const app = createApp({
       authorization,
       close: (context, paySheetId) =>
         closePaySheet(database, context, paySheetId, logger),
+      get: (context, paySheetId) =>
+        getPaySheetSource(database, context, paySheetId),
+      logger,
+    });
+    registerPaySheetBootstrapRoute(routes, {
+      authorization,
+      bootstrap: (context, input) =>
+        initializeSophiaPaySheet(database, context, input, logger),
       get: (context, paySheetId) =>
         getPaySheetSource(database, context, paySheetId),
       logger,

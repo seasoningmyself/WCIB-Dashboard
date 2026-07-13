@@ -7,7 +7,11 @@ import {
   PaySheetAdjustmentDialog,
   PaySheetCloseDialog,
 } from "./PaySheetDialogs.js";
-import { PaySheets, PaySheetsView } from "./PaySheets.js";
+import {
+  PaySheetBootstrap,
+  PaySheets,
+  PaySheetsView,
+} from "./PaySheets.js";
 import {
   paySheetDetailFixture,
   paySheetListFixture,
@@ -152,7 +156,7 @@ test("screen exposes loading, failure, denied, empty, and detail retry states", 
       data: { ...paySheetListFixture(), items: [] },
       status: "ready",
     }),
-    /No pay sheets yet/,
+    /Start pay sheets/,
   );
 
   const data = paySheetListFixture();
@@ -164,6 +168,26 @@ test("screen exposes loading, failure, denied, empty, and detail retry states", 
   });
   assert.match(markup, /Retry detail/);
   assert.doesNotMatch(markup, /Acme Construction|Direct-pay client/);
+});
+
+test("blank-state bootstrap defaults to June 2026 and remains editable", () => {
+  const calls: unknown[] = [];
+  const markup = renderToStaticMarkup(
+    <PaySheetBootstrap
+      disabled={false}
+      error={null}
+      onChange={(period) => calls.push(period)}
+      onSubmit={() => calls.push("submit")}
+      period={{ periodMonth: 6, periodYear: 2026 }}
+    />,
+  );
+  assert.match(markup, /Start pay sheets/);
+  assert.match(markup, /<option value="6" selected="">June<\/option>/);
+  assert.match(markup, /value="2026"/);
+  assert.match(markup, /Starting month/);
+  assert.match(markup, /Starting year/);
+  assert.doesNotMatch(markup, /disabled=""/);
+  assert.deepEqual(calls, []);
 });
 
 test("non-admin entry fails closed before mounting the API-backed controller", () => {
@@ -284,9 +308,15 @@ function renderView({
 }): string {
   return renderToStaticMarkup(
     <PaySheetsView
+      bootstrap={{
+        error: null,
+        period: { periodMonth: 6, periodYear: 2026 },
+      }}
       details={details}
       expandedClosedId={expandedClosedId}
       notice={null}
+      onBootstrap={() => {}}
+      onBootstrapChange={() => {}}
       onClose={() => {}}
       onOpenAdjustment={() => {}}
       onOwner={() => {}}
@@ -307,9 +337,15 @@ function renderState(
 ): string {
   return renderToStaticMarkup(
     <PaySheetsView
+      bootstrap={{
+        error: null,
+        period: { periodMonth: 6, periodYear: 2026 },
+      }}
       details={{}}
       expandedClosedId={null}
       notice={null}
+      onBootstrap={() => {}}
+      onBootstrapChange={() => {}}
       onClose={() => {}}
       onOpenAdjustment={() => {}}
       onOwner={() => {}}
