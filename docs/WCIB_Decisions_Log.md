@@ -1,7 +1,15 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** June 26, 2026 (v14 cont'd: **check turn-in flow reordered to physical-file order** — Account → Proposal total + new flow-only Deposit-option field → Amount collected → Commission → Premium detail → Payment type (financing block moved here) → Net due to MGA, with proposal-before-premium cross-check guards; **producer "My Commissions" tab** — producer-login-only tracker, Awaiting/In review/Paid, their payout only, producer-marked paid, 30-day paid retention, no print/export, anti-poaching field limits. Earlier same-day: prefix-first type-ahead; draft-cap fix + empty-draft cleanup + lazy saving; ledger expandable-row redesign; IPFS finance automation export; financed figures highlighted on PDF.)
+**Last updated:** July 13, 2026 (recorded the production app's add-as-you-go vocabulary decision, pending client confirmation.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
+
+---
+
+## July 13, 2026 — Add-as-you-go production vocabulary (pending client confirmation)
+
+**Recorded production decision:** v15 shipped with starting carrier, policy-type, and MGA vocabularies. The production app deliberately starts those vocabularies blank and adds entries as work is entered (add-as-you-go); it does not bulk-seed the v15 lists. The schema remains able to accept a reviewed bulk seed later without structural change.
+
+**Confirmation status:** pending client confirmation. If the client requests the full lists preloaded for day one, revisit this as a reviewed data-loading task rather than silently changing the application schema or runtime behavior.
 
 ---
 
