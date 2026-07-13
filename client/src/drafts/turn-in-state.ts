@@ -385,6 +385,14 @@ export function buildAssignmentChoices(
       assignmentChoice("house", user.id, "First-year"),
     ];
   }
+  if (user.role === "employee") {
+    return [
+      assignmentChoice("none", null, "House account"),
+      ...producers.map(({ displayName, userId }) =>
+        assignmentChoice("book", userId, `${displayName} account`),
+      ),
+    ];
+  }
   return [
     assignmentChoice("none", null, "House account"),
     ...producers.flatMap(({ displayName, userId }) => [

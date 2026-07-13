@@ -151,7 +151,7 @@ test("sent-back reopen input contains only projected nonfinancial fields", () =>
   }
 });
 
-test("producer assignment labels map exactly onto v15 assignment values", () => {
+test("assignment choices match the v15 role boundaries", () => {
   const producer = user("producer", "Kaylee");
   assert.deepEqual(buildAssignmentChoices(producer, []), [
     {
@@ -176,6 +176,13 @@ test("producer assignment labels map exactly onto v15 assignment values", () => 
 
   assert.deepEqual(
     buildAssignmentChoices(user("employee", "Mercedes"), [
+      { displayName: "Kaylee", userId: OTHER_ID },
+    ]).map(({ label }) => label),
+    ["House account", "Kaylee account"],
+  );
+
+  assert.deepEqual(
+    buildAssignmentChoices(user("admin", "Sophia"), [
       { displayName: "Kaylee", userId: OTHER_ID },
     ]).map(({ label }) => label),
     ["House account", "Kaylee account", "Kaylee First-year"],
