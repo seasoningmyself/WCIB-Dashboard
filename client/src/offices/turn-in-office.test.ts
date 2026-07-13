@@ -7,7 +7,7 @@ const OFFICE_A = "00000000-0000-4000-8000-000000000001";
 const OFFICE_B = "00000000-0000-4000-8000-000000000002";
 const STALE = "00000000-0000-4000-8000-000000000003";
 
-test("turn-in office selection blocks zero, auto-selects one, and validates many", () => {
+test("turn-in office selection blocks zero and defaults to the first active office", () => {
   assert.equal(normalizeTurnInOfficeSelection(vocabulary([]), STALE), null);
   assert.equal(
     normalizeTurnInOfficeSelection(vocabulary([{ id: OFFICE_A, name: "SF" }]), null),
@@ -18,7 +18,8 @@ test("turn-in office selection blocks zero, auto-selects one, and validates many
     { id: OFFICE_B, name: "Oakland" },
   ]);
   assert.equal(normalizeTurnInOfficeSelection(many, OFFICE_B), OFFICE_B);
-  assert.equal(normalizeTurnInOfficeSelection(many, STALE), null);
+  assert.equal(normalizeTurnInOfficeSelection(many, null), OFFICE_A);
+  assert.equal(normalizeTurnInOfficeSelection(many, STALE), OFFICE_A);
 });
 
 function vocabulary(

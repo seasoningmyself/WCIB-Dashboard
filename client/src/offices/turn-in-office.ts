@@ -12,5 +12,5 @@ export function normalizeTurnInOfficeSelection(
   }
   return vocabulary.officeLocations.some(({ id }) => id === currentOfficeId)
     ? currentOfficeId
-    : null;
+    : (vocabulary.officeLocations[0]?.id ?? null);
 }
