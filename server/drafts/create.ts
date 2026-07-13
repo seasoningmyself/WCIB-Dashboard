@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   calculateAgencyCommissionAmount,
   calculateDraftFinanceBalance,
@@ -19,6 +19,7 @@ import {
   officeLocations,
   policyTypes,
   staffProfiles,
+  users,
   type DraftRecord,
   type NewDraftRecord,
 } from "../db/schema.js";
@@ -32,10 +33,24 @@ const IPFS_FINANCE_META = Object.freeze({
   minEarnedPct: null,
 });
 
+export const MAX_CONTENT_BEARING_DRAFTS_PER_USER = 20;
+
 export class DraftInputValidationError extends Error {
   constructor(readonly details: ApiErrorDetail[]) {
     super("Draft input is invalid");
     this.name = "DraftInputValidationError";
+  }
+}
+
+export class DraftLimitReachedError extends DraftInputValidationError {
+  constructor() {
+    super([
+      {
+        field: "drafts",
+        message: `Maximum ${MAX_CONTENT_BEARING_DRAFTS_PER_USER} unfinished drafts reached`,
+      },
+    ]);
+    this.name = "DraftLimitReachedError";
   }
 }
 
@@ -56,6 +71,7 @@ export async function createOwnDraft(
 
   return database.transaction(async (transaction) => {
     await validateActiveDraftReferences(transaction, input);
+    await enforceContentBearingDraftLimit(transaction, ownerUserId, input);
     const [record] = await transaction
       .insert(drafts)
       .values(buildDraftInsert(ownerUserId, input, createdAt))
@@ -65,6 +81,89 @@ export async function createOwnDraft(
     }
     return record;
   });
+}
+
+async function enforceContentBearingDraftLimit(
+  database: DraftPersistenceDatabase,
+  ownerUserId: string,
+  input: CreateDraftRequest,
+): Promise<void> {
+  if (!hasDraftContent(input)) {
+    return;
+  }
+
+  const [owner] = await database
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, ownerUserId))
+    .for("update");
+  if (owner === undefined) {
+    throw new Error("Draft owner no longer exists");
+  }
+
+  const [result] = await database
+    .select({ count: sql<number>`count(*)::int` })
+    .from(drafts)
+    .where(
+      and(
+        eq(drafts.ownerUserId, ownerUserId),
+        eq(drafts.status, "draft"),
+        draftHasContentPredicate(),
+      ),
+    );
+  if ((result?.count ?? 0) >= MAX_CONTENT_BEARING_DRAFTS_PER_USER) {
+    throw new DraftLimitReachedError();
+  }
+}
+
+function hasDraftContent(input: CreateDraftRequest): boolean {
+  return [
+    input.accountAssignment,
+    input.amountPaid,
+    input.basePremium,
+    input.brokerFee,
+    input.carrierId,
+    input.commissionRate,
+    input.companyName,
+    input.depositOption,
+    input.effectiveDate,
+    input.expirationDate,
+    input.financeReference,
+    input.insuredName,
+    input.invoiceNumber,
+    input.mgaId,
+    input.notes,
+    input.policyNumber,
+    input.policyTypeId,
+    input.proposalTotal,
+    input.transactionNotes,
+    input.transactionType,
+  ].some((value) => value !== null && value !== undefined);
+}
+
+function draftHasContentPredicate() {
+  return sql`(
+    ${drafts.accountAssignment} IS NOT NULL OR
+    ${drafts.amountPaid} IS NOT NULL OR
+    ${drafts.basePremium} IS NOT NULL OR
+    ${drafts.brokerFee} IS NOT NULL OR
+    ${drafts.carrierId} IS NOT NULL OR
+    ${drafts.commissionRate} IS NOT NULL OR
+    NULLIF(BTRIM(${drafts.companyName}), '') IS NOT NULL OR
+    ${drafts.depositOption} IS NOT NULL OR
+    ${drafts.effectiveDate} IS NOT NULL OR
+    ${drafts.expirationDate} IS NOT NULL OR
+    NULLIF(BTRIM(${drafts.financeReference}), '') IS NOT NULL OR
+    NULLIF(BTRIM(${drafts.insuredName}), '') IS NOT NULL OR
+    NULLIF(BTRIM(${drafts.invoiceNumber}), '') IS NOT NULL OR
+    ${drafts.mgaId} IS NOT NULL OR
+    NULLIF(BTRIM(${drafts.notes}), '') IS NOT NULL OR
+    NULLIF(BTRIM(${drafts.policyNumber}), '') IS NOT NULL OR
+    ${drafts.policyTypeId} IS NOT NULL OR
+    ${drafts.proposalTotal} IS NOT NULL OR
+    NULLIF(BTRIM(${drafts.transactionNotes}), '') IS NOT NULL OR
+    NULLIF(BTRIM(${drafts.transactionType}), '') IS NOT NULL
+  )`;
 }
 
 export function validateDraftProducerAssignment(
