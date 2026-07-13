@@ -380,9 +380,9 @@ export function buildAssignmentChoices(
   if (user.role === "producer") {
     const name = user.displayName ?? user.email;
     return [
-      assignmentChoice("none", null, "First-year"),
-      assignmentChoice("house", user.id, "House account"),
+      assignmentChoice("none", null, "House account"),
       assignmentChoice("book", user.id, `${name} account`),
+      assignmentChoice("house", user.id, "First-year"),
     ];
   }
   return [

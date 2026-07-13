@@ -48,6 +48,7 @@
     "test:db:draft-submit": "node --import tsx --test server/drafts/submit.db-test.ts",
     "test:db:draft-flag": "node --import tsx --test server/drafts/flag.db-test.ts",
     "test:db:draft-assignment-options": "node --import tsx --test server/drafts/assignment-options.db-test.ts",
+    "test:db:assignment-payout": "node --import tsx --test server/drafts/assignment-payout.db-test.ts",
     "test:db:approval-queue": "node --import tsx --test server/db/approval-queue.db-test.ts",
     "test:db:approval-work": "node --import tsx --test server/approval-queue/list.db-test.ts",
     "test:db:approval-actions": "node --import tsx --test server/approval-queue/approve.db-test.ts",

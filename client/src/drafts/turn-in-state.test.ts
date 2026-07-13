@@ -151,25 +151,25 @@ test("sent-back reopen input contains only projected nonfinancial fields", () =>
   }
 });
 
-test("producer assignment labels map exactly onto existing assignment values", () => {
+test("producer assignment labels map exactly onto v15 assignment values", () => {
   const producer = user("producer", "Kaylee");
   assert.deepEqual(buildAssignmentChoices(producer, []), [
     {
       accountAssignment: "none",
       key: assignmentKey("none", null),
-      label: "First-year",
-      producerUserId: null,
-    },
-    {
-      accountAssignment: "house",
-      key: assignmentKey("house", USER_ID),
       label: "House account",
-      producerUserId: USER_ID,
+      producerUserId: null,
     },
     {
       accountAssignment: "book",
       key: assignmentKey("book", USER_ID),
       label: "Kaylee account",
+      producerUserId: USER_ID,
+    },
+    {
+      accountAssignment: "house",
+      key: assignmentKey("house", USER_ID),
+      label: "First-year",
       producerUserId: USER_ID,
     },
   ]);
