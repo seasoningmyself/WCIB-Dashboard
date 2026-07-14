@@ -147,7 +147,7 @@ export async function captureSchemaFingerprint(
     WITH schema_objects AS (
       SELECT
         'column'::text AS kind,
-        format('%I.%I.%s', table_schema, table_name, ordinal_position) AS identity,
+        format('%I.%I.%I', table_schema, table_name, column_name) AS identity,
         concat_ws('|', column_name, data_type, udt_schema, udt_name,
           is_nullable, coalesce(column_default, ''), coalesce(is_identity, ''),
           coalesce(identity_generation, ''), coalesce(is_generated, '')) AS definition
