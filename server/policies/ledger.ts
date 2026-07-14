@@ -5,9 +5,12 @@ import {
   eq,
   getTableColumns,
   gte,
+  isNotNull,
+  isNull,
   lt,
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { MAX_DELETED_POLICY_ITEMS } from "../../shared/policy-deletions.js";
 import {
   policyLedgerListQuerySchema,
   type PolicyLedgerDuplicate,
@@ -38,6 +41,11 @@ const submitterUsers = alias(users, "ledger_submitter_users");
 
 export interface PolicyLedgerSourceItem {
   duplicate: PolicyLedgerDuplicate;
+  labels: PolicyLedgerLabels;
+  policy: PolicyRecord;
+}
+
+export interface DeletedPolicyLedgerSourceItem {
   labels: PolicyLedgerLabels;
   policy: PolicyRecord;
 }
@@ -116,6 +124,36 @@ export async function getPolicyLedgerItem(
     ...target,
     duplicate: duplicateMap.get(policyId) ?? null,
   };
+}
+
+export async function listDeletedPolicyLedgerItems(
+  database: AuthDatabase,
+  context: AuthorizedRequestContext,
+): Promise<readonly DeletedPolicyLedgerSourceItem[]> {
+  requirePolicyLedgerAdmin(context);
+  const rows = await basePolicyQuery(database)
+    .where(isNotNull(policies.deletedAt))
+    .orderBy(desc(policies.deletedAt), asc(policies.id))
+    .limit(MAX_DELETED_POLICY_ITEMS + 1);
+  if (rows.length > MAX_DELETED_POLICY_ITEMS) {
+    throw new PolicyLedgerBoundsError();
+  }
+  return rows.map(mapPolicyRow);
+}
+
+export async function getDeletedPolicyLedgerItem(
+  database: AuthDatabase,
+  context: AuthorizedRequestContext,
+  policyId: string,
+): Promise<DeletedPolicyLedgerSourceItem> {
+  requirePolicyLedgerAdmin(context);
+  const rows = await basePolicyQuery(database)
+    .where(and(eq(policies.id, policyId), isNotNull(policies.deletedAt)))
+    .limit(1);
+  if (rows[0] === undefined) {
+    throw new PolicyLedgerNotFoundError();
+  }
+  return mapPolicyRow(rows[0]);
 }
 
 export function normalizeLedgerSearch(value: string): string {
@@ -348,6 +386,7 @@ async function loadPolicyRows(
   const rows = await basePolicyQuery(database)
     .where(
       and(
+        isNull(policies.deletedAt),
         gte(policies.approvedAt, range.start),
         lt(policies.approvedAt, range.end),
       ),
@@ -365,7 +404,7 @@ async function loadPolicyRow(
   policyId: string,
 ): Promise<Omit<PolicyLedgerSourceItem, "duplicate"> | undefined> {
   const rows = await basePolicyQuery(database)
-    .where(eq(policies.id, policyId))
+    .where(and(eq(policies.id, policyId), isNull(policies.deletedAt)))
     .limit(1);
   return rows[0] === undefined ? undefined : mapPolicyRow(rows[0]);
 }

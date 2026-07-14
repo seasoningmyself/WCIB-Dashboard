@@ -38,6 +38,7 @@ import {
   POLICY_CHANGE_REQUEST_RESOLUTIONS,
   POLICY_CHANGE_REQUEST_STATUSES,
 } from "../../shared/policy-change-requests.js";
+import { MAX_POLICY_DELETE_REASON_LENGTH } from "../../shared/policy-deletions.js";
 import {
   type AnyPgColumn,
   boolean,
@@ -872,6 +873,11 @@ export const policies = pgTable(
       "producer_commission_received_at",
       { withTimezone: true },
     ),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedByUserId: uuid("deleted_by_user_id").references(() => users.id, {
+      onDelete: "restrict",
+    }),
+    deleteReason: text("delete_reason"),
     premiumTotal: numeric("premium_total", { precision: 14, scale: 2 })
       .notNull()
       .default("0"),
@@ -911,6 +917,7 @@ export const policies = pgTable(
     index("policies_office_idx").on(table.officeLocationId),
     index("policies_producer_idx").on(table.producerUserId),
     index("policies_effective_date_idx").on(table.effectiveDate),
+    index("policies_deleted_at_idx").on(table.deletedAt),
     check(
       "policies_insured_name_check",
       sql`${table.insuredName} = btrim(${table.insuredName}) AND char_length(${table.insuredName}) > 0`,
@@ -934,6 +941,20 @@ export const policies = pgTable(
     check(
       "policies_date_order_check",
       sql`${table.expirationDate} >= ${table.effectiveDate}`,
+    ),
+    check(
+      "policies_deletion_state_check",
+      sql`(
+        ${table.deletedAt} is null
+        AND ${table.deletedByUserId} is null
+        AND ${table.deleteReason} is null
+      ) OR (
+        ${table.deletedAt} is not null
+        AND ${table.deletedByUserId} is not null
+        AND ${table.deleteReason} = btrim(${table.deleteReason})
+        AND char_length(${table.deleteReason}) BETWEEN 1 AND ${sql.raw(String(MAX_POLICY_DELETE_REASON_LENGTH))}
+        AND ${table.deletedAt} >= ${table.createdAt}
+      )`,
     ),
     check(
       "policies_assignment_check",

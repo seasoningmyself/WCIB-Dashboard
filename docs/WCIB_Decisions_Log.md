@@ -1,7 +1,35 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 14, 2026 (recorded approved-policy change-request adaptation.)
+**Last updated:** July 14, 2026 (recorded recoverable policy deletion.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
+
+---
+
+## July 14, 2026 — Recoverable policy deletion preserves financial history
+
+**Recorded production decision:** v15 permanently removes an admin-deleted
+policy and also strips it from closed pay-sheet snapshots. The latter behavior
+is a prototype bug because it rewrites a period after settlement. The
+multi-user app adapts the admin delete intent as an audited, recoverable policy
+soft-delete with a required reason; it never removes the policy row or mutates
+closed financial history.
+
+A deleted policy disappears from the live ledger, MGA payables and totals,
+open pay sheets and their live KPI widget, My Commissions, My Items/My Drafts,
+change-request activity, and correction targets. Any open-sheet associations
+are detached in the same transaction, while MGA-paid state and payment history
+remain unchanged. Frozen policy, rate, adjustment, and total snapshots on
+closed sheets remain byte-identical. Historical KPI actuals continue to derive
+from those frozen closed facts, so a policy that was actually settled remains
+part of its historical period after live deletion.
+
+Admin may restore the live policy. An unsettled MGA-paid policy returns through
+the established placement function and attaches to eligible current open
+sheets. A policy already represented on a closed sheet is restored to the live
+ledger without any new pay-sheet placement, preventing a second payment. A
+shared transaction advisory lock serializes deletion with close and MGA
+placement, and an attachment guard prevents deleted policies from being added
+to an open sheet.
 
 ---
 

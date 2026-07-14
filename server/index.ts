@@ -61,10 +61,16 @@ import {
 import { registerPolicyLedgerRoutes } from "./http/policies.js";
 import {
   getPolicyLedgerItem,
+  listDeletedPolicyLedgerItems,
   listPolicyLedger,
 } from "./policies/ledger.js";
 import { registerPolicyLedgerCorrectionRoute } from "./http/policy-corrections.js";
 import { correctPolicyLedgerItem } from "./policies/ledger-corrections.js";
+import { registerPolicyDeletionRoutes } from "./http/policy-deletions.js";
+import {
+  restorePolicy,
+  softDeletePolicy,
+} from "./policies/soft-delete.js";
 import { registerMgaPayableRoute } from "./http/mga-payables.js";
 import { listMgaPayableSources } from "./policies/mga-payables.js";
 import { registerMgaPayableStateRoute } from "./http/mga-payable-state.js";
@@ -250,6 +256,15 @@ const app = createApp({
           logger,
         ),
       logger,
+    });
+    registerPolicyDeletionRoutes(routes, {
+      authorization,
+      list: (context) => listDeletedPolicyLedgerItems(database, context),
+      logger,
+      restore: (context, policyId, input) =>
+        restorePolicy(database, context, policyId, input, logger),
+      softDelete: (context, policyId, input) =>
+        softDeletePolicy(database, context, policyId, input, logger),
     });
     registerPolicyChangeRequestRoutes(routes, {
       authorization,

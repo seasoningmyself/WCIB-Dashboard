@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AuthDatabase } from "../auth/users.js";
 import { drafts, type DraftRecord } from "../db/schema.js";
@@ -46,7 +46,17 @@ export async function listOwnMyItemSources(
   const rows = await database
     .select()
     .from(drafts)
-    .where(eq(drafts.ownerUserId, ownerUserId))
+    .where(
+      and(
+        eq(drafts.ownerUserId, ownerUserId),
+        sql`not exists (
+          select 1
+          from policies deleted_policy
+          where deleted_policy.source_draft_id = ${drafts.id}
+            and deleted_policy.deleted_at is not null
+        )`,
+      ),
+    )
     .orderBy(desc(drafts.lastEditedAt), desc(drafts.createdAt), desc(drafts.id));
   return rows.filter(isVisibleMyItemSource);
 }

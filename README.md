@@ -621,6 +621,26 @@ Success and failure logs contain only actor, policy, and override IDs. They do
 not include reasons, original or replacement values, insured data, or other
 financial fields.
 
+## Recoverable policy deletion
+
+Admin policy deletion uses `POST /api/policies/:policyId/soft-delete` with a
+required bounded reason. The trusted database function records deletion state,
+detaches only open-sheet associations, and appends the audit event atomically.
+Deleted records are available only to admin through `GET /api/deleted-policies`
+and may be restored through `POST /api/deleted-policies/:policyId/restore`.
+
+Live reads exclude deleted policies. Closed pay-sheet views and historical KPI
+actuals continue to read immutable frozen snapshots, so deleting a settled
+policy cannot rewrite a closed period. Restoring an unsettled MGA-paid policy
+uses the established placement function; restoring a settled policy never
+places it on a second sheet.
+
+Run the focused database proof after migrations with:
+
+```sh
+npm run test:db:policy-soft-delete
+```
+
 ## MGA payment state
 
 `mga_payments` stores one current MGA settlement row per policy. Unpaid rows

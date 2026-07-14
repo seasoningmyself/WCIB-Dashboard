@@ -4491,6 +4491,22 @@ h1 {
   text-transform: uppercase;
 }
 
+.ledger-deleted-button {
+  min-height: 38px;
+  border: 1px solid #aab8bd;
+  border-radius: 5px;
+  background: #ffffff;
+  padding: 0 13px;
+  color: #33464f;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.ledger-deleted-button:hover:not(:disabled) {
+  background: #edf2f3;
+}
+
 .ledger-metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -4906,6 +4922,21 @@ h1 {
   color: #633870;
 }
 
+.ledger-detail-actions button.is-danger,
+.ledger-dialog-actions button.is-danger {
+  border-color: #9a4545;
+  color: #8b3030;
+}
+
+.ledger-dialog-actions button.is-danger {
+  background: #8b3030;
+  color: #ffffff;
+}
+
+.ledger-dialog-actions button.is-danger:hover:not(:disabled) {
+  background: #722626;
+}
+
 .ledger-detail-actions button:hover:not(:disabled),
 .ledger-pagination button:hover:not(:disabled),
 .ledger-dialog-actions button:hover:not(:disabled) {
@@ -5013,6 +5044,69 @@ h1 {
   color: #617179;
   cursor: pointer;
   font-size: 24px;
+}
+
+.ledger-deleted-panel > header p {
+  margin: 0 0 4px;
+  color: #6d7b82;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.ledger-deleted-status,
+.ledger-deletion-explanation {
+  margin: 18px 0 0;
+  color: #5f7078;
+  line-height: 1.5;
+}
+
+.ledger-deleted-status.is-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.ledger-deleted-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.ledger-deleted-list article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border: 1px solid #cbd4d7;
+  border-radius: 5px;
+  padding: 12px 14px;
+}
+
+.ledger-deleted-list article > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.ledger-deleted-list span,
+.ledger-deleted-list small {
+  color: #68777e;
+  overflow-wrap: anywhere;
+}
+
+.ledger-deleted-list button,
+.ledger-deleted-status button {
+  min-height: 38px;
+  border: 1px solid #aab8bd;
+  border-radius: 5px;
+  background: #ffffff;
+  padding: 0 13px;
+  color: #293c45;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
 }
 
 .ledger-correction-fieldset {

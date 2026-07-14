@@ -97,6 +97,9 @@ export async function correctPolicyLedgerItemInTransaction(
   if (current === undefined) {
     throw new PolicyLedgerCorrectionNotFoundError();
   }
+  if (current.deletedAt !== null) {
+    throw new PolicyLedgerCorrectionNotFoundError();
+  }
   if (current.updatedAt.getTime() !== expectedUpdatedAt.getTime()) {
     throw new PolicyLedgerCorrectionStaleError();
   }

@@ -1,4 +1,4 @@
-import { desc, eq, getTableColumns, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, isNull, sql } from "drizzle-orm";
 import {
   createPolicyChangeRequestSchema,
   correctPolicyChangeRequestSchema,
@@ -108,9 +108,15 @@ export async function listOwnPolicyChangeRequests(
 ): Promise<readonly PolicyChangeRequestRecord[]> {
   const actorUserId = requirePolicyChangeRequestOwner(context);
   return database
-    .select()
+    .select(getTableColumns(policyChangeRequests))
     .from(policyChangeRequests)
-    .where(eq(policyChangeRequests.requestedByUserId, actorUserId))
+    .innerJoin(policies, eq(policies.id, policyChangeRequests.policyId))
+    .where(
+      and(
+        eq(policyChangeRequests.requestedByUserId, actorUserId),
+        isNull(policies.deletedAt),
+      ),
+    )
     .orderBy(
       desc(policyChangeRequests.requestedAt),
       desc(policyChangeRequests.id),
@@ -136,7 +142,12 @@ export async function listPendingPolicyChangeRequests(
       staffProfiles,
       eq(staffProfiles.userId, policyChangeRequests.requestedByUserId),
     )
-    .where(eq(policyChangeRequests.status, "pending"))
+    .where(
+      and(
+        eq(policyChangeRequests.status, "pending"),
+        isNull(policies.deletedAt),
+      ),
+    )
     .orderBy(
       desc(policyChangeRequests.requestedAt),
       desc(policyChangeRequests.id),
@@ -263,9 +274,15 @@ async function loadRequest(
   requestId: string,
 ): Promise<PolicyChangeRequestRecord> {
   const [request] = await database
-    .select()
+    .select(getTableColumns(policyChangeRequests))
     .from(policyChangeRequests)
-    .where(eq(policyChangeRequests.id, requestId))
+    .innerJoin(policies, eq(policies.id, policyChangeRequests.policyId))
+    .where(
+      and(
+        eq(policyChangeRequests.id, requestId),
+        isNull(policies.deletedAt),
+      ),
+    )
     .limit(1);
   if (request === undefined) {
     throw new PolicyChangeRequestNotFoundError();
@@ -290,7 +307,12 @@ async function loadAdminSource(
       staffProfiles,
       eq(staffProfiles.userId, policyChangeRequests.requestedByUserId),
     )
-    .where(eq(policyChangeRequests.id, requestId))
+    .where(
+      and(
+        eq(policyChangeRequests.id, requestId),
+        isNull(policies.deletedAt),
+      ),
+    )
     .limit(1);
   if (source === undefined) {
     throw new PolicyChangeRequestNotFoundError();

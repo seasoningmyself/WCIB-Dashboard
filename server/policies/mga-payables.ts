@@ -1,4 +1,4 @@
-import { asc, eq, getTableColumns } from "drizzle-orm";
+import { and, asc, eq, getTableColumns, isNull } from "drizzle-orm";
 import {
   mgaPayableItemSchema,
   mgaPayableListQuerySchema,
@@ -73,6 +73,7 @@ export async function listMgaPayableSources(
   requirePolicyLedgerAdmin(context);
   const { status } = mgaPayableListQuerySchema.parse(rawQuery);
   const rows = await baseMgaPayableQuery(database)
+    .where(isNull(policies.deletedAt))
     .orderBy(asc(mgas.name), asc(policies.insuredName), asc(policies.id))
     .limit(MAX_MGA_PAYABLE_SOURCE_ROWS + 1);
   if (rows.length > MAX_MGA_PAYABLE_SOURCE_ROWS) {
@@ -88,7 +89,7 @@ export async function getMgaPayableSource(
 ): Promise<MgaPayableSourceItem> {
   requirePolicyLedgerAdmin(context);
   const rows = await baseMgaPayableQuery(database)
-    .where(eq(policies.id, policyId))
+    .where(and(eq(policies.id, policyId), isNull(policies.deletedAt)))
     .limit(1);
   if (rows[0] === undefined) {
     throw new MgaPayableNotFoundError();

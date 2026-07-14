@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { myCommissionReceiptRequestSchema } from "../../shared/my-commissions.js";
 import { writeAuditEventInDrizzleTransaction } from "../audit/event.js";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
@@ -58,7 +58,7 @@ export async function setProducerCommissionReceipt(
           producerUserId: policies.producerUserId,
         })
         .from(policies)
-        .where(eq(policies.id, policyId))
+        .where(and(eq(policies.id, policyId), isNull(policies.deletedAt)))
         .limit(1)
         .for("update");
       if (policy === undefined) {

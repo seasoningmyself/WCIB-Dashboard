@@ -4,7 +4,11 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { CurrentUser } from "../../../shared/current-user.js";
 import type { PolicyLedgerListQuery } from "../../../shared/policy-ledger.js";
-import { PolicyLedger, PolicyLedgerView } from "./PolicyLedger.js";
+import {
+  DeletedPolicyPanel,
+  PolicyLedger,
+  PolicyLedgerView,
+} from "./PolicyLedger.js";
 import { ledgerItemFixture, ledgerListFixture, uuid } from "./test-fixture.js";
 
 const query: PolicyLedgerListQuery = {
@@ -59,11 +63,12 @@ test("admin ledger renders financial totals, filters, badges, detail, and separa
     "Record",
     "Correct fields",
     "Financial override",
+    "Delete policy",
+    "Deleted policies",
   ]) {
     assert.match(markup, new RegExp(escapeRegExp(visible)));
   }
   for (const excludedAction of [
-    "Delete policy",
     "Mark MGA paid",
     "Export ledger",
     "Push to IPFS",
@@ -82,6 +87,40 @@ test("admin ledger renders financial totals, filters, badges, detail, and separa
   ]) {
     assert.doesNotMatch(markup, new RegExp(`>${escapeRegExp(dormantPaymentField)}<`));
   }
+});
+
+test("admin deleted-policy panel identifies recoverable records and restore control", () => {
+  const item = ledgerItemFixture();
+  const markup = renderToStaticMarkup(
+    <DeletedPolicyPanel
+      onClose={() => {}}
+      onRestore={() => {}}
+      onRetry={() => {}}
+      open
+      pending={false}
+      state={{
+        data: {
+          items: [
+            {
+              deletion: {
+                deletedAt: "2026-07-12T12:00:00.000Z",
+                deletedByUserId: uuid(1),
+                reason: "Duplicate entry",
+              },
+              labels: item.labels,
+              policy: item.policy,
+            },
+          ],
+        },
+        status: "ready",
+      }}
+    />,
+  );
+
+  assert.match(markup, /Deleted policies/);
+  assert.match(markup, /Insured/);
+  assert.match(markup, /Duplicate entry/);
+  assert.match(markup, />Restore</);
 });
 
 test("ledger renders loading, denied, failure, empty, and filtered-empty states", () => {
@@ -159,6 +198,8 @@ function ledgerMarkup({
       expandedPolicyId={expandedPolicyId}
       notice={null}
       onCorrect={() => {}}
+      onDelete={() => {}}
+      onOpenDeleted={() => {}}
       onPage={() => {}}
       onQuery={() => {}}
       onRetry={() => {}}

@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
   myCommissionsListQuerySchema,
   type MyCommissionsListQuery,
@@ -127,6 +127,7 @@ async function loadClosedItems(
         eq(paySheets.ownerType, "producer"),
         eq(paySheets.ownerUserId, ownerUserId),
         eq(paySheets.status, "closed"),
+        isNull(policies.deletedAt),
       ),
     )
     .orderBy(asc(paySheetPolicies.id))
@@ -184,6 +185,7 @@ async function loadLiveRows(
     .where(
       and(
         eq(policies.producerUserId, ownerUserId),
+        isNull(policies.deletedAt),
         inArray(policies.kayleeSplit, ["book", "house"]),
         sql`not exists (
           select 1

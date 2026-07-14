@@ -1,4 +1,12 @@
-import { and, desc, eq, getTableColumns, lte, type SQL } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  getTableColumns,
+  isNull,
+  lte,
+  type SQL,
+} from "drizzle-orm";
 import {
   paySheetCloseResultSchema,
   paySheetAdjustmentViewSchema,
@@ -518,7 +526,12 @@ async function loadLivePolicies(
     .from(paySheetPolicies)
     .innerJoin(policies, eq(policies.id, paySheetPolicies.policyId))
     .innerJoin(policyTypes, eq(policyTypes.id, policies.policyTypeId))
-    .where(eq(paySheetPolicies.paySheetId, paySheetId));
+    .where(
+      and(
+        eq(paySheetPolicies.paySheetId, paySheetId),
+        isNull(policies.deletedAt),
+      ),
+    );
   return rows.map((value) => ({ kind: "live" as const, value }));
 }
 

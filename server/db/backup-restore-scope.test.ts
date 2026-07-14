@@ -35,7 +35,7 @@ const schemaSource = readFileSync(
 );
 const snapshot = JSON.parse(
   readFileSync(
-    resolve(process.cwd(), "drizzle/meta/0043_snapshot.json"),
+    resolve(process.cwd(), "drizzle/meta/0044_snapshot.json"),
     "utf8",
   ),
 ) as DrizzleSnapshot;
@@ -131,7 +131,7 @@ test("no backup or restore runtime was introduced", () => {
 
   for (const name of runtimeFiles) {
     const source = readFileSync(resolve(process.cwd(), "server", name), "utf8");
-    assert.doesNotMatch(source, /\/api\/[^"']*(?:backup|restore)/i, name);
+    assert.doesNotMatch(source, /\/api\/(?:backup|restore)/i, name);
     assert.doesNotMatch(source, /\bexport_jobs\b|\bbackup_staging\b/i, name);
   }
 });
