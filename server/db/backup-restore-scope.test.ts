@@ -35,7 +35,7 @@ const schemaSource = readFileSync(
 );
 const snapshot = JSON.parse(
   readFileSync(
-    resolve(process.cwd(), "drizzle/meta/0032_snapshot.json"),
+    resolve(process.cwd(), "drizzle/meta/0043_snapshot.json"),
     "utf8",
   ),
 ) as DrizzleSnapshot;
@@ -96,7 +96,7 @@ test("future restore order and integrity boundaries are explicit", () => {
     "3. Controlled vocabularies",
     "4. `drafts` and `approval_queue_entries`.",
     "5. `policies`.",
-    "6. `audit_events`, `policy_overrides`, and `mga_payments`.",
+    "6. `policy_change_requests`, `audit_events`, `policy_overrides`, and `mga_payments`.",
     "7. `pay_sheets` and `pay_sheet_policies`",
     "8. `pay_sheet_adjustments`.",
     "9. `kpi_targets`.",

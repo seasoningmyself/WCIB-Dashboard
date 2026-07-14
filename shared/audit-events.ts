@@ -24,6 +24,10 @@ export const AUDIT_ACTIONS = [
   "producer_commission_receipt_marked",
   "producer_commission_receipt_unmarked",
   "pay_sheet_initialized",
+  "policy_change_request_created",
+  "policy_change_request_corrected",
+  "policy_change_request_resolved_as_is",
+  "policy_change_request_sent_back",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -42,6 +46,7 @@ export const AUDIT_ENTITY_TYPES = [
   "carrier",
   "policy_type",
   "mga",
+  "policy_change_request",
 ] as const;
 
 export type AuditEntityType = (typeof AUDIT_ENTITY_TYPES)[number];

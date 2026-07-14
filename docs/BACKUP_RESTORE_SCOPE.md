@@ -20,7 +20,7 @@ The future implementation must restore in this order:
    `policy_types`.
 4. `drafts` and `approval_queue_entries`.
 5. `policies`.
-6. `audit_events`, `policy_overrides`, and `mga_payments`.
+6. `policy_change_requests`, `audit_events`, `policy_overrides`, and `mga_payments`.
 7. `pay_sheets` and `pay_sheet_policies` frozen policy/rate snapshots.
 8. `pay_sheet_adjustments`.
 9. `kpi_targets`.
@@ -65,7 +65,7 @@ immutability. No such bypass or procedure exists in Core Schema.
 
 ## Current review result
 
-The current 22-table schema has no SQL array relationship columns, no name-based
+The current 23-table schema has no SQL array relationship columns, no name-based
 foreign key, no orphaning domain cascade, and no backup/export/staging table.
 The schema is blank-slate and restore-friendly, but restore behavior remains
 intentionally unimplemented until its feature and security boundaries are

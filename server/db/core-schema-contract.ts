@@ -1,5 +1,5 @@
 export const approvedCoreSchemaFingerprint =
-  "ad7a563a301b4810005d9134df91a6a736f32ba0ccadcd73885c716646921ed2";
+  "7c81b221b1086d9e7bef6dd8d541f70c8b560121a0525d08e54953d591ec6532";
 
 export const coreSchemaTables = [
   "approval_queue_entries",
@@ -15,6 +15,7 @@ export const coreSchemaTables = [
   "pay_sheet_policies",
   "pay_sheets",
   "policies",
+  "policy_change_requests",
   "policy_overrides",
   "policy_types",
   "producer_rate_history",

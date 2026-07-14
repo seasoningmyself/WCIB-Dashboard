@@ -32,6 +32,8 @@ const UNASSIGNED_ID = "00000000-0000-4000-8000-000000000004";
 const INACTIVE_ID = "00000000-0000-4000-8000-000000000005";
 const DRAFT_ID = "00000000-0000-4000-8000-000000000010";
 const QUEUE_ID = "00000000-0000-4000-8000-000000000020";
+const POLICY_ID = "00000000-0000-4000-8000-000000000021";
+const CHANGE_REQUEST_ID = "00000000-0000-4000-8000-000000000022";
 
 const logger: AppLogger = { error() {}, info() {}, warn() {} };
 
@@ -75,9 +77,10 @@ function createFixture(options: { empty?: boolean } = {}) {
     async list(context, query) {
       listCalls.push({ query, userId: context.principal.userId });
       if (options.empty === true) {
-        return { helpRequests: [], submissions: [] };
+        return { changeRequests: [], helpRequests: [], submissions: [] };
       }
       return {
+        changeRequests: [changeRequestSource()],
         helpRequests: [
           {
             draft: draft() as DraftRecord,
@@ -116,8 +119,10 @@ test("active admin receives exact projected submission and flagged-help data", a
   const body = response.body as Record<string, unknown>;
   const submissions = body.submissions as Array<Record<string, unknown>>;
   const helpRequests = body.helpRequests as Array<Record<string, unknown>>;
+  const changeRequests = body.changeRequests as Array<Record<string, unknown>>;
   assert.equal(submissions.length, 1);
   assert.equal(helpRequests.length, 1);
+  assert.equal(changeRequests.length, 1);
   assert.equal(submissions[0]?.submitterDisplayName, "Kaylee");
   assert.deepEqual(
     (submissions[0]?.entry as Record<string, unknown>).submittedPayload,
@@ -134,6 +139,13 @@ test("active admin receives exact projected submission and flagged-help data", a
   ]) {
     assert.equal(field in projectedDraft, false, field);
   }
+  const projectedChange = changeRequests[0] as {
+    request: Record<string, unknown>;
+  };
+  assert.equal(projectedChange.request.reason, "Correct the approved insured name");
+  assert.equal("basePremium" in projectedChange.request, false);
+  assert.equal("commissionAmount" in projectedChange.request, false);
+  assert.equal("netDue" in projectedChange.request, false);
   assert.deepEqual(fixture.listCalls, [
     { query: { status: "all" }, userId: ADMIN_ID },
   ]);
@@ -161,7 +173,11 @@ test("every non-admin identity is denied before the queue query", async () => {
 test("empty state and bounded status filters preserve the response contract", async () => {
   const empty = createFixture({ empty: true });
   const response = await invoke(empty, { status: "pending" }, "admin");
-  assert.deepEqual(response.body, { helpRequests: [], submissions: [] });
+  assert.deepEqual(response.body, {
+    changeRequests: [],
+    helpRequests: [],
+    submissions: [],
+  });
   assert.deepEqual(empty.listCalls, [
     { query: { status: "pending" }, userId: ADMIN_ID },
   ]);
@@ -203,6 +219,29 @@ function queueEntry(): ApprovalQueueEntryRecord & Record<string, unknown> {
       schemaVersion: 1,
     },
     updatedAt: at,
+  };
+}
+
+function changeRequestSource() {
+  const at = new Date("2026-07-14T12:00:00.000Z");
+  return {
+    insuredName: "Approved Insured",
+    policyNumber: "CHANGE-001",
+    requesterDisplayName: "Mercedes",
+    request: {
+      id: CHANGE_REQUEST_ID,
+      mutationId: null,
+      mutationKind: null,
+      policyId: POLICY_ID,
+      reason: "Correct the approved insured name",
+      requestedAt: at,
+      requestedByUserId: EMPLOYEE_ID,
+      resolution: null,
+      resolutionReason: null,
+      resolvedAt: null,
+      resolvedByUserId: null,
+      status: "pending" as const,
+    },
   };
 }
 

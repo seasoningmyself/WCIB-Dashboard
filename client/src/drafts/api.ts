@@ -27,6 +27,14 @@ import {
   draftAssignmentOptionsResponseSchema,
   type DraftAssignmentOptionsResponse,
 } from "../../../shared/draft-assignment-options.js";
+import {
+  createPolicyChangeRequestResponseSchema,
+  createPolicyChangeRequestSchema,
+  listOwnPolicyChangeRequestsResponseSchema,
+  type CreatePolicyChangeRequest,
+  type CreatePolicyChangeRequestResponse,
+  type ListOwnPolicyChangeRequestsResponse,
+} from "../../../shared/policy-change-requests.js";
 import type { ApiClient } from "../api/client.js";
 
 const safeApiErrorSchema = z.object({
@@ -56,11 +64,16 @@ export class DraftApiError extends Error {
 }
 
 export interface DraftApi {
+  createChangeRequest(
+    policyId: string,
+    input: CreatePolicyChangeRequest,
+  ): Promise<CreatePolicyChangeRequestResponse>;
   create(input: CreateDraftRequest): Promise<CreateDraftResponse>;
   edit(draftId: string, input: UpdateDraftRequest): Promise<CreateDraftResponse>;
   flag(draftId: string, input: FlagDraftRequest): Promise<CreateDraftResponse>;
   list(query?: ListDraftsQuery): Promise<ListDraftsResponse>;
   listAssignmentOptions(): Promise<DraftAssignmentOptionsResponse>;
+  listChangeRequests(): Promise<ListOwnPolicyChangeRequestsResponse>;
   submit(draftId: string): Promise<SubmitDraftResponse>;
   withdrawHelp(draftId: string): Promise<WithdrawFlaggedDraftResponse>;
   withdrawSubmission(draftId: string): Promise<WithdrawSubmittedDraftResponse>;
@@ -68,6 +81,16 @@ export interface DraftApi {
 
 export function createDraftApi(client: ApiClient): DraftApi {
   return {
+    async createChangeRequest(policyId, input) {
+      return mutate(
+        client,
+        `/policies/${encodeURIComponent(policyId)}/change-requests`,
+        "POST",
+        parseRequest(createPolicyChangeRequestSchema, input),
+        201,
+        createPolicyChangeRequestResponseSchema,
+      );
+    },
     async create(input) {
       return mutate(
         client,
@@ -112,6 +135,12 @@ export function createDraftApi(client: ApiClient): DraftApi {
         client,
         "/draft-assignment-options",
         draftAssignmentOptionsResponseSchema,
+      ),
+    listChangeRequests: () =>
+      read(
+        client,
+        "/policy-change-requests/mine",
+        listOwnPolicyChangeRequestsResponseSchema,
       ),
     submit: (draftId) =>
       mutate(

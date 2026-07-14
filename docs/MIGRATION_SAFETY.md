@@ -142,11 +142,12 @@ owners, not every transitive predecessor.
 | `0040_pay_sheet_cascade_close` | Atomic House-sheet cascade close and independent open-period placement after opt-out | `0027`-`0030`, `0039` | Restores prior placement functions and removes cascade orchestration; forward-fix after owner periods diverge |
 | `0041_pay_sheet_chargeback_mirrors` | Atomic House chargeback normalization and read-only producer-sheet mirrors | `0031`, `0039`, `0040` | Refuses linkage loss while mirrors exist; forward-fix after mirror use |
 | `0042_submitted_draft_withdrawal` | Audited owner withdrawal of still-pending submitted drafts with preserved queue snapshots | `0013`, `0018`, `0020`, `0041` | Refuses enum reversal after withdrawal history exists; forward-fix after use |
+| `0043_policy_change_requests` | Reason-only owner requests linked to canonical policies with audited admin resolution | `0018`, `0020`, `0034`, `0042` | Refuses reversal after request or audit history exists; forward-fix after use |
 
 ## Dependency-safe full reverse order
 
 For a disposable or confirmed-empty database only, execute backouts from
-`0042` down through `0000`, deleting the matching Drizzle history row in the
+`0043` down through `0000`, deleting the matching Drizzle history row in the
 same transaction as each backout. The automated verifier is the reference
 implementation. There is intentionally no production `db:rollback` command:
 an operator must make and document the recovery decision rather than invoke a

@@ -118,6 +118,14 @@ import {
   upsertKpiTarget,
 } from "./kpi/targets.js";
 import { loadKpiActualSource } from "./kpi/actuals.js";
+import { registerPolicyChangeRequestRoutes } from "./http/policy-change-requests.js";
+import {
+  correctPolicyChangeRequest,
+  createOwnPolicyChangeRequest,
+  listOwnPolicyChangeRequests,
+  resolvePolicyChangeRequestAsIs,
+  sendBackPolicyChangeRequest,
+} from "./policy-change-requests/service.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -242,6 +250,43 @@ const app = createApp({
           logger,
         ),
       logger,
+    });
+    registerPolicyChangeRequestRoutes(routes, {
+      authorization,
+      correct: (context, requestId, input) =>
+        correctPolicyChangeRequest(
+          database,
+          context,
+          requestId,
+          input,
+          logger,
+        ),
+      create: (context, policyId, input) =>
+        createOwnPolicyChangeRequest(
+          database,
+          context,
+          policyId,
+          input,
+          logger,
+        ),
+      listMine: (context) =>
+        listOwnPolicyChangeRequests(database, context),
+      logger,
+      resolveAsIs: (context, requestId) =>
+        resolvePolicyChangeRequestAsIs(
+          database,
+          context,
+          requestId,
+          logger,
+        ),
+      sendBack: (context, requestId, input) =>
+        sendBackPolicyChangeRequest(
+          database,
+          context,
+          requestId,
+          input,
+          logger,
+        ),
     });
     registerMgaPayableRoute(routes, {
       authorization,

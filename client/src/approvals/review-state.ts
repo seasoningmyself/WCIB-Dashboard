@@ -77,6 +77,7 @@ export const APPROVAL_REVIEW_GROUPS: readonly ApprovalReviewGroup[] = [
 ] as const;
 
 export type ApprovalResolutionTarget =
+  | { id: string; kind: "change_request" }
   | { id: string; kind: "help" }
   | { id: string; kind: "submission" };
 
@@ -102,12 +103,19 @@ export function removeResolvedApprovalWork(
           ({ entry }) => entry.id !== target.id,
         ),
       }
-    : {
+    : target.kind === "help"
+      ? {
         ...work,
         helpRequests: work.helpRequests.filter(
           ({ draft }) => draft.id !== target.id,
         ),
-      };
+      }
+      : {
+          ...work,
+          changeRequests: work.changeRequests.filter(
+            ({ request }) => request.id !== target.id,
+          ),
+        };
 }
 
 export function buildApprovalOverrideInput(input: {

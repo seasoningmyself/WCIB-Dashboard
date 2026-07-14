@@ -420,7 +420,7 @@ function OpenFixDialog({
   );
 }
 
-function DialogFrame({ children, onCancel, pending, title, wide = false }: {
+export function DialogFrame({ children, onCancel, pending, title, wide = false }: {
   children: React.ReactNode;
   onCancel(): void;
   pending: boolean;
@@ -437,7 +437,7 @@ function DialogFrame({ children, onCancel, pending, title, wide = false }: {
   );
 }
 
-function DialogActions({ children }: { children: React.ReactNode }) {
+export function DialogActions({ children }: { children: React.ReactNode }) {
   return <div className="approval-dialog-actions">{children}</div>;
 }
 

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { draftResponseSchema, flagDraftRequestSchema } from "./drafts.js";
+import { adminPolicyChangeRequestSchema } from "./policy-change-requests.js";
 
 export const APPROVAL_WORK_STATUSES = ["all", "pending", "flagged"] as const;
 
@@ -34,6 +35,7 @@ const submitterDisplayNameSchema = z.string().trim().min(1).nullable();
 
 export const approvalWorkListResponseSchema = z
   .object({
+    changeRequests: z.array(adminPolicyChangeRequestSchema),
     helpRequests: z.array(
       z
         .object({

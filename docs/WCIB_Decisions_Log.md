@@ -1,7 +1,26 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 14, 2026 (recorded submitted-draft withdrawal history preservation.)
+**Last updated:** July 14, 2026 (recorded approved-policy change-request adaptation.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
+
+---
+
+## July 14, 2026 — Correct approved policies in place
+
+**Recorded production decision:** v15 handles a request to change an already
+approved record by copying the policy into a new flagged draft. Resolving that
+draft can create a second policy ID and leave the original approved policy in
+the ledger. The multi-user app preserves the owner-request/admin-review intent
+without duplicating financial records.
+
+An originating employee or producer may create a reason-only request linked to
+their original approved policy. Creating the request changes no policy field and
+creates no draft or policy. Admin may review it as-is, send it back with a
+reason, or use the existing audited general-correction or financial-override
+path against the original policy ID. The request resolution and any correction
+commit atomically. This is an intent-faithful production adaptation of v15's
+duplicate-creating behavior; only the established admin correction boundaries
+may mutate an approved policy.
 
 ---
 

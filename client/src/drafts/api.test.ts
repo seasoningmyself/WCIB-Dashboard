@@ -6,6 +6,8 @@ import { createDraftApi, DraftApiError } from "./api.js";
 const DRAFT_ID = "00000000-0000-4000-8000-000000000101";
 const USER_ID = "00000000-0000-4000-8000-000000000102";
 const PRODUCER_ID = "00000000-0000-4000-8000-000000000103";
+const POLICY_ID = "00000000-0000-4000-8000-000000000104";
+const CHANGE_REQUEST_ID = "00000000-0000-4000-8000-000000000105";
 
 test("draft API uses documented create, edit, flag, withdrawal, list, submit, and assignment paths", async () => {
   const calls: Array<{
@@ -29,6 +31,8 @@ test("draft API uses documented create, edit, flag, withdrawal, list, submit, an
     Response.json({
       producers: [{ displayName: "Kaylee", userId: PRODUCER_ID }],
     }),
+    Response.json({ request: changeRequestResponse() }, { status: 201 }),
+    Response.json({ requests: [changeRequestResponse()] }),
   ];
   const client: ApiClient = {
     async request(path, options) {
@@ -50,6 +54,10 @@ test("draft API uses documented create, edit, flag, withdrawal, list, submit, an
   assert.deepEqual(await api.listAssignmentOptions(), {
     producers: [{ displayName: "Kaylee", userId: PRODUCER_ID }],
   });
+  await api.createChangeRequest(POLICY_ID, {
+    reason: "  Please review the insured name.  ",
+  });
+  assert.equal((await api.listChangeRequests()).requests.length, 1);
 
   assert.equal(calls[0]?.path, "/drafts");
   assert.equal(calls[0]?.options?.method, "POST");
@@ -77,6 +85,13 @@ test("draft API uses documented create, edit, flag, withdrawal, list, submit, an
   assert.equal(calls[6]?.options?.cache, "no-store");
   assert.equal(calls[7]?.path, "/draft-assignment-options");
   assert.equal(calls[7]?.options?.cache, "no-store");
+  assert.equal(calls[8]?.path, `/policies/${POLICY_ID}/change-requests`);
+  assert.equal(calls[8]?.options?.method, "POST");
+  assert.deepEqual(JSON.parse(String(calls[8]?.options?.body)), {
+    reason: "Please review the insured name.",
+  });
+  assert.equal(calls[9]?.path, "/policy-change-requests/mine");
+  assert.equal(calls[9]?.options?.cache, "no-store");
 });
 
 test("draft API normalizes input, network, status, and response failures", async () => {
@@ -100,6 +115,13 @@ test("draft API normalizes input, network, status, and response failures", async
   );
   await assert.rejects(
     invalidInputApi.flag(DRAFT_ID, { reason: "" }),
+    (error: unknown) =>
+      error instanceof DraftApiError && error.kind === "rejected",
+  );
+  await assert.rejects(
+    invalidInputApi.createChangeRequest(POLICY_ID, {
+      reason: "",
+    }),
     (error: unknown) =>
       error instanceof DraftApiError && error.kind === "rejected",
   );
@@ -178,5 +200,18 @@ function draftResponse(
     transactionNotes: null,
     transactionType: null,
     ...overrides,
+  };
+}
+
+function changeRequestResponse() {
+  return {
+    id: CHANGE_REQUEST_ID,
+    policyId: POLICY_ID,
+    reason: "Please review the insured name.",
+    requestedAt: "2026-07-14T12:00:00.000Z",
+    resolution: null,
+    resolutionReason: null,
+    resolvedAt: null,
+    status: "pending",
   };
 }
