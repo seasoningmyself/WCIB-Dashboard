@@ -138,11 +138,14 @@ owners, not every transitive predecessor.
 | `0036_flagged_help_resolution` | Audited admin send-back and owner-withdrawal transitions for flagged drafts | `0013`, `0018`, `0020`, `0035` | Refuses reversal after either resolution action records audit history; forward-fix after use |
 | `0037_producer_commission_received` | Nullable producer commission-receipt timestamp on canonical policies | `0015`, `0036` | Refuses reversal after any receipt timestamp is recorded; forward-fix after use |
 | `0038_producer_commission_receipt_audit_actions` | Explicit producer commission receipt mark/unmark audit vocabulary | `0018`, `0036`, `0037` | Refuses reversal after either action records audit history; forward-fix after use |
+| `0039_pay_sheet_initialization` | Audited first-owner-chain initialization and lazy producer-sheet placement wrapper | `0018`, `0025`-`0030`, `0038` | Refuses enum reversal after initialization audit history exists; forward-fix after any chain is initialized |
+| `0040_pay_sheet_cascade_close` | Atomic House-sheet cascade close and independent open-period placement after opt-out | `0027`-`0030`, `0039` | Restores prior placement functions and removes cascade orchestration; forward-fix after owner periods diverge |
+| `0041_pay_sheet_chargeback_mirrors` | Atomic House chargeback normalization and read-only producer-sheet mirrors | `0031`, `0039`, `0040` | Refuses linkage loss while mirrors exist; forward-fix after mirror use |
 
 ## Dependency-safe full reverse order
 
 For a disposable or confirmed-empty database only, execute backouts from
-`0036` down through `0000`, deleting the matching Drizzle history row in the
+`0041` down through `0000`, deleting the matching Drizzle history row in the
 same transaction as each backout. The automated verifier is the reference
 implementation. There is intentionally no production `db:rollback` command:
 an operator must make and document the recovery decision rather than invoke a

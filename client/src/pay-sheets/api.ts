@@ -5,10 +5,14 @@ import {
   type PaySheetAdjustmentInput,
 } from "../../../shared/pay-sheet-adjustment-api.js";
 import {
+  paySheetBootstrapRequestSchema,
+  paySheetBootstrapResponseSchema,
   paySheetCloseRequestSchema,
   paySheetCloseResponseSchema,
   paySheetDetailResponseSchema,
   paySheetListResponseSchema,
+  type PaySheetBootstrapRequest,
+  type PaySheetBootstrapResponse,
   type PaySheetCloseResponse,
   type PaySheetDetailResponse,
   type PaySheetListResponse,
@@ -45,7 +49,11 @@ export interface PaySheetExportDocument {
 }
 
 export interface PaySheetsApi {
-  close(paySheetId: string): Promise<PaySheetCloseResponse>;
+  bootstrap(input: PaySheetBootstrapRequest): Promise<PaySheetBootstrapResponse>;
+  close(
+    paySheetId: string,
+    cascadeProducerSheets: boolean,
+  ): Promise<PaySheetCloseResponse>;
   createAdjustment(
     paySheetId: string,
     input: PaySheetAdjustmentInput,
@@ -67,12 +75,20 @@ export interface PaySheetsApi {
 
 export function createPaySheetsApi(client: ApiClient): PaySheetsApi {
   return {
-    close: (paySheetId) =>
+    bootstrap: (input) =>
+      mutate(
+        client,
+        "/pay-sheets/bootstrap",
+        "POST",
+        parseRequest(paySheetBootstrapRequestSchema, input),
+        paySheetBootstrapResponseSchema,
+      ),
+    close: (paySheetId, cascadeProducerSheets) =>
       mutate(
         client,
         `/pay-sheets/${encodeURIComponent(paySheetId)}/close`,
         "POST",
-        paySheetCloseRequestSchema.parse({}),
+        paySheetCloseRequestSchema.parse({ cascadeProducerSheets }),
         paySheetCloseResponseSchema,
       ),
     async createAdjustment(paySheetId, input) {

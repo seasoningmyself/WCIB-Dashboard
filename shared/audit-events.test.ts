@@ -27,6 +27,7 @@ test("audit vocabulary covers every named sensitive mutation contract", () => {
     "mga_created",
     "producer_commission_receipt_marked",
     "producer_commission_receipt_unmarked",
+    "pay_sheet_initialized",
   ] as const;
 
   assert.deepEqual(AUDIT_ACTIONS, expectedActions);

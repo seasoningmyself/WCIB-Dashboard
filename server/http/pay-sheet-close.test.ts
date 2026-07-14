@@ -29,6 +29,8 @@ const INACTIVE_ID = uuid(4);
 const CLOSED_SHEET_ID = uuid(10);
 const NEXT_SHEET_ID = uuid(11);
 const POLICY_ID = uuid(12);
+const CASCADED_SHEET_ID = uuid(20);
+const CASCADED_NEXT_SHEET_ID = uuid(21);
 const logger: AppLogger = { error() {}, info() {}, warn() {} };
 
 interface Registration {
@@ -38,6 +40,7 @@ interface Registration {
 }
 
 function createFixture(overrides: {
+  cascaded?: boolean;
   closeError?: unknown;
   closed?: boolean;
 } = {}) {
@@ -69,19 +72,40 @@ function createFixture(overrides: {
   const registrations: Registration[] = [];
   const options: RegisterPaySheetCloseRouteOptions = {
     authorization,
-    async close(context, paySheetId) {
+    async close(context, paySheetId, cascadeProducerSheets) {
       calls.push({
         kind: "close",
-        value: { paySheetId, userId: context.principal.userId },
+        value: {
+          cascadeProducerSheets,
+          paySheetId,
+          userId: context.principal.userId,
+        },
       });
       if (overrides.closeError !== undefined) throw overrides.closeError;
       return {
-        closed: overrides.closed ?? true,
-        nextSheetId: NEXT_SHEET_ID,
-        ownerType: "sophia",
-        periodMonth: 7,
-        periodYear: 2026,
-        policyCount: 1,
+        cascaded: overrides.cascaded
+          ? [
+              {
+                close: {
+                  closed: true,
+                  nextSheetId: CASCADED_NEXT_SHEET_ID,
+                  ownerType: "producer",
+                  periodMonth: 7,
+                  periodYear: 2026,
+                  policyCount: 1,
+                },
+                paySheetId: CASCADED_SHEET_ID,
+              },
+            ]
+          : [],
+        primary: {
+          closed: overrides.closed ?? true,
+          nextSheetId: NEXT_SHEET_ID,
+          ownerType: "sophia",
+          periodMonth: 7,
+          periodYear: 2026,
+          policyCount: 1,
+        },
       };
     },
     async get(context, paySheetId) {
@@ -89,7 +113,10 @@ function createFixture(overrides: {
         kind: "get",
         value: { paySheetId, userId: context.principal.userId },
       });
-      return paySheetId === NEXT_SHEET_ID ? nextSource() : closedSource();
+      if (paySheetId === NEXT_SHEET_ID) return nextSource();
+      if (paySheetId === CASCADED_SHEET_ID) return producerClosedSource();
+      if (paySheetId === CASCADED_NEXT_SHEET_ID) return producerNextSource();
+      return closedSource();
     },
     logger,
   };
@@ -116,6 +143,7 @@ test("admin close supplies only trusted context and returns projected history", 
   assert.equal(body.close.closed, true);
   assert.equal(body.closedSheet.id, CLOSED_SHEET_ID);
   assert.equal(body.nextSheet.id, NEXT_SHEET_ID);
+  assert.deepEqual(body.cascaded, []);
   assert.equal(body.closedSheet.totals.sophiaAgencyGross, "250.00");
   assert.equal(body.closedSheet.totals.sophiaTakeHome, "212.50");
   assert.notEqual(
@@ -125,7 +153,11 @@ test("admin close supplies only trusted context and returns projected history", 
   assert.deepEqual(fixture.calls, [
     {
       kind: "close",
-      value: { paySheetId: CLOSED_SHEET_ID, userId: ADMIN_ID },
+      value: {
+        cascadeProducerSheets: true,
+        paySheetId: CLOSED_SHEET_ID,
+        userId: ADMIN_ID,
+      },
     },
     {
       kind: "get",
@@ -147,6 +179,39 @@ test("admin close supplies only trusted context and returns projected history", 
   }
 });
 
+test("every cascaded sheet is projected before returning", async () => {
+  const fixture = createFixture({ cascaded: true });
+  const result = await invoke(fixture, { identity: "admin" });
+  assert.equal(result.status, 200);
+  const body = result.body as any;
+  assert.equal(body.cascaded.length, 1);
+  assert.equal(body.cascaded[0].closedSheet.id, CASCADED_SHEET_ID);
+  assert.equal(body.cascaded[0].closedSheet.ownerType, "producer");
+  assert.equal(body.cascaded[0].closedSheet.totals.producerPayout, "37.50");
+  assert.equal(body.cascaded[0].nextSheet.id, CASCADED_NEXT_SHEET_ID);
+  assert.deepEqual(
+    fixture.calls
+      .filter(({ kind }) => kind === "get")
+      .map(({ value }) => (value as { paySheetId: string }).paySheetId)
+      .sort(),
+    [
+      CASCADED_NEXT_SHEET_ID,
+      CASCADED_SHEET_ID,
+      CLOSED_SHEET_ID,
+      NEXT_SHEET_ID,
+    ].sort(),
+  );
+  const serialized = JSON.stringify(body.cascaded[0]);
+  for (const excluded of [
+    "ownerEmail",
+    "frozenTotals",
+    "frozenPolicySnapshot",
+    "frozenRateSnapshot",
+  ]) {
+    assert.equal(serialized.includes(`\"${excluded}\"`), false);
+  }
+});
+
 test("idempotent close responses retain the established next period", async () => {
   const fixture = createFixture({ closed: false });
   const result = await invoke(fixture, { identity: "admin" });
@@ -157,9 +222,13 @@ test("idempotent close responses retain the established next period", async () =
 
 test("close rejects client-authored state before any financial mutation", async () => {
   for (const body of [
-    { actorUserId: ADMIN_ID },
-    { frozenTotals: { sophiaTakeHome: "999999.00" } },
-    { nextSheetId: uuid(99) },
+    {},
+    { actorUserId: ADMIN_ID, cascadeProducerSheets: true },
+    {
+      cascadeProducerSheets: true,
+      frozenTotals: { sophiaTakeHome: "999999.00" },
+    },
+    { cascadeProducerSheets: true, nextSheetId: uuid(99) },
   ]) {
     const fixture = createFixture();
     const result = await invoke(fixture, { body, identity: "admin" });
@@ -224,7 +293,7 @@ test("close handler fails closed when invoked without authorization context", as
   assert.ok(registration);
   const response = createTestResponse();
   registration.handler(
-    request({}, ADMIN_ID),
+    request({ cascadeProducerSheets: true }, ADMIN_ID),
     response.res,
     response.next,
   );
@@ -324,6 +393,70 @@ function nextSource(): PaySheetSource {
   };
 }
 
+function producerClosedSource(): PaySheetSource {
+  const source = closedSource();
+  const policy = source.policies[0];
+  assert.ok(policy?.kind === "frozen");
+  return {
+    adjustments: [],
+    header: {
+      ownerDisplayName: "Kaylee",
+      ownerEmail: "private-producer@example.test",
+      sheet: {
+        ...source.header.sheet,
+        frozenTotals: {
+          brokerFees: "50.00",
+          commissions: "100.00",
+          directCheckAchIncome: "0.00",
+          grandTotalIncome: "150.00",
+          producerPayout: "37.50",
+          trustPull: "150.00",
+        },
+        id: CASCADED_SHEET_ID,
+        ownerType: "producer",
+        ownerUserId: PRODUCER_ID,
+      },
+    },
+    policies: [
+      {
+        kind: "frozen",
+        value: {
+          ...policy.value,
+          frozenPolicySnapshot: {
+            ...(policy.value.frozenPolicySnapshot as Record<string, unknown>),
+            producerPayout: "37.50",
+          },
+          frozenRateSnapshot: {
+            effectiveDate: "2026-01-01",
+            newBrokerRate: "25.00",
+            newCommissionRate: "25.00",
+            renewalBrokerRate: "25.00",
+            renewalCommissionRate: "25.00",
+          },
+        },
+      },
+    ],
+    rate: null,
+  };
+}
+
+function producerNextSource(): PaySheetSource {
+  const source = nextSource();
+  return {
+    ...source,
+    header: {
+      ownerDisplayName: "Kaylee",
+      ownerEmail: "private-producer@example.test",
+      sheet: {
+        ...source.header.sheet,
+        id: CASCADED_NEXT_SHEET_ID,
+        ownerType: "producer",
+        ownerUserId: PRODUCER_ID,
+      },
+    },
+  };
+}
+
 type Identity = "admin" | "employee" | "producer" | "inactive";
 
 async function invoke(
@@ -342,7 +475,10 @@ async function invoke(
           : options.identity === "inactive"
             ? INACTIVE_ID
             : undefined;
-  const req = request(options.body ?? {}, userId);
+  const req = request(
+    options.body ?? { cascadeProducerSheets: true },
+    userId,
+  );
   const response = createTestResponse();
   const guard = registration.access.authorization;
   assert.ok(guard);

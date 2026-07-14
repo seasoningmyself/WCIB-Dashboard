@@ -1,7 +1,45 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 13, 2026 (recorded the production app's add-as-you-go vocabulary decision, pending client confirmation.)
+**Last updated:** July 13, 2026 (recorded production pay-sheet initialization, cascade close, live pay-sheet KPIs, chargeback mirrors, and add-as-you-go vocabulary decisions.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
+
+---
+
+## July 13, 2026 — Production chargeback normalization and producer mirrors
+
+**Recorded production decision:** v15's pay-sheet chargeback behavior is preserved through the existing audited adjustment boundary. Positive or negative chargeback input is normalized server-side and in the database to a negative financial adjustment. A chargeback entered on Sophia's House sheet for a producer book or first-year account automatically creates a read-only producer-sheet mirror using that producer's renewal commission and broker rates effective on the adjustment timestamp. Manual adjustments remain explicit and do not create an automatic mirror.
+
+The House source and producer mirror are linked, written through the existing audited create/update/delete functions, and commit atomically. A producer sheet is initialized on the House source period only when the producer has no open chain; any source, mirror, initialization, or audit failure rolls the entire operation back. A zero calculated producer impact creates no mirror. Once either affected sheet closes, its adjustment and frozen totals remain immutable; later corrections belong on the next open period.
+
+Typed adjustment and direct-income dates retain v15's compact and slash-date entry behavior but are normalized to ISO dates before reaching the database. Mirror rows are displayed as House-managed and cannot be edited independently.
+
+---
+
+## July 13, 2026 — Production pay-sheet initialization
+
+**Recorded production decision:** v15's render-time Sophia-sheet ensure and placement-time producer-sheet creation are implemented in the multi-user app as two authenticated, transactional paths. An admin explicitly starts the first Sophia owner chain through `POST /api/pay-sheets/bootstrap`; the inline empty-state selector defaults to June 2026 but allows the one-time starting period to be changed before creation. The first Sophia pay-sheet row is the durable record of that period, so no separate settings table is added.
+
+Producer chains remain lazy. When a producer's first eligible MGA-paid policy is placed, the producer sheet is created in Sophia's **current open period**, not the original bootstrap period, and the creation and policy attachment commit atomically. No producer sheets are bulk-provisioned.
+
+Initialization requires an authenticated admin actor, writes the append-only `pay_sheet_initialized` audit action, serializes competing owner-chain creation attempts, and is idempotent for the established period. If an owner has closed history but no open successor, initialization reports an integrity conflict for review rather than silently repairing financial history.
+
+---
+
+## July 13, 2026 — Production House-sheet cascade close
+
+**Recorded production decision:** v15's final close behavior is preserved through an explicit admin-only close request. Closing a producer sheet closes only that owner. Closing Sophia's House sheet defaults to closing every open producer sheet with activity; the confirmation control provides the same explicit House-only opt-out as v15.
+
+The production transaction is stricter than the single-file prototype: all selected owner sheets close atomically through the existing close function. If any producer close fails, none of the selected sheets close. Successful closes retain per-owner frozen policy, rate, adjustment, and total snapshots; one audit event and one next-period sheet are produced per owner; retries are idempotent; there is no reopen path.
+
+Owner chains remain independent after a House-only close. If Sophia advances while a producer remains on an older open period, subsequent producer work stays on that producer's existing open sheet, matching v15's owner-scoped `getOrCreateOpenSheet` behavior. Only a producer with no open sheet is initialized on Sophia's current period.
+
+---
+
+## July 13, 2026 — Production live pay-sheet KPI widget
+
+**Recorded production decision:** v15's open-period, context-aware pay-sheet widget is rebuilt directly from the existing admin-projected pay-sheet list and detail responses. It introduces no second database aggregation path and no client-authoritative close calculation. Sophia's widget uses the five projected agency totals, current policy classifications, projected per-policy payouts, and projected open-producer totals. Producer widgets use only that owner's projected detail and final payout.
+
+The inline expansion is a native disclosure control and is intentionally session-only. Unlike v15, its open/closed state is not persisted in browser `localStorage`; this preserves the production rule that sensitive financial screens do not copy state into browser storage. Because the app renders one selected owner workspace at a time, v15's cross-widget expansion synchronization has no visible production equivalent.
 
 ---
 

@@ -10,9 +10,9 @@ import type { DraftAssignmentOption } from "../../../shared/draft-assignment-opt
 import type { PaySheetAdjustmentInput } from "../../../shared/pay-sheet-adjustment-api.js";
 import type {
   PaySheetAdjustmentView,
+  PaySheetBootstrapRequest,
   PaySheetDetail,
   PaySheetListResponse,
-  PaySheetPolicyView,
   PaySheetSummary,
 } from "../../../shared/pay-sheet-api.js";
 import type { PolicyTypeOption } from "../../../shared/vocabulary.js";
@@ -38,11 +38,13 @@ import {
 } from "./export-resources.js";
 import {
   adjustmentTypeLabel,
+  buildPaySheetLiveKpi,
   closedSheetsForOwner,
   detailSourceLabel,
   formatPaySheetDate,
   formatPaySheetPeriod,
   formatPaySheetRate,
+  groupPaySheetPolicies,
   groupPaySheetsByOwner,
   isDirectIncomeAdjustment,
   isPaySheetsAdmin,
@@ -64,6 +66,16 @@ export type PaySheetDetailState =
   | { status: "error" }
   | { status: "loading" }
   | { data: PaySheetDetail; status: "ready" };
+
+const DEFAULT_BOOTSTRAP_PERIOD: PaySheetBootstrapRequest = Object.freeze({
+  periodMonth: 6,
+  periodYear: 2026,
+});
+
+export interface PaySheetBootstrapViewState {
+  readonly error: string | null;
+  readonly period: PaySheetBootstrapRequest;
+}
 
 export function PaySheets({ user }: { user: CurrentUser }) {
   return isPaySheetsAdmin(user) ? (
@@ -87,10 +99,15 @@ function AdminPaySheets() {
   const detailsRef = useRef(details);
   const [producers, setProducers] = useState<readonly DraftAssignmentOption[]>([]);
   const [closeDialog, setCloseDialog] = useState<PaySheetSummary | null>(null);
+  const [cascadeProducerSheets, setCascadeProducerSheets] = useState(true);
   const [adjustmentDialog, setAdjustmentDialog] =
     useState<PaySheetAdjustmentDialogState | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [bootstrap, setBootstrap] = useState<PaySheetBootstrapViewState>({
+    error: null,
+    period: DEFAULT_BOOTSTRAP_PERIOD,
+  });
   const [pending, setPending] = useState(false);
   const pendingRef = useRef(false);
   const [exportState, setExportState] = useState<PaySheetExportUiState>({
@@ -266,6 +283,7 @@ function AdminPaySheets() {
     setExpandedClosedId(null);
     setProducers([]);
     setCloseDialog(null);
+    setCascadeProducerSheets(true);
     setAdjustmentDialog(null);
     setDialogError(null);
     exportAbortRef.current?.abort();
@@ -276,10 +294,56 @@ function AdminPaySheets() {
     setExportConfirmation(null);
     setSelectedExportPeriodKey(null);
     setNotice(null);
+    setBootstrap({ error: null, period: DEFAULT_BOOTSTRAP_PERIOD });
     pendingRef.current = false;
     setPending(false);
   }, []);
   useSensitiveSessionCleanup(clearSensitiveState);
+
+  const submitBootstrap = useCallback(async () => {
+    if (pendingRef.current) return;
+    pendingRef.current = true;
+    setPending(true);
+    setNotice(null);
+    setBootstrap((current) => ({ ...current, error: null }));
+    try {
+      const response = await api.bootstrap(bootstrap.period);
+      setNotice(
+        response.created
+          ? `${formatPaySheetPeriod(response.sheet.periodMonth, response.sheet.periodYear)} opened for Sophia.`
+          : "Pay sheets were already initialized. Current periods have been refreshed.",
+      );
+      await load(false);
+    } catch (error) {
+      if (error instanceof PaySheetsApiError && error.kind === "denied") {
+        clearSensitiveState();
+        setState({ status: "denied" });
+      } else if (
+        error instanceof PaySheetsApiError && error.kind === "conflict"
+      ) {
+        setBootstrap((current) => ({
+          ...current,
+          error: "Pay sheets were initialized elsewhere or their history needs review.",
+        }));
+        await load(false);
+      } else if (
+        error instanceof PaySheetsApiError && error.kind === "rejected"
+      ) {
+        setBootstrap((current) => ({
+          ...current,
+          error: "Choose a valid starting month and year.",
+        }));
+      } else {
+        setBootstrap((current) => ({
+          ...current,
+          error: "Pay sheets could not be initialized. Try again.",
+        }));
+      }
+    } finally {
+      pendingRef.current = false;
+      setPending(false);
+    }
+  }, [api, bootstrap.period, clearSensitiveState, load]);
 
   const runExport = useCallback(
     async (action: PaySheetExportAction) => {
@@ -378,19 +442,25 @@ function AdminPaySheets() {
     setDialogError(null);
     setNotice(null);
     try {
-      const response = await api.close(closeDialog.id);
-      updateDetails((current) => ({
-        ...current,
-        [response.closedSheet.id]: {
-          data: response.closedSheet,
-          status: "ready",
-        },
-      }));
+      const response = await api.close(
+        closeDialog.id,
+        closeDialog.ownerType === "sophia" && cascadeProducerSheets,
+      );
+      updateDetails((current) => {
+        const next = { ...current };
+        for (const outcome of [response, ...response.cascaded]) {
+          next[outcome.closedSheet.id] = {
+            data: outcome.closedSheet,
+            status: "ready",
+          };
+        }
+        return next;
+      });
       setExpandedClosedId(response.closedSheet.id);
       setCloseDialog(null);
       setNotice(
         response.close.closed
-          ? `${formatPaySheetPeriod(response.close.periodMonth, response.close.periodYear)} closed. The next period is open.`
+          ? `${formatPaySheetPeriod(response.close.periodMonth, response.close.periodYear)} closed${response.cascaded.length === 0 ? "" : ` with ${response.cascaded.length} producer sheet${response.cascaded.length === 1 ? "" : "s"}`}. The next periods are open.`
           : "This sheet was already closed. The current periods have been refreshed.",
       );
       await load(false);
@@ -415,7 +485,14 @@ function AdminPaySheets() {
       pendingRef.current = false;
       setPending(false);
     }
-  }, [api, clearSensitiveState, closeDialog, load, updateDetails]);
+  }, [
+    api,
+    cascadeProducerSheets,
+    clearSensitiveState,
+    closeDialog,
+    load,
+    updateDetails,
+  ]);
 
   const submitAdjustment = useCallback(
     async (input?: PaySheetAdjustmentInput) => {
@@ -437,8 +514,8 @@ function AdminPaySheets() {
                   adjustmentDialog.sheet.id,
                   requireAdjustmentInput(input),
                 );
-        updateDetails((current) => ({
-          ...current,
+        detailEpoch.current += 1;
+        updateDetails(() => ({
           [response.sheet.id]: { data: response.sheet, status: "ready" },
         }));
         setAdjustmentDialog(null);
@@ -483,6 +560,7 @@ function AdminPaySheets() {
   return (
     <>
       <PaySheetsView
+        bootstrap={bootstrap}
         details={details}
         expandedClosedId={expandedClosedId}
         exportControls={
@@ -515,13 +593,19 @@ function AdminPaySheets() {
         notice={notice}
         onClose={(sheet) => {
           setDialogError(null);
+          setCascadeProducerSheets(sheet.ownerType === "sophia");
           setCloseDialog(sheet);
         }}
+        onBootstrapChange={(period) => {
+          setBootstrap({ error: null, period });
+        }}
+        onBootstrap={() => void submitBootstrap()}
         onOwner={(key) => {
           setSelectedOwnerKey(key);
           setExpandedClosedId(null);
           setAdjustmentDialog(null);
           setCloseDialog(null);
+          setCascadeProducerSheets(true);
           setDialogError(null);
           setNotice(null);
           setExportConfirmation(null);
@@ -560,6 +644,7 @@ function AdminPaySheets() {
         periodLabel={selectedExportPeriod?.label ?? "Selected period"}
       />
       <PaySheetCloseDialog
+        cascadeProducerSheets={cascadeProducerSheets}
         error={dialogError}
         onCancel={() => {
           if (!pending) {
@@ -568,6 +653,7 @@ function AdminPaySheets() {
           }
         }}
         onConfirm={() => void submitClose()}
+        onCascadeProducerSheets={setCascadeProducerSheets}
         pending={pending}
         sheet={closeDialog}
       />
@@ -592,10 +678,13 @@ function AdminPaySheets() {
 }
 
 export function PaySheetsView({
+  bootstrap,
   details,
   expandedClosedId,
   exportControls = null,
   notice,
+  onBootstrap,
+  onBootstrapChange,
   onClose,
   onOpenAdjustment,
   onOwner,
@@ -606,10 +695,13 @@ export function PaySheetsView({
   selectedOwnerKey,
   state,
 }: {
+  bootstrap: PaySheetBootstrapViewState;
   details: Readonly<Record<string, PaySheetDetailState>>;
   expandedClosedId: string | null;
   exportControls?: React.ReactNode;
   notice: string | null;
+  onBootstrap(): void;
+  onBootstrapChange(period: PaySheetBootstrapRequest): void;
   onClose(sheet: PaySheetSummary): void;
   onOpenAdjustment(dialog: PaySheetAdjustmentDialogState): void;
   onOwner(key: string): void;
@@ -664,10 +756,13 @@ export function PaySheetsView({
       </header>
 
       {groups.length === 0 || activeGroup === null ? (
-        <div className="pay-sheets-empty">
-          <h2>No pay sheets yet</h2>
-          <p>Paid MGA policies will populate the open payroll periods.</p>
-        </div>
+        <PaySheetBootstrap
+          disabled={pending}
+          error={bootstrap.error}
+          onChange={onBootstrapChange}
+          onSubmit={onBootstrap}
+          period={bootstrap.period}
+        />
       ) : (
         <>
           <div className="pay-sheet-owner-tabs" aria-label="Pay-sheet owner">
@@ -692,6 +787,7 @@ export function PaySheetsView({
           )}
 
           <OwnerWorkspace
+            allSheets={state.data.items}
             details={details}
             expandedClosedId={expandedClosedId}
             group={activeGroup}
@@ -707,7 +803,81 @@ export function PaySheetsView({
   );
 }
 
+export function PaySheetBootstrap({
+  disabled,
+  error,
+  onChange,
+  onSubmit,
+  period,
+}: {
+  disabled: boolean;
+  error: string | null;
+  onChange(period: PaySheetBootstrapRequest): void;
+  onSubmit(): void;
+  period: PaySheetBootstrapRequest;
+}) {
+  return (
+    <form
+      className="pay-sheets-empty pay-sheet-bootstrap"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit();
+      }}
+    >
+      <h2>Start pay sheets</h2>
+      <div className="pay-sheet-bootstrap-fields">
+        <label>
+          <span>Starting month</span>
+          <select
+            disabled={disabled}
+            onChange={(event) =>
+              onChange({ ...period, periodMonth: Number(event.target.value) })
+            }
+            value={period.periodMonth}
+          >
+            {[
+              "January",
+              "February",
+              "March",
+              "April",
+              "May",
+              "June",
+              "July",
+              "August",
+              "September",
+              "October",
+              "November",
+              "December",
+            ].map((month, index) => (
+              <option key={month} value={index + 1}>{month}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Starting year</span>
+          <input
+            disabled={disabled}
+            inputMode="numeric"
+            max={9999}
+            min={2000}
+            onChange={(event) =>
+              onChange({ ...period, periodYear: Number(event.target.value) })
+            }
+            type="number"
+            value={period.periodYear}
+          />
+        </label>
+      </div>
+      {error === null ? null : <p className="pay-sheet-bootstrap-error" role="alert">{error}</p>}
+      <button disabled={disabled} type="submit">
+        {disabled ? "Starting..." : "Start pay sheets"}
+      </button>
+    </form>
+  );
+}
+
 function OwnerWorkspace({
+  allSheets,
   details,
   expandedClosedId,
   group,
@@ -717,6 +887,7 @@ function OwnerWorkspace({
   onToggleClosed,
   pending,
 }: {
+  allSheets: readonly PaySheetSummary[];
   details: Readonly<Record<string, PaySheetDetailState>>;
   expandedClosedId: string | null;
   group: PaySheetOwnerGroup;
@@ -751,6 +922,7 @@ function OwnerWorkspace({
           </div>
         ) : (
           <SheetPanel
+            allSheets={allSheets}
             detail={details[open.id]}
             onClose={() => onClose(open)}
             onOpenAdjustment={onOpenAdjustment}
@@ -798,6 +970,7 @@ function OwnerWorkspace({
                   </button>
                   {expanded ? (
                     <SheetPanel
+                      allSheets={allSheets}
                       detail={details[sheet.id]}
                       onClose={() => {}}
                       onOpenAdjustment={onOpenAdjustment}
@@ -817,6 +990,7 @@ function OwnerWorkspace({
 }
 
 function SheetPanel({
+  allSheets,
   detail,
   onClose,
   onOpenAdjustment,
@@ -824,6 +998,7 @@ function SheetPanel({
   pending,
   summary,
 }: {
+  allSheets: readonly PaySheetSummary[];
   detail: PaySheetDetailState | undefined;
   onClose(): void;
   onOpenAdjustment(dialog: PaySheetAdjustmentDialogState): void;
@@ -834,6 +1009,9 @@ function SheetPanel({
   const open = summary.status === "open";
   return (
     <div className={`pay-sheet-panel ${open ? "is-open" : "is-closed"}`}>
+      {open && detail?.status === "ready" ? (
+        <PaySheetLiveKpiWidget allSheets={allSheets} sheet={detail.data} />
+      ) : null}
       <PaySheetTotals summary={summary} />
       <div className="pay-sheet-panel-toolbar">
         <span>
@@ -916,6 +1094,125 @@ function PaySheetTotals({ summary }: { summary: PaySheetSummary }) {
   );
 }
 
+function PaySheetLiveKpiWidget({
+  allSheets,
+  sheet,
+}: {
+  allSheets: readonly PaySheetSummary[];
+  sheet: PaySheetDetail;
+}) {
+  const kpi = buildPaySheetLiveKpi(sheet, allSheets);
+  if (kpi.totalPolicyCount === 0) {
+    return (
+      <section className="pay-sheet-live-kpi is-empty" aria-label="Current period at a glance">
+        <span>No activity yet this period</span>
+      </section>
+    );
+  }
+
+  return (
+    <section className="pay-sheet-live-kpi" aria-labelledby={`live-kpi-${sheet.id}`}>
+      <header>
+        <div>
+          <p>{kpi.ownerType === "sophia" ? "House / Agency" : kpi.ownerDisplayName}</p>
+          <h3 id={`live-kpi-${sheet.id}`}>At a glance</h3>
+        </div>
+        <span>{kpi.periodLabel} / open, live</span>
+      </header>
+
+      {kpi.ownerType === "sophia" ? (
+        <>
+          <div className="pay-sheet-live-kpi-money" aria-label="Current agency totals">
+            <LiveKpiMetric label="Total broker fees" money={kpi.totals.brokerFees} />
+            <LiveKpiMetric label="Total commissions" money={kpi.totals.commissions} />
+            <LiveKpiMetric label="To pull from trust" money={kpi.totals.trustPull} />
+            <LiveKpiMetric label="Checks / ACH" money={kpi.totals.directCheckAchIncome} />
+            <LiveKpiMetric label="Grand total income" money={kpi.totals.grandTotalIncome} />
+          </div>
+          <div className="pay-sheet-live-kpi-activity" aria-label="Current agency activity">
+            <LiveKpiMetric label="New business" value={String(kpi.newBusinessCount)} />
+            <LiveKpiMetric
+              label="Renewals / existing"
+              value={String(kpi.renewalOrExistingCount)}
+            />
+            <LiveKpiMetric label="Paid to producers" money={kpi.paidToProducers} />
+            <LiveKpiMetric
+              className={
+                kpi.firstYearProducerPayout === "0.00"
+                  ? "is-target-met"
+                  : kpi.firstYearProducerPayout === null
+                    ? ""
+                    : "is-target-over"
+              }
+              label="1st-yr house paid / target $0"
+              money={kpi.firstYearProducerPayout}
+              suffix={kpi.firstYearProducerPayout === "0.00" ? " / At target" : ""}
+            />
+          </div>
+          <details>
+            <summary>Account &amp; policy mix</summary>
+            <div className="pay-sheet-live-kpi-detail">
+              <LiveKpiMetric label="House (agency)" value={String(kpi.accountMix.house)} />
+              <LiveKpiMetric label="Producer book" value={String(kpi.accountMix.producerBook)} />
+              <LiveKpiMetric label="1st-yr house" value={String(kpi.accountMix.firstYearHouse)} />
+              <LiveKpiMetric label="Workers' comp" value={String(kpi.accountMix.workersComp)} />
+              <LiveKpiMetric label="Surety bonds" value={String(kpi.accountMix.suretyBonds)} />
+            </div>
+          </details>
+        </>
+      ) : (
+        <>
+          <div className="pay-sheet-live-kpi-activity is-producer" aria-label="Current producer activity">
+            <LiveKpiMetric label="Commission payout" money={kpi.payout} />
+            <LiveKpiMetric label="New business" value={String(kpi.newBusinessCount)} />
+            <LiveKpiMetric
+              label="Renewals / existing"
+              value={String(kpi.renewalOrExistingCount)}
+            />
+            <LiveKpiMetric label="Total policies" value={String(kpi.totalPolicyCount)} />
+          </div>
+          <details>
+            <summary>Account &amp; policy mix</summary>
+            <div className="pay-sheet-live-kpi-detail">
+              <LiveKpiMetric label="Their book" value={String(kpi.accountMix.producerBook)} />
+              <LiveKpiMetric label="1st-yr house" value={String(kpi.accountMix.firstYearHouse)} />
+              {kpi.policyTypes.map(({ label, policyCount }) => (
+                <LiveKpiMetric key={label} label={label} value={String(policyCount)} />
+              ))}
+            </div>
+          </details>
+        </>
+      )}
+    </section>
+  );
+}
+
+function LiveKpiMetric({
+  className = "",
+  label,
+  money,
+  suffix = "",
+  value,
+}: {
+  className?: string;
+  label: string;
+  money?: string | null;
+  suffix?: string;
+  value?: string;
+}) {
+  const displayed = money === undefined
+    ? (value ?? "Unavailable")
+    : money === null
+      ? "Unavailable"
+      : formatMoneyExact(money);
+  return (
+    <div className={className}>
+      <span>{label}</span>
+      <strong>{displayed}{suffix}</strong>
+    </div>
+  );
+}
+
 function PaySheetDetailView({
   onOpenAdjustment,
   pending,
@@ -935,7 +1232,7 @@ function PaySheetDetailView({
         ) : null}
       </div>
       <RateContext sheet={sheet} />
-      <PolicyTable policies={sheet.policies} sheet={sheet} />
+      <PolicyTable sheet={sheet} />
       <AdjustmentTable
         onOpen={onOpenAdjustment}
         pending={pending}
@@ -995,20 +1292,15 @@ function RateContext({ sheet }: { sheet: PaySheetDetail }) {
   );
 }
 
-function PolicyTable({
-  policies,
-  sheet,
-}: {
-  policies: readonly PaySheetPolicyView[];
-  sheet: PaySheetDetail;
-}) {
+function PolicyTable({ sheet }: { sheet: PaySheetDetail }) {
+  const sections = groupPaySheetPolicies(sheet);
   return (
     <section className="pay-sheet-data-section" aria-labelledby={`policies-${sheet.id}`}>
       <header>
         <h3 id={`policies-${sheet.id}`}>Policies</h3>
-        <span>{policies.length}</span>
+        <span>{sheet.policies.length}</span>
       </header>
-      {policies.length === 0 ? (
+      {sheet.policies.length === 0 ? (
         <div className="pay-sheet-inline-empty">No policies on this sheet.</div>
       ) : (
         <div className="pay-sheet-policy-table" role="table" aria-label="Pay-sheet policies">
@@ -1022,26 +1314,48 @@ function PolicyTable({
               {sheet.ownerType === "sophia" ? "Sophia share" : "Producer payout"}
             </span>
           </div>
-          {policies.map((policy) => (
-            <div className="pay-sheet-policy-row" key={policy.associationId} role="row">
-              <span data-label="Insured" role="cell">
-                <strong>{policy.insuredName}</strong>
-                <small>{policy.transactionType} / {policy.policyTypeName}</small>
-              </span>
-              <span data-label="Policy" role="cell">
-                <strong>{policy.policyNumber}</strong>
-                <small>{policy.effectiveDate}</small>
-              </span>
-              <span data-label="Revenue" role="cell">{formatMoneyExact(policy.agencyRevenue)}</span>
-              <span data-label="Commission" role="cell">{formatMoneyExact(policy.commissionAmount)}</span>
-              <span data-label="Broker fee" role="cell">{formatMoneyExact(policy.brokerFee)}</span>
-              <span data-label={sheet.ownerType === "sophia" ? "Sophia share" : "Producer payout"} role="cell">
-                {formatMoneyExact(
-                  sheet.ownerType === "sophia"
-                    ? policy.sophiaShare
-                    : (policy.producerPayout ?? "0.00"),
-                )}
-              </span>
+          {sections.map((section) => (
+            <div className="pay-sheet-policy-section" key={section.key} role="rowgroup">
+              <div className={`pay-sheet-policy-group is-${section.key}`} role="row">
+                <span>
+                  <strong>{section.label}</strong>
+                  <small>
+                    {section.policies.length} {section.policies.length === 1 ? "policy" : "policies"}
+                  </small>
+                </span>
+                <span
+                  title={`Broker fees ${formatMoneyExact(section.sectionBrokerFees)} / Commissions ${formatMoneyExact(section.sectionCommissions)}`}
+                >
+                  <small>{section.sectionAmountLabel}</small>
+                  <strong>
+                    {section.sectionAmount === null
+                      ? "Unavailable"
+                      : formatMoneyExact(section.sectionAmount)}
+                  </strong>
+                </span>
+              </div>
+              {section.policies.map((policy) => (
+                <div className="pay-sheet-policy-row" key={policy.associationId} role="row">
+                  <span data-label="Insured" role="cell">
+                    <strong>{policy.insuredName}</strong>
+                    <small>{policy.transactionType} / {policy.policyTypeName}</small>
+                  </span>
+                  <span data-label="Policy" role="cell">
+                    <strong>{policy.policyNumber}</strong>
+                    <small>{policy.effectiveDate}</small>
+                  </span>
+                  <span data-label="Revenue" role="cell">{formatMoneyExact(policy.agencyRevenue)}</span>
+                  <span data-label="Commission" role="cell">{formatMoneyExact(policy.commissionAmount)}</span>
+                  <span data-label="Broker fee" role="cell">{formatMoneyExact(policy.brokerFee)}</span>
+                  <span data-label={sheet.ownerType === "sophia" ? "Sophia share" : "Producer payout"} role="cell">
+                    {formatMoneyExact(
+                      sheet.ownerType === "sophia"
+                        ? policy.sophiaShare
+                        : (policy.producerPayout ?? "0.00"),
+                    )}
+                  </span>
+                </div>
+              ))}
             </div>
           ))}
         </div>
@@ -1079,10 +1393,18 @@ function AdjustmentTable({
             {editable ? <span role="columnheader">Actions</span> : null}
           </div>
           {sheet.adjustments.map((adjustment) => (
-            <div className="pay-sheet-adjustment-row" key={adjustment.id} role="row">
+            <div
+              className={`pay-sheet-adjustment-row${adjustment.sourceAdjustmentId === null ? "" : " is-mirror"}`}
+              key={adjustment.id}
+              role="row"
+            >
               <span data-label="Entry" role="cell">
                 <strong>{adjustment.insuredOrClientLabel}</strong>
-                <small>{adjustmentTypeLabel(adjustment.adjustmentType)}</small>
+                <small>
+                  {adjustment.sourceAdjustmentId === null
+                    ? adjustmentTypeLabel(adjustment.adjustmentType)
+                    : "Office chargeback mirror"}
+                </small>
               </span>
               <span data-label="Account" role="cell">
                 {paySheetAccountLabel(
@@ -1097,7 +1419,7 @@ function AdjustmentTable({
                 ))}
               </span>
               <span data-label="Note" role="cell">{adjustment.reasonOrNote ?? "-"}</span>
-              {editable ? (
+              {editable && adjustment.sourceAdjustmentId === null ? (
                 <span className="pay-sheet-adjustment-actions" data-label="Actions" role="cell">
                   <button
                     disabled={pending}
@@ -1113,6 +1435,10 @@ function AdjustmentTable({
                   >
                     Delete
                   </button>
+                </span>
+              ) : editable ? (
+                <span className="pay-sheet-adjustment-locked" data-label="Actions" role="cell">
+                  Managed from House
                 </span>
               ) : null}
             </div>

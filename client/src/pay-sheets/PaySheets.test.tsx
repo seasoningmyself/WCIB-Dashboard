@@ -7,7 +7,11 @@ import {
   PaySheetAdjustmentDialog,
   PaySheetCloseDialog,
 } from "./PaySheetDialogs.js";
-import { PaySheets, PaySheetsView } from "./PaySheets.js";
+import {
+  PaySheetBootstrap,
+  PaySheets,
+  PaySheetsView,
+} from "./PaySheets.js";
 import {
   paySheetDetailFixture,
   paySheetListFixture,
@@ -42,6 +46,20 @@ test("admin view renders owner tabs, exact totals, policy detail, and frozen his
     "Kaylee",
     "Current period",
     "July 2026",
+    "House / Agency",
+    "At a glance",
+    "open, live",
+    "Total broker fees",
+    "Total commissions",
+    "To pull from trust",
+    "Checks / ACH",
+    "New business",
+    "Renewals / existing",
+    "Paid to producers",
+    "1st-yr house paid / target $0",
+    "Account &amp; policy mix",
+    "House (agency)",
+    "Producer book",
     "Agency gross",
     "$250.00",
     "Broker fees",
@@ -57,6 +75,9 @@ test("admin view renders owner tabs, exact totals, policy detail, and frozen his
     "Sophia share",
     "$112.50",
     "Acme Construction",
+    "Producers&#x27; book",
+    "Section total",
+    "$150.00",
     "GL-100",
     "General Liability",
     "Direct-pay client",
@@ -114,6 +135,15 @@ test("producer view renders payout and rate context without Sophia controls", ()
   for (const visible of [
     "Producer payout",
     "$45.00",
+    "Kaylee",
+    "At a glance",
+    "Commission payout",
+    "New business",
+    "Renewals / existing",
+    "Total policies",
+    "Account &amp; policy mix",
+    "Their book",
+    "General Liability",
     "Broker fees",
     "Commissions",
     "Trust pull",
@@ -152,7 +182,7 @@ test("screen exposes loading, failure, denied, empty, and detail retry states", 
       data: { ...paySheetListFixture(), items: [] },
       status: "ready",
     }),
-    /No pay sheets yet/,
+    /Start pay sheets/,
   );
 
   const data = paySheetListFixture();
@@ -164,6 +194,26 @@ test("screen exposes loading, failure, denied, empty, and detail retry states", 
   });
   assert.match(markup, /Retry detail/);
   assert.doesNotMatch(markup, /Acme Construction|Direct-pay client/);
+});
+
+test("blank-state bootstrap defaults to June 2026 and remains editable", () => {
+  const calls: unknown[] = [];
+  const markup = renderToStaticMarkup(
+    <PaySheetBootstrap
+      disabled={false}
+      error={null}
+      onChange={(period) => calls.push(period)}
+      onSubmit={() => calls.push("submit")}
+      period={{ periodMonth: 6, periodYear: 2026 }}
+    />,
+  );
+  assert.match(markup, /Start pay sheets/);
+  assert.match(markup, /<option value="6" selected="">June<\/option>/);
+  assert.match(markup, /value="2026"/);
+  assert.match(markup, /Starting month/);
+  assert.match(markup, /Starting year/);
+  assert.doesNotMatch(markup, /disabled=""/);
+  assert.deepEqual(calls, []);
 });
 
 test("non-admin entry fails closed before mounting the API-backed controller", () => {
@@ -192,8 +242,10 @@ test("close confirmation states immutability and disables duplicate submission",
   const sheet = sophiaSummaryFixture();
   const ready = renderToStaticMarkup(
     <PaySheetCloseDialog
+      cascadeProducerSheets
       error={null}
       onCancel={() => {}}
+      onCascadeProducerSheets={() => {}}
       onConfirm={() => {}}
       pending={false}
       sheet={sheet}
@@ -201,8 +253,10 @@ test("close confirmation states immutability and disables duplicate submission",
   );
   const pending = renderToStaticMarkup(
     <PaySheetCloseDialog
+      cascadeProducerSheets={false}
       error="The sheet could not be closed. Try again."
       onCancel={() => {}}
+      onCascadeProducerSheets={() => {}}
       onConfirm={() => {}}
       pending
       sheet={sheet}
@@ -210,6 +264,9 @@ test("close confirmation states immutability and disables duplicate submission",
   );
   assert.match(ready, /cannot be reopened/);
   assert.match(ready, /later corrections belong on the next open sheet/);
+  assert.match(ready, /Close producer sheets with activity/);
+  assert.match(ready, /Close House \+ producers/);
+  assert.match(ready, /close the House sheet only/);
   assert.match(pending, /Closing.../);
   assert.match(pending, /disabled=""/);
   assert.match(pending, /role="alert"/);
@@ -263,12 +320,36 @@ test("adjustment dialogs render only owner-valid financial controls", () => {
 
   assert.match(direct, /Income amount/);
   assert.match(direct, /Check income/);
-  assert.doesNotMatch(direct, /Payout delta|Broker fee delta|Commission delta|Policy type/);
-  assert.match(producerCorrection, /Payout delta \(negative\)/);
+  assert.doesNotMatch(direct, /Payout amount|Broker fee amount|Commission amount|Policy type/);
+  assert.match(producerCorrection, /Payout amount \(subtracted\)/);
   assert.match(producerCorrection, /Producer account/);
-  assert.doesNotMatch(producerCorrection, /Broker fee delta|Commission delta|Add direct income/);
+  assert.doesNotMatch(producerCorrection, /Broker fee amount|Commission amount|Add direct income/);
   assert.match(deletion, /Delete adjustment/);
   assert.match(deletion, /Direct-pay client/);
+});
+
+test("producer chargeback mirrors are labeled and read-only", () => {
+  const producer = producerSummaryFixture();
+  const detail = paySheetDetailFixture(producer);
+  const mirroredDetail = {
+    ...detail,
+    adjustments: detail.adjustments.map((adjustment) => ({
+      ...adjustment,
+      sourceAdjustmentId: uuid(88),
+    })),
+  };
+  const markup = renderView({
+    data: { ...paySheetListFixture(), items: [producer] },
+    details: {
+      [producer.id]: { data: mirroredDetail, status: "ready" },
+    },
+    selectedOwnerKey: `producer:${uuid(2)}`,
+  });
+
+  assert.match(markup, /Office chargeback mirror/);
+  assert.match(markup, /Managed from House/);
+  const mirrorRow = markup.slice(markup.indexOf("pay-sheet-adjustment-row is-mirror"));
+  assert.doesNotMatch(mirrorRow, />Edit<|>Delete</);
 });
 
 function renderView({
@@ -284,9 +365,15 @@ function renderView({
 }): string {
   return renderToStaticMarkup(
     <PaySheetsView
+      bootstrap={{
+        error: null,
+        period: { periodMonth: 6, periodYear: 2026 },
+      }}
       details={details}
       expandedClosedId={expandedClosedId}
       notice={null}
+      onBootstrap={() => {}}
+      onBootstrapChange={() => {}}
       onClose={() => {}}
       onOpenAdjustment={() => {}}
       onOwner={() => {}}
@@ -307,9 +394,15 @@ function renderState(
 ): string {
   return renderToStaticMarkup(
     <PaySheetsView
+      bootstrap={{
+        error: null,
+        period: { periodMonth: 6, periodYear: 2026 },
+      }}
       details={{}}
       expandedClosedId={null}
       notice={null}
+      onBootstrap={() => {}}
+      onBootstrapChange={() => {}}
       onClose={() => {}}
       onOpenAdjustment={() => {}}
       onOwner={() => {}}

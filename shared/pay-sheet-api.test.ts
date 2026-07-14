@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  paySheetBootstrapRequestSchema,
+  paySheetBootstrapResponseSchema,
   paySheetCloseRequestSchema,
   paySheetCloseResponseSchema,
   paySheetDetailSchema,
@@ -8,6 +10,32 @@ import {
   paySheetSophiaTotalsSchema,
   paySheetSummarySchema,
 } from "./pay-sheet-api.js";
+
+test("pay-sheet bootstrap accepts only an explicit valid starting period", () => {
+  assert.deepEqual(
+    paySheetBootstrapRequestSchema.parse({
+      periodMonth: 6,
+      periodYear: 2026,
+    }),
+    { periodMonth: 6, periodYear: 2026 },
+  );
+  for (const input of [
+    {},
+    { periodMonth: 0, periodYear: 2026 },
+    { periodMonth: 13, periodYear: 2026 },
+    { periodMonth: 6, periodYear: 1999 },
+    { actorUserId: uuid(1), periodMonth: 6, periodYear: 2026 },
+  ]) {
+    assert.equal(paySheetBootstrapRequestSchema.safeParse(input).success, false);
+  }
+  assert.equal(
+    paySheetBootstrapResponseSchema.safeParse({
+      created: true,
+      sheet: sophiaSummary(),
+    }).success,
+    true,
+  );
+});
 
 test("pay-sheet query filters are bounded and default to all owners and states", () => {
   assert.deepEqual(paySheetListQuerySchema.parse({}), {
@@ -74,7 +102,11 @@ test("producer sheets with policies and no effective rate require unavailable to
 });
 
 test("pay-sheet close accepts no client-authored financial state", () => {
-  assert.deepEqual(paySheetCloseRequestSchema.parse({}), {});
+  assert.deepEqual(
+    paySheetCloseRequestSchema.parse({ cascadeProducerSheets: true }),
+    { cascadeProducerSheets: true },
+  );
+  assert.equal(paySheetCloseRequestSchema.safeParse({}).success, false);
   for (const field of [
     "actorUserId",
     "closedAt",
@@ -85,7 +117,10 @@ test("pay-sheet close accepts no client-authored financial state", () => {
     "snapshots",
   ]) {
     assert.equal(
-      paySheetCloseRequestSchema.safeParse({ [field]: "forged" }).success,
+      paySheetCloseRequestSchema.safeParse({
+        cascadeProducerSheets: true,
+        [field]: "forged",
+      }).success,
       false,
     );
   }
@@ -111,6 +146,7 @@ test("pay-sheet close response requires a closed source and matching next sheet"
       policyCount: 1,
     },
     closedSheet: { ...closedSheet, adjustments: [], policies: [policy()] },
+    cascaded: [],
     nextSheet,
   };
   assert.equal(paySheetCloseResponseSchema.safeParse(response).success, true);

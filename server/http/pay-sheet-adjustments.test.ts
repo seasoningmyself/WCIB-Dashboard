@@ -451,6 +451,7 @@ function source(options: {
               policyTypeId: null,
               producerUserId: null,
               reasonOrNote: "Private note",
+              sourceAdjustmentId: null,
               updatedAt: at,
             },
             policyTypeName: null,

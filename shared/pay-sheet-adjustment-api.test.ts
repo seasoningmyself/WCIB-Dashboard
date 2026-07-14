@@ -6,13 +6,13 @@ import {
   paySheetAdjustmentInputSchema,
 } from "./pay-sheet-adjustment-api.js";
 
-test("Sophia corrections accept exact non-positive financial shapes", () => {
+test("Sophia corrections normalize positive amounts to chargebacks", () => {
   assert.deepEqual(
     parsePaySheetAdjustmentForOwner(
       adjustment({
         accountBasis: "book",
-        brokerFeeDelta: "-10.00",
-        commissionDelta: "-20.00",
+        brokerFeeDelta: "10.00",
+        commissionDelta: "20.00",
         producerUserId: uuid(2),
       }),
       "sophia",
@@ -38,7 +38,7 @@ test("producer corrections accept payout reductions only", () => {
       adjustment({
         accountBasis: "book",
         brokerFeeDelta: "0.00",
-        payoutDelta: "-25.00",
+        payoutDelta: "25.00",
         producerUserId: uuid(2),
       }),
       "producer",
@@ -98,9 +98,15 @@ test("adjustment inputs trim bounded text and reject forged system fields", () =
   );
 });
 
-test("invalid dates, money, account links, and no-op corrections reject", () => {
+test("typed dates normalize while impossible dates and invalid shapes reject", () => {
+  assert.equal(
+    paySheetAdjustmentInputSchema.parse(
+      adjustment({ effectiveDate: "6/10/26" }),
+    ).effectiveDate,
+    "2026-06-10",
+  );
   for (const input of [
-    adjustment({ effectiveDate: "07/01/2026" }),
+    adjustment({ effectiveDate: "02/31/2026" }),
     adjustment({ brokerFeeDelta: "-1" }),
     adjustment({ brokerFeeDelta: "0.00" }),
     adjustment({ accountBasis: "book" }),

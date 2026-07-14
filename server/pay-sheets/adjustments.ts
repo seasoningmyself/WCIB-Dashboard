@@ -81,7 +81,7 @@ export async function deletePaySheetAdjustment(
     requireLifecycleAdmin(context);
     requireTimestamp(changedAt);
     const result = await database.execute<{ adjustment_id: unknown }>(
-      sql`select delete_pay_sheet_adjustment(
+      sql`select delete_pay_sheet_adjustment_with_mirror(
         ${adjustmentId}::uuid,
         ${actorUserId}::uuid,
         ${changedAt}::timestamp with time zone
@@ -117,7 +117,7 @@ async function saveAdjustment(
     const result =
       action === "create"
         ? await database.execute<{ adjustment_id: unknown }>(
-            sql`select create_pay_sheet_adjustment(
+            sql`select create_pay_sheet_adjustment_with_mirror(
               ${actorUserId}::uuid,
               ${input.paySheetId}::uuid,
               ${input.adjustmentType}::pay_sheet_adjustment_type,
@@ -135,7 +135,7 @@ async function saveAdjustment(
             ) as adjustment_id`,
           )
         : await database.execute<{ adjustment_id: unknown }>(
-            sql`select update_pay_sheet_adjustment(
+            sql`select update_pay_sheet_adjustment_with_mirror(
               ${adjustmentId}::uuid,
               ${actorUserId}::uuid,
               ${input.paySheetId}::uuid,

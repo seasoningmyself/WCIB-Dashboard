@@ -49,6 +49,7 @@ test("pay-sheets API uses only the real data and streamed export routes", async 
   };
   const responses = [
     Response.json(paySheetListFixture()),
+    Response.json({ created: true, sheet: next }),
     Response.json({ sheet: detail }),
     Response.json({
       close: {
@@ -60,6 +61,7 @@ test("pay-sheets API uses only the real data and streamed export routes", async 
         policyCount: 1,
       },
       closedSheet: closed,
+      cascaded: [],
       nextSheet: next,
     }),
     Response.json(mutation("created")),
@@ -77,8 +79,9 @@ test("pay-sheets API uses only the real data and streamed export routes", async 
   });
 
   await api.list();
+  await api.bootstrap({ periodMonth: 6, periodYear: 2026 });
   await api.get(detail.id);
-  await api.close(detail.id);
+  await api.close(detail.id, true);
   await api.createAdjustment(detail.id, adjustmentInput());
   await api.updateAdjustment(detail.adjustments[0]!.id, adjustmentInput());
   await api.deleteAdjustment(detail.adjustments[0]!.id);
@@ -98,6 +101,7 @@ test("pay-sheets API uses only the real data and streamed export routes", async 
     calls.map(({ options, path }) => [options?.method, path]),
     [
       ["GET", "/pay-sheets?ownerType=all&status=all"],
+      ["POST", "/pay-sheets/bootstrap"],
       ["GET", `/pay-sheets/${detail.id}`],
       ["POST", `/pay-sheets/${detail.id}/close`],
       ["POST", `/pay-sheets/${detail.id}/adjustments`],
@@ -112,9 +116,15 @@ test("pay-sheets API uses only the real data and streamed export routes", async 
   assert.equal(excel.blob.size, 4);
   assert.equal(print.filename, "WCIB_Pay_Sheet_2026-07.html");
   assert.equal(print.blob.size, 4);
-  assert.equal(calls[7]?.options?.cache, "no-store");
   assert.equal(calls[8]?.options?.cache, "no-store");
-  assert.deepEqual(JSON.parse(String(calls[2]?.options?.body)), {});
+  assert.equal(calls[9]?.options?.cache, "no-store");
+  assert.deepEqual(JSON.parse(String(calls[1]?.options?.body)), {
+    periodMonth: 6,
+    periodYear: 2026,
+  });
+  assert.deepEqual(JSON.parse(String(calls[3]?.options?.body)), {
+    cascadeProducerSheets: true,
+  });
   assert.equal(
     calls.some(({ path }) => /reopen|localStorage/i.test(path)),
     false,
@@ -136,6 +146,26 @@ test("pay-sheets API rejects unsafe adjustment input before a request", async ()
     } as never),
     (error: unknown) =>
       error instanceof PaySheetsApiError && error.kind === "rejected",
+  );
+  assert.equal(requests, 0);
+});
+
+test("pay-sheets API rejects unsafe bootstrap input before a request", async () => {
+  let requests = 0;
+  const api = createPaySheetsApi({
+    async request() {
+      requests += 1;
+      return Response.json({});
+    },
+  });
+  assert.throws(
+    () =>
+      api.bootstrap({
+        actorUserId: uuid(1),
+        periodMonth: 6,
+        periodYear: 2026,
+      } as never),
+    isPaySheetsError("rejected"),
   );
   assert.equal(requests, 0);
 });

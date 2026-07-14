@@ -4,6 +4,7 @@ import {
   paySheetCloseResponseSchema,
   paySheetParamsSchema,
 } from "../../shared/pay-sheet-api.js";
+import type { PaySheetCloseOutcome } from "../../shared/pay-sheet-api.js";
 import { apiErrorCodes } from "../../shared/api-errors.js";
 import {
   getAuthorizedRequestContext,
@@ -12,7 +13,7 @@ import {
 } from "../auth/authorization.js";
 import { readDatabaseErrorCode } from "../db/error-code.js";
 import type { AppLogger } from "../logging/logger.js";
-import type { PaySheetCloseResult } from "../pay-sheets/close.js";
+import type { PaySheetCascadeCloseResult, PaySheetCloseResult } from "../pay-sheets/close.js";
 import {
   PaySheetNotFoundError,
   projectAdminPaySheetCloseResult,
@@ -33,7 +34,8 @@ export interface PaySheetCloseHandlerDependencies {
   close(
     context: AuthorizedRequestContext,
     paySheetId: string,
-  ): Promise<PaySheetCloseResult>;
+    cascadeProducerSheets: boolean,
+  ): Promise<PaySheetCascadeCloseResult>;
   get(
     context: AuthorizedRequestContext,
     paySheetId: string,
@@ -52,21 +54,33 @@ export function createPaySheetCloseHandler(
   return asyncRoute(async (req, res) => {
     const context = getAuthorizedRequestContext(res);
     const { paySheetId } = paySheetParamsSchema.parse(req.params);
-    paySheetCloseRequestSchema.parse(req.body ?? {});
+    const input = paySheetCloseRequestSchema.parse(req.body ?? {});
 
-    let close: PaySheetCloseResult;
+    let closeSet: PaySheetCascadeCloseResult;
     try {
-      close = await dependencies.close(context, paySheetId);
+      closeSet = await dependencies.close(
+        context,
+        paySheetId,
+        input.cascadeProducerSheets,
+      );
     } catch (error) {
       throw mapPaySheetCloseError(error);
     }
 
-    let closedSource: PaySheetSource;
-    let nextSource: PaySheetSource;
+    let primary: PaySheetCloseOutcome;
+    let cascaded: PaySheetCloseOutcome[];
     try {
-      [closedSource, nextSource] = await Promise.all([
-        dependencies.get(context, paySheetId),
-        dependencies.get(context, close.nextSheetId),
+      [primary, ...cascaded] = await Promise.all([
+        projectCloseOutcome(res, context, paySheetId, closeSet.primary, dependencies),
+        ...closeSet.cascaded.map((item) =>
+          projectCloseOutcome(
+            res,
+            context,
+            item.paySheetId,
+            item.close,
+            dependencies,
+          ),
+        ),
       ]);
     } catch (error) {
       if (error instanceof PaySheetNotFoundError) {
@@ -79,21 +93,13 @@ export function createPaySheetCloseHandler(
       throw error;
     }
 
-    const projectedClose = projectAuthorizedFields(
-      res,
-      close,
-      projectAdminPaySheetCloseResult,
-    );
-    if (projectedClose === null) {
-      throw new HttpError(403, apiErrorCodes.forbidden, "Forbidden");
-    }
     const response = paySheetCloseResponseSchema.parse({
-      close: projectedClose,
-      closedSheet: projectPaySheetDetail(res, closedSource),
-      nextSheet: projectPaySheetSummary(res, nextSource),
+      ...primary,
+      cascaded,
     });
     dependencies.logger.info("Pay-sheet close response returned", {
       actorUserId: context.principal.userId,
+      cascadedCount: response.cascaded.length,
       closed: response.close.closed,
       component: "pay_sheets",
       event: "pay_sheet_close_response",
@@ -104,6 +110,32 @@ export function createPaySheetCloseHandler(
     });
     res.set("Cache-Control", "no-store").json(response);
   });
+}
+
+async function projectCloseOutcome(
+  res: Parameters<typeof projectAuthorizedFields>[0],
+  context: AuthorizedRequestContext,
+  closedSheetId: string,
+  close: PaySheetCloseResult,
+  dependencies: PaySheetCloseHandlerDependencies,
+): Promise<PaySheetCloseOutcome> {
+  const [closedSource, nextSource] = await Promise.all([
+    dependencies.get(context, closedSheetId),
+    dependencies.get(context, close.nextSheetId),
+  ]);
+  const projectedClose = projectAuthorizedFields(
+    res,
+    close,
+    projectAdminPaySheetCloseResult,
+  );
+  if (projectedClose === null) {
+    throw new HttpError(403, apiErrorCodes.forbidden, "Forbidden");
+  }
+  return {
+    close: projectedClose,
+    closedSheet: projectPaySheetDetail(res, closedSource),
+    nextSheet: projectPaySheetSummary(res, nextSource),
+  };
 }
 
 export function registerPaySheetCloseRoute(
