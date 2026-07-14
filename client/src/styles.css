@@ -3814,6 +3814,88 @@ h1 {
   text-transform: uppercase;
 }
 
+.approval-deleted-button {
+  min-height: 38px;
+  margin-left: auto;
+  border: 1px solid #aebbc0;
+  border-radius: 5px;
+  background: #ffffff;
+  padding: 0 13px;
+  color: #394a53;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.approval-deleted-button:hover:not(:disabled) {
+  background: #eef2f3;
+}
+
+.approval-deleted-panel > header p {
+  margin: 0 0 4px;
+  color: #66757d;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.approval-deleted-status {
+  margin: 24px 0 4px;
+  color: #66757d;
+}
+
+.approval-deleted-list {
+  display: grid;
+  gap: 0;
+  margin-top: 18px;
+  border-top: 1px solid #d5dddf;
+}
+
+.approval-deleted-list article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid #d5dddf;
+  padding: 13px 2px;
+}
+
+.approval-deleted-list article > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.approval-deleted-list strong,
+.approval-deleted-list span,
+.approval-deleted-list small {
+  overflow-wrap: anywhere;
+}
+
+.approval-deleted-list strong {
+  color: #263640;
+  font-size: 13px;
+}
+
+.approval-deleted-list span,
+.approval-deleted-list small {
+  color: #68777f;
+  font-size: 11px;
+}
+
+.approval-deleted-list button {
+  min-height: 36px;
+  border: 1px solid #27634d;
+  border-radius: 5px;
+  background: #ffffff;
+  padding: 0 13px;
+  color: #27634d;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .approval-toolbar {
   display: inline-grid;
   grid-template-columns: repeat(3, minmax(90px, auto));
@@ -4369,6 +4451,25 @@ h1 {
   .approval-toolbar {
     width: 100%;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .approval-page-header {
+    flex-wrap: wrap;
+  }
+
+  .approval-deleted-button {
+    order: 3;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .approval-deleted-list article {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .approval-deleted-list button {
+    min-height: 44px;
   }
 
   .approval-toolbar button {

@@ -217,6 +217,7 @@ async function loadReviewRows(
     .where(
       and(
         eq(approvalQueueEntries.status, "pending"),
+        isNull(approvalQueueEntries.deletedAt),
         sql`${approvalQueueEntries.submittedPayload} ->> 'producerUserId' = ${ownerUserId}`,
       ),
     )

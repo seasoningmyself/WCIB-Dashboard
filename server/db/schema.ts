@@ -38,6 +38,7 @@ import {
   POLICY_CHANGE_REQUEST_RESOLUTIONS,
   POLICY_CHANGE_REQUEST_STATUSES,
 } from "../../shared/policy-change-requests.js";
+import { MAX_APPROVAL_WORK_DELETE_REASON_LENGTH } from "../../shared/approval-work-deletions.js";
 import { MAX_POLICY_DELETE_REASON_LENGTH } from "../../shared/policy-deletions.js";
 import {
   type AnyPgColumn,
@@ -565,6 +566,11 @@ export const drafts = pgTable(
     sentBackAt: timestamp("sent_back_at", { withTimezone: true }),
     linkedQueueEntryId: uuid("linked_queue_entry_id"),
     linkedPolicyId: uuid("linked_policy_id"),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedByUserId: uuid("deleted_by_user_id").references(() => users.id, {
+      onDelete: "restrict",
+    }),
+    deleteReason: text("delete_reason"),
     insuredName: text("insured_name"),
     companyName: text("company_name"),
     policyNumber: text("policy_number"),
@@ -624,6 +630,7 @@ export const drafts = pgTable(
     index("drafts_mga_idx").on(table.mgaId),
     index("drafts_office_location_idx").on(table.officeLocationId),
     index("drafts_producer_idx").on(table.producerUserId),
+    index("drafts_deleted_at_idx").on(table.deletedAt),
     check("drafts_schema_version_positive_check", sql`${table.schemaVersion} > 0`),
     check(
       "drafts_last_edited_order_check",
@@ -685,6 +692,22 @@ export const drafts = pgTable(
       "drafts_history_bounded_check",
       sql`jsonb_typeof(${table.history}) = 'array' AND jsonb_array_length(${table.history}) <= 200 AND pg_column_size(${table.history}) <= 65536`,
     ),
+    check(
+      "drafts_deletion_state_check",
+      sql`(
+        ${table.deletedAt} is null
+        AND ${table.deletedByUserId} is null
+        AND ${table.deleteReason} is null
+      ) OR (
+        ${table.deletedAt} is not null
+        AND ${table.deletedByUserId} is not null
+        AND ${table.deleteReason} = btrim(${table.deleteReason})
+        AND char_length(${table.deleteReason}) BETWEEN 1 AND ${sql.raw(
+          String(MAX_APPROVAL_WORK_DELETE_REASON_LENGTH),
+        )}
+        AND ${table.deletedAt} >= ${table.createdAt}
+      )`,
+    ),
   ],
 );
 
@@ -717,6 +740,11 @@ export const approvalQueueEntries = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedByUserId: uuid("deleted_by_user_id").references(() => users.id, {
+      onDelete: "restrict",
+    }),
+    deleteReason: text("delete_reason"),
   },
   (table) => [
     uniqueIndex("approval_queue_entries_active_draft_idx")
@@ -727,6 +755,7 @@ export const approvalQueueEntries = pgTable(
       table.submittedAt,
     ),
     index("approval_queue_entries_submitter_idx").on(table.submittedByUserId),
+    index("approval_queue_entries_deleted_at_idx").on(table.deletedAt),
     check(
       "approval_queue_entries_payload_shape_check",
       sql`jsonb_typeof(${table.submittedPayload}) = 'object'
@@ -773,6 +802,22 @@ export const approvalQueueEntries = pgTable(
     check(
       "approval_queue_entries_updated_order_check",
       sql`${table.updatedAt} >= ${table.createdAt}`,
+    ),
+    check(
+      "approval_queue_entries_deletion_state_check",
+      sql`(
+        ${table.deletedAt} is null
+        AND ${table.deletedByUserId} is null
+        AND ${table.deleteReason} is null
+      ) OR (
+        ${table.deletedAt} is not null
+        AND ${table.deletedByUserId} is not null
+        AND ${table.deleteReason} = btrim(${table.deleteReason})
+        AND char_length(${table.deleteReason}) BETWEEN 1 AND ${sql.raw(
+          String(MAX_APPROVAL_WORK_DELETE_REASON_LENGTH),
+        )}
+        AND ${table.deletedAt} >= ${table.createdAt}
+      )`,
     ),
   ],
 );

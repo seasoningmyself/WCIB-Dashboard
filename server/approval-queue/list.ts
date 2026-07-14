@@ -1,4 +1,4 @@
-import { asc, eq, getTableColumns } from "drizzle-orm";
+import { and, asc, eq, getTableColumns, isNull } from "drizzle-orm";
 import {
   listApprovalWorkQuerySchema,
   type ListApprovalWorkQuery,
@@ -57,7 +57,12 @@ export async function listApprovalWork(
             staffProfiles,
             eq(staffProfiles.userId, approvalQueueEntries.submittedByUserId),
           )
-          .where(eq(approvalQueueEntries.status, "pending"))
+          .where(
+            and(
+              eq(approvalQueueEntries.status, "pending"),
+              isNull(approvalQueueEntries.deletedAt),
+            ),
+          )
           .orderBy(
             asc(approvalQueueEntries.submittedAt),
             asc(approvalQueueEntries.id),
@@ -80,7 +85,7 @@ export async function listApprovalWork(
           })
           .from(drafts)
           .leftJoin(staffProfiles, eq(staffProfiles.userId, drafts.ownerUserId))
-          .where(eq(drafts.status, "flagged"))
+          .where(and(eq(drafts.status, "flagged"), isNull(drafts.deletedAt)))
           .orderBy(asc(drafts.lastEditedAt), asc(drafts.id))
           .limit(MAX_APPROVAL_WORK_ITEMS_PER_TYPE)
           .then((rows) =>

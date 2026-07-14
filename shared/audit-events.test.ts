@@ -35,6 +35,8 @@ test("audit vocabulary covers every named sensitive mutation contract", () => {
     "policy_change_request_sent_back",
     "policy_soft_deleted",
     "policy_restored",
+    "approval_work_soft_deleted",
+    "approval_work_restored",
   ] as const;
 
   assert.deepEqual(AUDIT_ACTIONS, expectedActions);

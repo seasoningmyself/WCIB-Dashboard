@@ -10,6 +10,9 @@ import type {
   ApprovalWorkListResponse,
   ListApprovalWorkQuery,
 } from "../../../shared/approval-queue.js";
+import type {
+  DeletedApprovalWorkListResponse,
+} from "../../../shared/approval-work-deletions.js";
 import type { UpdateDraftRequest } from "../../../shared/drafts.js";
 import type { ApproveWithOverrideRequest } from "../../../shared/policy-overrides.js";
 import type { PolicyLedgerCorrectionRequest } from "../../../shared/policy-corrections.js";
@@ -20,6 +23,11 @@ import {
 } from "../ledger/api.js";
 import { useVocabulary } from "../vocabulary/context.js";
 import { ApprovalApiError, createApprovalApi } from "./api.js";
+import {
+  ApprovalWorkDeletionDialogView,
+  DeletedApprovalWorkPanel,
+  type ApprovalWorkDeletionDialog,
+} from "./ApprovalWorkDeletionDialogs.js";
 import {
   ApprovalDialogs,
   type ApprovalDialog,
@@ -47,7 +55,11 @@ export type ApprovalQueueState =
   | { status: "denied" }
   | { status: "error" }
   | { status: "loading" }
-  | { status: "ready"; work: ApprovalWorkListResponse };
+  | {
+      deleted: DeletedApprovalWorkListResponse;
+      status: "ready";
+      work: ApprovalWorkListResponse;
+    };
 
 export function ApprovalQueue({ user }: { user: CurrentUser }) {
   return isApprovalAdmin(user) ? (
@@ -68,6 +80,9 @@ function AdminApprovalQueue() {
   const [filter, setFilter] = useState<ApprovalFilter>("all");
   const [state, setState] = useState<ApprovalQueueState>({ status: "loading" });
   const [dialog, setDialog] = useState<QueueDialog | null>(null);
+  const [deletionDialog, setDeletionDialog] =
+    useState<ApprovalWorkDeletionDialog | null>(null);
+  const [showDeleted, setShowDeleted] = useState(false);
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const pendingRef = useRef(false);
@@ -78,9 +93,12 @@ function AdminApprovalQueue() {
     requestVersion.current = version;
     setState({ status: "loading" });
     try {
-      const work = await api.list({ status: filter });
+      const [work, deleted] = await Promise.all([
+        api.list({ status: filter }),
+        api.listDeleted(),
+      ]);
       if (requestVersion.current === version) {
-        setState({ status: "ready", work });
+        setState({ deleted, status: "ready", work });
       }
     } catch (error) {
       if (requestVersion.current !== version) {
@@ -106,6 +124,8 @@ function AdminApprovalQueue() {
     requestVersion.current += 1;
     setState({ status: "loading" });
     setDialog(null);
+    setDeletionDialog(null);
+    setShowDeleted(false);
     setNotice(null);
     pendingRef.current = false;
     setPending(false);
@@ -129,6 +149,7 @@ function AdminApprovalQueue() {
           current.status === "ready"
             ? {
                 status: "ready",
+                deleted: current.deleted,
                 work: removeResolvedApprovalWork(current.work, target),
               }
             : current,
@@ -174,6 +195,45 @@ function AdminApprovalQueue() {
       policyTypes: toNameMap(vocabulary.state.data.policyTypes),
     };
   }, [vocabulary.state]);
+
+  const changeDeletion = useCallback(
+    async (action: () => Promise<unknown>, successMessage: string) => {
+      if (pendingRef.current) return;
+      pendingRef.current = true;
+      setPending(true);
+      setNotice(null);
+      try {
+        await action();
+        setDeletionDialog(null);
+        setNotice(successMessage);
+        await load();
+      } catch (error) {
+        setDeletionDialog(null);
+        if (error instanceof ApprovalApiError && error.kind === "denied") {
+          requestVersion.current += 1;
+          setState({ status: "denied" });
+          setShowDeleted(false);
+        } else if (
+          error instanceof ApprovalApiError &&
+          error.kind === "conflict"
+        ) {
+          setNotice("That item changed while it was open. The queue has been refreshed.");
+          await load();
+        } else if (
+          error instanceof ApprovalApiError &&
+          error.kind === "rejected"
+        ) {
+          setNotice("The deletion request was rejected.");
+        } else {
+          setNotice("The deletion request could not be completed. Try again.");
+        }
+      } finally {
+        pendingRef.current = false;
+        setPending(false);
+      }
+    },
+    [api, load],
+  );
 
   const cancelDialog = useCallback(() => {
     if (!pending) {
@@ -228,10 +288,68 @@ function AdminApprovalQueue() {
           setFilter(next);
         }}
         onOpenChangeFix={(item) => void openPolicyChangeRequest(item)}
+        onDeleteHelp={(item) =>
+          setDeletionDialog({ item, kind: "delete_help" })
+        }
+        onDeleteSubmission={(item) =>
+          setDeletionDialog({ item, kind: "delete_submission" })
+        }
+        onOpenDeleted={() => setShowDeleted(true)}
         onOpen={setDialog}
         onRetry={() => void load()}
         pending={pending}
         state={state}
+      />
+      <DeletedApprovalWorkPanel
+        data={state.status === "ready" ? state.deleted : { items: [] }}
+        onClose={() => {
+          if (!pending) setShowDeleted(false);
+        }}
+        onRestore={(item) => setDeletionDialog({ item, kind: "restore" })}
+        open={showDeleted}
+        pending={pending}
+      />
+      <ApprovalWorkDeletionDialogView
+        dialog={deletionDialog}
+        key={deletionDialogKey(deletionDialog)}
+        onCancel={() => {
+          if (!pending) setDeletionDialog(null);
+        }}
+        onDelete={(reason) => {
+          if (deletionDialog?.kind === "delete_submission") {
+            void changeDeletion(
+              () =>
+                api.softDelete("submission", deletionDialog.item.entry.id, {
+                  expectedUpdatedAt: deletionDialog.item.entry.updatedAt,
+                  reason,
+                }),
+              "Submission moved to deleted records.",
+            );
+          } else if (deletionDialog?.kind === "delete_help") {
+            void changeDeletion(
+              () =>
+                api.softDelete("help", deletionDialog.item.draft.id, {
+                  expectedUpdatedAt: deletionDialog.item.draft.lastEditedAt,
+                  reason,
+                }),
+              "Help request moved to deleted records.",
+            );
+          }
+        }}
+        onRestore={() => {
+          if (deletionDialog?.kind !== "restore") return;
+          const item = deletionDialog.item;
+          const id = item.kind === "submission" ? item.entry.id : item.draft.id;
+          const expectedUpdatedAt =
+            item.kind === "submission"
+              ? item.entry.updatedAt
+              : item.draft.lastEditedAt;
+          void changeDeletion(
+            () => api.restoreDeleted(item.kind, id, { expectedUpdatedAt }),
+            "Approval work restored.",
+          );
+        }}
+        pending={pending}
       />
       <ApprovalDialogs
         dialog={approvalDialog}
@@ -327,8 +445,11 @@ export function ApprovalQueueView({
   filter,
   lookups,
   notice,
+  onDeleteHelp,
+  onDeleteSubmission,
   onFilter,
   onOpenChangeFix,
+  onOpenDeleted,
   onOpen,
   onRetry,
   pending,
@@ -337,9 +458,12 @@ export function ApprovalQueueView({
   filter: ApprovalFilter;
   lookups: ApprovalValueLookups;
   notice: string | null;
+  onDeleteHelp(item: HelpRequest): void;
+  onDeleteSubmission(item: Submission): void;
   onFilter(filter: ApprovalFilter): void;
   onOpen(dialog: QueueDialog): void;
   onOpenChangeFix(item: ChangeRequest): void;
+  onOpenDeleted(): void;
   onRetry(): void;
   pending: boolean;
   state: ApprovalQueueState;
@@ -386,6 +510,14 @@ export function ApprovalQueueView({
           <strong>{total}</strong>
           <span>Open</span>
         </div>
+        <button
+          className="approval-deleted-button"
+          disabled={pending}
+          onClick={onOpenDeleted}
+          type="button"
+        >
+          Deleted work ({state.deleted.items.length})
+        </button>
       </header>
 
       <div className="approval-toolbar" aria-label="Approval queue filter">
@@ -424,6 +556,7 @@ export function ApprovalQueueView({
                   item={item}
                   key={item.entry.id}
                   lookups={lookups}
+                  onDelete={onDeleteSubmission}
                   onOpen={onOpen}
                   pending={pending}
                 />
@@ -442,6 +575,7 @@ export function ApprovalQueueView({
                   item={item}
                   key={item.draft.id}
                   lookups={lookups}
+                  onDelete={onDeleteHelp}
                   onOpen={onOpen}
                   pending={pending}
                 />
@@ -475,11 +609,13 @@ export function ApprovalQueueView({
 function SubmissionReview({
   item,
   lookups,
+  onDelete,
   onOpen,
   pending,
 }: {
   item: Submission;
   lookups: ApprovalValueLookups;
+  onDelete(item: Submission): void;
   onOpen(dialog: ApprovalDialog): void;
   pending: boolean;
 }) {
@@ -507,6 +643,7 @@ function SubmissionReview({
           <button disabled={pending} onClick={() => onOpen({ item, kind: "approve" })} type="button">Approve</button>
           <button className="is-override" disabled={pending} onClick={() => onOpen({ item, kind: "override" })} type="button">Approve with override</button>
           <button className="is-danger" disabled={pending} onClick={() => onOpen({ item, kind: "send_back_submission" })} type="button">Send back</button>
+          <button className="is-danger" disabled={pending} onClick={() => onDelete(item)} type="button">Delete</button>
         </div>
       </div>
     </details>
@@ -516,11 +653,13 @@ function SubmissionReview({
 function HelpReview({
   item,
   lookups,
+  onDelete,
   onOpen,
   pending,
 }: {
   item: HelpRequest;
   lookups: ApprovalValueLookups;
+  onDelete(item: HelpRequest): void;
   onOpen(dialog: ApprovalDialog): void;
   pending: boolean;
 }) {
@@ -552,6 +691,7 @@ function HelpReview({
           <button disabled={pending} onClick={() => onOpen({ item, kind: "open_fix" })} type="button">Open &amp; fix</button>
           <button className="is-primary" disabled={pending} onClick={() => onOpen({ item, kind: "push_through" })} type="button">Push through as-is</button>
           <button className="is-danger" disabled={pending} onClick={() => onOpen({ item, kind: "send_back_help" })} type="button">Send back</button>
+          <button className="is-danger" disabled={pending} onClick={() => onDelete(item)} type="button">Delete</button>
         </div>
       </div>
     </details>
@@ -676,6 +816,23 @@ function policyChangeDialogKey(
   dialog: PolicyChangeRequestDialog | null,
 ): string {
   return dialog === null ? "change-closed" : `${dialog.kind}:${dialog.item.request.id}`;
+}
+
+function deletionDialogKey(
+  dialog: ApprovalWorkDeletionDialog | null,
+): string {
+  if (dialog === null) return "deletion-closed";
+  if (dialog.kind === "delete_submission") {
+    return `delete-submission:${dialog.item.entry.id}`;
+  }
+  if (dialog.kind === "delete_help") {
+    return `delete-help:${dialog.item.draft.id}`;
+  }
+  return `restore:${dialog.item.kind}:${
+    dialog.item.kind === "submission"
+      ? dialog.item.entry.id
+      : dialog.item.draft.id
+  }`;
 }
 
 function isPolicyChangeRequestDialog(

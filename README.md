@@ -641,6 +641,27 @@ Run the focused database proof after migrations with:
 npm run test:db:policy-soft-delete
 ```
 
+## Recoverable approval-work deletion
+
+Admin may move a pending submission or standalone flagged help request to
+recoverable deleted records with a required bounded reason. The linked draft
+is retained and receives matching deletion metadata; submitted payloads,
+lifecycle states, and content are not rewritten. Approved, policy-linked, and
+pay-sheet-linked work is rejected.
+
+The admin endpoints are `GET /api/deleted-approval-work`,
+`POST /api/approvals/:id/soft-delete`,
+`POST /api/approvals/help/:id/soft-delete`, and the corresponding submission
+or help restore path under `/api/deleted-approval-work`. All responses use the
+existing field-projection boundary. Active approval, draft, My Items, and
+commission reads exclude deleted work.
+
+Run the focused transactional proof after migrations with:
+
+```sh
+npm run test:db:approval-work-deletion
+```
+
 ## MGA payment state
 
 `mga_payments` stores one current MGA settlement row per policy. Unpaid rows

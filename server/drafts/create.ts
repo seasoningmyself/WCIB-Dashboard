@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import {
   calculateAgencyCommissionAmount,
   calculateDraftFinanceBalance,
@@ -108,6 +108,7 @@ async function enforceContentBearingDraftLimit(
       and(
         eq(drafts.ownerUserId, ownerUserId),
         eq(drafts.status, "draft"),
+        isNull(drafts.deletedAt),
         draftHasContentPredicate(),
       ),
     );

@@ -144,6 +144,66 @@ test("approval API rejects unsafe input and normalizes response failures", async
   );
 });
 
+test("approval API uses recoverable deletion endpoints with server versions", async () => {
+  const timestamp = "2026-07-11T12:00:00.000Z";
+  const deletion = {
+    deletedAt: "2026-07-12T12:00:00.000Z",
+    deletedByUserId: POLICY_ID,
+    reason: "Duplicate submission",
+  };
+  const deletedSubmission = {
+    deletion,
+    entry: queueEntry("pending"),
+    kind: "submission" as const,
+    submitterDisplayName: "Mercedes",
+  };
+  const activeSubmission = {
+    entry: queueEntry("pending"),
+    kind: "submission" as const,
+    submitterDisplayName: "Mercedes",
+  };
+  const calls: Array<{ options?: ApiRequestOptions; path: string }> = [];
+  const responses = [
+    Response.json({ items: [deletedSubmission] }),
+    Response.json({ changed: true, item: deletedSubmission }),
+    Response.json({ changed: true, item: activeSubmission }),
+  ];
+  const api = createApprovalApi({
+    async request(path, options) {
+      calls.push({ options, path });
+      const response = responses.shift();
+      assert.ok(response);
+      return response;
+    },
+  });
+
+  await api.listDeleted();
+  await api.softDelete("submission", QUEUE_ID, {
+    expectedUpdatedAt: timestamp,
+    reason: "Duplicate submission",
+  });
+  await api.restoreDeleted("submission", QUEUE_ID, {
+    expectedUpdatedAt: timestamp,
+  });
+
+  assert.deepEqual(
+    calls.map(({ path }) => path),
+    [
+      "/deleted-approval-work",
+      `/approvals/${QUEUE_ID}/soft-delete`,
+      `/deleted-approval-work/submissions/${QUEUE_ID}/restore`,
+    ],
+  );
+  assert.equal(calls[0]?.options?.cache, "no-store");
+  assert.deepEqual(JSON.parse(String(calls[1]?.options?.body)), {
+    expectedUpdatedAt: timestamp,
+    reason: "Duplicate submission",
+  });
+  assert.deepEqual(JSON.parse(String(calls[2]?.options?.body)), {
+    expectedUpdatedAt: timestamp,
+  });
+});
+
 function policyResponse(): Response {
   return Response.json(policyResponseBody(), { status: 201 });
 }

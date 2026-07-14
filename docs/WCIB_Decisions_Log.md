@@ -1,7 +1,25 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 14, 2026 (recorded recoverable policy deletion.)
+**Last updated:** July 14, 2026 (recorded recoverable approval-work deletion.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
+
+---
+
+## July 14, 2026 — Approval work deletion is recoverable
+
+**Recorded production decision:** v15 permanently deletes a pending approval
+submission and its linked draft. The multi-user app preserves the admin delete
+intent as an audited soft-delete with a required reason. Pending submissions
+and standalone flagged help requests move to a restricted deleted-work list;
+their immutable submitted payload, draft content, lifecycle status, ownership,
+and timestamps remain stored and can be restored by admin.
+
+Deleted approval work is excluded from the live approval queue, My Drafts, My
+Items, draft-cap counts, and in-review commission reads. Only non-approved
+work is eligible. Any queue/draft already approved, linked to a policy, or
+represented on a pay sheet is rejected, and this flow never changes or deletes
+an approved policy. Delete and restore run through trusted database functions
+that lock queue before draft and write one append-only audit event atomically.
 
 ---
 

@@ -45,6 +45,12 @@ import { listDraftAssignmentOptions } from "./drafts/assignment-options.js";
 import { registerDraftAssignmentOptionsRoute } from "./http/draft-assignment-options.js";
 import { registerApprovalWorkRoute } from "./http/approval-queue.js";
 import { listApprovalWork } from "./approval-queue/list.js";
+import { registerApprovalWorkDeletionRoutes } from "./http/approval-work-deletions.js";
+import {
+  listDeletedApprovalWork,
+  restoreApprovalWork,
+  softDeleteApprovalWork,
+} from "./approval-queue/soft-delete.js";
 import { registerApprovalActionRoutes } from "./http/approval-actions.js";
 import {
   approveCorrectedFlaggedHelp,
@@ -215,6 +221,29 @@ const app = createApp({
       authorization,
       list: (context, query) => listApprovalWork(database, context, query),
       logger,
+    });
+    registerApprovalWorkDeletionRoutes(routes, {
+      authorization,
+      list: (context) => listDeletedApprovalWork(database, context),
+      logger,
+      restore: (context, kind, targetId, input) =>
+        restoreApprovalWork(
+          database,
+          context,
+          kind,
+          targetId,
+          input,
+          logger,
+        ),
+      softDelete: (context, kind, targetId, input) =>
+        softDeleteApprovalWork(
+          database,
+          context,
+          kind,
+          targetId,
+          input,
+          logger,
+        ),
     });
     registerApprovalActionRoutes(routes, {
       approve: (context, queueEntryId) =>

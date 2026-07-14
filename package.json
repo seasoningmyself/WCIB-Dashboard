@@ -53,6 +53,7 @@
     "test:db:assignment-payout": "node --import tsx --test server/drafts/assignment-payout.db-test.ts",
     "test:db:approval-queue": "node --import tsx --test server/db/approval-queue.db-test.ts",
     "test:db:approval-work": "node --import tsx --test server/approval-queue/list.db-test.ts",
+    "test:db:approval-work-deletion": "node --import tsx --test server/approval-queue/soft-delete.db-test.ts",
     "test:db:approval-actions": "node --import tsx --test server/approval-queue/approve.db-test.ts",
     "test:db:approval-override": "node --import tsx --test server/approval-queue/approve-with-override.db-test.ts",
     "test:db:approval-send-back": "node --import tsx --test server/approval-queue/send-back.db-test.ts",

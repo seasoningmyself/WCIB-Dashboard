@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AuthDatabase } from "../auth/users.js";
 import { drafts, type DraftRecord } from "../db/schema.js";
@@ -49,6 +49,7 @@ export async function listOwnMyItemSources(
     .where(
       and(
         eq(drafts.ownerUserId, ownerUserId),
+        isNull(drafts.deletedAt),
         sql`not exists (
           select 1
           from policies deleted_policy

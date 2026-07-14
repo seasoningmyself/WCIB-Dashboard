@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import {
   listDraftsQuerySchema,
   type ListDraftsQuery,
@@ -23,6 +23,7 @@ export async function listOwnDrafts(
   )`;
   const where = and(
     eq(drafts.ownerUserId, ownerUserId),
+    isNull(drafts.deletedAt),
     visibleSource,
     query.status === undefined ? undefined : eq(drafts.status, query.status),
   );

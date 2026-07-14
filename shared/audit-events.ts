@@ -30,6 +30,8 @@ export const AUDIT_ACTIONS = [
   "policy_change_request_sent_back",
   "policy_soft_deleted",
   "policy_restored",
+  "approval_work_soft_deleted",
+  "approval_work_restored",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
