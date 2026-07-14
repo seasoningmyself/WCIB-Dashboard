@@ -28,6 +28,8 @@ export type DraftWithdrawalState =
   | { draftId: string; status: "loading" }
   | null;
 
+type WithdrawableDraftStatus = "flagged" | "submitted";
+
 export function MyDrafts({
   currentPath,
   user,
@@ -82,10 +84,15 @@ export function MyDrafts({
     );
   }, []);
 
-  const withdrawFlagged = useCallback(async (draftId: string) => {
+  const withdraw = useCallback(async (
+    draftId: string,
+    status: WithdrawableDraftStatus,
+  ) => {
     setWithdrawal({ draftId, status: "loading" });
     try {
-      const response = await api.withdrawHelp(draftId);
+      const response = status === "submitted"
+        ? await api.withdrawSubmission(draftId)
+        : await api.withdrawHelp(draftId);
       acceptProjection(response.draft);
       setWithdrawal(null);
       window.location.hash = `#/my-drafts?draft=${encodeURIComponent(draftId)}`;
@@ -99,7 +106,7 @@ export function MyDrafts({
       currentPath={currentPath}
       onDraftChange={acceptProjection}
       onRetry={() => void load()}
-      onWithdrawFlagged={(draftId) => void withdrawFlagged(draftId)}
+      onWithdraw={(draftId, status) => void withdraw(draftId, status)}
       state={state}
       user={user}
       withdrawal={withdrawal}
@@ -111,7 +118,7 @@ export function MyDraftsView({
   currentPath,
   onDraftChange,
   onRetry,
-  onWithdrawFlagged,
+  onWithdraw,
   state,
   user,
   withdrawal,
@@ -119,7 +126,7 @@ export function MyDraftsView({
   currentPath: string;
   onDraftChange(draft: DraftResponse): void;
   onRetry(): void;
-  onWithdrawFlagged(draftId: string): void;
+  onWithdraw(draftId: string, status: WithdrawableDraftStatus): void;
   state: MyDraftsState;
   user: CurrentUser;
   withdrawal: DraftWithdrawalState;
@@ -167,7 +174,7 @@ export function MyDraftsView({
     return (
       <DraftStatusView
         draft={selected}
-        onWithdrawFlagged={onWithdrawFlagged}
+        onWithdraw={onWithdraw}
         withdrawal={withdrawal}
       />
     );
@@ -176,7 +183,7 @@ export function MyDraftsView({
   return (
     <DraftList
       drafts={state.drafts}
-      onWithdrawFlagged={onWithdrawFlagged}
+      onWithdraw={onWithdraw}
       withdrawal={withdrawal}
     />
   );
@@ -184,11 +191,11 @@ export function MyDraftsView({
 
 function DraftList({
   drafts,
-  onWithdrawFlagged,
+  onWithdraw,
   withdrawal,
 }: {
   drafts: readonly DraftResponse[];
-  onWithdrawFlagged(draftId: string): void;
+  onWithdraw(draftId: string, status: WithdrawableDraftStatus): void;
   withdrawal: DraftWithdrawalState;
 }) {
   return (
@@ -239,11 +246,18 @@ function DraftList({
                     <time dateTime={draft.lastEditedAt}>{formatTimestamp(draft.lastEditedAt)}</time>
                   </td>
                   <td className="my-drafts-action">
-                    {draft.status === "flagged" ? (
+                    {draft.status === "flagged" || draft.status === "submitted" ? (
                       <>
                         <button
                           disabled={withdrawal?.draftId === draft.id && withdrawal.status === "loading"}
-                          onClick={() => onWithdrawFlagged(draft.id)}
+                          onClick={() => {
+                            if (
+                              draft.status === "flagged" ||
+                              draft.status === "submitted"
+                            ) {
+                              onWithdraw(draft.id, draft.status);
+                            }
+                          }}
                           type="button"
                         >
                           {withdrawal?.draftId === draft.id && withdrawal.status === "loading"
@@ -274,11 +288,11 @@ function DraftList({
 
 function DraftStatusView({
   draft,
-  onWithdrawFlagged,
+  onWithdraw,
   withdrawal,
 }: {
   draft: DraftResponse;
-  onWithdrawFlagged(draftId: string): void;
+  onWithdraw(draftId: string, status: WithdrawableDraftStatus): void;
   withdrawal: DraftWithdrawalState;
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -309,11 +323,18 @@ function DraftStatusView({
       {draft.status === "flagged" && draft.flagReason !== null ? (
         <div className="draft-status-note"><strong>Help requested</strong><p>{draft.flagReason}</p></div>
       ) : null}
-      {draft.status === "flagged" ? (
+      {draft.status === "flagged" || draft.status === "submitted" ? (
         <div className="draft-status-actions">
           <button
             disabled={withdrawal?.draftId === draft.id && withdrawal.status === "loading"}
-            onClick={() => onWithdrawFlagged(draft.id)}
+            onClick={() => {
+              if (
+                draft.status === "flagged" ||
+                draft.status === "submitted"
+              ) {
+                onWithdraw(draft.id, draft.status);
+              }
+            }}
             type="button"
           >
             {withdrawal?.draftId === draft.id && withdrawal.status === "loading"

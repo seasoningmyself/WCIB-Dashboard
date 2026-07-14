@@ -742,7 +742,7 @@ export const approvalQueueEntries = pgTable(
         AND ${table.actedByUserId} is null
         AND ${table.actedAt} is null
       ) OR (
-        ${table.status} = 'approved'
+        ${table.status} in ('approved', 'withdrawn')
         AND ${table.reason} is null
         AND ${table.actedByUserId} is not null
         AND ${table.actedAt} is not null

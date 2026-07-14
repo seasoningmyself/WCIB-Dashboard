@@ -56,6 +56,16 @@ reason clearing, and the `draft_help_withdrawn` audit to migration `0036`'s
 the owner's edit-time financial fields while continuing to omit producer payout
 data. Run `npm run test:db:draft-help-withdrawal` for the real database boundary.
 
+`POST /api/drafts/:draftId/withdraw-submission` is employee/producer
+owner-only. It accepts no replacement payload and delegates the pending queue
+entry plus submitted draft transition to migration `0042`'s
+`withdraw_pending_submission` function. The queue row and immutable submitted
+snapshot are retained with status `withdrawn`; only the draft returns to
+editable status. Queue-first row locking serializes withdrawal against admin
+approval so exactly one action can win. Run
+`npm run test:db:draft-submission-withdrawal` for ownership, audit rollback,
+post-action rejection, and concurrency coverage.
+
 PostgreSQL migration `0013_draft_integrity` owns status transitions and stale
 state checks through `transition_draft_status`. Direct status updates are
 rejected. Financial values, insured/contact fields, and transition reasons must

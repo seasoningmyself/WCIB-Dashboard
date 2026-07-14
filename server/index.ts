@@ -32,6 +32,7 @@ import {
   registerDraftListRoute,
   registerDraftSubmitRoute,
   registerDraftWithdrawHelpRoute,
+  registerDraftWithdrawSubmissionRoute,
 } from "./http/drafts.js";
 import { createOwnDraft } from "./drafts/create.js";
 import { listOwnDrafts } from "./drafts/list.js";
@@ -39,6 +40,7 @@ import { editOwnDraft } from "./drafts/edit.js";
 import { submitOwnDraft } from "./drafts/submit.js";
 import { flagOwnDraft } from "./drafts/flag.js";
 import { withdrawOwnFlaggedHelp } from "./drafts/withdraw-help.js";
+import { withdrawOwnSubmittedDraft } from "./drafts/withdraw-submission.js";
 import { listDraftAssignmentOptions } from "./drafts/assignment-options.js";
 import { registerDraftAssignmentOptionsRoute } from "./http/draft-assignment-options.js";
 import { registerApprovalWorkRoute } from "./http/approval-queue.js";
@@ -183,6 +185,12 @@ const app = createApp({
       logger,
       withdraw: (context, draftId) =>
         withdrawOwnFlaggedHelp(database, context, draftId),
+    });
+    registerDraftWithdrawSubmissionRoute(routes, {
+      authorization,
+      logger,
+      withdraw: (context, draftId) =>
+        withdrawOwnSubmittedDraft(database, context, draftId),
     });
     registerDraftAssignmentOptionsRoute(routes, {
       authorization,

@@ -16,7 +16,7 @@ test("all migrations survive forward, rollback, reapply, and injected failures",
 
   const result = await verifyMigrationSafety(databaseUrl);
 
-  assert.equal(result.migrationCount, 42);
+  assert.equal(result.migrationCount, 43);
   assert.deepEqual(result.failureInjectionTags, failureInjectionTags);
   assert.equal(result.finalFingerprint, approvedCoreSchemaFingerprint);
   assert.deepEqual(

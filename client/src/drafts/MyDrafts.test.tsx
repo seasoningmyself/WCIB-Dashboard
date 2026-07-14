@@ -100,24 +100,40 @@ test("sent-back editing exposes only nonfinancial fields until C3 reopens it", (
   assert.doesNotMatch(markup, /Private address|private@example\.test|555-0100/);
 });
 
-test("immutable submitted and approved status views contain no edit control or financial placeholder", () => {
-  for (const status of ["submitted", "approved"] as const) {
-    const markup = renderView({
-      currentPath: `/my-drafts?draft=${DRAFT_ID}`,
-      state: {
-        drafts: [draft({
-          flagReason: null,
-          status,
-          submittedAt: "2026-07-10T13:00:00.000Z",
-        })],
-        status: "ready",
-      },
-    });
+test("submitted status offers owner withdrawal without exposing financial fields", () => {
+  const markup = renderView({
+    currentPath: `/my-drafts?draft=${DRAFT_ID}`,
+    state: {
+      drafts: [draft({
+        flagReason: null,
+        status: "submitted",
+        submittedAt: "2026-07-10T13:00:00.000Z",
+      })],
+      status: "ready",
+    },
+  });
 
-    assert.match(markup, /Back to My Drafts/);
-    assert.doesNotMatch(markup, />Edit<|Reopen draft|Submit for approval/);
-    assert.doesNotMatch(markup, /Base premium|Broker fee|Agency commission|IPFS|Finance balance/);
-  }
+  assert.match(markup, /Back to My Drafts/);
+  assert.match(markup, />Reopen and edit</);
+  assert.doesNotMatch(markup, /Base premium|Broker fee|Agency commission|IPFS|Finance balance/);
+});
+
+test("approved status remains immutable and contains no financial placeholder", () => {
+  const markup = renderView({
+    currentPath: `/my-drafts?draft=${DRAFT_ID}`,
+    state: {
+      drafts: [draft({
+        flagReason: null,
+        status: "approved",
+        submittedAt: "2026-07-10T13:00:00.000Z",
+      })],
+      status: "ready",
+    },
+  });
+
+  assert.match(markup, /Back to My Drafts/);
+  assert.doesNotMatch(markup, />Edit<|Reopen draft|Submit for approval/);
+  assert.doesNotMatch(markup, /Base premium|Broker fee|Agency commission|IPFS|Finance balance/);
 });
 
 test("flagged owner view offers audited reopen without exposing stored financials", () => {
@@ -174,7 +190,7 @@ function renderView({
           currentPath={currentPath}
           onDraftChange={() => {}}
           onRetry={() => {}}
-          onWithdrawFlagged={() => {}}
+          onWithdraw={() => {}}
           state={state}
           user={producer()}
           withdrawal={null}

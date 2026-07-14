@@ -1,7 +1,26 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 13, 2026 (recorded production pay-sheet initialization, cascade close, live pay-sheet KPIs, chargeback mirrors, and add-as-you-go vocabulary decisions.)
+**Last updated:** July 14, 2026 (recorded submitted-draft withdrawal history preservation.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
+
+---
+
+## July 14, 2026 — Preserve withdrawn submission history
+
+**Recorded production decision:** v15 lets a draft owner reopen a still-pending
+submission by removing its approval-queue entry and returning the draft to
+editable status. The multi-user app preserves that intent without deleting
+review history: the immutable submitted snapshot remains in its queue row with
+status `withdrawn`, while the source draft returns to `draft` and its active
+queue link is cleared.
+
+Withdrawal is owner-only and available only while the queue entry is still
+pending. The trusted database transition locks the queue before the draft,
+writes `draft_submission_withdrawn` atomically, and uses the same lock order as
+approval and send-back. Therefore a concurrent owner withdrawal and admin
+approval serialize to exactly one winner; an acted-on submission cannot later
+be withdrawn. This is a deliberate audit-preserving adaptation of v15's queue
+row deletion, not a new lifecycle path.
 
 ---
 

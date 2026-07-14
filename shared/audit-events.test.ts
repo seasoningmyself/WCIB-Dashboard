@@ -16,6 +16,7 @@ test("audit vocabulary covers every named sensitive mutation contract", () => {
     "staff_account_changed",
     "producer_rate_changed",
     "draft_submitted",
+    "draft_submission_withdrawn",
     "draft_flagged",
     "draft_help_withdrawn",
     "draft_sent_back",
