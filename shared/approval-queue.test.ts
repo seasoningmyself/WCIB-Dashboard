@@ -37,6 +37,7 @@ test("approval send-back reasons are trimmed, bounded, and reason-only", () => {
 test("approval work responses reject undeclared queue and help fields", () => {
   assert.throws(() =>
     approvalWorkListResponseSchema.parse({
+      changeRequests: [],
       helpRequests: [],
       rawPolicyTotals: "1000.00",
       submissions: [],

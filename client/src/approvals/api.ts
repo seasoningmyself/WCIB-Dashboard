@@ -18,6 +18,16 @@ import {
   approveWithOverrideRequestSchema,
   type ApproveWithOverrideRequest,
 } from "../../../shared/policy-overrides.js";
+import {
+  policyChangeRequestCorrectionResponseSchema,
+  policyChangeRequestResolutionResponseSchema,
+  resolvePolicyChangeRequestAsIsSchema,
+  sendBackPolicyChangeRequestSchema,
+} from "../../../shared/policy-change-requests.js";
+import {
+  policyLedgerCorrectionRequestSchema,
+  type PolicyLedgerCorrectionRequest,
+} from "../../../shared/policy-corrections.js";
 import type { ApiClient } from "../api/client.js";
 
 const policyIdentityResponseSchema = z
@@ -58,17 +68,28 @@ export interface ApprovalApi {
     queueEntryId: string,
     input: ApproveWithOverrideRequest,
   ): Promise<{ overrideId: string; policyId: string }>;
+  correctPolicyChangeRequest(
+    requestId: string,
+    input: PolicyLedgerCorrectionRequest,
+  ): Promise<z.output<typeof policyChangeRequestCorrectionResponseSchema>>;
   list(query?: Partial<ListApprovalWorkQuery>): Promise<ApprovalWorkListResponse>;
   openFixHelp(
     draftId: string,
     input: UpdateDraftRequest,
   ): Promise<{ policyId: string }>;
   pushThroughHelp(draftId: string): Promise<{ policyId: string }>;
+  resolvePolicyChangeRequestAsIs(
+    requestId: string,
+  ): Promise<z.output<typeof policyChangeRequestResolutionResponseSchema>>;
   sendBackHelp(draftId: string, input: ApprovalSendBackRequest): Promise<void>;
   sendBackSubmission(
     queueEntryId: string,
     input: ApprovalSendBackRequest,
   ): Promise<void>;
+  sendBackPolicyChangeRequest(
+    requestId: string,
+    input: ApprovalSendBackRequest,
+  ): Promise<z.output<typeof policyChangeRequestResolutionResponseSchema>>;
 }
 
 export function createApprovalApi(client: ApiClient): ApprovalApi {
@@ -89,6 +110,15 @@ export function createApprovalApi(client: ApiClient): ApprovalApi {
         overrideIdentityResponseSchema,
       );
     },
+    correctPolicyChangeRequest: (requestId, input) =>
+      mutate(
+        client,
+        `/policy-change-requests/${encodeURIComponent(requestId)}/correction`,
+        parseRequest(policyLedgerCorrectionRequestSchema, input),
+        policyChangeRequestCorrectionResponseSchema,
+        200,
+        "PATCH",
+      ),
     async list(query = {}) {
       const normalized = parseRequest(listApprovalWorkQuerySchema, query);
       const params = new URLSearchParams();
@@ -114,6 +144,14 @@ export function createApprovalApi(client: ApiClient): ApprovalApi {
         policyIdentityResponseSchema,
       );
     },
+    resolvePolicyChangeRequestAsIs: (requestId) =>
+      mutate(
+        client,
+        `/policy-change-requests/${encodeURIComponent(requestId)}/resolve-as-is`,
+        resolvePolicyChangeRequestAsIsSchema.parse({}),
+        policyChangeRequestResolutionResponseSchema,
+        200,
+      ),
     async sendBackHelp(draftId, input) {
       await mutate(
         client,
@@ -132,6 +170,14 @@ export function createApprovalApi(client: ApiClient): ApprovalApi {
         200,
       );
     },
+    sendBackPolicyChangeRequest: (requestId, input) =>
+      mutate(
+        client,
+        `/policy-change-requests/${encodeURIComponent(requestId)}/send-back`,
+        parseRequest(sendBackPolicyChangeRequestSchema, input),
+        policyChangeRequestResolutionResponseSchema,
+        200,
+      ),
   };
 }
 
@@ -159,6 +205,7 @@ async function mutate<Schema extends z.ZodTypeAny>(
   body: unknown,
   schema: Schema,
   expectedStatus = 201,
+  method: "PATCH" | "POST" = "POST",
 ): Promise<z.output<Schema>> {
   let response: Response;
   try {
@@ -168,7 +215,7 @@ async function mutate<Schema extends z.ZodTypeAny>(
         Accept: "application/json",
         "Content-Type": "application/json",
       },
-      method: "POST",
+      method,
     });
   } catch {
     throw new ApprovalApiError("unavailable");

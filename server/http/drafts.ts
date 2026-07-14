@@ -12,6 +12,10 @@ import {
   submitDraftRequestSchema,
   submitDraftResponseSchema,
   updateDraftRequestSchema,
+  withdrawFlaggedDraftRequestSchema,
+  withdrawFlaggedDraftResponseSchema,
+  withdrawSubmittedDraftRequestSchema,
+  withdrawSubmittedDraftResponseSchema,
   type CreateDraftResponse,
   type ListDraftsResponse,
   type SubmitDraftResponse,
@@ -44,6 +48,14 @@ import {
   DraftFlagNotFoundError,
   DraftNotFlaggableError,
 } from "../drafts/flag.js";
+import {
+  DraftHelpWithdrawalNotAllowedError,
+  DraftHelpWithdrawalNotFoundError,
+} from "../drafts/withdraw-help.js";
+import {
+  DraftSubmissionWithdrawalNotAllowedError,
+  DraftSubmissionWithdrawalNotFoundError,
+} from "../drafts/withdraw-submission.js";
 import type { DraftRecord } from "../db/schema.js";
 import type { AppLogger } from "../logging/logger.js";
 import { projectAuthorizedFields } from "../security/field-projection.js";
@@ -54,6 +66,9 @@ export const DRAFTS_PATH = "/api/drafts";
 export const DRAFT_PATH = "/api/drafts/:draftId";
 export const DRAFT_SUBMIT_PATH = "/api/drafts/:draftId/submit";
 export const DRAFT_FLAG_PATH = "/api/drafts/:draftId/flag";
+export const DRAFT_WITHDRAW_HELP_PATH = "/api/drafts/:draftId/withdraw-help";
+export const DRAFT_WITHDRAW_SUBMISSION_PATH =
+  "/api/drafts/:draftId/withdraw-submission";
 
 export interface DraftCreateHandlerDependencies {
   create(
@@ -119,6 +134,32 @@ export interface DraftFlagHandlerDependencies {
 
 export interface RegisterDraftFlagRouteOptions
   extends DraftFlagHandlerDependencies {
+  authorization: AuthorizationGuards;
+}
+
+export interface DraftWithdrawHelpHandlerDependencies {
+  logger: AppLogger;
+  withdraw(
+    context: AuthorizedRequestContext,
+    draftId: string,
+  ): Promise<DraftRecord>;
+}
+
+export interface RegisterDraftWithdrawHelpRouteOptions
+  extends DraftWithdrawHelpHandlerDependencies {
+  authorization: AuthorizationGuards;
+}
+
+export interface DraftWithdrawSubmissionHandlerDependencies {
+  logger: AppLogger;
+  withdraw(
+    context: AuthorizedRequestContext,
+    draftId: string,
+  ): Promise<DraftRecord>;
+}
+
+export interface RegisterDraftWithdrawSubmissionRouteOptions
+  extends DraftWithdrawSubmissionHandlerDependencies {
   authorization: AuthorizationGuards;
 }
 
@@ -406,5 +447,117 @@ export function registerDraftFlagRoute(
       authorization: options.authorization.require(DRAFT_HELP_ACCESS),
     },
     createDraftFlagHandler(options),
+  );
+}
+
+export function createDraftWithdrawHelpHandler(
+  dependencies: DraftWithdrawHelpHandlerDependencies,
+): RequestHandler {
+  return asyncRoute(async (req, res) => {
+    const context = getAuthorizedRequestContext(res);
+    const { draftId } = draftIdParamsSchema.parse(req.params);
+    withdrawFlaggedDraftRequestSchema.parse(req.body ?? {});
+    let record: DraftRecord;
+    try {
+      record = await dependencies.withdraw(context, draftId);
+    } catch (error) {
+      if (error instanceof DraftHelpWithdrawalNotFoundError) {
+        throw new HttpError(404, apiErrorCodes.notFound, "Draft not found");
+      }
+      if (error instanceof DraftHelpWithdrawalNotAllowedError) {
+        throw new HttpError(
+          409,
+          apiErrorCodes.badRequest,
+          "Draft help request is not withdrawable",
+        );
+      }
+      throw error;
+    }
+
+    const draft = projectAuthorizedFields(
+      res,
+      record,
+      projectDraftForAuthorizedContext,
+    );
+    if (draft === null) {
+      throw new HttpError(403, apiErrorCodes.forbidden, "Forbidden");
+    }
+    const response = withdrawFlaggedDraftResponseSchema.parse({ draft });
+    dependencies.logger.info("Own help request withdrawn", {
+      component: "drafts",
+      draftId: response.draft.id,
+      event: "own_draft_help_withdrawn",
+      userId: context.principal.userId,
+    });
+    res.set("Cache-Control", "no-store").json(response);
+  });
+}
+
+export function registerDraftWithdrawHelpRoute(
+  routes: RouteRegistrar,
+  options: RegisterDraftWithdrawHelpRouteOptions,
+): void {
+  routes.post(
+    DRAFT_WITHDRAW_HELP_PATH,
+    {
+      authorization: options.authorization.require(DRAFT_HELP_ACCESS),
+    },
+    createDraftWithdrawHelpHandler(options),
+  );
+}
+
+export function createDraftWithdrawSubmissionHandler(
+  dependencies: DraftWithdrawSubmissionHandlerDependencies,
+): RequestHandler {
+  return asyncRoute(async (req, res) => {
+    const context = getAuthorizedRequestContext(res);
+    const { draftId } = draftIdParamsSchema.parse(req.params);
+    withdrawSubmittedDraftRequestSchema.parse(req.body ?? {});
+    let record: DraftRecord;
+    try {
+      record = await dependencies.withdraw(context, draftId);
+    } catch (error) {
+      if (error instanceof DraftSubmissionWithdrawalNotFoundError) {
+        throw new HttpError(404, apiErrorCodes.notFound, "Draft not found");
+      }
+      if (error instanceof DraftSubmissionWithdrawalNotAllowedError) {
+        throw new HttpError(
+          409,
+          apiErrorCodes.badRequest,
+          "Draft submission is not withdrawable",
+        );
+      }
+      throw error;
+    }
+
+    const draft = projectAuthorizedFields(
+      res,
+      record,
+      projectDraftForAuthorizedContext,
+    );
+    if (draft === null) {
+      throw new HttpError(403, apiErrorCodes.forbidden, "Forbidden");
+    }
+    const response = withdrawSubmittedDraftResponseSchema.parse({ draft });
+    dependencies.logger.info("Own pending submission withdrawn", {
+      component: "drafts",
+      draftId: response.draft.id,
+      event: "own_draft_submission_withdrawn",
+      userId: context.principal.userId,
+    });
+    res.set("Cache-Control", "no-store").json(response);
+  });
+}
+
+export function registerDraftWithdrawSubmissionRoute(
+  routes: RouteRegistrar,
+  options: RegisterDraftWithdrawSubmissionRouteOptions,
+): void {
+  routes.post(
+    DRAFT_WITHDRAW_SUBMISSION_PATH,
+    {
+      authorization: options.authorization.require(DRAFT_HELP_ACCESS),
+    },
+    createDraftWithdrawSubmissionHandler(options),
   );
 }

@@ -24,6 +24,7 @@ test("My Drafts lists only projected identifying fields and status actions", () 
         draft({ id: uuid(5), status: "flagged" }),
         draft({ id: uuid(6), status: "approved" }),
       ],
+      requests: [],
       status: "ready",
     },
   });
@@ -33,6 +34,7 @@ test("My Drafts lists only projected identifying fields and status actions", () 
   assert.match(markup, /WCIB-100/);
   assert.match(markup, />Edit</);
   assert.match(markup, />Review and reopen</);
+  assert.match(markup, />Reopen and edit</);
   assert.match(markup, /View status/);
   assert.doesNotMatch(markup, /Base premium|Agency commission total|IPFS financing/);
   assert.doesNotMatch(markup, /ownerUserId|producerUserId/);
@@ -60,6 +62,7 @@ test("active producer draft editing renders agency inputs but no personal split"
         proposalTotal: "1100.00",
         taxes: "25.00",
       })],
+      requests: [],
       status: "ready",
     },
   });
@@ -87,6 +90,7 @@ test("sent-back editing exposes only nonfinancial fields until C3 reopens it", (
         sentBackReason: "Correct the policy number.",
         status: "sent_back",
       })],
+      requests: [],
       status: "ready",
     },
   });
@@ -99,30 +103,105 @@ test("sent-back editing exposes only nonfinancial fields until C3 reopens it", (
   assert.doesNotMatch(markup, /Private address|private@example\.test|555-0100/);
 });
 
-test("immutable status views contain no edit control or financial placeholder", () => {
-  for (const status of ["submitted", "flagged", "approved"] as const) {
-    const markup = renderView({
-      currentPath: `/my-drafts?draft=${DRAFT_ID}`,
-      state: {
-        drafts: [draft({
-          flagReason: status === "flagged" ? "Need carrier help." : null,
-          status,
-          submittedAt: "2026-07-10T13:00:00.000Z",
-        })],
-        status: "ready",
-      },
-    });
+test("submitted status offers owner withdrawal without exposing financial fields", () => {
+  const markup = renderView({
+    currentPath: `/my-drafts?draft=${DRAFT_ID}`,
+    state: {
+      drafts: [draft({
+        flagReason: null,
+        status: "submitted",
+        submittedAt: "2026-07-10T13:00:00.000Z",
+      })],
+      requests: [],
+      status: "ready",
+    },
+  });
 
-    assert.match(markup, /Back to My Drafts/);
-    assert.doesNotMatch(markup, />Edit<|Reopen draft|Submit for approval/);
-    assert.doesNotMatch(markup, /Base premium|Broker fee|Agency commission|IPFS|Finance balance/);
-  }
+  assert.match(markup, /Back to My Drafts/);
+  assert.match(markup, />Reopen and edit</);
+  assert.doesNotMatch(markup, /Base premium|Broker fee|Agency commission|IPFS|Finance balance/);
+});
+
+test("approved status remains immutable and contains no financial placeholder", () => {
+  const markup = renderView({
+    currentPath: `/my-drafts?draft=${DRAFT_ID}`,
+    state: {
+      drafts: [draft({
+        flagReason: null,
+        status: "approved",
+        submittedAt: "2026-07-10T13:00:00.000Z",
+      })],
+      requests: [],
+      status: "ready",
+    },
+  });
+
+  assert.match(markup, /Back to My Drafts/);
+  assert.doesNotMatch(markup, />Edit<|Reopen draft|Submit for approval/);
+  assert.doesNotMatch(markup, /Base premium|Broker fee|Agency commission|IPFS|Finance balance/);
+});
+
+test("approved owner can submit only a reason-only change request", () => {
+  const linked = draft({
+    linkedPolicyId: uuid(20),
+    status: "approved",
+    submittedAt: "2026-07-10T13:00:00.000Z",
+  });
+  const available = renderView({
+    changeRequestDialog: {
+      error: false,
+      pending: false,
+      policyId: uuid(20),
+      reason: "Correct the insured name.",
+    },
+    currentPath: `/my-drafts?draft=${DRAFT_ID}`,
+    state: { drafts: [linked], requests: [], status: "ready" },
+  });
+  assert.match(available, /Request a change/);
+  assert.match(available, /Reason/);
+  assert.match(available, /Correct the insured name/);
+  assert.match(available, /does not change the approved policy/);
+  assert.doesNotMatch(
+    available,
+    /Base premium|Broker fee|Agency commission|Net due|IPFS|Finance balance/,
+  );
+
+  const pending = renderView({
+    currentPath: `/my-drafts?draft=${DRAFT_ID}`,
+    state: {
+      drafts: [linked],
+      requests: [changeRequest({ policyId: uuid(20) })],
+      status: "ready",
+    },
+  });
+  assert.match(pending, /Pending review/);
+  assert.match(pending, /Please review the approved record/);
+  assert.doesNotMatch(pending, />Request a change</);
+});
+
+test("flagged owner view offers audited reopen without exposing stored financials", () => {
+  const markup = renderView({
+    currentPath: `/my-drafts?draft=${DRAFT_ID}`,
+    state: {
+      drafts: [draft({
+        basePremium: undefined,
+        flagReason: "Need carrier help.",
+        status: "flagged",
+      })],
+      requests: [],
+      status: "ready",
+    },
+  });
+
+  assert.match(markup, /Need carrier help/);
+  assert.match(markup, />Reopen and edit</);
+  assert.doesNotMatch(markup, /Base premium|Broker fee|Agency commission|IPFS|Finance balance/);
 });
 
 test("another-owner URL guess and list failures disclose no draft data", () => {
   const guessed = renderView({
     currentPath: `/my-drafts?draft=${OTHER_ID}`,
-    state: { drafts: [draft()], status: "ready" },
+    state: { drafts: [draft()], requests: [], status: "ready" },
   });
   assert.match(guessed, /Draft not available/);
   assert.doesNotMatch(guessed, /Acme LLC|WCIB-100/);
@@ -131,7 +210,7 @@ test("another-owner URL guess and list failures disclose no draft data", () => {
   const error = renderView({ currentPath: "/my-drafts", state: { status: "error" } });
   const empty = renderView({
     currentPath: "/my-drafts",
-    state: { drafts: [], status: "ready" },
+    state: { drafts: [], requests: [], status: "ready" },
   });
   assert.match(loading, /Loading drafts/);
   assert.match(error, /Drafts unavailable/);
@@ -139,9 +218,11 @@ test("another-owner URL guess and list failures disclose no draft data", () => {
 });
 
 function renderView({
+  changeRequestDialog,
   currentPath,
   state,
 }: {
+  changeRequestDialog?: Parameters<typeof MyDraftsView>[0]["changeRequestDialog"];
   currentPath: string;
   state: MyDraftsState;
 }): string {
@@ -152,15 +233,32 @@ function renderView({
     >
       <VocabularyProvider>
         <MyDraftsView
+          changeRequestDialog={changeRequestDialog}
           currentPath={currentPath}
           onDraftChange={() => {}}
           onRetry={() => {}}
+          onWithdraw={() => {}}
           state={state}
           user={producer()}
+          withdrawal={null}
         />
       </VocabularyProvider>
     </ApiClientProvider>,
   );
+}
+
+function changeRequest(overrides: Record<string, unknown> = {}) {
+  return {
+    id: uuid(21),
+    policyId: uuid(20),
+    reason: "Please review the approved record.",
+    requestedAt: "2026-07-14T12:00:00.000Z",
+    resolution: null,
+    resolutionReason: null,
+    resolvedAt: null,
+    status: "pending" as const,
+    ...overrides,
+  };
 }
 
 function producer(): CurrentUser {

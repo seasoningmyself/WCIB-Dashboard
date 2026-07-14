@@ -7,17 +7,24 @@ const QUEUE_ID = "00000000-0000-4000-8000-000000000501";
 const DRAFT_ID = "00000000-0000-4000-8000-000000000502";
 const POLICY_ID = "00000000-0000-4000-8000-000000000503";
 const OVERRIDE_ID = "00000000-0000-4000-8000-000000000504";
+const CHANGE_REQUEST_ID = "00000000-0000-4000-8000-000000000505";
 
 test("approval API uses every live Parent D endpoint and safe request body", async () => {
   const calls: Array<{ options?: ApiRequestOptions; path: string }> = [];
   const responses = [
-    Response.json({ helpRequests: [], submissions: [] }),
+    Response.json({ changeRequests: [], helpRequests: [], submissions: [] }),
     policyResponse(),
     Response.json({ overrideId: OVERRIDE_ID, ...policyResponseBody() }, { status: 201 }),
     Response.json({ entry: queueEntry("sent_back") }),
     policyResponse(),
     policyResponse(),
     Response.json({ draft: draftResponse("sent_back") }),
+    Response.json({
+      policyId: POLICY_ID,
+      request: changeRequestResponse("corrected"),
+    }),
+    Response.json({ request: changeRequestResponse("as_is") }),
+    Response.json({ request: changeRequestResponse("sent_back") }),
   ];
   const client: ApiClient = {
     async request(path, options) {
@@ -40,6 +47,19 @@ test("approval API uses every live Parent D endpoint and safe request body", asy
   await api.pushThroughHelp(DRAFT_ID);
   await api.openFixHelp(DRAFT_ID, { insuredName: "Corrected insured" });
   await api.sendBackHelp(DRAFT_ID, { reason: "Complete finance fields" });
+  await api.correctPolicyChangeRequest(CHANGE_REQUEST_ID, {
+    change: {
+      changedFields: ["insuredName"],
+      reason: "Correct the approved record",
+      replacementValues: { insuredName: "Corrected insured" },
+    },
+    expectedUpdatedAt: "2026-07-14T12:00:00.000Z",
+    kind: "general",
+  });
+  await api.resolvePolicyChangeRequestAsIs(CHANGE_REQUEST_ID);
+  await api.sendBackPolicyChangeRequest(CHANGE_REQUEST_ID, {
+    reason: "No ledger correction is required",
+  });
 
   assert.deepEqual(
     calls.map(({ path }) => path),
@@ -51,6 +71,9 @@ test("approval API uses every live Parent D endpoint and safe request body", asy
       `/approvals/help/${DRAFT_ID}/push-through`,
       `/approvals/help/${DRAFT_ID}/open-fix`,
       `/approvals/help/${DRAFT_ID}/send-back`,
+      `/policy-change-requests/${CHANGE_REQUEST_ID}/correction`,
+      `/policy-change-requests/${CHANGE_REQUEST_ID}/resolve-as-is`,
+      `/policy-change-requests/${CHANGE_REQUEST_ID}/send-back`,
     ],
   );
   assert.equal(calls[0]?.options?.cache, "no-store");
@@ -65,6 +88,11 @@ test("approval API uses every live Parent D endpoint and safe request body", asy
   });
   assert.deepEqual(JSON.parse(String(calls[5]?.options?.body)), {
     insuredName: "Corrected insured",
+  });
+  assert.equal(calls[7]?.options?.method, "PATCH");
+  assert.deepEqual(JSON.parse(String(calls[8]?.options?.body)), {});
+  assert.deepEqual(JSON.parse(String(calls[9]?.options?.body)), {
+    reason: "No ledger correction is required",
   });
 });
 
@@ -173,5 +201,31 @@ function draftResponse(status: "flagged" | "sent_back") {
     submittedAt: null,
     transactionNotes: null,
     transactionType: "New",
+  };
+}
+
+function changeRequestResponse(
+  resolution: "as_is" | "corrected" | "sent_back",
+) {
+  const timestamp = "2026-07-14T12:00:00.000Z";
+  return {
+    insuredName: "Corrected insured",
+    policyNumber: "P-1",
+    requesterDisplayName: "Policy Owner",
+    request: {
+      id: CHANGE_REQUEST_ID,
+      mutationId: resolution === "corrected" ? OVERRIDE_ID : null,
+      mutationKind: resolution === "corrected" ? "general" : null,
+      policyId: POLICY_ID,
+      reason: "Please review the approved record",
+      requestedAt: timestamp,
+      requestedByUserId: POLICY_ID,
+      resolution,
+      resolutionReason:
+        resolution === "sent_back" ? "No ledger correction is required" : null,
+      resolvedAt: timestamp,
+      resolvedByUserId: POLICY_ID,
+      status: resolution === "sent_back" ? "rejected" : "resolved",
+    },
   };
 }

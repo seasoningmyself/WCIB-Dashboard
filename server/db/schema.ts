@@ -35,6 +35,10 @@ import {
 } from "../../shared/pay-sheet-adjustments.js";
 import { KPI_TARGET_SCOPE_TYPES } from "../../shared/kpi-targets.js";
 import {
+  POLICY_CHANGE_REQUEST_RESOLUTIONS,
+  POLICY_CHANGE_REQUEST_STATUSES,
+} from "../../shared/policy-change-requests.js";
+import {
   type AnyPgColumn,
   boolean,
   check,
@@ -113,6 +117,14 @@ export const paySheetAccountBasisEnum = pgEnum(
 export const kpiTargetScopeTypeEnum = pgEnum(
   "kpi_target_scope_type",
   KPI_TARGET_SCOPE_TYPES,
+);
+export const policyChangeRequestStatusEnum = pgEnum(
+  "policy_change_request_status",
+  POLICY_CHANGE_REQUEST_STATUSES,
+);
+export const policyChangeRequestResolutionEnum = pgEnum(
+  "policy_change_request_resolution",
+  POLICY_CHANGE_REQUEST_RESOLUTIONS,
 );
 export const staffPronounEnum = pgEnum("staff_pronoun", [
   "her",
@@ -742,7 +754,7 @@ export const approvalQueueEntries = pgTable(
         AND ${table.actedByUserId} is null
         AND ${table.actedAt} is null
       ) OR (
-        ${table.status} = 'approved'
+        ${table.status} in ('approved', 'withdrawn')
         AND ${table.reason} is null
         AND ${table.actedByUserId} is not null
         AND ${table.actedAt} is not null
@@ -1071,6 +1083,103 @@ export const policies = pgTable(
 
 export type PolicyRecord = typeof policies.$inferSelect;
 export type NewPolicyRecord = typeof policies.$inferInsert;
+
+export const policyChangeRequests = pgTable(
+  "policy_change_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    policyId: uuid("policy_id")
+      .notNull()
+      .references(() => policies.id, { onDelete: "restrict" }),
+    requestedByUserId: uuid("requested_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    reason: text("reason").notNull(),
+    status: policyChangeRequestStatusEnum("status")
+      .notNull()
+      .default("pending"),
+    resolution: policyChangeRequestResolutionEnum("resolution"),
+    resolutionReason: text("resolution_reason"),
+    mutationKind: text("mutation_kind"),
+    mutationId: uuid("mutation_id"),
+    requestedAt: timestamp("requested_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    resolvedByUserId: uuid("resolved_by_user_id").references(() => users.id, {
+      onDelete: "restrict",
+    }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("policy_change_requests_pending_policy_idx")
+      .on(table.policyId)
+      .where(sql`${table.status} = 'pending'`),
+    index("policy_change_requests_policy_timeline_idx").on(
+      table.policyId,
+      table.requestedAt,
+    ),
+    index("policy_change_requests_requester_timeline_idx").on(
+      table.requestedByUserId,
+      table.requestedAt,
+    ),
+    index("policy_change_requests_status_timeline_idx").on(
+      table.status,
+      table.requestedAt,
+    ),
+    check(
+      "policy_change_requests_reason_check",
+      sql`${table.reason} = btrim(${table.reason}) AND char_length(${table.reason}) BETWEEN 1 AND 500`,
+    ),
+    check(
+      "policy_change_requests_resolution_reason_check",
+      sql`${table.resolutionReason} is null OR (${table.resolutionReason} = btrim(${table.resolutionReason}) AND char_length(${table.resolutionReason}) BETWEEN 1 AND 500)`,
+    ),
+    check(
+      "policy_change_requests_state_check",
+      sql`(
+        ${table.status} = 'pending'
+        AND ${table.resolution} is null
+        AND ${table.resolutionReason} is null
+        AND ${table.mutationKind} is null
+        AND ${table.mutationId} is null
+        AND ${table.resolvedByUserId} is null
+        AND ${table.resolvedAt} is null
+      ) OR (
+        ${table.status} = 'resolved'
+        AND ${table.resolution} = 'corrected'
+        AND ${table.resolutionReason} is null
+        AND ${table.mutationKind} in ('general', 'override')
+        AND ${table.mutationId} is not null
+        AND ${table.resolvedByUserId} is not null
+        AND ${table.resolvedAt} is not null
+      ) OR (
+        ${table.status} = 'resolved'
+        AND ${table.resolution} = 'as_is'
+        AND ${table.resolutionReason} is null
+        AND ${table.mutationKind} is null
+        AND ${table.mutationId} is null
+        AND ${table.resolvedByUserId} is not null
+        AND ${table.resolvedAt} is not null
+      ) OR (
+        ${table.status} = 'rejected'
+        AND ${table.resolution} = 'sent_back'
+        AND ${table.resolutionReason} is not null
+        AND ${table.mutationKind} is null
+        AND ${table.mutationId} is null
+        AND ${table.resolvedByUserId} is not null
+        AND ${table.resolvedAt} is not null
+      )`,
+    ),
+    check(
+      "policy_change_requests_timestamp_order_check",
+      sql`${table.resolvedAt} is null OR ${table.resolvedAt} >= ${table.requestedAt}`,
+    ),
+  ],
+);
+
+export type PolicyChangeRequestRecord = typeof policyChangeRequests.$inferSelect;
+export type NewPolicyChangeRequestRecord =
+  typeof policyChangeRequests.$inferInsert;
 
 export const policyOverrides = pgTable(
   "policy_overrides",

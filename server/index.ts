@@ -31,12 +31,16 @@ import {
   registerDraftFlagRoute,
   registerDraftListRoute,
   registerDraftSubmitRoute,
+  registerDraftWithdrawHelpRoute,
+  registerDraftWithdrawSubmissionRoute,
 } from "./http/drafts.js";
 import { createOwnDraft } from "./drafts/create.js";
 import { listOwnDrafts } from "./drafts/list.js";
 import { editOwnDraft } from "./drafts/edit.js";
 import { submitOwnDraft } from "./drafts/submit.js";
 import { flagOwnDraft } from "./drafts/flag.js";
+import { withdrawOwnFlaggedHelp } from "./drafts/withdraw-help.js";
+import { withdrawOwnSubmittedDraft } from "./drafts/withdraw-submission.js";
 import { listDraftAssignmentOptions } from "./drafts/assignment-options.js";
 import { registerDraftAssignmentOptionsRoute } from "./http/draft-assignment-options.js";
 import { registerApprovalWorkRoute } from "./http/approval-queue.js";
@@ -114,6 +118,14 @@ import {
   upsertKpiTarget,
 } from "./kpi/targets.js";
 import { loadKpiActualSource } from "./kpi/actuals.js";
+import { registerPolicyChangeRequestRoutes } from "./http/policy-change-requests.js";
+import {
+  correctPolicyChangeRequest,
+  createOwnPolicyChangeRequest,
+  listOwnPolicyChangeRequests,
+  resolvePolicyChangeRequestAsIs,
+  sendBackPolicyChangeRequest,
+} from "./policy-change-requests/service.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -176,6 +188,18 @@ const app = createApp({
         flagOwnDraft(database, context, draftId, input),
       logger,
     });
+    registerDraftWithdrawHelpRoute(routes, {
+      authorization,
+      logger,
+      withdraw: (context, draftId) =>
+        withdrawOwnFlaggedHelp(database, context, draftId),
+    });
+    registerDraftWithdrawSubmissionRoute(routes, {
+      authorization,
+      logger,
+      withdraw: (context, draftId) =>
+        withdrawOwnSubmittedDraft(database, context, draftId),
+    });
     registerDraftAssignmentOptionsRoute(routes, {
       authorization,
       list: () => listDraftAssignmentOptions(database),
@@ -226,6 +250,43 @@ const app = createApp({
           logger,
         ),
       logger,
+    });
+    registerPolicyChangeRequestRoutes(routes, {
+      authorization,
+      correct: (context, requestId, input) =>
+        correctPolicyChangeRequest(
+          database,
+          context,
+          requestId,
+          input,
+          logger,
+        ),
+      create: (context, policyId, input) =>
+        createOwnPolicyChangeRequest(
+          database,
+          context,
+          policyId,
+          input,
+          logger,
+        ),
+      listMine: (context) =>
+        listOwnPolicyChangeRequests(database, context),
+      logger,
+      resolveAsIs: (context, requestId) =>
+        resolvePolicyChangeRequestAsIs(
+          database,
+          context,
+          requestId,
+          logger,
+        ),
+      sendBack: (context, requestId, input) =>
+        sendBackPolicyChangeRequest(
+          database,
+          context,
+          requestId,
+          input,
+          logger,
+        ),
     });
     registerMgaPayableRoute(routes, {
       authorization,

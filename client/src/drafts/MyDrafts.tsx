@@ -7,7 +7,15 @@ import React, {
 } from "react";
 import type { CurrentUser } from "../../../shared/current-user.js";
 import type { DraftResponse } from "../../../shared/drafts.js";
+import {
+  MAX_POLICY_CHANGE_REQUEST_REASON_LENGTH,
+  type OwnerPolicyChangeRequest,
+} from "../../../shared/policy-change-requests.js";
 import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
+import {
+  DialogActions,
+  DialogFrame,
+} from "../approvals/ApprovalDialogs.js";
 import { CheckTurnInForm } from "./CheckTurnInForm.js";
 import { createDraftApi } from "./api.js";
 import {
@@ -21,7 +29,25 @@ import {
 export type MyDraftsState =
   | { status: "error" }
   | { status: "loading" }
-  | { drafts: readonly DraftResponse[]; status: "ready" };
+  | {
+      drafts: readonly DraftResponse[];
+      requests: readonly OwnerPolicyChangeRequest[];
+      status: "ready";
+    };
+
+export type DraftWithdrawalState =
+  | { draftId: string; status: "error" }
+  | { draftId: string; status: "loading" }
+  | null;
+
+type WithdrawableDraftStatus = "flagged" | "submitted";
+
+export interface ChangeRequestDialogState {
+  error: boolean;
+  pending: boolean;
+  policyId: string;
+  reason: string;
+}
 
 export function MyDrafts({
   currentPath,
@@ -33,6 +59,9 @@ export function MyDrafts({
   const client = useApiClient();
   const api = useMemo(() => createDraftApi(client), [client]);
   const [state, setState] = useState<MyDraftsState>({ status: "loading" });
+  const [withdrawal, setWithdrawal] = useState<DraftWithdrawalState>(null);
+  const [changeRequestDialog, setChangeRequestDialog] =
+    useState<ChangeRequestDialogState | null>(null);
   const requestVersion = useRef(0);
 
   const load = useCallback(async () => {
@@ -40,9 +69,16 @@ export function MyDrafts({
     requestVersion.current = version;
     setState({ status: "loading" });
     try {
-      const response = await api.list();
+      const [draftResponse, requestResponse] = await Promise.all([
+        api.list(),
+        api.listChangeRequests(),
+      ]);
       if (requestVersion.current === version) {
-        setState({ drafts: sortOwnDrafts(response.drafts), status: "ready" });
+        setState({
+          drafts: sortOwnDrafts(draftResponse.drafts),
+          requests: requestResponse.requests,
+          status: "ready",
+        });
       }
     } catch {
       if (requestVersion.current === version) {
@@ -61,43 +97,133 @@ export function MyDrafts({
   const clearSensitiveState = useCallback(() => {
     requestVersion.current += 1;
     setState({ status: "loading" });
+    setWithdrawal(null);
+    setChangeRequestDialog(null);
   }, []);
   useSensitiveSessionCleanup(clearSensitiveState);
 
   const acceptProjection = useCallback((draft: DraftResponse) => {
     setState((current) =>
       current.status === "ready"
-        ? {
+          ? {
             drafts: replaceProjectedDraft(current.drafts, draft),
+            requests: current.requests,
             status: "ready",
           }
         : current,
     );
   }, []);
 
+  const withdraw = useCallback(async (
+    draftId: string,
+    status: WithdrawableDraftStatus,
+  ) => {
+    setWithdrawal({ draftId, status: "loading" });
+    try {
+      const response = status === "submitted"
+        ? await api.withdrawSubmission(draftId)
+        : await api.withdrawHelp(draftId);
+      acceptProjection(response.draft);
+      setWithdrawal(null);
+      window.location.hash = `#/my-drafts?draft=${encodeURIComponent(draftId)}`;
+    } catch {
+      setWithdrawal({ draftId, status: "error" });
+    }
+  }, [acceptProjection, api]);
+
+  const submitChangeRequest = useCallback(async () => {
+    if (changeRequestDialog === null || changeRequestDialog.pending) return;
+    const reason = changeRequestDialog.reason.trim();
+    if (
+      reason.length < 1 ||
+      reason.length > MAX_POLICY_CHANGE_REQUEST_REASON_LENGTH
+    ) {
+      setChangeRequestDialog((current) =>
+        current === null ? null : { ...current, error: true },
+      );
+      return;
+    }
+    setChangeRequestDialog((current) =>
+      current === null ? null : { ...current, error: false, pending: true },
+    );
+    try {
+      const response = await api.createChangeRequest(
+        changeRequestDialog.policyId,
+        { reason },
+      );
+      setState((current) =>
+        current.status === "ready"
+          ? {
+              ...current,
+              requests: [response.request, ...current.requests],
+            }
+          : current,
+      );
+      setChangeRequestDialog(null);
+    } catch {
+      setChangeRequestDialog((current) =>
+        current === null
+          ? null
+          : { ...current, error: true, pending: false },
+      );
+    }
+  }, [api, changeRequestDialog]);
+
   return (
     <MyDraftsView
       currentPath={currentPath}
+      changeRequestDialog={changeRequestDialog}
+      onCancelChangeRequest={() => setChangeRequestDialog(null)}
+      onChangeRequestReason={(reason) =>
+        setChangeRequestDialog((current) =>
+          current === null ? null : { ...current, error: false, reason },
+        )
+      }
       onDraftChange={acceptProjection}
+      onOpenChangeRequest={(policyId) =>
+        setChangeRequestDialog({
+          error: false,
+          pending: false,
+          policyId,
+          reason: "",
+        })
+      }
       onRetry={() => void load()}
+      onSubmitChangeRequest={() => void submitChangeRequest()}
+      onWithdraw={(draftId, status) => void withdraw(draftId, status)}
       state={state}
       user={user}
+      withdrawal={withdrawal}
     />
   );
 }
 
 export function MyDraftsView({
+  changeRequestDialog = null,
   currentPath,
+  onCancelChangeRequest = () => {},
+  onChangeRequestReason = () => {},
   onDraftChange,
+  onOpenChangeRequest = () => {},
   onRetry,
+  onSubmitChangeRequest = () => {},
+  onWithdraw,
   state,
   user,
+  withdrawal,
 }: {
+  changeRequestDialog?: ChangeRequestDialogState | null;
   currentPath: string;
+  onCancelChangeRequest?(): void;
+  onChangeRequestReason?(reason: string): void;
   onDraftChange(draft: DraftResponse): void;
+  onOpenChangeRequest?(policyId: string): void;
   onRetry(): void;
+  onSubmitChangeRequest?(): void;
+  onWithdraw(draftId: string, status: WithdrawableDraftStatus): void;
   state: MyDraftsState;
   user: CurrentUser;
+  withdrawal: DraftWithdrawalState;
 }) {
   if (state.status === "loading") {
     return <DraftsMessage title="Loading drafts" body="Retrieving your latest turn-ins..." busy />;
@@ -139,13 +265,44 @@ export function MyDraftsView({
         </div>
       );
     }
-    return <DraftStatusView draft={selected} />;
+    return (
+      <>
+        <DraftStatusView
+          draft={selected}
+          onOpenChangeRequest={onOpenChangeRequest}
+          onWithdraw={onWithdraw}
+          requests={state.requests}
+          withdrawal={withdrawal}
+        />
+        <ChangeRequestDialog
+          dialog={changeRequestDialog}
+          insuredName={selected.insuredName ?? "approved policy"}
+          onCancel={onCancelChangeRequest}
+          onChange={onChangeRequestReason}
+          onSubmit={onSubmitChangeRequest}
+        />
+      </>
+    );
   }
 
-  return <DraftList drafts={state.drafts} />;
+  return (
+    <DraftList
+      drafts={state.drafts}
+      onWithdraw={onWithdraw}
+      withdrawal={withdrawal}
+    />
+  );
 }
 
-function DraftList({ drafts }: { drafts: readonly DraftResponse[] }) {
+function DraftList({
+  drafts,
+  onWithdraw,
+  withdrawal,
+}: {
+  drafts: readonly DraftResponse[];
+  onWithdraw(draftId: string, status: WithdrawableDraftStatus): void;
+  withdrawal: DraftWithdrawalState;
+}) {
   return (
     <section className="my-drafts-page" aria-labelledby="my-drafts-title">
       <header className="my-drafts-header">
@@ -194,9 +351,35 @@ function DraftList({ drafts }: { drafts: readonly DraftResponse[] }) {
                     <time dateTime={draft.lastEditedAt}>{formatTimestamp(draft.lastEditedAt)}</time>
                   </td>
                   <td className="my-drafts-action">
-                    <a href={`#/my-drafts?draft=${encodeURIComponent(draft.id)}`}>
-                      {draftActionLabel(draft.status)}
-                    </a>
+                    {draft.status === "flagged" || draft.status === "submitted" ? (
+                      <>
+                        <button
+                          disabled={withdrawal?.draftId === draft.id && withdrawal.status === "loading"}
+                          onClick={() => {
+                            if (
+                              draft.status === "flagged" ||
+                              draft.status === "submitted"
+                            ) {
+                              onWithdraw(draft.id, draft.status);
+                            }
+                          }}
+                          type="button"
+                        >
+                          {withdrawal?.draftId === draft.id && withdrawal.status === "loading"
+                            ? "Reopening..."
+                            : draftActionLabel(draft.status)}
+                        </button>
+                        {withdrawal?.draftId === draft.id && withdrawal.status === "error" ? (
+                          <span className="my-drafts-action-error" role="alert">
+                            Could not reopen. Refresh and try again.
+                          </span>
+                        ) : null}
+                      </>
+                    ) : (
+                      <a href={`#/my-drafts?draft=${encodeURIComponent(draft.id)}`}>
+                        {draftActionLabel(draft.status)}
+                      </a>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -208,11 +391,28 @@ function DraftList({ drafts }: { drafts: readonly DraftResponse[] }) {
   );
 }
 
-function DraftStatusView({ draft }: { draft: DraftResponse }) {
+function DraftStatusView({
+  draft,
+  onOpenChangeRequest,
+  onWithdraw,
+  requests,
+  withdrawal,
+}: {
+  draft: DraftResponse;
+  onOpenChangeRequest(policyId: string): void;
+  onWithdraw(draftId: string, status: WithdrawableDraftStatus): void;
+  requests: readonly OwnerPolicyChangeRequest[];
+  withdrawal: DraftWithdrawalState;
+}) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     requestAnimationFrame(() => headingRef.current?.focus());
   }, []);
+  const policyRequests = draft.linkedPolicyId === null
+    ? []
+    : requests.filter(({ policyId }) => policyId === draft.linkedPolicyId);
+  const pendingRequest = policyRequests.find(({ status }) => status === "pending");
+  const latestRequest = policyRequests[0];
 
   return (
     <section className="draft-status-view" aria-labelledby="draft-status-title">
@@ -237,8 +437,138 @@ function DraftStatusView({ draft }: { draft: DraftResponse }) {
       {draft.status === "flagged" && draft.flagReason !== null ? (
         <div className="draft-status-note"><strong>Help requested</strong><p>{draft.flagReason}</p></div>
       ) : null}
+      {draft.status === "approved" && draft.linkedPolicyId !== null ? (
+        <div className="draft-change-request">
+          <div>
+            <strong>Approved-policy change request</strong>
+            {pendingRequest === undefined ? (
+              <p>
+                {latestRequest === undefined
+                  ? "No change request is open."
+                  : changeRequestResolutionSummary(latestRequest)}
+              </p>
+            ) : (
+              <>
+                <span className="draft-status is-flagged">Pending review</span>
+                <p>{pendingRequest.reason}</p>
+              </>
+            )}
+          </div>
+          {pendingRequest === undefined ? (
+            <button
+              onClick={() => onOpenChangeRequest(draft.linkedPolicyId!)}
+              type="button"
+            >
+              Request a change
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {draft.status === "flagged" || draft.status === "submitted" ? (
+        <div className="draft-status-actions">
+          <button
+            disabled={withdrawal?.draftId === draft.id && withdrawal.status === "loading"}
+            onClick={() => {
+              if (
+                draft.status === "flagged" ||
+                draft.status === "submitted"
+              ) {
+                onWithdraw(draft.id, draft.status);
+              }
+            }}
+            type="button"
+          >
+            {withdrawal?.draftId === draft.id && withdrawal.status === "loading"
+              ? "Reopening..."
+              : "Reopen and edit"}
+          </button>
+          {withdrawal?.draftId === draft.id && withdrawal.status === "error" ? (
+            <p role="alert">Could not reopen this draft. Refresh and try again.</p>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
+}
+
+function ChangeRequestDialog({
+  dialog,
+  insuredName,
+  onCancel,
+  onChange,
+  onSubmit,
+}: {
+  dialog: ChangeRequestDialogState | null;
+  insuredName: string;
+  onCancel(): void;
+  onChange(reason: string): void;
+  onSubmit(): void;
+}) {
+  const reasonRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (dialog !== null) {
+      requestAnimationFrame(() => reasonRef.current?.focus());
+    }
+  }, [dialog]);
+  if (dialog === null) return null;
+  return (
+    <DialogFrame
+      onCancel={onCancel}
+      pending={dialog.pending}
+      title={`Request a change to ${insuredName}`}
+    >
+      <p className="approval-dialog-copy">
+        This request tells the admin what needs review. It does not change the
+        approved policy.
+      </p>
+      <label className="approval-dialog-field" htmlFor="policy-change-request-reason">
+        <span>Reason</span>
+        <textarea
+          aria-invalid={dialog.error}
+          disabled={dialog.pending}
+          id="policy-change-request-reason"
+          maxLength={MAX_POLICY_CHANGE_REQUEST_REASON_LENGTH}
+          onChange={(event) => onChange(event.currentTarget.value)}
+          ref={reasonRef}
+          rows={5}
+          value={dialog.reason}
+        />
+      </label>
+      {dialog.error ? (
+        <p className="approval-dialog-error" role="alert">
+          Enter a reason between 1 and {MAX_POLICY_CHANGE_REQUEST_REASON_LENGTH} characters.
+        </p>
+      ) : null}
+      <DialogActions>
+        <button disabled={dialog.pending} onClick={onCancel} type="button">
+          Cancel
+        </button>
+        <button
+          className="is-primary"
+          disabled={dialog.pending}
+          onClick={onSubmit}
+          type="button"
+        >
+          {dialog.pending ? "Submitting..." : "Submit request"}
+        </button>
+      </DialogActions>
+    </DialogFrame>
+  );
+}
+
+function changeRequestResolutionSummary(
+  request: OwnerPolicyChangeRequest,
+): string {
+  if (request.resolution === "corrected") {
+    return "The admin corrected the original policy in place.";
+  }
+  if (request.resolution === "as_is") {
+    return "The admin reviewed the request and kept the policy unchanged.";
+  }
+  if (request.resolution === "sent_back") {
+    return request.resolutionReason ?? "The admin did not make a change.";
+  }
+  return "The request is awaiting review.";
 }
 
 function DraftsMessage({

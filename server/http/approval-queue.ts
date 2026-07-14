@@ -17,6 +17,7 @@ import type { ApprovalWorkSource } from "../approval-queue/list.js";
 import { projectDraftForAuthorizedContext } from "../drafts/projection.js";
 import type { AppLogger } from "../logging/logger.js";
 import { projectAuthorizedFields } from "../security/field-projection.js";
+import { projectAdminPolicyChangeRequest } from "../policy-change-requests/projection.js";
 import { asyncRoute, HttpError } from "./errors.js";
 import { apiErrorCodes } from "../../shared/api-errors.js";
 import type { RouteRegistrar } from "./routes.js";
@@ -60,19 +61,28 @@ export function createApprovalWorkHandler(
       ),
       submitterDisplayName: item.submitterDisplayName,
     }));
+    const changeRequests = source.changeRequests.map((item) =>
+      projectAuthorizedFields(res, item, projectAdminPolicyChangeRequest),
+    );
     if (
       submissions.some(({ entry }) => entry === null) ||
-      helpRequests.some(({ draft }) => draft === null)
+      helpRequests.some(({ draft }) => draft === null) ||
+      changeRequests.some((request) => request === null)
     ) {
       throw new HttpError(403, apiErrorCodes.forbidden, "Forbidden");
     }
 
     const response: ApprovalWorkListResponse =
-      approvalWorkListResponseSchema.parse({ helpRequests, submissions });
+      approvalWorkListResponseSchema.parse({
+        changeRequests,
+        helpRequests,
+        submissions,
+      });
     dependencies.logger.info("Approval work loaded", {
       component: "approval_queue",
       event: "approval_work_read",
       helpRequestCount: response.helpRequests.length,
+      policyChangeRequestCount: response.changeRequests.length,
       status: query.status,
       submissionCount: response.submissions.length,
       userId: context.principal.userId,

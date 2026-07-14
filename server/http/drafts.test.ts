@@ -26,6 +26,14 @@ import {
   DraftFlagNotFoundError,
   DraftNotFlaggableError,
 } from "../drafts/flag.js";
+import {
+  DraftHelpWithdrawalNotAllowedError,
+  DraftHelpWithdrawalNotFoundError,
+} from "../drafts/withdraw-help.js";
+import {
+  DraftSubmissionWithdrawalNotAllowedError,
+  DraftSubmissionWithdrawalNotFoundError,
+} from "../drafts/withdraw-submission.js";
 import type { AppLogger } from "../logging/logger.js";
 import {
   createDraftAssignmentOptionsHandler,
@@ -38,21 +46,29 @@ import {
   DRAFT_PATH,
   DRAFT_FLAG_PATH,
   DRAFT_SUBMIT_PATH,
+  DRAFT_WITHDRAW_HELP_PATH,
+  DRAFT_WITHDRAW_SUBMISSION_PATH,
   createDraftCreateHandler,
   createDraftEditHandler,
   createDraftFlagHandler,
   createDraftListHandler,
   createDraftSubmitHandler,
+  createDraftWithdrawHelpHandler,
+  createDraftWithdrawSubmissionHandler,
   registerDraftCreateRoute,
   registerDraftEditRoute,
   registerDraftFlagRoute,
   registerDraftListRoute,
   registerDraftSubmitRoute,
+  registerDraftWithdrawHelpRoute,
+  registerDraftWithdrawSubmissionRoute,
   type RegisterDraftCreateRouteOptions,
   type RegisterDraftEditRouteOptions,
   type RegisterDraftFlagRouteOptions,
   type RegisterDraftListRouteOptions,
   type RegisterDraftSubmitRouteOptions,
+  type RegisterDraftWithdrawHelpRouteOptions,
+  type RegisterDraftWithdrawSubmissionRouteOptions,
 } from "./drafts.js";
 import {
   auditRouteAccessDeclarations,
@@ -113,6 +129,8 @@ function createFixture(options: { emptyList?: boolean } = {}) {
     input: unknown;
     userId: string;
   }> = [];
+  const withdrawCalls: Array<{ draftId: string; userId: string }> = [];
+  const submissionWithdrawCalls: Array<{ draftId: string; userId: string }> = [];
   const authorization = createAuthorizationGuards({
     async findUser(userId) {
       return users.get(userId) ?? null;
@@ -230,6 +248,40 @@ function createFixture(options: { emptyList?: boolean } = {}) {
     },
     logger,
   };
+  const withdrawOptions: RegisterDraftWithdrawHelpRouteOptions = {
+    authorization,
+    logger,
+    async withdraw(context, draftId) {
+      withdrawCalls.push({
+        draftId,
+        userId: context.principal.userId,
+      });
+      if (draftId === OTHER_DRAFT_ID) {
+        throw new DraftHelpWithdrawalNotFoundError();
+      }
+      if (draftId === LOCKED_DRAFT_ID) {
+        throw new DraftHelpWithdrawalNotAllowedError();
+      }
+      return draft(context.principal.userId, "draft") as DraftRecord;
+    },
+  };
+  const submissionWithdrawOptions: RegisterDraftWithdrawSubmissionRouteOptions = {
+    authorization,
+    logger,
+    async withdraw(context, draftId) {
+      submissionWithdrawCalls.push({
+        draftId,
+        userId: context.principal.userId,
+      });
+      if (draftId === OTHER_DRAFT_ID) {
+        throw new DraftSubmissionWithdrawalNotFoundError();
+      }
+      if (draftId === LOCKED_DRAFT_ID) {
+        throw new DraftSubmissionWithdrawalNotAllowedError();
+      }
+      return draft(context.principal.userId, "draft") as DraftRecord;
+    },
+  };
   const routes = {
     get(
       path: string,
@@ -264,6 +316,8 @@ function createFixture(options: { emptyList?: boolean } = {}) {
   registerDraftEditRoute(routes, editOptions);
   registerDraftSubmitRoute(routes, submitOptions);
   registerDraftFlagRoute(routes, flagOptions);
+  registerDraftWithdrawHelpRoute(routes, withdrawOptions);
+  registerDraftWithdrawSubmissionRoute(routes, submissionWithdrawOptions);
   return {
     authorization,
     calls,
@@ -277,6 +331,10 @@ function createFixture(options: { emptyList?: boolean } = {}) {
     registrations,
     submitCalls,
     submitOptions,
+    submissionWithdrawCalls,
+    submissionWithdrawOptions,
+    withdrawCalls,
+    withdrawOptions,
   };
 }
 
@@ -892,6 +950,224 @@ test("draft flag route is explicitly staff-authorized and fails closed without i
   assert.equal(calls, 0);
 });
 
+test("draft owners withdraw flagged help into projected editable drafts", async () => {
+  for (const [identity, userId] of [
+    ["employee", EMPLOYEE_ID],
+    ["producer", PRODUCER_ID],
+  ] as const) {
+    const fixture = createFixture();
+    const result = await invokeWithdrawHelpRoute(
+      fixture,
+      DRAFT_ID,
+      {},
+      identity,
+    );
+    assert.equal(result.status, 200);
+    assert.equal(result.headers["cache-control"], "no-store");
+    const response = result.body as { draft: Record<string, unknown> };
+    assert.equal(response.draft.ownerUserId, userId);
+    assert.equal(response.draft.status, "draft");
+    assert.equal(response.draft.flagReason, null);
+    assert.equal(response.draft.basePremium, "1000.00");
+    assert.equal(response.draft.agencyCommissionAmount, "125.00");
+    for (const field of [
+      "applicableProducerRate",
+      "producerPayout",
+      "producerRate",
+      "producerRateHistory",
+    ]) {
+      assert.equal(field in response.draft, false, field);
+    }
+    assert.deepEqual(fixture.withdrawCalls, [{ draftId: DRAFT_ID, userId }]);
+  }
+});
+
+test("flagged-help withdrawal hides non-ownership and rejects closed or wrong-role access", async () => {
+  const missing = await invokeWithdrawHelpRoute(
+    createFixture(),
+    OTHER_DRAFT_ID,
+    {},
+    "producer",
+  );
+  assert.deepEqual(missing, {
+    body: { error: { code: "not_found", message: "Draft not found" } },
+    headers: {},
+    status: 404,
+  });
+
+  const locked = await invokeWithdrawHelpRoute(
+    createFixture(),
+    LOCKED_DRAFT_ID,
+    {},
+    "employee",
+  );
+  assert.equal(locked.status, 409);
+
+  for (const [identity, status] of [
+    [undefined, 401],
+    ["inactive", 401],
+    ["unassigned", 403],
+    ["admin", 403],
+  ] as const) {
+    const fixture = createFixture();
+    const result = await invokeWithdrawHelpRoute(
+      fixture,
+      DRAFT_ID,
+      {},
+      identity,
+    );
+    assert.equal(result.status, status);
+    assert.deepEqual(fixture.withdrawCalls, []);
+  }
+});
+
+test("flagged-help withdrawal route is explicitly guarded and fails closed without authorization", async () => {
+  const fixture = createFixture();
+  const app = createApp({
+    registerRoutes(routes) {
+      registerDraftWithdrawHelpRoute(routes, fixture.withdrawOptions);
+    },
+  });
+  assert.deepEqual(
+    auditRouteAccessDeclarations(app).find(
+      ({ method, path }) =>
+        method === "POST" && path === DRAFT_WITHDRAW_HELP_PATH,
+    ),
+    {
+      access: { type: "authorized" },
+      method: "POST",
+      path: DRAFT_WITHDRAW_HELP_PATH,
+    },
+  );
+
+  let calls = 0;
+  const handler = createDraftWithdrawHelpHandler({
+    logger,
+    async withdraw() {
+      calls += 1;
+      return draft(EMPLOYEE_ID, "draft") as DraftRecord;
+    },
+  });
+  const result = await invokeHandlerWithoutGuard(handler, {});
+  assert.equal(result.status, 500);
+  assert.equal(calls, 0);
+});
+
+test("draft owners withdraw pending submissions into projected editable drafts", async () => {
+  for (const [identity, userId] of [
+    ["employee", EMPLOYEE_ID],
+    ["producer", PRODUCER_ID],
+  ] as const) {
+    const fixture = createFixture();
+    const result = await invokeWithdrawSubmissionRoute(
+      fixture,
+      DRAFT_ID,
+      {},
+      identity,
+    );
+    assert.equal(result.status, 200);
+    assert.equal(result.headers["cache-control"], "no-store");
+    const response = result.body as { draft: Record<string, unknown> };
+    assert.equal(response.draft.ownerUserId, userId);
+    assert.equal(response.draft.status, "draft");
+    assert.equal(response.draft.basePremium, "1000.00");
+    assert.equal(response.draft.agencyCommissionAmount, "125.00");
+    for (const field of [
+      "applicableProducerRate",
+      "producerPayout",
+      "producerRate",
+      "producerRateHistory",
+    ]) {
+      assert.equal(field in response.draft, false, field);
+    }
+    assert.deepEqual(fixture.submissionWithdrawCalls, [
+      { draftId: DRAFT_ID, userId },
+    ]);
+  }
+});
+
+test("submission withdrawal hides non-ownership and rejects acted or wrong-role access", async () => {
+  const missing = await invokeWithdrawSubmissionRoute(
+    createFixture(),
+    OTHER_DRAFT_ID,
+    {},
+    "producer",
+  );
+  assert.deepEqual(missing, {
+    body: { error: { code: "not_found", message: "Draft not found" } },
+    headers: {},
+    status: 404,
+  });
+
+  const acted = await invokeWithdrawSubmissionRoute(
+    createFixture(),
+    LOCKED_DRAFT_ID,
+    {},
+    "employee",
+  );
+  assert.equal(acted.status, 409);
+
+  const extraBody = await invokeWithdrawSubmissionRoute(
+    createFixture(),
+    DRAFT_ID,
+    { ownerUserId: OTHER_DRAFT_ID },
+    "employee",
+  );
+  assert.equal(extraBody.status, 400);
+
+  for (const [identity, status] of [
+    [undefined, 401],
+    ["inactive", 401],
+    ["unassigned", 403],
+    ["admin", 403],
+  ] as const) {
+    const fixture = createFixture();
+    const result = await invokeWithdrawSubmissionRoute(
+      fixture,
+      DRAFT_ID,
+      {},
+      identity,
+    );
+    assert.equal(result.status, status);
+    assert.deepEqual(fixture.submissionWithdrawCalls, []);
+  }
+});
+
+test("submission withdrawal is explicitly guarded and fails closed without authorization", async () => {
+  const fixture = createFixture();
+  const app = createApp({
+    registerRoutes(routes) {
+      registerDraftWithdrawSubmissionRoute(
+        routes,
+        fixture.submissionWithdrawOptions,
+      );
+    },
+  });
+  assert.deepEqual(
+    auditRouteAccessDeclarations(app).find(
+      ({ method, path }) =>
+        method === "POST" && path === DRAFT_WITHDRAW_SUBMISSION_PATH,
+    ),
+    {
+      access: { type: "authorized" },
+      method: "POST",
+      path: DRAFT_WITHDRAW_SUBMISSION_PATH,
+    },
+  );
+
+  let calls = 0;
+  const handler = createDraftWithdrawSubmissionHandler({
+    logger,
+    async withdraw() {
+      calls += 1;
+      return draft(EMPLOYEE_ID, "draft") as DraftRecord;
+    },
+  });
+  const result = await invokeHandlerWithoutGuard(handler, {});
+  assert.equal(result.status, 500);
+  assert.equal(calls, 0);
+});
+
 test("draft assignment options are explicitly guarded and projected to nonfinancial fields", async () => {
   const fixture = createFixture();
   const producerOption = {
@@ -1318,6 +1594,94 @@ async function invokeFlagRoute(
     originalUrl: `/api/drafts/${draftId}/flag`,
     params: { draftId },
     route: { path: DRAFT_FLAG_PATH },
+    session: fakeSession(userId),
+  } as unknown as Request;
+  const response = createTestResponse();
+  const guardError = await invokeNextMiddleware(guard, req, response.res);
+  if (guardError !== null) {
+    return errorResult(guardError);
+  }
+  registration.handler(req, response.res, response.next);
+  const handlerError = await response.completed;
+  return handlerError === null ? response.result() : errorResult(handlerError);
+}
+
+async function invokeWithdrawHelpRoute(
+  fixture: ReturnType<typeof createFixture>,
+  draftId: string,
+  body: unknown,
+  identity?: "admin" | "employee" | "inactive" | "producer" | "unassigned",
+): Promise<TestResult> {
+  const registration = fixture.registrations.find(
+    ({ method, path }) =>
+      method === "POST" && path === DRAFT_WITHDRAW_HELP_PATH,
+  );
+  assert.ok(registration);
+  const guard = registration.access.authorization;
+  assert.ok(guard);
+  const userId =
+    identity === "admin"
+      ? ADMIN_ID
+      : identity === "producer"
+        ? PRODUCER_ID
+        : identity === "employee"
+          ? EMPLOYEE_ID
+          : identity === "inactive"
+            ? INACTIVE_ID
+            : identity === "unassigned"
+              ? UNASSIGNED_ID
+              : undefined;
+  const req = {
+    body,
+    headers: {},
+    method: "POST",
+    originalUrl: `/api/drafts/${draftId}/withdraw-help`,
+    params: { draftId },
+    route: { path: DRAFT_WITHDRAW_HELP_PATH },
+    session: fakeSession(userId),
+  } as unknown as Request;
+  const response = createTestResponse();
+  const guardError = await invokeNextMiddleware(guard, req, response.res);
+  if (guardError !== null) {
+    return errorResult(guardError);
+  }
+  registration.handler(req, response.res, response.next);
+  const handlerError = await response.completed;
+  return handlerError === null ? response.result() : errorResult(handlerError);
+}
+
+async function invokeWithdrawSubmissionRoute(
+  fixture: ReturnType<typeof createFixture>,
+  draftId: string,
+  body: unknown,
+  identity?: "admin" | "employee" | "inactive" | "producer" | "unassigned",
+): Promise<TestResult> {
+  const registration = fixture.registrations.find(
+    ({ method, path }) =>
+      method === "POST" && path === DRAFT_WITHDRAW_SUBMISSION_PATH,
+  );
+  assert.ok(registration);
+  const guard = registration.access.authorization;
+  assert.ok(guard);
+  const userId =
+    identity === "admin"
+      ? ADMIN_ID
+      : identity === "producer"
+        ? PRODUCER_ID
+        : identity === "employee"
+          ? EMPLOYEE_ID
+          : identity === "inactive"
+            ? INACTIVE_ID
+            : identity === "unassigned"
+              ? UNASSIGNED_ID
+              : undefined;
+  const req = {
+    body,
+    headers: {},
+    method: "POST",
+    originalUrl: `/api/drafts/${draftId}/withdraw-submission`,
+    params: { draftId },
+    route: { path: DRAFT_WITHDRAW_SUBMISSION_PATH },
     session: fakeSession(userId),
   } as unknown as Request;
   const response = createTestResponse();

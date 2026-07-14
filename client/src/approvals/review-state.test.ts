@@ -11,6 +11,7 @@ import {
 
 const QUEUE_ID = "00000000-0000-4000-8000-000000000601";
 const DRAFT_ID = "00000000-0000-4000-8000-000000000602";
+const CHANGE_REQUEST_ID = "00000000-0000-4000-8000-000000000604";
 
 test("approval review inventory covers every immutable snapshot field", () => {
   const fields = APPROVAL_REVIEW_GROUPS.flatMap(({ fields }) =>
@@ -59,6 +60,9 @@ test("approval review inventory covers every immutable snapshot field", () => {
 
 test("approval state removes only the resolved sensitive record", () => {
   const work = {
+    changeRequests: [
+      { request: { id: CHANGE_REQUEST_ID } as never } as never,
+    ],
     helpRequests: [
       { draft: { id: DRAFT_ID } as never, submitterDisplayName: "Employee" },
     ],
@@ -69,6 +73,13 @@ test("approval state removes only the resolved sensitive record", () => {
   assert.deepEqual(
     removeResolvedApprovalWork(work, { id: QUEUE_ID, kind: "submission" }),
     { ...work, submissions: [] },
+  );
+  assert.deepEqual(
+    removeResolvedApprovalWork(work, {
+      id: CHANGE_REQUEST_ID,
+      kind: "change_request",
+    }),
+    { ...work, changeRequests: [] },
   );
   assert.deepEqual(
     removeResolvedApprovalWork(work, { id: DRAFT_ID, kind: "help" }),

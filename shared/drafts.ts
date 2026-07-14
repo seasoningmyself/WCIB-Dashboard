@@ -186,6 +186,14 @@ export const submitDraftResponseSchema = z
 
 export const flagDraftResponseSchema = createDraftResponseSchema;
 
+export const withdrawFlaggedDraftRequestSchema = z.object({}).strict();
+
+export const withdrawFlaggedDraftResponseSchema = createDraftResponseSchema;
+
+export const withdrawSubmittedDraftRequestSchema = z.object({}).strict();
+
+export const withdrawSubmittedDraftResponseSchema = createDraftResponseSchema;
+
 export const listDraftsResponseSchema = z
   .object({ drafts: z.array(draftResponseSchema) })
   .strict();
@@ -196,6 +204,12 @@ export type CreateDraftResponse = z.output<typeof createDraftResponseSchema>;
 export type UpdateDraftRequest = z.output<typeof updateDraftRequestSchema>;
 export type SubmitDraftResponse = z.output<typeof submitDraftResponseSchema>;
 export type FlagDraftRequest = z.output<typeof flagDraftRequestSchema>;
+export type WithdrawFlaggedDraftResponse = z.output<
+  typeof withdrawFlaggedDraftResponseSchema
+>;
+export type WithdrawSubmittedDraftResponse = z.output<
+  typeof withdrawSubmittedDraftResponseSchema
+>;
 export type ListDraftsQuery = z.output<typeof listDraftsQuerySchema>;
 export type ListDraftsResponse = z.output<typeof listDraftsResponseSchema>;
 

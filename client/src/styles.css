@@ -2444,6 +2444,7 @@ h1 {
 
 .my-drafts-new,
 .my-drafts-action a,
+.my-drafts-action button,
 .my-drafts-empty a,
 .my-drafts-message a,
 .my-drafts-message button,
@@ -2473,6 +2474,8 @@ h1 {
 .my-drafts-new:focus-visible,
 .my-drafts-action a:hover,
 .my-drafts-action a:focus-visible,
+.my-drafts-action button:hover:not(:disabled),
+.my-drafts-action button:focus-visible,
 .my-drafts-empty a:hover,
 .my-drafts-empty a:focus-visible,
 .my-drafts-message a:hover,
@@ -2546,6 +2549,17 @@ h1 {
 
 .my-drafts-action {
   text-align: right !important;
+}
+
+.my-drafts-action button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.my-drafts-action-error {
+  margin-top: 6px !important;
+  color: #8c2f1d !important;
+  font-size: 10px !important;
 }
 
 .draft-status {
@@ -2659,6 +2673,75 @@ h1 {
   font-size: 13px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.draft-status-actions {
+  margin-top: 18px;
+}
+
+.draft-status-actions button {
+  min-height: 40px;
+  border: 1px solid #27634d;
+  border-radius: 5px;
+  padding: 0 15px;
+  background: #27634d;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.draft-status-actions button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.draft-status-actions p {
+  margin: 8px 0 0;
+  color: #8c2f1d;
+  font-size: 12px;
+}
+
+.draft-change-request {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: 20px;
+  border-top: 1px solid #d1d9dc;
+  border-bottom: 1px solid #d1d9dc;
+  padding: 16px 0;
+}
+
+.draft-change-request > div {
+  min-width: 0;
+}
+
+.draft-change-request p {
+  margin: 6px 0 0;
+  color: #56666e;
+  font-size: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.draft-change-request .draft-status {
+  margin-top: 7px;
+}
+
+.draft-change-request button {
+  flex: none;
+  min-height: 40px;
+  border: 1px solid #27634d;
+  border-radius: 5px;
+  padding: 0 15px;
+  background: #27634d;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 @media (max-width: 1040px) {
@@ -4189,6 +4272,32 @@ h1 {
   margin-top: 20px;
   border-top: 1px solid #d9e0e2;
   padding-top: 14px;
+}
+
+.change-request-correction-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.change-request-correction-options button {
+  min-height: 44px;
+  border: 1px solid #27634d;
+  border-radius: 5px;
+  padding: 8px 12px;
+  background: #27634d;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.change-request-correction-options button.is-override {
+  border-color: #846329;
+  background: #fff8e9;
+  color: #6e501d;
 }
 
 .approval-override-grid,

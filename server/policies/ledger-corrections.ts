@@ -19,6 +19,10 @@ export interface PolicyLedgerCorrectionResult {
   policy: PolicyRecord;
 }
 
+export type PolicyLedgerCorrectionTransaction = Parameters<
+  Parameters<AuthDatabase["transaction"]>[0]
+>[0];
+
 export class PolicyLedgerCorrectionNotFoundError extends Error {
   constructor() {
     super("Policy was not found");
@@ -59,71 +63,91 @@ export async function correctPolicyLedgerItem(
   }
 
   try {
-    return await database.transaction(async (transaction) => {
-      const [current] = await transaction
-        .select()
-        .from(policies)
-        .where(eq(policies.id, policyId))
-        .limit(1)
-        .for("update");
-      if (current === undefined) {
-        throw new PolicyLedgerCorrectionNotFoundError();
-      }
-      if (current.updatedAt.getTime() !== expectedUpdatedAt.getTime()) {
-        throw new PolicyLedgerCorrectionStaleError();
-      }
-      if (correctedAt <= current.updatedAt) {
-        throw new PolicyLedgerCorrectionValidationError();
-      }
-
-      let mutationId: string;
-      if (input.kind === "general") {
-        mutationId = await applyPolicyCorrection(
-          transaction,
-          context,
-          policyId,
-          input.change.reason,
-          input.change.replacementValues,
-          input.change.changedFields,
-          current.updatedAt,
-          logger,
-          correctedAt,
-        );
-      } else {
-        try {
-          buildPolicyOverrideValuePair(
-            current,
-            input.change.replacementValues,
-            input.change.changedFields,
-          );
-        } catch {
-          throw new PolicyLedgerCorrectionValidationError();
-        }
-        mutationId = await applyPolicyOverride(
-          transaction,
-          context,
-          policyId,
-          input.change.reason,
-          input.change.replacementValues,
-          input.change.changedFields,
-          logger,
-          correctedAt,
-        );
-      }
-
-      const [updated] = await transaction
-        .select()
-        .from(policies)
-        .where(eq(policies.id, policyId))
-        .limit(1);
-      if (updated === undefined) {
-        throw new PolicyLedgerCorrectionNotFoundError();
-      }
-      return { kind: input.kind, mutationId, policy: updated };
-    });
+    return await database.transaction((transaction) =>
+      correctPolicyLedgerItemInTransaction(
+        transaction,
+        context,
+        policyId,
+        input,
+        logger,
+        correctedAt,
+      ),
+    );
   } catch (error) {
     throw mapPolicyCorrectionDatabaseError(error);
   }
+}
+
+export async function correctPolicyLedgerItemInTransaction(
+  transaction: PolicyLedgerCorrectionTransaction,
+  context: AuthorizedRequestContext,
+  policyId: string,
+  input: PolicyLedgerCorrectionRequest,
+  logger: AppLogger,
+  correctedAt: Date,
+): Promise<PolicyLedgerCorrectionResult> {
+  requirePolicyLedgerAdmin(context);
+  const expectedUpdatedAt = new Date(input.expectedUpdatedAt);
+  const [current] = await transaction
+    .select()
+    .from(policies)
+    .where(eq(policies.id, policyId))
+    .limit(1)
+    .for("update");
+  if (current === undefined) {
+    throw new PolicyLedgerCorrectionNotFoundError();
+  }
+  if (current.updatedAt.getTime() !== expectedUpdatedAt.getTime()) {
+    throw new PolicyLedgerCorrectionStaleError();
+  }
+  if (correctedAt <= current.updatedAt) {
+    throw new PolicyLedgerCorrectionValidationError();
+  }
+
+  let mutationId: string;
+  if (input.kind === "general") {
+    mutationId = await applyPolicyCorrection(
+      transaction,
+      context,
+      policyId,
+      input.change.reason,
+      input.change.replacementValues,
+      input.change.changedFields,
+      current.updatedAt,
+      logger,
+      correctedAt,
+    );
+  } else {
+    try {
+      buildPolicyOverrideValuePair(
+        current,
+        input.change.replacementValues,
+        input.change.changedFields,
+      );
+    } catch {
+      throw new PolicyLedgerCorrectionValidationError();
+    }
+    mutationId = await applyPolicyOverride(
+      transaction,
+      context,
+      policyId,
+      input.change.reason,
+      input.change.replacementValues,
+      input.change.changedFields,
+      logger,
+      correctedAt,
+    );
+  }
+
+  const [updated] = await transaction
+    .select()
+    .from(policies)
+    .where(eq(policies.id, policyId))
+    .limit(1);
+  if (updated === undefined) {
+    throw new PolicyLedgerCorrectionNotFoundError();
+  }
+  return { kind: input.kind, mutationId, policy: updated };
 }
 
 function mapPolicyCorrectionDatabaseError(error: unknown): unknown {

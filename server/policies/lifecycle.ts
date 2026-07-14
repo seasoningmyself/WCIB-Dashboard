@@ -247,6 +247,47 @@ export async function sendBackFlaggedDraft(
   );
 }
 
+export async function withdrawFlaggedHelp(
+  database: PolicyLifecycleDatabase,
+  context: AuthorizedRequestContext,
+  draftId: string,
+  withdrawnAt = new Date(),
+): Promise<void> {
+  const actorUserId = requireLifecycleStaff(context);
+  requireValidTimestamp(withdrawnAt);
+  await database.execute(
+    sql`select withdraw_flagged_help(
+      ${draftId}::uuid,
+      ${actorUserId}::uuid,
+      ${withdrawnAt}::timestamp with time zone
+    )`,
+  );
+}
+
+export async function withdrawPendingSubmission(
+  database: PolicyLifecycleDatabase,
+  context: AuthorizedRequestContext,
+  draftId: string,
+  withdrawnAt = new Date(),
+): Promise<string> {
+  const actorUserId = requireLifecycleStaff(context);
+  requireValidTimestamp(withdrawnAt);
+  const result = await database.execute<{ queue_entry_id: string }>(
+    sql`select withdraw_pending_submission(
+      ${draftId}::uuid,
+      ${actorUserId}::uuid,
+      ${withdrawnAt}::timestamp with time zone
+    ) as queue_entry_id`,
+  );
+  const queueEntryId = result.rows[0]?.queue_entry_id;
+  if (queueEntryId === undefined) {
+    throw new PolicyLifecycleStateError(
+      "Submission withdrawal returned no queue entry",
+    );
+  }
+  return queueEntryId;
+}
+
 export async function approveQueuedPolicy(
   database: AuthDatabase,
   context: AuthorizedRequestContext,
@@ -283,7 +324,8 @@ export async function approveQueuedPolicyInTransaction(
     })
     .from(approvalQueueEntries)
     .where(eq(approvalQueueEntries.id, queueEntryId))
-    .limit(1);
+    .limit(1)
+    .for("update");
 
   if (queueEntry === undefined || queueEntry.status !== "pending") {
     throw new PolicyLifecycleStateError(

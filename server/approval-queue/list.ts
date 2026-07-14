@@ -13,6 +13,10 @@ import {
   type DraftRecord,
 } from "../db/schema.js";
 import { requireApprovalAdmin } from "./access.js";
+import {
+  listPendingPolicyChangeRequests,
+} from "../policy-change-requests/service.js";
+import type { AdminPolicyChangeRequestSource } from "../policy-change-requests/projection.js";
 
 export const MAX_APPROVAL_WORK_ITEMS_PER_TYPE = 200;
 
@@ -27,6 +31,7 @@ export interface ApprovalHelpSource {
 }
 
 export interface ApprovalWorkSource {
+  changeRequests: readonly AdminPolicyChangeRequestSource[];
   helpRequests: readonly ApprovalHelpSource[];
   submissions: readonly ApprovalSubmissionSource[];
 }
@@ -85,11 +90,17 @@ export async function listApprovalWork(
             })),
           );
 
-  const [submissions, helpRequests] = await Promise.all([
+  const changeRequestsPromise =
+    query.status === "pending"
+      ? Promise.resolve([] as AdminPolicyChangeRequestSource[])
+      : listPendingPolicyChangeRequests(database, context);
+
+  const [submissions, helpRequests, changeRequests] = await Promise.all([
     submissionsPromise,
     helpRequestsPromise,
+    changeRequestsPromise,
   ]);
-  return { helpRequests, submissions };
+  return { changeRequests, helpRequests, submissions };
 }
 
 export type { ListApprovalWorkQuery };

@@ -12,13 +12,22 @@ import type {
 } from "../../../shared/approval-queue.js";
 import type { UpdateDraftRequest } from "../../../shared/drafts.js";
 import type { ApproveWithOverrideRequest } from "../../../shared/policy-overrides.js";
+import type { PolicyLedgerCorrectionRequest } from "../../../shared/policy-corrections.js";
 import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
+import {
+  PolicyLedgerApiError,
+  createPolicyLedgerApi,
+} from "../ledger/api.js";
 import { useVocabulary } from "../vocabulary/context.js";
 import { ApprovalApiError, createApprovalApi } from "./api.js";
 import {
   ApprovalDialogs,
   type ApprovalDialog,
 } from "./ApprovalDialogs.js";
+import {
+  PolicyChangeRequestDialogs,
+  type PolicyChangeRequestDialog,
+} from "./PolicyChangeRequestDialogs.js";
 import {
   APPROVAL_REVIEW_GROUPS,
   isApprovalAdmin,
@@ -31,6 +40,8 @@ import {
 type ApprovalFilter = ListApprovalWorkQuery["status"];
 type Submission = ApprovalWorkListResponse["submissions"][number];
 type HelpRequest = ApprovalWorkListResponse["helpRequests"][number];
+type ChangeRequest = ApprovalWorkListResponse["changeRequests"][number];
+type QueueDialog = ApprovalDialog | PolicyChangeRequestDialog;
 
 export type ApprovalQueueState =
   | { status: "denied" }
@@ -52,10 +63,11 @@ export function ApprovalQueue({ user }: { user: CurrentUser }) {
 function AdminApprovalQueue() {
   const client = useApiClient();
   const api = useMemo(() => createApprovalApi(client), [client]);
+  const ledgerApi = useMemo(() => createPolicyLedgerApi(client), [client]);
   const vocabulary = useVocabulary();
   const [filter, setFilter] = useState<ApprovalFilter>("all");
   const [state, setState] = useState<ApprovalQueueState>({ status: "loading" });
-  const [dialog, setDialog] = useState<ApprovalDialog | null>(null);
+  const [dialog, setDialog] = useState<QueueDialog | null>(null);
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const pendingRef = useRef(false);
@@ -169,6 +181,41 @@ function AdminApprovalQueue() {
     }
   }, [pending]);
 
+  const openPolicyChangeRequest = useCallback(
+    async (item: ChangeRequest) => {
+      if (pendingRef.current) return;
+      pendingRef.current = true;
+      setPending(true);
+      setNotice(null);
+      try {
+        const [detail, assignmentOptions] = await Promise.all([
+          ledgerApi.get(item.request.policyId),
+          ledgerApi.listAssignmentOptions(),
+        ]);
+        setDialog({
+          assignmentOptions: assignmentOptions.producers,
+          item,
+          kind: "change_request_fix_choice",
+          policy: detail.item,
+        });
+      } catch (error) {
+        if (error instanceof PolicyLedgerApiError && error.kind === "denied") {
+          requestVersion.current += 1;
+          setState({ status: "denied" });
+        } else {
+          setNotice("The approved policy could not be opened. Refresh and try again.");
+        }
+      } finally {
+        pendingRef.current = false;
+        setPending(false);
+      }
+    },
+    [ledgerApi],
+  );
+
+  const approvalDialog = isApprovalDialog(dialog) ? dialog : null;
+  const policyChangeDialog = isPolicyChangeRequestDialog(dialog) ? dialog : null;
+
   return (
     <>
       <ApprovalQueueView
@@ -180,14 +227,15 @@ function AdminApprovalQueue() {
           setNotice(null);
           setFilter(next);
         }}
+        onOpenChangeFix={(item) => void openPolicyChangeRequest(item)}
         onOpen={setDialog}
         onRetry={() => void load()}
         pending={pending}
         state={state}
       />
       <ApprovalDialogs
-        dialog={dialog}
-        key={dialogKey(dialog)}
+        dialog={approvalDialog}
+        key={dialogKey(approvalDialog)}
         onApprove={(queueEntryId) =>
           void resolve(
             { id: queueEntryId, kind: "submission" },
@@ -224,6 +272,53 @@ function AdminApprovalQueue() {
         }
         pending={pending}
       />
+      <PolicyChangeRequestDialogs
+        dialog={policyChangeDialog}
+        key={policyChangeDialogKey(policyChangeDialog)}
+        onCancel={cancelDialog}
+        onChooseCorrection={(kind) =>
+          setDialog((current) =>
+            current?.kind === "change_request_fix_choice"
+              ? {
+                  ...current,
+                  kind:
+                    kind === "general"
+                      ? "change_request_general"
+                      : "change_request_override",
+                }
+              : current,
+          )
+        }
+        onCorrect={(input: PolicyLedgerCorrectionRequest) => {
+          if (!isPolicyChangeRequestDialog(dialog)) return;
+          void resolve(
+            { id: dialog.item.request.id, kind: "change_request" },
+            () => api.correctPolicyChangeRequest(dialog.item.request.id, input),
+          );
+        }}
+        onResolveAsIs={() => {
+          if (policyChangeDialog?.kind !== "change_request_as_is") return;
+          void resolve(
+            { id: policyChangeDialog.item.request.id, kind: "change_request" },
+            () =>
+              api.resolvePolicyChangeRequestAsIs(
+                policyChangeDialog.item.request.id,
+              ),
+          );
+        }}
+        onSendBack={(reason) => {
+          if (policyChangeDialog?.kind !== "change_request_send_back") return;
+          void resolve(
+            { id: policyChangeDialog.item.request.id, kind: "change_request" },
+            () =>
+              api.sendBackPolicyChangeRequest(
+                policyChangeDialog.item.request.id,
+                { reason },
+              ),
+          );
+        }}
+        pending={pending}
+      />
     </>
   );
 }
@@ -233,6 +328,7 @@ export function ApprovalQueueView({
   lookups,
   notice,
   onFilter,
+  onOpenChangeFix,
   onOpen,
   onRetry,
   pending,
@@ -242,7 +338,8 @@ export function ApprovalQueueView({
   lookups: ApprovalValueLookups;
   notice: string | null;
   onFilter(filter: ApprovalFilter): void;
-  onOpen(dialog: ApprovalDialog): void;
+  onOpen(dialog: QueueDialog): void;
+  onOpenChangeFix(item: ChangeRequest): void;
   onRetry(): void;
   pending: boolean;
   state: ApprovalQueueState;
@@ -274,7 +371,10 @@ export function ApprovalQueueView({
     );
   }
 
-  const total = state.work.submissions.length + state.work.helpRequests.length;
+  const total =
+    state.work.submissions.length +
+    state.work.helpRequests.length +
+    state.work.changeRequests.length;
   return (
     <section className="approval-page" aria-labelledby="approval-page-title">
       <header className="approval-page-header">
@@ -343,6 +443,24 @@ export function ApprovalQueueView({
                   key={item.draft.id}
                   lookups={lookups}
                   onOpen={onOpen}
+                  pending={pending}
+                />
+              ))}
+            </section>
+          )}
+
+          {state.work.changeRequests.length === 0 ? null : (
+            <section aria-labelledby="change-request-approvals-title">
+              <div className="approval-section-heading">
+                <h2 id="change-request-approvals-title">Approved-policy change requests</h2>
+                <span>{state.work.changeRequests.length}</span>
+              </div>
+              {state.work.changeRequests.map((item) => (
+                <ChangeRequestReview
+                  item={item}
+                  key={item.request.id}
+                  onOpen={onOpen}
+                  onOpenFix={onOpenChangeFix}
                   pending={pending}
                 />
               ))}
@@ -440,6 +558,65 @@ function HelpReview({
   );
 }
 
+function ChangeRequestReview({
+  item,
+  onOpen,
+  onOpenFix,
+  pending,
+}: {
+  item: ChangeRequest;
+  onOpen(dialog: QueueDialog): void;
+  onOpenFix(item: ChangeRequest): void;
+  pending: boolean;
+}) {
+  return (
+    <details className="approval-review-row is-help">
+      <summary>
+        <span className="approval-status is-flagged">Change</span>
+        <span className="approval-review-primary">
+          <strong>{item.insuredName}</strong>
+          <span>{item.requesterDisplayName}</span>
+        </span>
+        <span className="approval-review-policy">
+          <strong>{item.policyNumber}</strong>
+          <span>Approved policy</span>
+        </span>
+        <span className="approval-review-amount">Reason only</span>
+        <span className="approval-review-time">
+          {formatTimestamp(item.request.requestedAt)}
+        </span>
+      </summary>
+      <div className="approval-review-body">
+        <div className="approval-help-reason">
+          <strong>Change requested</strong>
+          <p>{item.request.reason}</p>
+        </div>
+        <div className="approval-row-actions">
+          <button disabled={pending} onClick={() => onOpenFix(item)} type="button">
+            Open &amp; fix
+          </button>
+          <button
+            className="is-primary"
+            disabled={pending}
+            onClick={() => onOpen({ item, kind: "change_request_as_is" })}
+            type="button"
+          >
+            Push through as-is
+          </button>
+          <button
+            className="is-danger"
+            disabled={pending}
+            onClick={() => onOpen({ item, kind: "change_request_send_back" })}
+            type="button"
+          >
+            Send back
+          </button>
+        </div>
+      </div>
+    </details>
+  );
+}
+
 function ReviewFields({
   lookups,
   source,
@@ -493,6 +670,22 @@ function toNameMap(items: readonly { id: string; name: string }[]) {
 function dialogKey(dialog: ApprovalDialog | null): string {
   if (dialog === null) return "closed";
   return `${dialog.kind}:${"entry" in dialog.item ? dialog.item.entry.id : dialog.item.draft.id}`;
+}
+
+function policyChangeDialogKey(
+  dialog: PolicyChangeRequestDialog | null,
+): string {
+  return dialog === null ? "change-closed" : `${dialog.kind}:${dialog.item.request.id}`;
+}
+
+function isPolicyChangeRequestDialog(
+  dialog: QueueDialog | null,
+): dialog is PolicyChangeRequestDialog {
+  return dialog !== null && dialog.kind.startsWith("change_request_");
+}
+
+function isApprovalDialog(dialog: QueueDialog | null): dialog is ApprovalDialog {
+  return dialog !== null && !isPolicyChangeRequestDialog(dialog);
 }
 
 function formatTimestamp(value: string): string {

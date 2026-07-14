@@ -9,6 +9,7 @@ import { ApiClientProvider } from "../api/context.js";
 import { createSessionBoundary } from "../auth/session-boundary.js";
 import { VocabularyProvider } from "../vocabulary/context.js";
 import { ApprovalDialogs } from "./ApprovalDialogs.js";
+import { PolicyChangeRequestDialogs } from "./PolicyChangeRequestDialogs.js";
 import {
   ApprovalQueue,
   ApprovalQueueView,
@@ -20,6 +21,8 @@ const EMPLOYEE_ID = "00000000-0000-4000-8000-000000000702";
 const PRODUCER_ID = "00000000-0000-4000-8000-000000000703";
 const QUEUE_ID = "00000000-0000-4000-8000-000000000704";
 const DRAFT_ID = "00000000-0000-4000-8000-000000000705";
+const CHANGE_REQUEST_ID = "00000000-0000-4000-8000-000000000706";
+const POLICY_ID = "00000000-0000-4000-8000-000000000707";
 
 test("admin queue renders every financial review group and live resolution action", () => {
   const markup = renderView({ status: "ready", work: approvalWork() });
@@ -27,6 +30,7 @@ test("admin queue renders every financial review group and live resolution actio
   for (const label of [
     "Pending submissions",
     "Help requests",
+    "Approved-policy change requests",
     "Base premium",
     "Agency commission",
     "Net due to MGA",
@@ -49,6 +53,7 @@ test("admin queue renders every financial review group and live resolution actio
   assert.match(markup, /\$1,000\.00/);
   assert.match(markup, /finance@example\.test/);
   assert.match(markup, /Need admin help with financing/);
+  assert.match(markup, /Correct the approved insured name/);
   assert.doesNotMatch(markup, /read-only|localStorage|owner withdrawal/i);
 });
 
@@ -59,7 +64,7 @@ test("approval queue has bounded loading, error, empty, and denied states", () =
   assert.match(
     renderView({
       status: "ready",
-      work: { helpRequests: [], submissions: [] },
+      work: { changeRequests: [], helpRequests: [], submissions: [] },
     }),
     /Queue clear/,
   );
@@ -131,6 +136,49 @@ test("dialogs expose bounded confirmation, reason, override, and full fix forms"
   assert.match(openFix, /aria-modal="true"/);
 });
 
+test("approved-policy change dialogs expose only the three safe admin resolutions", () => {
+  const item = approvalWork().changeRequests[0]!;
+  const common = {
+    onCancel() {},
+    onChooseCorrection() {},
+    onCorrect() {},
+    onResolveAsIs() {},
+    onSendBack() {},
+    pending: false,
+  };
+  const choose = renderToStaticMarkup(
+    <PolicyChangeRequestDialogs
+      dialog={{
+        assignmentOptions: [],
+        item,
+        kind: "change_request_fix_choice",
+        policy: {} as never,
+      }}
+      {...common}
+    />,
+  );
+  const asIs = renderToStaticMarkup(
+    <PolicyChangeRequestDialogs
+      dialog={{ item, kind: "change_request_as_is" }}
+      {...common}
+    />,
+  );
+  const sendBack = renderToStaticMarkup(
+    <PolicyChangeRequestDialogs
+      dialog={{ item, kind: "change_request_send_back" }}
+      {...common}
+    />,
+  );
+
+  assert.match(choose, /Correct policy details/);
+  assert.match(choose, /Apply financial override/);
+  assert.match(choose, /original ledger policy/);
+  assert.match(asIs, /without changing the approved policy/);
+  assert.match(asIs, /Push through as-is/);
+  assert.match(sendBack, /maxLength="500"/);
+  assert.doesNotMatch(sendBack, /Base premium|Commission|Net due|IPFS/);
+});
+
 function renderView(state: ApprovalQueueState): string {
   return renderToStaticMarkup(
     <ApprovalQueueView
@@ -139,6 +187,7 @@ function renderView(state: ApprovalQueueState): string {
       notice={null}
       onFilter={() => {}}
       onOpen={() => {}}
+      onOpenChangeFix={() => {}}
       onRetry={() => {}}
       pending={false}
       state={state}
@@ -160,6 +209,7 @@ function withProviders(children: React.ReactNode) {
 function approvalWork(): ApprovalWorkListResponse {
   const timestamp = "2026-07-11T12:00:00.000Z";
   return {
+    changeRequests: [changeRequest()],
     submissions: [
       {
         entry: {
@@ -184,6 +234,29 @@ function approvalWork(): ApprovalWorkListResponse {
         submitterDisplayName: "Kaylee",
       },
     ],
+  };
+}
+
+function changeRequest(): ApprovalWorkListResponse["changeRequests"][number] {
+  const timestamp = "2026-07-14T12:00:00.000Z";
+  return {
+    insuredName: "Approved Insured LLC",
+    policyNumber: "WCIB-CHANGE-1",
+    requesterDisplayName: "Mercedes",
+    request: {
+      id: CHANGE_REQUEST_ID,
+      mutationId: null,
+      mutationKind: null,
+      policyId: POLICY_ID,
+      reason: "Correct the approved insured name.",
+      requestedAt: timestamp,
+      requestedByUserId: EMPLOYEE_ID,
+      resolution: null,
+      resolutionReason: null,
+      resolvedAt: null,
+      resolvedByUserId: null,
+      status: "pending",
+    },
   };
 }
 
