@@ -135,6 +135,7 @@ export const paySheetAdjustmentViewSchema = z
     producerDisplayName: z.string().min(1).nullable(),
     producerUserId: uuidSchema.nullable(),
     reasonOrNote: z.string().min(1).max(2000).nullable(),
+    sourceAdjustmentId: uuidSchema.nullable(),
     updatedAt: timestampSchema,
   })
   .strict();

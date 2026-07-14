@@ -223,6 +223,7 @@ function adjustment(
     producerDisplayName: null,
     producerUserId: null,
     reasonOrNote: null,
+    sourceAdjustmentId: null,
     updatedAt: "2026-07-02T00:00:00.000Z",
     ...overrides,
   };

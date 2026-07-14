@@ -5,11 +5,16 @@ import {
 } from "./pay-sheet-adjustments.js";
 import { paySheetDetailSchema } from "./pay-sheet-api.js";
 import { PAY_SHEET_OWNER_TYPES } from "./pay-sheets.js";
+import { normalizePaySheetDateInput } from "./pay-sheet-date.js";
 
 const uuidSchema = z.string().uuid();
 const moneyPattern =
   /^(?:0|[1-9][0-9]{0,11}|-[1-9][0-9]{0,11})\.[0-9]{2}$/;
 const moneySchema = z.string().regex(moneyPattern);
+const dateInputSchema = z.preprocess(
+  (value) => normalizePaySheetDateInput(value) ?? value,
+  z.string().date(),
+);
 const nullableUuidSchema = z.preprocess(
   (value) => (value === undefined ? null : value),
   uuidSchema.nullable(),
@@ -29,7 +34,7 @@ export const paySheetAdjustmentInputSchema = z
     adjustmentType: z.enum(PAY_SHEET_ADJUSTMENT_TYPES),
     brokerFeeDelta: moneySchema,
     commissionDelta: moneySchema,
-    effectiveDate: z.string().date(),
+    effectiveDate: dateInputSchema,
     incomeAmount: moneySchema,
     insuredOrClientLabel: z.string().trim().min(1).max(500),
     payoutDelta: moneySchema,
@@ -73,9 +78,6 @@ export const paySheetAdjustmentInputSchema = z
     if (
       !isDirectIncome &&
       (incomeAmount !== 0n ||
-        brokerFeeDelta > 0n ||
-        commissionDelta > 0n ||
-        payoutDelta > 0n ||
         (brokerFeeDelta === 0n &&
           commissionDelta === 0n &&
           payoutDelta === 0n))
@@ -134,14 +136,22 @@ export function parsePaySheetAdjustmentForOwner(
   ownerType: (typeof PAY_SHEET_OWNER_TYPES)[number],
 ): PaySheetAdjustmentInput {
   const input = paySheetAdjustmentInputSchema.parse(rawInput);
-  const brokerFeeDelta = moneyToCents(input.brokerFeeDelta);
-  const commissionDelta = moneyToCents(input.commissionDelta);
-  const payoutDelta = moneyToCents(input.payoutDelta);
-  const incomeAmount = moneyToCents(input.incomeAmount);
+  const normalized = isDirectIncomeType(input.adjustmentType)
+    ? input
+    : {
+        ...input,
+        brokerFeeDelta: negateMoney(input.brokerFeeDelta),
+        commissionDelta: negateMoney(input.commissionDelta),
+        payoutDelta: negateMoney(input.payoutDelta),
+      };
+  const brokerFeeDelta = moneyToCents(normalized.brokerFeeDelta);
+  const commissionDelta = moneyToCents(normalized.commissionDelta);
+  const payoutDelta = moneyToCents(normalized.payoutDelta);
+  const incomeAmount = moneyToCents(normalized.incomeAmount);
 
   if (
     ownerType === "producer" &&
-    (isDirectIncomeType(input.adjustmentType) ||
+    (isDirectIncomeType(normalized.adjustmentType) ||
       brokerFeeDelta !== 0n ||
       commissionDelta !== 0n ||
       incomeAmount !== 0n ||
@@ -152,7 +162,7 @@ export function parsePaySheetAdjustmentForOwner(
   if (ownerType === "sophia" && payoutDelta !== 0n) {
     throw ownerValidationError("Sophia adjustments cannot change producer payout");
   }
-  return input;
+  return normalized;
 }
 
 function isDirectIncomeType(
@@ -172,6 +182,13 @@ function moneyToCents(value: string): bigint {
   }
   const sign = integer.startsWith("-") ? -1n : 1n;
   return sign * (BigInt(integer.replace("-", "")) * 100n + BigInt(fraction));
+}
+
+function negateMoney(value: string): string {
+  const cents = moneyToCents(value);
+  if (cents === 0n) return "0.00";
+  const absolute = cents < 0n ? -cents : cents;
+  return `-${absolute / 100n}.${String(absolute % 100n).padStart(2, "0")}`;
 }
 
 function issue(

@@ -61,6 +61,7 @@ export function exportAdjustmentFixture(
     producerDisplayName: null,
     producerUserId: null,
     reasonOrNote: "Check received directly",
+    sourceAdjustmentId: null,
     updatedAt: "2026-07-03T12:00:00.000Z",
     ...overrides,
   };

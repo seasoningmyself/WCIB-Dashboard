@@ -514,8 +514,8 @@ function AdminPaySheets() {
                   adjustmentDialog.sheet.id,
                   requireAdjustmentInput(input),
                 );
-        updateDetails((current) => ({
-          ...current,
+        detailEpoch.current += 1;
+        updateDetails(() => ({
           [response.sheet.id]: { data: response.sheet, status: "ready" },
         }));
         setAdjustmentDialog(null);
@@ -1393,10 +1393,18 @@ function AdjustmentTable({
             {editable ? <span role="columnheader">Actions</span> : null}
           </div>
           {sheet.adjustments.map((adjustment) => (
-            <div className="pay-sheet-adjustment-row" key={adjustment.id} role="row">
+            <div
+              className={`pay-sheet-adjustment-row${adjustment.sourceAdjustmentId === null ? "" : " is-mirror"}`}
+              key={adjustment.id}
+              role="row"
+            >
               <span data-label="Entry" role="cell">
                 <strong>{adjustment.insuredOrClientLabel}</strong>
-                <small>{adjustmentTypeLabel(adjustment.adjustmentType)}</small>
+                <small>
+                  {adjustment.sourceAdjustmentId === null
+                    ? adjustmentTypeLabel(adjustment.adjustmentType)
+                    : "Office chargeback mirror"}
+                </small>
               </span>
               <span data-label="Account" role="cell">
                 {paySheetAccountLabel(
@@ -1411,7 +1419,7 @@ function AdjustmentTable({
                 ))}
               </span>
               <span data-label="Note" role="cell">{adjustment.reasonOrNote ?? "-"}</span>
-              {editable ? (
+              {editable && adjustment.sourceAdjustmentId === null ? (
                 <span className="pay-sheet-adjustment-actions" data-label="Actions" role="cell">
                   <button
                     disabled={pending}
@@ -1427,6 +1435,10 @@ function AdjustmentTable({
                   >
                     Delete
                   </button>
+                </span>
+              ) : editable ? (
+                <span className="pay-sheet-adjustment-locked" data-label="Actions" role="cell">
+                  Managed from House
                 </span>
               ) : null}
             </div>

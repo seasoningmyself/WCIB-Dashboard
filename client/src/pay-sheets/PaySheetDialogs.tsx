@@ -10,6 +10,10 @@ import type {
   PaySheetSummary,
 } from "../../../shared/pay-sheet-api.js";
 import type { PolicyTypeOption } from "../../../shared/vocabulary.js";
+import {
+  formatPaySheetDateInput,
+  normalizePaySheetDateInput,
+} from "../../../shared/pay-sheet-date.js";
 import { formatMoneyExact } from "../ledger/view-state.js";
 import {
   adjustmentTypeLabel,
@@ -237,7 +241,7 @@ function AdjustmentFormDialog({
       setValidationError(
         directIncome
           ? "Enter a positive income amount and complete the required fields."
-          : "Enter at least one valid negative adjustment and complete the required fields.",
+          : "Enter at least one adjustment amount and complete the required fields.",
       );
     }
   };
@@ -297,14 +301,27 @@ function AdjustmentFormDialog({
               <label className="pay-sheet-dialog-field">
                 <span>Effective date</span>
                 <input
+                  inputMode="numeric"
+                  onBlur={() => {
+                    const effectiveDate = normalizePaySheetDateInput(
+                      form.effectiveDate,
+                    );
+                    if (effectiveDate !== null) {
+                      setForm((current) => ({
+                        ...current,
+                        effectiveDate: formatPaySheetDateInput(effectiveDate),
+                      }));
+                    }
+                  }}
                   onChange={(event) =>
                     setForm((current) => ({
                       ...current,
                       effectiveDate: event.currentTarget.value,
                     }))
                   }
+                  placeholder="MM/DD/YYYY"
                   required
-                  type="date"
+                  type="text"
                   value={form.effectiveDate}
                 />
               </label>
@@ -406,7 +423,7 @@ function AdjustmentFormDialog({
                   </label>
                   {producerSheet ? (
                     <MoneyField
-                      label="Payout delta (negative)"
+                      label="Payout amount (subtracted)"
                       onChange={(payoutDelta) =>
                         setForm((current) => ({ ...current, payoutDelta }))
                       }
@@ -415,14 +432,14 @@ function AdjustmentFormDialog({
                   ) : (
                     <>
                       <MoneyField
-                        label="Broker fee delta (negative)"
+                        label="Broker fee amount (subtracted)"
                         onChange={(brokerFeeDelta) =>
                           setForm((current) => ({ ...current, brokerFeeDelta }))
                         }
                         value={form.brokerFeeDelta}
                       />
                       <MoneyField
-                        label="Commission delta (negative)"
+                        label="Commission amount (subtracted)"
                         onChange={(commissionDelta) =>
                           setForm((current) => ({ ...current, commissionDelta }))
                         }
@@ -543,7 +560,7 @@ function MoneyField({
       <input
         inputMode="decimal"
         onChange={(event) => onChange(event.currentTarget.value)}
-        placeholder="-0.00"
+        placeholder="0.00"
         required
         value={value}
       />
@@ -575,7 +592,7 @@ function initialForm(
       adjustmentType: adjustment.adjustmentType,
       brokerFeeDelta: adjustment.brokerFeeDelta,
       commissionDelta: adjustment.commissionDelta,
-      effectiveDate: adjustment.effectiveDate,
+      effectiveDate: formatPaySheetDateInput(adjustment.effectiveDate),
       incomeAmount: adjustment.incomeAmount,
       insuredOrClientLabel: adjustment.insuredOrClientLabel,
       payoutDelta: adjustment.payoutDelta,
@@ -591,7 +608,7 @@ function initialForm(
       dialog.mode === "direct_income" ? "check_income" : "chargeback",
     brokerFeeDelta: "0.00",
     commissionDelta: "0.00",
-    effectiveDate: new Date().toISOString().slice(0, 10),
+    effectiveDate: formatPaySheetDateInput(new Date().toISOString().slice(0, 10)),
     incomeAmount: "0.00",
     insuredOrClientLabel: "",
     payoutDelta: "0.00",

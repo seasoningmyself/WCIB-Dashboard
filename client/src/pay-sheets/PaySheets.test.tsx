@@ -320,12 +320,36 @@ test("adjustment dialogs render only owner-valid financial controls", () => {
 
   assert.match(direct, /Income amount/);
   assert.match(direct, /Check income/);
-  assert.doesNotMatch(direct, /Payout delta|Broker fee delta|Commission delta|Policy type/);
-  assert.match(producerCorrection, /Payout delta \(negative\)/);
+  assert.doesNotMatch(direct, /Payout amount|Broker fee amount|Commission amount|Policy type/);
+  assert.match(producerCorrection, /Payout amount \(subtracted\)/);
   assert.match(producerCorrection, /Producer account/);
-  assert.doesNotMatch(producerCorrection, /Broker fee delta|Commission delta|Add direct income/);
+  assert.doesNotMatch(producerCorrection, /Broker fee amount|Commission amount|Add direct income/);
   assert.match(deletion, /Delete adjustment/);
   assert.match(deletion, /Direct-pay client/);
+});
+
+test("producer chargeback mirrors are labeled and read-only", () => {
+  const producer = producerSummaryFixture();
+  const detail = paySheetDetailFixture(producer);
+  const mirroredDetail = {
+    ...detail,
+    adjustments: detail.adjustments.map((adjustment) => ({
+      ...adjustment,
+      sourceAdjustmentId: uuid(88),
+    })),
+  };
+  const markup = renderView({
+    data: { ...paySheetListFixture(), items: [producer] },
+    details: {
+      [producer.id]: { data: mirroredDetail, status: "ready" },
+    },
+    selectedOwnerKey: `producer:${uuid(2)}`,
+  });
+
+  assert.match(markup, /Office chargeback mirror/);
+  assert.match(markup, /Managed from House/);
+  const mirrorRow = markup.slice(markup.indexOf("pay-sheet-adjustment-row is-mirror"));
+  assert.doesNotMatch(mirrorRow, />Edit<|>Delete</);
 });
 
 function renderView({

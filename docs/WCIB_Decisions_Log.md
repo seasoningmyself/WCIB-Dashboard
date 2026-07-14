@@ -1,7 +1,17 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 13, 2026 (recorded production pay-sheet initialization, cascade close, live pay-sheet KPIs, and add-as-you-go vocabulary decisions.)
+**Last updated:** July 13, 2026 (recorded production pay-sheet initialization, cascade close, live pay-sheet KPIs, chargeback mirrors, and add-as-you-go vocabulary decisions.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
+
+---
+
+## July 13, 2026 — Production chargeback normalization and producer mirrors
+
+**Recorded production decision:** v15's pay-sheet chargeback behavior is preserved through the existing audited adjustment boundary. Positive or negative chargeback input is normalized server-side and in the database to a negative financial adjustment. A chargeback entered on Sophia's House sheet for a producer book or first-year account automatically creates a read-only producer-sheet mirror using that producer's renewal commission and broker rates effective on the adjustment timestamp. Manual adjustments remain explicit and do not create an automatic mirror.
+
+The House source and producer mirror are linked, written through the existing audited create/update/delete functions, and commit atomically. A producer sheet is initialized on the House source period only when the producer has no open chain; any source, mirror, initialization, or audit failure rolls the entire operation back. A zero calculated producer impact creates no mirror. Once either affected sheet closes, its adjustment and frozen totals remain immutable; later corrections belong on the next open period.
+
+Typed adjustment and direct-income dates retain v15's compact and slash-date entry behavior but are normalized to ISO dates before reaching the database. Mirror rows are displayed as House-managed and cannot be edited independently.
 
 ---
 

@@ -230,8 +230,8 @@ test("adjustments are typed, audited, open-only, and frozen into close totals", 
 
         const ownChargebackInput = adjustmentInput(sophiaSheet.id, {
           adjustmentType: "chargeback",
-          brokerFeeDelta: "-10.00",
-          commissionDelta: "-20.00",
+          brokerFeeDelta: "10.00",
+          commissionDelta: "20.00",
           insuredOrClientLabel: "  Private chargeback client  ",
           policyTypeId: references.policyTypeId,
           reasonOrNote: "  private chargeback note  ",
@@ -325,8 +325,8 @@ test("adjustments are typed, audited, open-only, and frozen into close totals", 
           ownChargebackId,
           {
             ...ownChargebackInput,
-            brokerFeeDelta: "-12.00",
-            commissionDelta: "-18.00",
+            brokerFeeDelta: "12.00",
+            commissionDelta: "18.00",
           },
           logger,
           new Date(Date.now() + 1_000),
@@ -340,12 +340,10 @@ test("adjustments are typed, audited, open-only, and frozen into close totals", 
           "Private chargeback client",
         );
         assert.equal(normalizedChargeback?.reasonOrNote, "private chargeback note");
+        assert.equal(normalizedChargeback?.brokerFeeDelta, "-12.00");
+        assert.equal(normalizedChargeback?.commissionDelta, "-18.00");
 
         for (const invalidInput of [
-          adjustmentInput(sophiaSheet.id, {
-            brokerFeeDelta: "1.00",
-            insuredOrClientLabel: "Positive correction",
-          }),
           adjustmentInput(sophiaSheet.id, {
             brokerFeeDelta: "0.00",
             insuredOrClientLabel: "Zero correction",

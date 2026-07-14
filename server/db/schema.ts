@@ -35,6 +35,7 @@ import {
 } from "../../shared/pay-sheet-adjustments.js";
 import { KPI_TARGET_SCOPE_TYPES } from "../../shared/kpi-targets.js";
 import {
+  type AnyPgColumn,
   boolean,
   check,
   date,
@@ -1412,6 +1413,10 @@ export const paySheetAdjustments = pgTable(
       .notNull()
       .default("0"),
     reasonOrNote: text("reason_or_note"),
+    sourceAdjustmentId: uuid("source_adjustment_id").references(
+      (): AnyPgColumn => paySheetAdjustments.id,
+      { onDelete: "restrict" },
+    ),
     createdByUserId: uuid("created_by_user_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
@@ -1426,6 +1431,9 @@ export const paySheetAdjustments = pgTable(
     index("pay_sheet_adjustments_sheet_idx").on(table.paySheetId),
     index("pay_sheet_adjustments_policy_type_idx").on(table.policyTypeId),
     index("pay_sheet_adjustments_producer_idx").on(table.producerUserId),
+    uniqueIndex("pay_sheet_adjustments_source_adjustment_idx")
+      .on(table.sourceAdjustmentId)
+      .where(sql`${table.sourceAdjustmentId} is not null`),
     check(
       "pay_sheet_adjustments_label_check",
       sql`${table.insuredOrClientLabel} = btrim(${table.insuredOrClientLabel})
