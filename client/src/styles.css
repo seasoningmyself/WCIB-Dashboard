@@ -6338,6 +6338,57 @@ h1 {
   text-transform: uppercase;
 }
 
+.pay-sheet-policy-group {
+  align-items: center;
+  border-left: 4px solid #85969d;
+  border-bottom: 1px solid #ccd6da;
+  background: #f1f5f6;
+  color: #344850;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 7px 14px 7px 12px;
+}
+
+.pay-sheet-policy-group.is-none {
+  border-left-color: #2f6b77;
+}
+
+.pay-sheet-policy-group.is-book {
+  border-left-color: #33508a;
+}
+
+.pay-sheet-policy-group.is-house {
+  border-left-color: #b66f25;
+}
+
+.pay-sheet-policy-group > span {
+  display: grid;
+  gap: 2px;
+}
+
+.pay-sheet-policy-group > span:last-child {
+  text-align: right;
+}
+
+.pay-sheet-policy-group strong {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 850;
+}
+
+.pay-sheet-policy-group small {
+  color: #687980;
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.pay-sheet-policy-section + .pay-sheet-policy-section {
+  border-top: 1px solid #bcc8cc;
+}
+
 .pay-sheet-policy-row,
 .pay-sheet-adjustment-row {
   min-height: 68px;

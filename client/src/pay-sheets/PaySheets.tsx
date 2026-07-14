@@ -13,7 +13,6 @@ import type {
   PaySheetBootstrapRequest,
   PaySheetDetail,
   PaySheetListResponse,
-  PaySheetPolicyView,
   PaySheetSummary,
 } from "../../../shared/pay-sheet-api.js";
 import type { PolicyTypeOption } from "../../../shared/vocabulary.js";
@@ -44,6 +43,7 @@ import {
   formatPaySheetDate,
   formatPaySheetPeriod,
   formatPaySheetRate,
+  groupPaySheetPolicies,
   groupPaySheetsByOwner,
   isDirectIncomeAdjustment,
   isPaySheetsAdmin,
@@ -1102,7 +1102,7 @@ function PaySheetDetailView({
         ) : null}
       </div>
       <RateContext sheet={sheet} />
-      <PolicyTable policies={sheet.policies} sheet={sheet} />
+      <PolicyTable sheet={sheet} />
       <AdjustmentTable
         onOpen={onOpenAdjustment}
         pending={pending}
@@ -1162,20 +1162,15 @@ function RateContext({ sheet }: { sheet: PaySheetDetail }) {
   );
 }
 
-function PolicyTable({
-  policies,
-  sheet,
-}: {
-  policies: readonly PaySheetPolicyView[];
-  sheet: PaySheetDetail;
-}) {
+function PolicyTable({ sheet }: { sheet: PaySheetDetail }) {
+  const sections = groupPaySheetPolicies(sheet);
   return (
     <section className="pay-sheet-data-section" aria-labelledby={`policies-${sheet.id}`}>
       <header>
         <h3 id={`policies-${sheet.id}`}>Policies</h3>
-        <span>{policies.length}</span>
+        <span>{sheet.policies.length}</span>
       </header>
-      {policies.length === 0 ? (
+      {sheet.policies.length === 0 ? (
         <div className="pay-sheet-inline-empty">No policies on this sheet.</div>
       ) : (
         <div className="pay-sheet-policy-table" role="table" aria-label="Pay-sheet policies">
@@ -1189,26 +1184,48 @@ function PolicyTable({
               {sheet.ownerType === "sophia" ? "Sophia share" : "Producer payout"}
             </span>
           </div>
-          {policies.map((policy) => (
-            <div className="pay-sheet-policy-row" key={policy.associationId} role="row">
-              <span data-label="Insured" role="cell">
-                <strong>{policy.insuredName}</strong>
-                <small>{policy.transactionType} / {policy.policyTypeName}</small>
-              </span>
-              <span data-label="Policy" role="cell">
-                <strong>{policy.policyNumber}</strong>
-                <small>{policy.effectiveDate}</small>
-              </span>
-              <span data-label="Revenue" role="cell">{formatMoneyExact(policy.agencyRevenue)}</span>
-              <span data-label="Commission" role="cell">{formatMoneyExact(policy.commissionAmount)}</span>
-              <span data-label="Broker fee" role="cell">{formatMoneyExact(policy.brokerFee)}</span>
-              <span data-label={sheet.ownerType === "sophia" ? "Sophia share" : "Producer payout"} role="cell">
-                {formatMoneyExact(
-                  sheet.ownerType === "sophia"
-                    ? policy.sophiaShare
-                    : (policy.producerPayout ?? "0.00"),
-                )}
-              </span>
+          {sections.map((section) => (
+            <div className="pay-sheet-policy-section" key={section.key} role="rowgroup">
+              <div className={`pay-sheet-policy-group is-${section.key}`} role="row">
+                <span>
+                  <strong>{section.label}</strong>
+                  <small>
+                    {section.policies.length} {section.policies.length === 1 ? "policy" : "policies"}
+                  </small>
+                </span>
+                <span
+                  title={`Broker fees ${formatMoneyExact(section.sectionBrokerFees)} / Commissions ${formatMoneyExact(section.sectionCommissions)}`}
+                >
+                  <small>{section.sectionAmountLabel}</small>
+                  <strong>
+                    {section.sectionAmount === null
+                      ? "Unavailable"
+                      : formatMoneyExact(section.sectionAmount)}
+                  </strong>
+                </span>
+              </div>
+              {section.policies.map((policy) => (
+                <div className="pay-sheet-policy-row" key={policy.associationId} role="row">
+                  <span data-label="Insured" role="cell">
+                    <strong>{policy.insuredName}</strong>
+                    <small>{policy.transactionType} / {policy.policyTypeName}</small>
+                  </span>
+                  <span data-label="Policy" role="cell">
+                    <strong>{policy.policyNumber}</strong>
+                    <small>{policy.effectiveDate}</small>
+                  </span>
+                  <span data-label="Revenue" role="cell">{formatMoneyExact(policy.agencyRevenue)}</span>
+                  <span data-label="Commission" role="cell">{formatMoneyExact(policy.commissionAmount)}</span>
+                  <span data-label="Broker fee" role="cell">{formatMoneyExact(policy.brokerFee)}</span>
+                  <span data-label={sheet.ownerType === "sophia" ? "Sophia share" : "Producer payout"} role="cell">
+                    {formatMoneyExact(
+                      sheet.ownerType === "sophia"
+                        ? policy.sophiaShare
+                        : (policy.producerPayout ?? "0.00"),
+                    )}
+                  </span>
+                </div>
+              ))}
             </div>
           ))}
         </div>

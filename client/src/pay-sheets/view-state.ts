@@ -3,6 +3,7 @@ import type { PaySheetExportQuery } from "../../../shared/pay-sheet-export.js";
 import type {
   PaySheetAdjustmentView,
   PaySheetDetail,
+  PaySheetPolicyView,
   PaySheetSummary,
 } from "../../../shared/pay-sheet-api.js";
 
@@ -19,6 +20,16 @@ export interface PaySheetPeriodOption {
   label: string;
   periodMonth: number;
   periodYear: number;
+}
+
+export interface PaySheetPolicySection {
+  key: PaySheetPolicyView["kayleeSplit"];
+  label: string;
+  policies: readonly PaySheetPolicyView[];
+  sectionAmount: string | null;
+  sectionAmountLabel: "Section payout" | "Section total";
+  sectionBrokerFees: string;
+  sectionCommissions: string;
 }
 
 export function isPaySheetsAdmin(user: CurrentUser): boolean {
@@ -140,6 +151,54 @@ export function paySheetAccountLabel(
   return value === "house" ? `${producer} first year` : `${producer} account`;
 }
 
+export function groupPaySheetPolicies(
+  sheet: Pick<PaySheetDetail, "ownerType" | "policies">,
+): readonly PaySheetPolicySection[] {
+  const definitions = sheet.ownerType === "sophia"
+    ? [
+        ["none", "House"],
+        ["book", "Producers' book"],
+        ["house", "1st-yr house"],
+      ] as const
+    : [
+        ["book", "Their book"],
+        ["house", "1st-yr house"],
+      ] as const;
+
+  return definitions.flatMap(([key, label]) => {
+    const policies = sheet.policies
+      .filter(({ kayleeSplit }) => kayleeSplit === key)
+      .sort((left, right) =>
+        left.insuredName.localeCompare(right.insuredName, "en", {
+          sensitivity: "base",
+        }) || left.associationId.localeCompare(right.associationId));
+    if (policies.length === 0) return [];
+    const sectionBrokerFees = sumExactMoney(
+      policies.map(({ brokerFee }) => brokerFee),
+    );
+    const sectionCommissions = sumExactMoney(
+      policies.map(({ commissionAmount }) => commissionAmount),
+    );
+    const sectionAmount = sheet.ownerType === "sophia"
+      ? addExactMoney(sectionBrokerFees, sectionCommissions)
+      : policies.some(({ producerPayout }) => producerPayout === null)
+        ? null
+        : sumExactMoney(
+            policies.map(({ producerPayout }) => producerPayout ?? "0.00"),
+          );
+    return [{
+      key,
+      label,
+      policies,
+      sectionAmount,
+      sectionAmountLabel:
+        sheet.ownerType === "sophia" ? "Section total" : "Section payout",
+      sectionBrokerFees,
+      sectionCommissions,
+    }];
+  });
+}
+
 export function adjustmentTypeLabel(
   value: PaySheetAdjustmentView["adjustmentType"],
 ): string {
@@ -169,4 +228,24 @@ export function isDirectIncomeAdjustment(
 
 export function detailSourceLabel(sheet: PaySheetDetail): string {
   return sheet.status === "closed" ? "Frozen history" : "Current values";
+}
+
+function sumExactMoney(values: readonly string[]): string {
+  return formatCents(
+    values.reduce((total, value) => total + parseCents(value), 0n),
+  );
+}
+
+function addExactMoney(left: string, right: string): string {
+  return formatCents(parseCents(left) + parseCents(right));
+}
+
+function parseCents(value: string): bigint {
+  const match = /^(0|[1-9][0-9]{0,11})\.([0-9]{2})$/.exec(value);
+  if (match === null) throw new Error("Projected pay-sheet money is invalid");
+  return BigInt(match[1]!) * 100n + BigInt(match[2]!);
+}
+
+function formatCents(value: bigint): string {
+  return `${value / 100n}.${String(value % 100n).padStart(2, "0")}`;
 }

@@ -7,6 +7,7 @@ import {
   detailSourceLabel,
   formatPaySheetPeriod,
   formatPaySheetRate,
+  groupPaySheetPolicies,
   groupPaySheetsByOwner,
   isPaySheetsAdmin,
   listPaySheetPeriods,
@@ -18,6 +19,8 @@ import {
 import {
   paySheetDetailFixture,
   paySheetListFixture,
+  paySheetPolicyFixture,
+  producerSummaryFixture,
   uuid,
 } from "./test-fixture.js";
 
@@ -31,6 +34,64 @@ test("owner grouping preserves server order and separates open from history", ()
   assert.deepEqual(
     closedSheetsForOwner(groups[0]!).map(({ periodMonth }) => periodMonth),
     [6],
+  );
+});
+
+test("policy sections preserve v15 account order, A-Z rows, and exact totals", () => {
+  const sophia = paySheetDetailFixture();
+  const sections = groupPaySheetPolicies({
+    ...sophia,
+    policies: [
+      paySheetPolicyFixture({
+        associationId: uuid(31),
+        insuredName: "Zulu House",
+        kayleeSplit: "none",
+      }),
+      paySheetPolicyFixture({
+        associationId: uuid(32),
+        insuredName: "Alpha House",
+        kayleeSplit: "none",
+      }),
+      paySheetPolicyFixture({
+        associationId: uuid(33),
+        insuredName: "Book Client",
+        kayleeSplit: "book",
+      }),
+      paySheetPolicyFixture({
+        associationId: uuid(34),
+        insuredName: "First Year Client",
+        kayleeSplit: "house",
+      }),
+    ],
+  });
+  assert.deepEqual(
+    sections.map(({ key, label, sectionAmount, sectionAmountLabel }) => [
+      key,
+      label,
+      sectionAmount,
+      sectionAmountLabel,
+    ]),
+    [
+      ["none", "House", "300.00", "Section total"],
+      ["book", "Producers' book", "150.00", "Section total"],
+      ["house", "1st-yr house", "150.00", "Section total"],
+    ],
+  );
+  assert.deepEqual(
+    sections[0]?.policies.map(({ insuredName }) => insuredName),
+    ["Alpha House", "Zulu House"],
+  );
+
+  const producer = groupPaySheetPolicies(
+    paySheetDetailFixture(producerSummaryFixture()),
+  );
+  assert.deepEqual(
+    producer.map(({ label, sectionAmount, sectionAmountLabel }) => [
+      label,
+      sectionAmount,
+      sectionAmountLabel,
+    ]),
+    [["Their book", "50.00", "Section payout"]],
   );
 });
 
