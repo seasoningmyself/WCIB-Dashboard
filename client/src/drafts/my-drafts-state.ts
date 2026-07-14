@@ -61,5 +61,6 @@ export function draftStatusLabel(status: DraftResponse["status"]): string {
 export function draftActionLabel(status: DraftResponse["status"]): string {
   if (status === "draft") return "Edit";
   if (status === "sent_back") return "Review and reopen";
+  if (status === "flagged") return "Reopen and edit";
   return "View status";
 }

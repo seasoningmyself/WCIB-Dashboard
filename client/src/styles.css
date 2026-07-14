@@ -2444,6 +2444,7 @@ h1 {
 
 .my-drafts-new,
 .my-drafts-action a,
+.my-drafts-action button,
 .my-drafts-empty a,
 .my-drafts-message a,
 .my-drafts-message button,
@@ -2473,6 +2474,8 @@ h1 {
 .my-drafts-new:focus-visible,
 .my-drafts-action a:hover,
 .my-drafts-action a:focus-visible,
+.my-drafts-action button:hover:not(:disabled),
+.my-drafts-action button:focus-visible,
 .my-drafts-empty a:hover,
 .my-drafts-empty a:focus-visible,
 .my-drafts-message a:hover,
@@ -2546,6 +2549,17 @@ h1 {
 
 .my-drafts-action {
   text-align: right !important;
+}
+
+.my-drafts-action button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.my-drafts-action-error {
+  margin-top: 6px !important;
+  color: #8c2f1d !important;
+  font-size: 10px !important;
 }
 
 .draft-status {
@@ -2659,6 +2673,34 @@ h1 {
   font-size: 13px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.draft-status-actions {
+  margin-top: 18px;
+}
+
+.draft-status-actions button {
+  min-height: 40px;
+  border: 1px solid #27634d;
+  border-radius: 5px;
+  padding: 0 15px;
+  background: #27634d;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.draft-status-actions button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.draft-status-actions p {
+  margin: 8px 0 0;
+  color: #8c2f1d;
+  font-size: 12px;
 }
 
 @media (max-width: 1040px) {

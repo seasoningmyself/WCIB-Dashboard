@@ -9,6 +9,8 @@ import {
   listDraftsResponseSchema,
   submitDraftResponseSchema,
   updateDraftRequestSchema,
+  withdrawFlaggedDraftRequestSchema,
+  withdrawFlaggedDraftResponseSchema,
   type CreateDraftRequest,
   type CreateDraftResponse,
   type FlagDraftRequest,
@@ -16,6 +18,7 @@ import {
   type ListDraftsResponse,
   type SubmitDraftResponse,
   type UpdateDraftRequest,
+  type WithdrawFlaggedDraftResponse,
 } from "../../../shared/drafts.js";
 import {
   draftAssignmentOptionsResponseSchema,
@@ -56,6 +59,7 @@ export interface DraftApi {
   list(query?: ListDraftsQuery): Promise<ListDraftsResponse>;
   listAssignmentOptions(): Promise<DraftAssignmentOptionsResponse>;
   submit(draftId: string): Promise<SubmitDraftResponse>;
+  withdrawHelp(draftId: string): Promise<WithdrawFlaggedDraftResponse>;
 }
 
 export function createDraftApi(client: ApiClient): DraftApi {
@@ -113,6 +117,15 @@ export function createDraftApi(client: ApiClient): DraftApi {
         {},
         200,
         submitDraftResponseSchema,
+      ),
+    withdrawHelp: (draftId) =>
+      mutate(
+        client,
+        `/drafts/${encodeURIComponent(draftId)}/withdraw-help`,
+        "POST",
+        parseRequest(withdrawFlaggedDraftRequestSchema, {}),
+        200,
+        withdrawFlaggedDraftResponseSchema,
       ),
   };
 }

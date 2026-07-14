@@ -7,7 +7,7 @@ const DRAFT_ID = "00000000-0000-4000-8000-000000000101";
 const USER_ID = "00000000-0000-4000-8000-000000000102";
 const PRODUCER_ID = "00000000-0000-4000-8000-000000000103";
 
-test("draft API uses the documented create, edit, flag, list, submit, and assignment paths", async () => {
+test("draft API uses the documented create, edit, flag, withdrawal, list, submit, and assignment paths", async () => {
   const calls: Array<{
     options?: ApiRequestOptions;
     path: string;
@@ -19,6 +19,7 @@ test("draft API uses the documented create, edit, flag, list, submit, and assign
     }),
     Response.json({ draft: draftResponse() }),
     Response.json({ draft: draftResponse({ status: "flagged" }) }),
+    Response.json({ draft: draftResponse() }),
     Response.json({
       destination: "approval",
       draft: draftResponse({ status: "submitted" }),
@@ -41,6 +42,7 @@ test("draft API uses the documented create, edit, flag, list, submit, and assign
   await api.create({ insuredName: "  Acme LLC  ", taxes: "4.5" });
   await api.edit(DRAFT_ID, { notes: "Updated" });
   await api.flag(DRAFT_ID, { reason: "  Need MGA help  " });
+  await api.withdrawHelp(DRAFT_ID);
   await api.submit(DRAFT_ID);
   assert.equal((await api.list()).drafts.length, 1);
   assert.deepEqual(await api.listAssignmentOptions(), {
@@ -60,13 +62,16 @@ test("draft API uses the documented create, edit, flag, list, submit, and assign
   assert.deepEqual(JSON.parse(String(calls[2]?.options?.body)), {
     reason: "Need MGA help",
   });
-  assert.equal(calls[3]?.path, `/drafts/${DRAFT_ID}/submit`);
+  assert.equal(calls[3]?.path, `/drafts/${DRAFT_ID}/withdraw-help`);
   assert.equal(calls[3]?.options?.method, "POST");
-  assert.equal(calls[4]?.path, "/drafts");
-  assert.equal(calls[4]?.options?.method, "GET");
-  assert.equal(calls[4]?.options?.cache, "no-store");
-  assert.equal(calls[5]?.path, "/draft-assignment-options");
+  assert.deepEqual(JSON.parse(String(calls[3]?.options?.body)), {});
+  assert.equal(calls[4]?.path, `/drafts/${DRAFT_ID}/submit`);
+  assert.equal(calls[4]?.options?.method, "POST");
+  assert.equal(calls[5]?.path, "/drafts");
+  assert.equal(calls[5]?.options?.method, "GET");
   assert.equal(calls[5]?.options?.cache, "no-store");
+  assert.equal(calls[6]?.path, "/draft-assignment-options");
+  assert.equal(calls[6]?.options?.cache, "no-store");
 });
 
 test("draft API normalizes input, network, status, and response failures", async () => {
@@ -113,6 +118,15 @@ test("draft API normalizes input, network, status, and response failures", async
       error instanceof DraftApiError &&
       error.kind === "conflict" &&
       error.message === "Draft request could not be completed",
+  );
+  await assert.rejects(
+    createDraftApi({
+      async request() {
+        return new Response(null, { status: 409 });
+      },
+    }).withdrawHelp(DRAFT_ID),
+    (error: unknown) =>
+      error instanceof DraftApiError && error.kind === "conflict",
   );
 });
 

@@ -247,6 +247,23 @@ export async function sendBackFlaggedDraft(
   );
 }
 
+export async function withdrawFlaggedHelp(
+  database: PolicyLifecycleDatabase,
+  context: AuthorizedRequestContext,
+  draftId: string,
+  withdrawnAt = new Date(),
+): Promise<void> {
+  const actorUserId = requireLifecycleStaff(context);
+  requireValidTimestamp(withdrawnAt);
+  await database.execute(
+    sql`select withdraw_flagged_help(
+      ${draftId}::uuid,
+      ${actorUserId}::uuid,
+      ${withdrawnAt}::timestamp with time zone
+    )`,
+  );
+}
+
 export async function approveQueuedPolicy(
   database: AuthDatabase,
   context: AuthorizedRequestContext,

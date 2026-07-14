@@ -23,6 +23,11 @@ export type MyDraftsState =
   | { status: "loading" }
   | { drafts: readonly DraftResponse[]; status: "ready" };
 
+export type DraftWithdrawalState =
+  | { draftId: string; status: "error" }
+  | { draftId: string; status: "loading" }
+  | null;
+
 export function MyDrafts({
   currentPath,
   user,
@@ -33,6 +38,7 @@ export function MyDrafts({
   const client = useApiClient();
   const api = useMemo(() => createDraftApi(client), [client]);
   const [state, setState] = useState<MyDraftsState>({ status: "loading" });
+  const [withdrawal, setWithdrawal] = useState<DraftWithdrawalState>(null);
   const requestVersion = useRef(0);
 
   const load = useCallback(async () => {
@@ -61,6 +67,7 @@ export function MyDrafts({
   const clearSensitiveState = useCallback(() => {
     requestVersion.current += 1;
     setState({ status: "loading" });
+    setWithdrawal(null);
   }, []);
   useSensitiveSessionCleanup(clearSensitiveState);
 
@@ -75,13 +82,27 @@ export function MyDrafts({
     );
   }, []);
 
+  const withdrawFlagged = useCallback(async (draftId: string) => {
+    setWithdrawal({ draftId, status: "loading" });
+    try {
+      const response = await api.withdrawHelp(draftId);
+      acceptProjection(response.draft);
+      setWithdrawal(null);
+      window.location.hash = `#/my-drafts?draft=${encodeURIComponent(draftId)}`;
+    } catch {
+      setWithdrawal({ draftId, status: "error" });
+    }
+  }, [acceptProjection, api]);
+
   return (
     <MyDraftsView
       currentPath={currentPath}
       onDraftChange={acceptProjection}
       onRetry={() => void load()}
+      onWithdrawFlagged={(draftId) => void withdrawFlagged(draftId)}
       state={state}
       user={user}
+      withdrawal={withdrawal}
     />
   );
 }
@@ -90,14 +111,18 @@ export function MyDraftsView({
   currentPath,
   onDraftChange,
   onRetry,
+  onWithdrawFlagged,
   state,
   user,
+  withdrawal,
 }: {
   currentPath: string;
   onDraftChange(draft: DraftResponse): void;
   onRetry(): void;
+  onWithdrawFlagged(draftId: string): void;
   state: MyDraftsState;
   user: CurrentUser;
+  withdrawal: DraftWithdrawalState;
 }) {
   if (state.status === "loading") {
     return <DraftsMessage title="Loading drafts" body="Retrieving your latest turn-ins..." busy />;
@@ -139,13 +164,33 @@ export function MyDraftsView({
         </div>
       );
     }
-    return <DraftStatusView draft={selected} />;
+    return (
+      <DraftStatusView
+        draft={selected}
+        onWithdrawFlagged={onWithdrawFlagged}
+        withdrawal={withdrawal}
+      />
+    );
   }
 
-  return <DraftList drafts={state.drafts} />;
+  return (
+    <DraftList
+      drafts={state.drafts}
+      onWithdrawFlagged={onWithdrawFlagged}
+      withdrawal={withdrawal}
+    />
+  );
 }
 
-function DraftList({ drafts }: { drafts: readonly DraftResponse[] }) {
+function DraftList({
+  drafts,
+  onWithdrawFlagged,
+  withdrawal,
+}: {
+  drafts: readonly DraftResponse[];
+  onWithdrawFlagged(draftId: string): void;
+  withdrawal: DraftWithdrawalState;
+}) {
   return (
     <section className="my-drafts-page" aria-labelledby="my-drafts-title">
       <header className="my-drafts-header">
@@ -194,9 +239,28 @@ function DraftList({ drafts }: { drafts: readonly DraftResponse[] }) {
                     <time dateTime={draft.lastEditedAt}>{formatTimestamp(draft.lastEditedAt)}</time>
                   </td>
                   <td className="my-drafts-action">
-                    <a href={`#/my-drafts?draft=${encodeURIComponent(draft.id)}`}>
-                      {draftActionLabel(draft.status)}
-                    </a>
+                    {draft.status === "flagged" ? (
+                      <>
+                        <button
+                          disabled={withdrawal?.draftId === draft.id && withdrawal.status === "loading"}
+                          onClick={() => onWithdrawFlagged(draft.id)}
+                          type="button"
+                        >
+                          {withdrawal?.draftId === draft.id && withdrawal.status === "loading"
+                            ? "Reopening..."
+                            : draftActionLabel(draft.status)}
+                        </button>
+                        {withdrawal?.draftId === draft.id && withdrawal.status === "error" ? (
+                          <span className="my-drafts-action-error" role="alert">
+                            Could not reopen. Refresh and try again.
+                          </span>
+                        ) : null}
+                      </>
+                    ) : (
+                      <a href={`#/my-drafts?draft=${encodeURIComponent(draft.id)}`}>
+                        {draftActionLabel(draft.status)}
+                      </a>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -208,7 +272,15 @@ function DraftList({ drafts }: { drafts: readonly DraftResponse[] }) {
   );
 }
 
-function DraftStatusView({ draft }: { draft: DraftResponse }) {
+function DraftStatusView({
+  draft,
+  onWithdrawFlagged,
+  withdrawal,
+}: {
+  draft: DraftResponse;
+  onWithdrawFlagged(draftId: string): void;
+  withdrawal: DraftWithdrawalState;
+}) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     requestAnimationFrame(() => headingRef.current?.focus());
@@ -236,6 +308,22 @@ function DraftStatusView({ draft }: { draft: DraftResponse }) {
       </dl>
       {draft.status === "flagged" && draft.flagReason !== null ? (
         <div className="draft-status-note"><strong>Help requested</strong><p>{draft.flagReason}</p></div>
+      ) : null}
+      {draft.status === "flagged" ? (
+        <div className="draft-status-actions">
+          <button
+            disabled={withdrawal?.draftId === draft.id && withdrawal.status === "loading"}
+            onClick={() => onWithdrawFlagged(draft.id)}
+            type="button"
+          >
+            {withdrawal?.draftId === draft.id && withdrawal.status === "loading"
+              ? "Reopening..."
+              : "Reopen and edit"}
+          </button>
+          {withdrawal?.draftId === draft.id && withdrawal.status === "error" ? (
+            <p role="alert">Could not reopen this draft. Refresh and try again.</p>
+          ) : null}
+        </div>
       ) : null}
     </section>
   );

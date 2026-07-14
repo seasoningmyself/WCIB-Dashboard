@@ -33,6 +33,7 @@ test("My Drafts lists only projected identifying fields and status actions", () 
   assert.match(markup, /WCIB-100/);
   assert.match(markup, />Edit</);
   assert.match(markup, />Review and reopen</);
+  assert.match(markup, />Reopen and edit</);
   assert.match(markup, /View status/);
   assert.doesNotMatch(markup, /Base premium|Agency commission total|IPFS financing/);
   assert.doesNotMatch(markup, /ownerUserId|producerUserId/);
@@ -99,13 +100,13 @@ test("sent-back editing exposes only nonfinancial fields until C3 reopens it", (
   assert.doesNotMatch(markup, /Private address|private@example\.test|555-0100/);
 });
 
-test("immutable status views contain no edit control or financial placeholder", () => {
-  for (const status of ["submitted", "flagged", "approved"] as const) {
+test("immutable submitted and approved status views contain no edit control or financial placeholder", () => {
+  for (const status of ["submitted", "approved"] as const) {
     const markup = renderView({
       currentPath: `/my-drafts?draft=${DRAFT_ID}`,
       state: {
         drafts: [draft({
-          flagReason: status === "flagged" ? "Need carrier help." : null,
+          flagReason: null,
           status,
           submittedAt: "2026-07-10T13:00:00.000Z",
         })],
@@ -117,6 +118,24 @@ test("immutable status views contain no edit control or financial placeholder", 
     assert.doesNotMatch(markup, />Edit<|Reopen draft|Submit for approval/);
     assert.doesNotMatch(markup, /Base premium|Broker fee|Agency commission|IPFS|Finance balance/);
   }
+});
+
+test("flagged owner view offers audited reopen without exposing stored financials", () => {
+  const markup = renderView({
+    currentPath: `/my-drafts?draft=${DRAFT_ID}`,
+    state: {
+      drafts: [draft({
+        basePremium: undefined,
+        flagReason: "Need carrier help.",
+        status: "flagged",
+      })],
+      status: "ready",
+    },
+  });
+
+  assert.match(markup, /Need carrier help/);
+  assert.match(markup, />Reopen and edit</);
+  assert.doesNotMatch(markup, /Base premium|Broker fee|Agency commission|IPFS|Finance balance/);
 });
 
 test("another-owner URL guess and list failures disclose no draft data", () => {
@@ -155,8 +174,10 @@ function renderView({
           currentPath={currentPath}
           onDraftChange={() => {}}
           onRetry={() => {}}
+          onWithdrawFlagged={() => {}}
           state={state}
           user={producer()}
+          withdrawal={null}
         />
       </VocabularyProvider>
     </ApiClientProvider>,
