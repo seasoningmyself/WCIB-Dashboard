@@ -1,6 +1,6 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 13, 2026 (recorded production pay-sheet initialization, cascade close, and add-as-you-go vocabulary decisions.)
+**Last updated:** July 13, 2026 (recorded production pay-sheet initialization, cascade close, live pay-sheet KPIs, and add-as-you-go vocabulary decisions.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
 
 ---
@@ -22,6 +22,14 @@ Initialization requires an authenticated admin actor, writes the append-only `pa
 The production transaction is stricter than the single-file prototype: all selected owner sheets close atomically through the existing close function. If any producer close fails, none of the selected sheets close. Successful closes retain per-owner frozen policy, rate, adjustment, and total snapshots; one audit event and one next-period sheet are produced per owner; retries are idempotent; there is no reopen path.
 
 Owner chains remain independent after a House-only close. If Sophia advances while a producer remains on an older open period, subsequent producer work stays on that producer's existing open sheet, matching v15's owner-scoped `getOrCreateOpenSheet` behavior. Only a producer with no open sheet is initialized on Sophia's current period.
+
+---
+
+## July 13, 2026 — Production live pay-sheet KPI widget
+
+**Recorded production decision:** v15's open-period, context-aware pay-sheet widget is rebuilt directly from the existing admin-projected pay-sheet list and detail responses. It introduces no second database aggregation path and no client-authoritative close calculation. Sophia's widget uses the five projected agency totals, current policy classifications, projected per-policy payouts, and projected open-producer totals. Producer widgets use only that owner's projected detail and final payout.
+
+The inline expansion is a native disclosure control and is intentionally session-only. Unlike v15, its open/closed state is not persisted in browser `localStorage`; this preserves the production rule that sensitive financial screens do not copy state into browser storage. Because the app renders one selected owner workspace at a time, v15's cross-widget expansion synchronization has no visible production equivalent.
 
 ---
 

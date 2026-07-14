@@ -3,6 +3,7 @@ import { test } from "node:test";
 import type { CurrentUser } from "../../../shared/current-user.js";
 import {
   adjustmentTypeLabel,
+  buildPaySheetLiveKpi,
   closedSheetsForOwner,
   detailSourceLabel,
   formatPaySheetPeriod,
@@ -93,6 +94,106 @@ test("policy sections preserve v15 account order, A-Z rows, and exact totals", (
     ]),
     [["Their book", "50.00", "Section payout"]],
   );
+});
+
+test("live KPI widget derives only projected open-sheet facts", () => {
+  const sophia = paySheetDetailFixture();
+  const sophiaDetail = {
+    ...sophia,
+    policies: [
+      paySheetPolicyFixture({
+        associationId: uuid(40),
+        insuredName: "Workers Client",
+        kayleeSplit: "book",
+        policyTypeName: "Workers Compensation",
+        producerPayout: "25.00",
+        transactionType: "New",
+      }),
+      paySheetPolicyFixture({
+        associationId: uuid(41),
+        insuredName: "Bond Client",
+        kayleeSplit: "none",
+        policyTypeName: "Surety Bond",
+        producerPayout: null,
+        transactionType: "Renewal",
+      }),
+      paySheetPolicyFixture({
+        associationId: uuid(42),
+        insuredName: "First Year Client",
+        kayleeSplit: "house",
+        policyTypeName: "General Liability",
+        producerPayout: "40.00",
+        transactionType: "New",
+      }),
+    ],
+  };
+  const otherProducer = producerSummaryFixture({
+    id: uuid(43),
+    ownerDisplayName: "Jordan",
+    ownerUserId: uuid(44),
+    totals: {
+      ...producerSummaryFixture().totals!,
+      producerPayout: "10.25",
+    },
+  });
+  const sophiaKpi = buildPaySheetLiveKpi(sophiaDetail, [
+    sophiaDetail,
+    producerSummaryFixture(),
+    otherProducer,
+  ]);
+  assert.deepEqual(sophiaKpi, {
+    accountMix: {
+      firstYearHouse: 1,
+      house: 1,
+      producerBook: 1,
+      suretyBonds: 1,
+      workersComp: 1,
+    },
+    firstYearProducerPayout: "40.00",
+    newBusinessCount: 2,
+    ownerType: "sophia",
+    paidToProducers: "55.25",
+    periodLabel: "July 2026",
+    renewalOrExistingCount: 1,
+    totalPolicyCount: 3,
+    totals: sophiaDetail.totals,
+  });
+
+  const producer = paySheetDetailFixture(producerSummaryFixture());
+  const producerKpi = buildPaySheetLiveKpi(
+    {
+      ...producer,
+      policies: [
+        producer.policies[0]!,
+        paySheetPolicyFixture({
+          associationId: uuid(45),
+          kayleeSplit: "house",
+          policyTypeName: "Workers Compensation",
+          transactionType: "Renewal",
+        }),
+        paySheetPolicyFixture({
+          associationId: uuid(46),
+          kayleeSplit: "book",
+          policyTypeName: "Workers Compensation",
+          transactionType: "Endorsement",
+        }),
+      ],
+    },
+    [producer],
+  );
+  assert.equal(producerKpi.ownerType, "producer");
+  if (producerKpi.ownerType !== "producer") return;
+  assert.deepEqual(producerKpi.accountMix, {
+    firstYearHouse: 1,
+    producerBook: 2,
+  });
+  assert.deepEqual(producerKpi.policyTypes, [
+    { label: "Workers Compensation", policyCount: 2 },
+    { label: "General Liability", policyCount: 1 },
+  ]);
+  assert.equal(producerKpi.payout, "45.00");
+  assert.equal(producerKpi.newBusinessCount, 1);
+  assert.equal(producerKpi.renewalOrExistingCount, 2);
 });
 
 test("export periods are unique, newest-first, and owner-scoped by UUID", () => {

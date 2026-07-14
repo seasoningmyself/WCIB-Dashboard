@@ -38,6 +38,7 @@ import {
 } from "./export-resources.js";
 import {
   adjustmentTypeLabel,
+  buildPaySheetLiveKpi,
   closedSheetsForOwner,
   detailSourceLabel,
   formatPaySheetDate,
@@ -786,6 +787,7 @@ export function PaySheetsView({
           )}
 
           <OwnerWorkspace
+            allSheets={state.data.items}
             details={details}
             expandedClosedId={expandedClosedId}
             group={activeGroup}
@@ -875,6 +877,7 @@ export function PaySheetBootstrap({
 }
 
 function OwnerWorkspace({
+  allSheets,
   details,
   expandedClosedId,
   group,
@@ -884,6 +887,7 @@ function OwnerWorkspace({
   onToggleClosed,
   pending,
 }: {
+  allSheets: readonly PaySheetSummary[];
   details: Readonly<Record<string, PaySheetDetailState>>;
   expandedClosedId: string | null;
   group: PaySheetOwnerGroup;
@@ -918,6 +922,7 @@ function OwnerWorkspace({
           </div>
         ) : (
           <SheetPanel
+            allSheets={allSheets}
             detail={details[open.id]}
             onClose={() => onClose(open)}
             onOpenAdjustment={onOpenAdjustment}
@@ -965,6 +970,7 @@ function OwnerWorkspace({
                   </button>
                   {expanded ? (
                     <SheetPanel
+                      allSheets={allSheets}
                       detail={details[sheet.id]}
                       onClose={() => {}}
                       onOpenAdjustment={onOpenAdjustment}
@@ -984,6 +990,7 @@ function OwnerWorkspace({
 }
 
 function SheetPanel({
+  allSheets,
   detail,
   onClose,
   onOpenAdjustment,
@@ -991,6 +998,7 @@ function SheetPanel({
   pending,
   summary,
 }: {
+  allSheets: readonly PaySheetSummary[];
   detail: PaySheetDetailState | undefined;
   onClose(): void;
   onOpenAdjustment(dialog: PaySheetAdjustmentDialogState): void;
@@ -1001,6 +1009,9 @@ function SheetPanel({
   const open = summary.status === "open";
   return (
     <div className={`pay-sheet-panel ${open ? "is-open" : "is-closed"}`}>
+      {open && detail?.status === "ready" ? (
+        <PaySheetLiveKpiWidget allSheets={allSheets} sheet={detail.data} />
+      ) : null}
       <PaySheetTotals summary={summary} />
       <div className="pay-sheet-panel-toolbar">
         <span>
@@ -1080,6 +1091,125 @@ function PaySheetTotals({ summary }: { summary: PaySheetSummary }) {
         </div>
       ))}
     </dl>
+  );
+}
+
+function PaySheetLiveKpiWidget({
+  allSheets,
+  sheet,
+}: {
+  allSheets: readonly PaySheetSummary[];
+  sheet: PaySheetDetail;
+}) {
+  const kpi = buildPaySheetLiveKpi(sheet, allSheets);
+  if (kpi.totalPolicyCount === 0) {
+    return (
+      <section className="pay-sheet-live-kpi is-empty" aria-label="Current period at a glance">
+        <span>No activity yet this period</span>
+      </section>
+    );
+  }
+
+  return (
+    <section className="pay-sheet-live-kpi" aria-labelledby={`live-kpi-${sheet.id}`}>
+      <header>
+        <div>
+          <p>{kpi.ownerType === "sophia" ? "House / Agency" : kpi.ownerDisplayName}</p>
+          <h3 id={`live-kpi-${sheet.id}`}>At a glance</h3>
+        </div>
+        <span>{kpi.periodLabel} / open, live</span>
+      </header>
+
+      {kpi.ownerType === "sophia" ? (
+        <>
+          <div className="pay-sheet-live-kpi-money" aria-label="Current agency totals">
+            <LiveKpiMetric label="Total broker fees" money={kpi.totals.brokerFees} />
+            <LiveKpiMetric label="Total commissions" money={kpi.totals.commissions} />
+            <LiveKpiMetric label="To pull from trust" money={kpi.totals.trustPull} />
+            <LiveKpiMetric label="Checks / ACH" money={kpi.totals.directCheckAchIncome} />
+            <LiveKpiMetric label="Grand total income" money={kpi.totals.grandTotalIncome} />
+          </div>
+          <div className="pay-sheet-live-kpi-activity" aria-label="Current agency activity">
+            <LiveKpiMetric label="New business" value={String(kpi.newBusinessCount)} />
+            <LiveKpiMetric
+              label="Renewals / existing"
+              value={String(kpi.renewalOrExistingCount)}
+            />
+            <LiveKpiMetric label="Paid to producers" money={kpi.paidToProducers} />
+            <LiveKpiMetric
+              className={
+                kpi.firstYearProducerPayout === "0.00"
+                  ? "is-target-met"
+                  : kpi.firstYearProducerPayout === null
+                    ? ""
+                    : "is-target-over"
+              }
+              label="1st-yr house paid / target $0"
+              money={kpi.firstYearProducerPayout}
+              suffix={kpi.firstYearProducerPayout === "0.00" ? " / At target" : ""}
+            />
+          </div>
+          <details>
+            <summary>Account &amp; policy mix</summary>
+            <div className="pay-sheet-live-kpi-detail">
+              <LiveKpiMetric label="House (agency)" value={String(kpi.accountMix.house)} />
+              <LiveKpiMetric label="Producer book" value={String(kpi.accountMix.producerBook)} />
+              <LiveKpiMetric label="1st-yr house" value={String(kpi.accountMix.firstYearHouse)} />
+              <LiveKpiMetric label="Workers' comp" value={String(kpi.accountMix.workersComp)} />
+              <LiveKpiMetric label="Surety bonds" value={String(kpi.accountMix.suretyBonds)} />
+            </div>
+          </details>
+        </>
+      ) : (
+        <>
+          <div className="pay-sheet-live-kpi-activity is-producer" aria-label="Current producer activity">
+            <LiveKpiMetric label="Commission payout" money={kpi.payout} />
+            <LiveKpiMetric label="New business" value={String(kpi.newBusinessCount)} />
+            <LiveKpiMetric
+              label="Renewals / existing"
+              value={String(kpi.renewalOrExistingCount)}
+            />
+            <LiveKpiMetric label="Total policies" value={String(kpi.totalPolicyCount)} />
+          </div>
+          <details>
+            <summary>Account &amp; policy mix</summary>
+            <div className="pay-sheet-live-kpi-detail">
+              <LiveKpiMetric label="Their book" value={String(kpi.accountMix.producerBook)} />
+              <LiveKpiMetric label="1st-yr house" value={String(kpi.accountMix.firstYearHouse)} />
+              {kpi.policyTypes.map(({ label, policyCount }) => (
+                <LiveKpiMetric key={label} label={label} value={String(policyCount)} />
+              ))}
+            </div>
+          </details>
+        </>
+      )}
+    </section>
+  );
+}
+
+function LiveKpiMetric({
+  className = "",
+  label,
+  money,
+  suffix = "",
+  value,
+}: {
+  className?: string;
+  label: string;
+  money?: string | null;
+  suffix?: string;
+  value?: string;
+}) {
+  const displayed = money === undefined
+    ? (value ?? "Unavailable")
+    : money === null
+      ? "Unavailable"
+      : formatMoneyExact(money);
+  return (
+    <div className={className}>
+      <span>{label}</span>
+      <strong>{displayed}{suffix}</strong>
+    </div>
   );
 }
 
