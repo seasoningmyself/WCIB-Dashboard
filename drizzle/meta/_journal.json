@@ -281,6 +281,13 @@
       "when": 1783983295398,
       "tag": "0039_pay_sheet_initialization",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1783988297621,
+      "tag": "0040_pay_sheet_cascade_close",
+      "breakpoints": true
     }
   ]
 }

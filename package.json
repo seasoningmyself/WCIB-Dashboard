@@ -81,6 +81,7 @@
     "test:db:pay-sheet-policies": "node --import tsx --test server/db/pay-sheet-policies.db-test.ts",
     "test:db:mga-pay-sheet-attachment": "node --import tsx --test server/db/mga-pay-sheet-attachment.db-test.ts",
     "test:db:pay-sheet-close": "node --import tsx --test server/db/pay-sheet-close.db-test.ts",
+    "test:db:pay-sheet-cascade-close": "node --import tsx --test server/db/pay-sheet-cascade-close.db-test.ts",
     "test:db:pay-sheet-read": "node --import tsx --test server/http/pay-sheets.db-test.ts",
     "test:db:pay-sheet-exports": "node --import tsx --test server/http/pay-sheet-exports.db-test.ts",
     "test:db:closed-pay-sheet-immutability": "node --import tsx --test server/db/closed-pay-sheet-immutability.db-test.ts",

@@ -61,6 +61,7 @@ test("pay-sheets API uses only the real data and streamed export routes", async 
         policyCount: 1,
       },
       closedSheet: closed,
+      cascaded: [],
       nextSheet: next,
     }),
     Response.json(mutation("created")),
@@ -80,7 +81,7 @@ test("pay-sheets API uses only the real data and streamed export routes", async 
   await api.list();
   await api.bootstrap({ periodMonth: 6, periodYear: 2026 });
   await api.get(detail.id);
-  await api.close(detail.id);
+  await api.close(detail.id, true);
   await api.createAdjustment(detail.id, adjustmentInput());
   await api.updateAdjustment(detail.adjustments[0]!.id, adjustmentInput());
   await api.deleteAdjustment(detail.adjustments[0]!.id);
@@ -121,7 +122,9 @@ test("pay-sheets API uses only the real data and streamed export routes", async 
     periodMonth: 6,
     periodYear: 2026,
   });
-  assert.deepEqual(JSON.parse(String(calls[3]?.options?.body)), {});
+  assert.deepEqual(JSON.parse(String(calls[3]?.options?.body)), {
+    cascadeProducerSheets: true,
+  });
   assert.equal(
     calls.some(({ path }) => /reopen|localStorage/i.test(path)),
     false,

@@ -72,7 +72,7 @@ import {
   listPaySheetSources,
 } from "./pay-sheets/read.js";
 import { registerPaySheetCloseRoute } from "./http/pay-sheet-close.js";
-import { closePaySheet } from "./pay-sheets/close.js";
+import { closePaySheetWithCascade } from "./pay-sheets/close.js";
 import { registerPaySheetBootstrapRoute } from "./http/pay-sheet-bootstrap.js";
 import { initializeSophiaPaySheet } from "./pay-sheets/initialize.js";
 import { registerPaySheetAdjustmentRoutes } from "./http/pay-sheet-adjustments.js";
@@ -261,8 +261,14 @@ const app = createApp({
     });
     registerPaySheetCloseRoute(routes, {
       authorization,
-      close: (context, paySheetId) =>
-        closePaySheet(database, context, paySheetId, logger),
+      close: (context, paySheetId, cascadeProducerSheets) =>
+        closePaySheetWithCascade(
+          database,
+          context,
+          paySheetId,
+          cascadeProducerSheets,
+          logger,
+        ),
       get: (context, paySheetId) =>
         getPaySheetSource(database, context, paySheetId),
       logger,

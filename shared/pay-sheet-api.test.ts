@@ -102,7 +102,11 @@ test("producer sheets with policies and no effective rate require unavailable to
 });
 
 test("pay-sheet close accepts no client-authored financial state", () => {
-  assert.deepEqual(paySheetCloseRequestSchema.parse({}), {});
+  assert.deepEqual(
+    paySheetCloseRequestSchema.parse({ cascadeProducerSheets: true }),
+    { cascadeProducerSheets: true },
+  );
+  assert.equal(paySheetCloseRequestSchema.safeParse({}).success, false);
   for (const field of [
     "actorUserId",
     "closedAt",
@@ -113,7 +117,10 @@ test("pay-sheet close accepts no client-authored financial state", () => {
     "snapshots",
   ]) {
     assert.equal(
-      paySheetCloseRequestSchema.safeParse({ [field]: "forged" }).success,
+      paySheetCloseRequestSchema.safeParse({
+        cascadeProducerSheets: true,
+        [field]: "forged",
+      }).success,
       false,
     );
   }
@@ -139,6 +146,7 @@ test("pay-sheet close response requires a closed source and matching next sheet"
       policyCount: 1,
     },
     closedSheet: { ...closedSheet, adjustments: [], policies: [policy()] },
+    cascaded: [],
     nextSheet,
   };
   assert.equal(paySheetCloseResponseSchema.safeParse(response).success, true);

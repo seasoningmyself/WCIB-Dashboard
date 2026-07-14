@@ -15,6 +15,16 @@ export interface PaySheetCloseResult {
   readonly policyCount: number;
 }
 
+export interface PaySheetCascadeCloseResult {
+  readonly cascaded: readonly PaySheetCascadeCloseItem[];
+  readonly primary: PaySheetCloseResult;
+}
+
+export interface PaySheetCascadeCloseItem {
+  readonly close: PaySheetCloseResult;
+  readonly paySheetId: string;
+}
+
 export class PaySheetCloseError extends Error {
   constructor(message: string) {
     super(message);
@@ -66,6 +76,55 @@ export async function closePaySheet(
   }
 }
 
+export async function closePaySheetWithCascade(
+  database: PaySheetCloseDatabase,
+  context: AuthorizedRequestContext,
+  paySheetId: string,
+  cascadeProducerSheets: boolean,
+  logger: AppLogger,
+): Promise<PaySheetCascadeCloseResult> {
+  const actorUserId = context.principal.userId;
+  try {
+    requireLifecycleAdmin(context);
+    const result = await database.execute<{ close_result: unknown }>(
+      sql`select close_pay_sheet_with_cascade(
+        ${paySheetId}::uuid,
+        ${actorUserId}::uuid,
+        ${cascadeProducerSheets}::boolean
+      ) as close_result`,
+    );
+    const closeResult = parseCascadeCloseResult(result.rows[0]?.close_result);
+    logger.info("Pay sheet close set applied", {
+      actorUserId,
+      cascadeProducerSheets,
+      cascadedCount: closeResult.cascaded.length,
+      closed: closeResult.primary.closed,
+      component: "pay_sheet",
+      event: "pay_sheet_cascade_close_succeeded",
+      nextSheetId: closeResult.primary.nextSheetId,
+      ownerType: closeResult.primary.ownerType,
+      paySheetId,
+      periodMonth: closeResult.primary.periodMonth,
+      periodYear: closeResult.primary.periodYear,
+      policyCount: closeResult.primary.policyCount,
+    });
+    return closeResult;
+  } catch (error) {
+    logger.error(
+      "Pay sheet close set failed",
+      {
+        actorUserId,
+        cascadeProducerSheets,
+        component: "pay_sheet",
+        event: "pay_sheet_cascade_close_failed",
+        paySheetId,
+      },
+      error,
+    );
+    throw error;
+  }
+}
+
 function parseCloseResult(value: unknown): PaySheetCloseResult {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new PaySheetCloseError("Pay-sheet close returned an invalid result");
@@ -94,6 +153,34 @@ function parseCloseResult(value: unknown): PaySheetCloseResult {
     periodMonth: candidate.periodMonth as number,
     periodYear: candidate.periodYear as number,
     policyCount: candidate.policyCount as number,
+  });
+}
+
+function parseCascadeCloseResult(value: unknown): PaySheetCascadeCloseResult {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new PaySheetCloseError("Pay-sheet cascade close returned an invalid result");
+  }
+  const candidate = value as Record<string, unknown>;
+  if (!Array.isArray(candidate.cascaded)) {
+    throw new PaySheetCloseError("Pay-sheet cascade close returned an invalid result");
+  }
+  return Object.freeze({
+    cascaded: Object.freeze(candidate.cascaded.map(parseCascadeCloseItem)),
+    primary: parseCloseResult(candidate.primary),
+  });
+}
+
+function parseCascadeCloseItem(value: unknown): PaySheetCascadeCloseItem {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new PaySheetCloseError("Pay-sheet cascade item returned an invalid result");
+  }
+  const candidate = value as Record<string, unknown>;
+  if (typeof candidate.paySheetId !== "string" || !uuidPattern.test(candidate.paySheetId)) {
+    throw new PaySheetCloseError("Pay-sheet cascade item returned an invalid result");
+  }
+  return Object.freeze({
+    close: parseCloseResult(candidate.close),
+    paySheetId: candidate.paySheetId,
   });
 }
 

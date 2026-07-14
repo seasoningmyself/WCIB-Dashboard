@@ -50,7 +50,10 @@ export interface PaySheetExportDocument {
 
 export interface PaySheetsApi {
   bootstrap(input: PaySheetBootstrapRequest): Promise<PaySheetBootstrapResponse>;
-  close(paySheetId: string): Promise<PaySheetCloseResponse>;
+  close(
+    paySheetId: string,
+    cascadeProducerSheets: boolean,
+  ): Promise<PaySheetCloseResponse>;
   createAdjustment(
     paySheetId: string,
     input: PaySheetAdjustmentInput,
@@ -80,12 +83,12 @@ export function createPaySheetsApi(client: ApiClient): PaySheetsApi {
         parseRequest(paySheetBootstrapRequestSchema, input),
         paySheetBootstrapResponseSchema,
       ),
-    close: (paySheetId) =>
+    close: (paySheetId, cascadeProducerSheets) =>
       mutate(
         client,
         `/pay-sheets/${encodeURIComponent(paySheetId)}/close`,
         "POST",
-        paySheetCloseRequestSchema.parse({}),
+        paySheetCloseRequestSchema.parse({ cascadeProducerSheets }),
         paySheetCloseResponseSchema,
       ),
     async createAdjustment(paySheetId, input) {

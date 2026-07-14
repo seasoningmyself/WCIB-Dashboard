@@ -206,12 +206,15 @@ test("pay-sheet initialization migration rolls back and reapplies byte-identical
     async (isolatedUrl) => {
       const client = new pg.Client({ connectionString: isolatedUrl });
       await client.connect();
-      const migration = loadMigrationPlan().find(
+      const plan = loadMigrationPlan();
+      const migrationIndex = plan.findIndex(
         ({ tag }) => tag === "0039_pay_sheet_initialization",
       );
+      const migration = plan[migrationIndex];
+      const dependentMigrations = plan.slice(migrationIndex + 1);
       assert.ok(migration);
       try {
-        const fingerprint = await captureSchemaFingerprint(client);
+        const finalFingerprint = await captureSchemaFingerprint(client);
         assert.equal(await actionExists(client), true);
         assert.equal(
           await functionExists(
@@ -234,6 +237,13 @@ test("pay-sheet initialization migration rolls back and reapplies byte-identical
           ),
           false,
         );
+
+        for (const dependent of [...dependentMigrations].reverse()) {
+          for (const statement of dependent.backoutStatements) {
+            await client.query(statement);
+          }
+        }
+        const migrationFingerprint = await captureSchemaFingerprint(client);
 
         for (const statement of migration.backoutStatements) {
           await client.query(statement);
@@ -260,12 +270,27 @@ test("pay-sheet initialization migration rolls back and reapplies byte-identical
           ),
           true,
         );
-        assert.notEqual(await captureSchemaFingerprint(client), fingerprint);
+        assert.notEqual(
+          await captureSchemaFingerprint(client),
+          migrationFingerprint,
+        );
 
         for (const statement of migration.forwardStatements) {
           await client.query(statement);
         }
-        assert.equal(await captureSchemaFingerprint(client), fingerprint);
+        assert.equal(
+          await captureSchemaFingerprint(client),
+          migrationFingerprint,
+        );
+        for (const dependent of dependentMigrations) {
+          for (const statement of dependent.forwardStatements) {
+            await client.query(statement);
+          }
+        }
+        assert.equal(
+          await captureSchemaFingerprint(client),
+          finalFingerprint,
+        );
       } finally {
         await client.end();
       }

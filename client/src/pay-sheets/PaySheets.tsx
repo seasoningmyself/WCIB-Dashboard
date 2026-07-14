@@ -98,6 +98,7 @@ function AdminPaySheets() {
   const detailsRef = useRef(details);
   const [producers, setProducers] = useState<readonly DraftAssignmentOption[]>([]);
   const [closeDialog, setCloseDialog] = useState<PaySheetSummary | null>(null);
+  const [cascadeProducerSheets, setCascadeProducerSheets] = useState(true);
   const [adjustmentDialog, setAdjustmentDialog] =
     useState<PaySheetAdjustmentDialogState | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
@@ -281,6 +282,7 @@ function AdminPaySheets() {
     setExpandedClosedId(null);
     setProducers([]);
     setCloseDialog(null);
+    setCascadeProducerSheets(true);
     setAdjustmentDialog(null);
     setDialogError(null);
     exportAbortRef.current?.abort();
@@ -439,19 +441,25 @@ function AdminPaySheets() {
     setDialogError(null);
     setNotice(null);
     try {
-      const response = await api.close(closeDialog.id);
-      updateDetails((current) => ({
-        ...current,
-        [response.closedSheet.id]: {
-          data: response.closedSheet,
-          status: "ready",
-        },
-      }));
+      const response = await api.close(
+        closeDialog.id,
+        closeDialog.ownerType === "sophia" && cascadeProducerSheets,
+      );
+      updateDetails((current) => {
+        const next = { ...current };
+        for (const outcome of [response, ...response.cascaded]) {
+          next[outcome.closedSheet.id] = {
+            data: outcome.closedSheet,
+            status: "ready",
+          };
+        }
+        return next;
+      });
       setExpandedClosedId(response.closedSheet.id);
       setCloseDialog(null);
       setNotice(
         response.close.closed
-          ? `${formatPaySheetPeriod(response.close.periodMonth, response.close.periodYear)} closed. The next period is open.`
+          ? `${formatPaySheetPeriod(response.close.periodMonth, response.close.periodYear)} closed${response.cascaded.length === 0 ? "" : ` with ${response.cascaded.length} producer sheet${response.cascaded.length === 1 ? "" : "s"}`}. The next periods are open.`
           : "This sheet was already closed. The current periods have been refreshed.",
       );
       await load(false);
@@ -476,7 +484,14 @@ function AdminPaySheets() {
       pendingRef.current = false;
       setPending(false);
     }
-  }, [api, clearSensitiveState, closeDialog, load, updateDetails]);
+  }, [
+    api,
+    cascadeProducerSheets,
+    clearSensitiveState,
+    closeDialog,
+    load,
+    updateDetails,
+  ]);
 
   const submitAdjustment = useCallback(
     async (input?: PaySheetAdjustmentInput) => {
@@ -577,6 +592,7 @@ function AdminPaySheets() {
         notice={notice}
         onClose={(sheet) => {
           setDialogError(null);
+          setCascadeProducerSheets(sheet.ownerType === "sophia");
           setCloseDialog(sheet);
         }}
         onBootstrapChange={(period) => {
@@ -588,6 +604,7 @@ function AdminPaySheets() {
           setExpandedClosedId(null);
           setAdjustmentDialog(null);
           setCloseDialog(null);
+          setCascadeProducerSheets(true);
           setDialogError(null);
           setNotice(null);
           setExportConfirmation(null);
@@ -626,6 +643,7 @@ function AdminPaySheets() {
         periodLabel={selectedExportPeriod?.label ?? "Selected period"}
       />
       <PaySheetCloseDialog
+        cascadeProducerSheets={cascadeProducerSheets}
         error={dialogError}
         onCancel={() => {
           if (!pending) {
@@ -634,6 +652,7 @@ function AdminPaySheets() {
           }
         }}
         onConfirm={() => void submitClose()}
+        onCascadeProducerSheets={setCascadeProducerSheets}
         pending={pending}
         sheet={closeDialog}
       />

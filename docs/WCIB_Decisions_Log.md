@@ -1,6 +1,6 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 13, 2026 (recorded production pay-sheet initialization and add-as-you-go vocabulary decisions.)
+**Last updated:** July 13, 2026 (recorded production pay-sheet initialization, cascade close, and add-as-you-go vocabulary decisions.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
 
 ---
@@ -12,6 +12,16 @@
 Producer chains remain lazy. When a producer's first eligible MGA-paid policy is placed, the producer sheet is created in Sophia's **current open period**, not the original bootstrap period, and the creation and policy attachment commit atomically. No producer sheets are bulk-provisioned.
 
 Initialization requires an authenticated admin actor, writes the append-only `pay_sheet_initialized` audit action, serializes competing owner-chain creation attempts, and is idempotent for the established period. If an owner has closed history but no open successor, initialization reports an integrity conflict for review rather than silently repairing financial history.
+
+---
+
+## July 13, 2026 — Production House-sheet cascade close
+
+**Recorded production decision:** v15's final close behavior is preserved through an explicit admin-only close request. Closing a producer sheet closes only that owner. Closing Sophia's House sheet defaults to closing every open producer sheet with activity; the confirmation control provides the same explicit House-only opt-out as v15.
+
+The production transaction is stricter than the single-file prototype: all selected owner sheets close atomically through the existing close function. If any producer close fails, none of the selected sheets close. Successful closes retain per-owner frozen policy, rate, adjustment, and total snapshots; one audit event and one next-period sheet are produced per owner; retries are idempotent; there is no reopen path.
+
+Owner chains remain independent after a House-only close. If Sophia advances while a producer remains on an older open period, subsequent producer work stays on that producer's existing open sheet, matching v15's owner-scoped `getOrCreateOpenSheet` behavior. Only a producer with no open sheet is initialized on Sophia's current period.
 
 ---
 

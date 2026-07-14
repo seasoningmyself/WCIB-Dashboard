@@ -6256,6 +6256,32 @@ h1 {
   font-variant-numeric: tabular-nums;
 }
 
+.pay-sheet-cascade-option {
+  align-items: flex-start;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+}
+
+.pay-sheet-cascade-option input {
+  flex: 0 0 auto;
+  height: 16px;
+  margin: 2px 0 0;
+  width: 16px;
+}
+
+.pay-sheet-cascade-option span {
+  display: grid;
+  gap: 3px;
+}
+
+.pay-sheet-cascade-option small {
+  color: var(--muted);
+}
+
 .pay-sheet-data-section {
   min-width: 0;
   border-bottom: 1px solid #d2dade;

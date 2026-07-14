@@ -35,14 +35,18 @@ export type PaySheetAdjustmentDialogState =
     };
 
 export function PaySheetCloseDialog({
+  cascadeProducerSheets,
   error,
   onCancel,
+  onCascadeProducerSheets,
   onConfirm,
   pending,
   sheet,
 }: {
+  cascadeProducerSheets: boolean;
   error: string | null;
   onCancel(): void;
+  onCascadeProducerSheets(value: boolean): void;
   onConfirm(): void;
   pending: boolean;
   sheet: PaySheetSummary | null;
@@ -92,6 +96,24 @@ export function PaySheetCloseDialog({
               <dd>{sheet.adjustmentCount}</dd>
             </div>
           </dl>
+          {sheet.ownerType === "sophia" ? (
+            <label className="pay-sheet-cascade-option">
+              <input
+                checked={cascadeProducerSheets}
+                disabled={pending}
+                onChange={(event) =>
+                  onCascadeProducerSheets(event.currentTarget.checked)
+                }
+                type="checkbox"
+              />
+              <span>
+                <strong>Close producer sheets with activity</strong>
+                <small>
+                  Recommended. Clear this option to close the House sheet only.
+                </small>
+              </span>
+            </label>
+          ) : null}
           {error === null ? null : (
             <div className="pay-sheet-dialog-error" role="alert">
               {error}
@@ -108,7 +130,11 @@ export function PaySheetCloseDialog({
             onClick={onConfirm}
             type="button"
           >
-            {pending ? "Closing..." : "Close sheet"}
+            {pending
+              ? "Closing..."
+              : sheet.ownerType === "sophia" && cascadeProducerSheets
+                ? "Close House + producers"
+                : "Close sheet"}
           </button>
         </footer>
       </section>

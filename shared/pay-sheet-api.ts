@@ -217,7 +217,11 @@ export const paySheetBootstrapResponseSchema = z
   })
   .strict();
 
-export const paySheetCloseRequestSchema = z.object({}).strict();
+export const paySheetCloseRequestSchema = z
+  .object({
+    cascadeProducerSheets: z.boolean(),
+  })
+  .strict();
 
 export const paySheetCloseResultSchema = z
   .object({
@@ -230,42 +234,24 @@ export const paySheetCloseResultSchema = z
   })
   .strict();
 
-export const paySheetCloseResponseSchema = z
+export const paySheetCloseOutcomeSchema = z
   .object({
     close: paySheetCloseResultSchema,
     closedSheet: paySheetDetailSchema,
     nextSheet: paySheetSummarySchema,
   })
   .strict()
-  .superRefine((value, context) => {
-    const nextPeriod =
-      value.close.periodMonth === 12
-        ? { month: 1, year: value.close.periodYear + 1 }
-        : {
-            month: value.close.periodMonth + 1,
-            year: value.close.periodYear,
-          };
-    if (
-      value.closedSheet.id === value.close.nextSheetId ||
-      value.closedSheet.ownerType !== value.close.ownerType ||
-      value.closedSheet.ownerUserId !== value.nextSheet.ownerUserId ||
-      value.closedSheet.periodMonth !== value.close.periodMonth ||
-      value.closedSheet.periodYear !== value.close.periodYear ||
-      value.closedSheet.policyCount !== value.close.policyCount ||
-      value.closedSheet.policies.length !== value.close.policyCount ||
-      value.closedSheet.status !== "closed" ||
-      value.nextSheet.id !== value.close.nextSheetId ||
-      value.nextSheet.ownerType !== value.close.ownerType ||
-      value.nextSheet.periodMonth !== nextPeriod.month ||
-      value.nextSheet.periodYear !== nextPeriod.year ||
-      value.nextSheet.status !== "open"
-    ) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Pay-sheet close response is inconsistent",
-      });
-    }
-  });
+  .superRefine(requireConsistentCloseOutcome);
+
+export const paySheetCloseResponseSchema = z
+  .object({
+    close: paySheetCloseResultSchema,
+    closedSheet: paySheetDetailSchema,
+    nextSheet: paySheetSummarySchema,
+    cascaded: z.array(paySheetCloseOutcomeSchema),
+  })
+  .strict()
+  .superRefine(requireConsistentCloseOutcome);
 
 export type PaySheetListQuery = z.output<typeof paySheetListQuerySchema>;
 export type PaySheetRate = z.output<typeof paySheetRateSchema>;
@@ -281,7 +267,45 @@ export type PaySheetDetailResponse = z.output<typeof paySheetDetailResponseSchem
 export type PaySheetBootstrapRequest = z.output<typeof paySheetBootstrapRequestSchema>;
 export type PaySheetBootstrapResponse = z.output<typeof paySheetBootstrapResponseSchema>;
 export type PaySheetCloseResult = z.output<typeof paySheetCloseResultSchema>;
+export type PaySheetCloseOutcome = z.output<typeof paySheetCloseOutcomeSchema>;
 export type PaySheetCloseResponse = z.output<typeof paySheetCloseResponseSchema>;
+
+function requireConsistentCloseOutcome(
+  value: {
+    close: z.output<typeof paySheetCloseResultSchema>;
+    closedSheet: z.output<typeof paySheetDetailSchema>;
+    nextSheet: z.output<typeof paySheetSummarySchema>;
+  },
+  context: z.RefinementCtx,
+): void {
+  const nextPeriod =
+    value.close.periodMonth === 12
+      ? { month: 1, year: value.close.periodYear + 1 }
+      : {
+          month: value.close.periodMonth + 1,
+          year: value.close.periodYear,
+        };
+  if (
+    value.closedSheet.id === value.close.nextSheetId ||
+    value.closedSheet.ownerType !== value.close.ownerType ||
+    value.closedSheet.ownerUserId !== value.nextSheet.ownerUserId ||
+    value.closedSheet.periodMonth !== value.close.periodMonth ||
+    value.closedSheet.periodYear !== value.close.periodYear ||
+    value.closedSheet.policyCount !== value.close.policyCount ||
+    value.closedSheet.policies.length !== value.close.policyCount ||
+    value.closedSheet.status !== "closed" ||
+    value.nextSheet.id !== value.close.nextSheetId ||
+    value.nextSheet.ownerType !== value.close.ownerType ||
+    value.nextSheet.periodMonth !== nextPeriod.month ||
+    value.nextSheet.periodYear !== nextPeriod.year ||
+    value.nextSheet.status !== "open"
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Pay-sheet close response is inconsistent",
+    });
+  }
+}
 
 function requireConsistentProducerTotals(
   value: { closeBlocker: string | null; ownerType: string; totals: unknown },

@@ -33,7 +33,7 @@ import {
   updatePaySheetAdjustment,
 } from "../pay-sheets/adjustments.js";
 import { getPaySheetAdjustmentTarget } from "../pay-sheets/adjustment-target.js";
-import { closePaySheet } from "../pay-sheets/close.js";
+import { closePaySheetWithCascade } from "../pay-sheets/close.js";
 import { syncMgaPaymentSheetPlacement } from "../pay-sheets/mga-placement.js";
 import {
   getPaySheetSource,
@@ -204,8 +204,14 @@ test("pay-sheet endpoints compose open totals and immutable closed history", asy
             });
             registerPaySheetCloseRoute(routes, {
               authorization,
-              close: (context, paySheetId) =>
-                closePaySheet(database, context, paySheetId, logger),
+              close: (context, paySheetId, cascadeProducerSheets) =>
+                closePaySheetWithCascade(
+                  database,
+                  context,
+                  paySheetId,
+                  cascadeProducerSheets,
+                  logger,
+                ),
               get: (context, paySheetId) =>
                 getPaySheetSource(database, context, paySheetId),
               logger,
@@ -601,7 +607,7 @@ async function closeSheet(
   paySheetId: string,
 ): Promise<any> {
   const response = await request(baseUrl, {
-    body: {},
+    body: { cascadeProducerSheets: false },
     cookie,
     method: "POST",
     path: PAY_SHEET_CLOSE_PATH.replace(":paySheetId", paySheetId),

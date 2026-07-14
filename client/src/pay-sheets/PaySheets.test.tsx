@@ -216,8 +216,10 @@ test("close confirmation states immutability and disables duplicate submission",
   const sheet = sophiaSummaryFixture();
   const ready = renderToStaticMarkup(
     <PaySheetCloseDialog
+      cascadeProducerSheets
       error={null}
       onCancel={() => {}}
+      onCascadeProducerSheets={() => {}}
       onConfirm={() => {}}
       pending={false}
       sheet={sheet}
@@ -225,8 +227,10 @@ test("close confirmation states immutability and disables duplicate submission",
   );
   const pending = renderToStaticMarkup(
     <PaySheetCloseDialog
+      cascadeProducerSheets={false}
       error="The sheet could not be closed. Try again."
       onCancel={() => {}}
+      onCascadeProducerSheets={() => {}}
       onConfirm={() => {}}
       pending
       sheet={sheet}
@@ -234,6 +238,9 @@ test("close confirmation states immutability and disables duplicate submission",
   );
   assert.match(ready, /cannot be reopened/);
   assert.match(ready, /later corrections belong on the next open sheet/);
+  assert.match(ready, /Close producer sheets with activity/);
+  assert.match(ready, /Close House \+ producers/);
+  assert.match(ready, /close the House sheet only/);
   assert.match(pending, /Closing.../);
   assert.match(pending, /disabled=""/);
   assert.match(pending, /role="alert"/);
