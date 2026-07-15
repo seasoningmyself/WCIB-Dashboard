@@ -539,7 +539,7 @@ export function CheckTurnInFormView({
           className="turn-in-controls"
           disabled={formLocked}
         >
-        <FormSection title="Account and insured">
+        <FormSection title="Account assignment">
           <div className="turn-in-grid turn-in-grid-three">
             <FormField
               error={errors.accountAssignment}
@@ -596,14 +596,12 @@ export function CheckTurnInFormView({
               </FormField>
             )}
 
-            <TextField
-              error={errors.insuredName}
-              field="insuredName"
-              label="Insured name"
-              onChange={(value) => onFieldChange("insuredName", value)}
-              required
-              value={form.insuredName}
-            />
+          </div>
+        </FormSection>
+
+        <FormSection title="Policy information">
+          <div className="turn-in-grid turn-in-grid-three">
+            <TextField error={errors.insuredName} field="insuredName" label="Insured name" onChange={(value) => onFieldChange("insuredName", value)} required value={form.insuredName} />
             <TextField
               field="companyName"
               label="Company name"
@@ -620,11 +618,6 @@ export function CheckTurnInFormView({
                 value={form.policyTypeId}
               />
             </FormField>
-          </div>
-        </FormSection>
-
-        <FormSection title="Transaction and term">
-          <div className="turn-in-grid turn-in-grid-three">
             <FormField
               error={errors.transactionType}
               field="transactionType"
@@ -646,22 +639,6 @@ export function CheckTurnInFormView({
                 {TURN_IN_TRANSACTION_TYPES.map((type) => <option key={type} value={type} />)}
               </datalist>
             </FormField>
-            <DateField
-              error={errors.effectiveDate}
-              field="effectiveDate"
-              label="Effective date"
-              onChange={(value) => onFieldChange("effectiveDate", value)}
-              required
-              value={form.effectiveDate}
-            />
-            <DateField
-              error={errors.expirationDate}
-              field="expirationDate"
-              label="Expiration date"
-              onChange={(value) => onFieldChange("expirationDate", value)}
-              required
-              value={form.expirationDate}
-            />
             {isInvoiceTransaction(form.transactionType) ? (
               <TextField
                 error={errors.invoiceNumber}
@@ -682,7 +659,27 @@ export function CheckTurnInFormView({
           </div>
         </FormSection>
 
-        <FormSection title="Policy placement">
+        {showFinancialFields ? (
+          <FormSection title="Proposal total — verify against the quote">
+          <div className="turn-in-grid turn-in-grid-four">
+            <MoneyField error={errors.proposalTotal} field="proposalTotal" label="Proposal total from quote" onChange={(value) => onFieldChange("proposalTotal", value)} required value={form.proposalTotal} />
+            <ReadOnlyAmount label="Calculated total" value={summary.proposalTotal} />
+            {form.paymentMode === "deposit" ? (
+              <MoneyField field="depositOption" label="Deposit option from quote" onChange={(value) => onFieldChange("depositOption", value)} value={form.depositOption} />
+            ) : null}
+          </div>
+          </FormSection>
+        ) : null}
+
+        {showFinancialFields ? (
+          <FormSection title="Amount collected — from ePayPolicy receipt">
+          <div className="turn-in-grid turn-in-grid-four">
+            <MoneyField error={errors.amountPaid} field="amountPaid" label="Amount collected" onChange={(value) => onFieldChange("amountPaid", value)} required value={form.amountPaid} />
+          </div>
+          </FormSection>
+        ) : null}
+
+        <FormSection title="Carrier invoice — insurance company, MGA, policy # & dates">
           <div className="turn-in-grid turn-in-grid-three">
             <FormField error={errors.carrierId} field="carrierId">
               <InlineCarrierPicker
@@ -705,30 +702,14 @@ export function CheckTurnInFormView({
                 value={form.mgaId}
               />
             </FormField>
-            <TextField
-              error={errors.policyNumber}
-              field="policyNumber"
-              label="Policy number"
-              onChange={(value) => onFieldChange("policyNumber", value)}
-              required
-              value={form.policyNumber}
-            />
+            <TextField error={errors.policyNumber} field="policyNumber" label="Policy number" onChange={(value) => onFieldChange("policyNumber", value)} required value={form.policyNumber} />
+            <DateField error={errors.effectiveDate} field="effectiveDate" label="Effective date" onChange={(value) => onFieldChange("effectiveDate", value)} required value={form.effectiveDate} />
+            <DateField error={errors.expirationDate} field="expirationDate" label="Expiration date" onChange={(value) => onFieldChange("expirationDate", value)} required value={form.expirationDate} />
           </div>
         </FormSection>
 
         {showFinancialFields ? (
-          <FormSection title="Premium, fees, and agency commission">
-          <div className="turn-in-grid turn-in-grid-four">
-            <MoneyField field="basePremium" label="Base premium" onChange={(value) => onFieldChange("basePremium", value)} value={form.basePremium} />
-            <MoneyField field="taxes" label="Taxes" onChange={(value) => onFieldChange("taxes", value)} value={form.taxes} />
-            <MoneyField field="mgaFee" label="MGA fee" onChange={(value) => onFieldChange("mgaFee", value)} value={form.mgaFee} />
-            <MoneyField error={errors.brokerFee} field="brokerFee" label="Broker fee" onChange={(value) => onFieldChange("brokerFee", value)} required value={form.brokerFee} />
-            <MoneyField error={errors.proposalTotal} field="proposalTotal" label="Proposal total" onChange={(value) => onFieldChange("proposalTotal", value)} required value={form.proposalTotal} />
-            <ReadOnlyAmount label="Calculated total" value={summary.proposalTotal} />
-            <MoneyField error={errors.amountPaid} field="amountPaid" label="Amount collected" onChange={(value) => onFieldChange("amountPaid", value)} required value={form.amountPaid} />
-            <ReadOnlyAmount label="Net due to MGA" value={summary.netDue} />
-          </div>
-
+          <FormSection title="Commission">
           <SegmentedField
             legend="Agency commission"
             name="commission-mode"
@@ -758,29 +739,41 @@ export function CheckTurnInFormView({
               </FormField>
             ) : null}
             <ReadOnlyAmount label="Agency commission total" value={summary.commissionAmount} />
-            {form.commissionMode === "pct" ? (
-              <label className="turn-in-check">
-                <input
-                  aria-describedby={fieldErrorId(
-                    "commissionConfirmed",
-                    errors.commissionConfirmed,
-                  )}
-                  aria-invalid={errors.commissionConfirmed !== undefined}
-                  checked={form.commissionConfirmed}
-                  disabled={pending}
-                  onChange={(event) => onFieldChange("commissionConfirmed", event.currentTarget.checked)}
-                  type="checkbox"
-                />
-                <span>Commission confirmed against carrier invoice</span>
-                <FieldError error={errors.commissionConfirmed} field="commissionConfirmed" />
-              </label>
-            ) : null}
           </div>
           </FormSection>
         ) : null}
 
         {showFinancialFields ? (
-          <FormSection title="Payment and premium financing">
+          <FormSection title="Premium detail — from carrier invoice & binding docs">
+          <div className="turn-in-grid turn-in-grid-four">
+            <MoneyField field="basePremium" label="Base premium" onChange={(value) => onFieldChange("basePremium", value)} value={form.basePremium} />
+            <MoneyField field="taxes" label="Taxes" onChange={(value) => onFieldChange("taxes", value)} value={form.taxes} />
+            <MoneyField field="mgaFee" label="MGA fee" onChange={(value) => onFieldChange("mgaFee", value)} value={form.mgaFee} />
+            <MoneyField error={errors.brokerFee} field="brokerFee" label="Broker fee" onChange={(value) => onFieldChange("brokerFee", value)} required value={form.brokerFee} />
+            <ReadOnlyAmount label="Proposal total (incl. broker fee)" value={summary.proposalTotal} />
+          </div>
+          {form.commissionMode === "pct" ? (
+            <label className="turn-in-check turn-in-commission-confirmation">
+              <input
+                aria-describedby={fieldErrorId(
+                  "commissionConfirmed",
+                  errors.commissionConfirmed,
+                )}
+                aria-invalid={errors.commissionConfirmed !== undefined}
+                checked={form.commissionConfirmed}
+                disabled={pending}
+                onChange={(event) => onFieldChange("commissionConfirmed", event.currentTarget.checked)}
+                type="checkbox"
+              />
+              <span>Commission confirmed against carrier invoice</span>
+              <FieldError error={errors.commissionConfirmed} field="commissionConfirmed" />
+            </label>
+          ) : null}
+          </FormSection>
+        ) : null}
+
+        {showFinancialFields ? (
+          <FormSection title="Payment type — confirm against ePayPolicy receipt">
           <SegmentedField
             legend="Payment mode"
             name="payment-mode"
@@ -796,7 +789,6 @@ export function CheckTurnInFormView({
           {form.paymentMode === "deposit" ? (
             <div className="turn-in-conditional">
               <div className="turn-in-grid turn-in-grid-three">
-                <MoneyField field="depositOption" label="Deposit option" onChange={(value) => onFieldChange("depositOption", value)} value={form.depositOption} />
                 <ReadOnlyAmount label="Finance balance" value={summary.financeBalance} />
                 <TextField field="financeReference" label="Finance reference" onChange={(value) => onFieldChange("financeReference", value)} value={form.financeReference} />
               </div>
@@ -846,7 +838,13 @@ export function CheckTurnInFormView({
           </FormSection>
         ) : null}
 
-        <FormSection title="Notes">
+        {showFinancialFields ? (
+          <FormSection title="Net due to MGA">
+            <ReadOnlyAmount label="Net due to MGA" value={summary.netDue} />
+          </FormSection>
+        ) : null}
+
+        <FormSection title="General notes">
           <TextAreaField field="notes" label="General notes" onChange={(value) => onFieldChange("notes", value)} value={form.notes} wide />
         </FormSection>
         </fieldset>

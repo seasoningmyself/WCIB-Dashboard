@@ -76,6 +76,18 @@ test("Check Turn-In renders every active v15 input and exact producer assignment
   for (const assignment of ["First-year", "House account", "Kaylee account"]) {
     assert.match(markup, new RegExp(`>${escapeRegExp(assignment)}<`));
   }
+  assertInOrder(markup, [
+    "Account assignment",
+    "Policy information",
+    "Proposal total — verify against the quote",
+    "Amount collected — from ePayPolicy receipt",
+    "Carrier invoice — insurance company, MGA, policy # &amp; dates",
+    "Commission",
+    "Premium detail — from carrier invoice &amp; binding docs",
+    "Payment type — confirm against ePayPolicy receipt",
+    "Net due to MGA",
+    "General notes",
+  ]);
   assert.match(markup, /Submit for approval/);
   assert.doesNotMatch(markup, /producer payout/i);
   assert.doesNotMatch(markup, /producer personal/i);
@@ -83,6 +95,24 @@ test("Check Turn-In renders every active v15 input and exact producer assignment
   assert.doesNotMatch(markup, /producer rate/i);
   assert.doesNotMatch(markup, /localStorage/);
   assert.doesNotMatch(markup, /ownerUserId|linkedPolicyId|status selector/);
+});
+
+test("Deposit option remains conditional while the v15 field order stays fixed", () => {
+  const depositMarkup = renderView({
+    form: { ...createEmptyTurnInState(), paymentMode: "deposit" },
+    user: producer(),
+  });
+  const fullMarkup = renderView({
+    form: { ...createEmptyTurnInState(), paymentMode: "full" },
+    user: producer(),
+  });
+
+  assert.match(depositMarkup, /Deposit option from quote/);
+  assert.doesNotMatch(fullMarkup, /Deposit option from quote/);
+  assert.ok(
+    depositMarkup.indexOf("Deposit option from quote")
+      < depositMarkup.indexOf("Amount collected — from ePayPolicy receipt"),
+  );
 });
 
 test("submitted staff turn-ins immediately render no financial or IPFS controls", () => {
@@ -375,4 +405,14 @@ function helpControl(
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function assertInOrder(markup: string, values: readonly string[]): void {
+  let previousIndex = -1;
+  for (const value of values) {
+    const index = markup.indexOf(value);
+    assert.notEqual(index, -1, `Expected markup to include ${value}`);
+    assert.ok(index > previousIndex, `Expected ${value} to follow the prior field group`);
+    previousIndex = index;
+  }
 }
