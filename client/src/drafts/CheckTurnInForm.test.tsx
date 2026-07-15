@@ -44,7 +44,7 @@ test("Check Turn-In renders every active v15 input and exact producer assignment
     "Effective date",
     "Expiration date",
     "Invoice number",
-    "Transaction notes",
+    "Endorsement detail",
     "Insurance company",
     "MGA",
     "Policy number",
@@ -52,8 +52,8 @@ test("Check Turn-In renders every active v15 input and exact producer assignment
     "Taxes",
     "MGA fee",
     "Broker fee",
-    "Proposal total",
-    "Calculated total",
+    "WCIB Invoiced Amount",
+    "WCIB Invoiced Total",
     "Amount collected",
     "Net due to MGA",
     "Agency commission",
@@ -79,7 +79,7 @@ test("Check Turn-In renders every active v15 input and exact producer assignment
   assertInOrder(markup, [
     "Account assignment",
     "Policy information",
-    "Proposal total — verify against the quote",
+    "WCIB invoiced amount — verify against the invoice",
     "Amount collected — from ePayPolicy receipt",
     "Carrier invoice — insurance company, MGA, policy # &amp; dates",
     "Commission",
@@ -135,6 +135,32 @@ test("Deposit option remains conditional while the v15 field order stays fixed",
     depositMarkup.indexOf("Deposit option from quote")
       < depositMarkup.indexOf("Amount collected — from ePayPolicy receipt"),
   );
+});
+
+test("Audit and Endorsement use invoice wording while quote transactions revert", () => {
+  for (const transactionType of ["Audit", "Endorsement"]) {
+    const markup = renderView({
+      form: { ...createEmptyTurnInState(), paymentMode: "deposit", transactionType },
+      user: producer(),
+    });
+    assert.match(markup, /WCIB invoiced amount — verify against the invoice/);
+    assert.match(markup, /WCIB Invoiced Amount — the total amount on the WCIB invoice/);
+    assert.match(markup, /placeholder="Enter the WCIB invoiced amount"/);
+    assert.match(markup, /Deposit option from carrier/);
+    assert.match(markup, /Deposit option from the carrier — if a balance will be financed/);
+    assert.match(markup, /WCIB Invoiced Total/);
+    assert.doesNotMatch(markup, /Proposal total — verify against the quote/);
+  }
+
+  const renewal = renderView({
+    form: { ...createEmptyTurnInState(), paymentMode: "deposit", transactionType: "Renewal" },
+    user: producer(),
+  });
+  assert.match(renewal, /Proposal total — verify against the quote/);
+  assert.match(renewal, /Proposal total from quote — confirm the premium on the proposal/);
+  assert.match(renewal, /Deposit option from quote/);
+  assert.match(renewal, /Proposal total \(incl\. broker fee\)/);
+  assert.doesNotMatch(renewal, /WCIB Invoiced/);
 });
 
 test("submitted staff turn-ins immediately render no financial or IPFS controls", () => {

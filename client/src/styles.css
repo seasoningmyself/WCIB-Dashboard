@@ -2165,6 +2165,12 @@ h1 {
   line-height: 1.35;
 }
 
+.turn-in-hint {
+  color: #65737a;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
 .turn-in-inline-retry {
   min-height: 36px;
   justify-self: start;

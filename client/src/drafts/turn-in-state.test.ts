@@ -6,6 +6,7 @@ import {
   buildAssignmentChoices,
   calculateTurnInSummary,
   createEmptyTurnInState,
+  getTurnInWording,
   isStandardTurnInTransactionType,
   suggestAnnualExpiration,
   turnInFormToDraftInput,
@@ -219,6 +220,28 @@ test("transaction values retain seven standards and bounded custom compatibility
       .transactionType,
     "Reinstatement",
   );
+});
+
+test("v15 transaction wording is deterministic for invoice and notes contexts", () => {
+  assert.deepEqual(getTurnInWording("Audit"), {
+    calculatedTotalLabel: "WCIB Invoiced Total",
+    depositHint: "Deposit option from the carrier — if a balance will be financed",
+    depositLabel: "Deposit option from carrier",
+    invoiceTransaction: true,
+    notesLabel: "Audit detail",
+    notesPlaceholder: "e.g. Sales increased from $50k to $200k — additional premium due",
+    proposalInputLabel: "WCIB Invoiced Amount — the total amount on the WCIB invoice",
+    proposalInputPlaceholder: "Enter the WCIB invoiced amount",
+    proposalSectionTitle: "WCIB invoiced amount — verify against the invoice",
+  });
+  assert.equal(getTurnInWording("Endorsement").invoiceTransaction, true);
+  assert.equal(getTurnInWording("Rewrite").notesLabel, "Rewrite detail");
+  assert.equal(getTurnInWording("Renewal").notesLabel, "Renewal notes");
+  assert.equal(getTurnInWording("New").notesLabel, "New policy notes");
+  assert.equal(getTurnInWording("Cross-sale").notesLabel, "Cross-sale detail");
+  assert.equal(getTurnInWording("Won Back").notesLabel, "Additional detail");
+  assert.equal(getTurnInWording("Custom").notesPlaceholder, "Any relevant notes");
+  assert.equal(getTurnInWording("Renewal").invoiceTransaction, false);
 });
 
 test("annual policy expiration suggestions are deterministic and scoped", () => {

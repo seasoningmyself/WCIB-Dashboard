@@ -46,6 +46,54 @@ export function isStandardTurnInTransactionType(value: string): boolean {
   return (TURN_IN_TRANSACTION_TYPES as readonly string[]).includes(value);
 }
 
+export interface TurnInWording {
+  calculatedTotalLabel: string;
+  depositHint: string;
+  depositLabel: string;
+  invoiceTransaction: boolean;
+  notesLabel: string;
+  notesPlaceholder: string;
+  proposalInputLabel: string;
+  proposalInputPlaceholder: string;
+  proposalSectionTitle: string;
+}
+
+const TRANSACTION_NOTES_WORDING: Readonly<Record<string, readonly [string, string]>> = {
+  Audit: ["Audit detail", "e.g. Sales increased from $50k to $200k — additional premium due"],
+  Endorsement: ["Endorsement detail", "e.g. Added 2026 excavator to existing inland marine policy"],
+  Rewrite: ["Rewrite detail", "e.g. Moved from carrier A to carrier B — same coverage, better rate"],
+  Renewal: ["Renewal notes", "e.g. Coverage unchanged, premium increased 8%"],
+  New: ["New policy notes", "Optional — any relevant details about this new account"],
+  "Cross-sale": ["Cross-sale detail", "e.g. Existing GL client — added commercial auto"],
+};
+
+export function getTurnInWording(transactionType: string): TurnInWording {
+  const invoiceTransaction = isInvoiceTransaction(transactionType);
+  const [notesLabel, notesPlaceholder] =
+    TRANSACTION_NOTES_WORDING[transactionType] ?? ["Additional detail", "Any relevant notes"];
+  return {
+    calculatedTotalLabel: invoiceTransaction
+      ? "WCIB Invoiced Total"
+      : "Proposal total (incl. broker fee)",
+    depositHint: invoiceTransaction
+      ? "Deposit option from the carrier — if a balance will be financed"
+      : "The deposit option shown on the proposal — for reference only",
+    depositLabel: invoiceTransaction ? "Deposit option from carrier" : "Deposit option from quote",
+    invoiceTransaction,
+    notesLabel,
+    notesPlaceholder,
+    proposalInputLabel: invoiceTransaction
+      ? "WCIB Invoiced Amount — the total amount on the WCIB invoice"
+      : "Proposal total from quote — confirm the premium on the proposal",
+    proposalInputPlaceholder: invoiceTransaction
+      ? "Enter the WCIB invoiced amount"
+      : "Enter the total premium shown on the proposal",
+    proposalSectionTitle: invoiceTransaction
+      ? "WCIB invoiced amount — verify against the invoice"
+      : "Proposal total — verify against the quote",
+  };
+}
+
 export interface TurnInFormState {
   accountAssignment: AccountAssignment | "";
   amountPaid: string;

@@ -25,6 +25,7 @@ import {
   buildAssignmentChoices,
   calculateTurnInSummary,
   createEmptyTurnInState,
+  getTurnInWording,
   isInvoiceTransaction,
   isStandardTurnInTransactionType,
   suggestAnnualExpiration,
@@ -494,6 +495,7 @@ export function CheckTurnInFormView({
 }: CheckTurnInFormViewProps) {
   const vocabulary = useVocabulary();
   const summary = calculateTurnInSummary(form);
+  const wording = getTurnInWording(form.transactionType);
   const pending = saveState === "saving";
   const completed = draft !== null && !isEditableDraft(draft);
   const sentBack = draft?.status === "sent_back";
@@ -709,8 +711,9 @@ export function CheckTurnInFormView({
             ) : null}
             <TextAreaField
               field="transactionNotes"
-              label="Transaction notes"
+              label={wording.notesLabel}
               onChange={(value) => onFieldChange("transactionNotes", value)}
+              placeholder={wording.notesPlaceholder}
               value={form.transactionNotes}
               wide
             />
@@ -718,12 +721,12 @@ export function CheckTurnInFormView({
         </FormSection>
 
         {showFinancialFields ? (
-          <FormSection title="Proposal total — verify against the quote">
+          <FormSection title={wording.proposalSectionTitle}>
           <div className="turn-in-grid turn-in-grid-four">
-            <MoneyField error={errors.proposalTotal} field="proposalTotal" label="Proposal total from quote" onChange={(value) => onFieldChange("proposalTotal", value)} required value={form.proposalTotal} />
-            <ReadOnlyAmount label="Calculated total" value={summary.proposalTotal} />
+            <MoneyField error={errors.proposalTotal} field="proposalTotal" label={wording.proposalInputLabel} onChange={(value) => onFieldChange("proposalTotal", value)} placeholder={wording.proposalInputPlaceholder} required value={form.proposalTotal} />
+            <ReadOnlyAmount label={wording.calculatedTotalLabel} value={summary.proposalTotal} />
             {form.paymentMode === "deposit" ? (
-              <MoneyField field="depositOption" label="Deposit option from quote" onChange={(value) => onFieldChange("depositOption", value)} value={form.depositOption} />
+              <MoneyField field="depositOption" hint={wording.depositHint} label={wording.depositLabel} onChange={(value) => onFieldChange("depositOption", value)} value={form.depositOption} />
             ) : null}
           </div>
           </FormSection>
@@ -808,7 +811,7 @@ export function CheckTurnInFormView({
             <MoneyField field="taxes" label="Taxes" onChange={(value) => onFieldChange("taxes", value)} value={form.taxes} />
             <MoneyField field="mgaFee" label="MGA fee" onChange={(value) => onFieldChange("mgaFee", value)} value={form.mgaFee} />
             <MoneyField error={errors.brokerFee} field="brokerFee" label="Broker fee" onChange={(value) => onFieldChange("brokerFee", value)} required value={form.brokerFee} />
-            <ReadOnlyAmount label="Proposal total (incl. broker fee)" value={summary.proposalTotal} />
+            <ReadOnlyAmount label={wording.calculatedTotalLabel} value={summary.proposalTotal} />
           </div>
           {form.commissionMode === "pct" ? (
             <label className="turn-in-check turn-in-commission-confirmation">
@@ -1166,23 +1169,24 @@ function DateField(props: Omit<Parameters<typeof TextField>[0], "type">) {
   );
 }
 
-function MoneyField(props: Omit<Parameters<typeof TextField>[0], "type">) {
-  const { error, field, label, onChange, required, value } = props;
+function MoneyField(props: Omit<Parameters<typeof TextField>[0], "type"> & { hint?: string; placeholder?: string }) {
+  const { error, field, hint, label, onChange, placeholder, required, value } = props;
   return (
     <FormField error={error} field={field} label={label} required={required}>
       <div className="turn-in-input-affix">
         <span aria-hidden="true">$</span>
-        <input aria-describedby={fieldErrorId(field, error)} aria-invalid={error !== undefined} aria-required={required} id={fieldId(field)} inputMode="decimal" maxLength={15} onChange={(event) => onChange(event.currentTarget.value)} value={value} />
+        <input aria-describedby={fieldErrorId(field, error)} aria-invalid={error !== undefined} aria-required={required} id={fieldId(field)} inputMode="decimal" maxLength={15} onChange={(event) => onChange(event.currentTarget.value)} placeholder={placeholder} value={value} />
       </div>
+      {hint === undefined ? null : <span className="turn-in-hint">{hint}</span>}
     </FormField>
   );
 }
 
-function TextAreaField({ error, field, label, onChange, required = false, value, wide = false }: Omit<Parameters<typeof TextField>[0], "type"> & { wide?: boolean }) {
+function TextAreaField({ error, field, label, onChange, placeholder, required = false, value, wide = false }: Omit<Parameters<typeof TextField>[0], "type"> & { placeholder?: string; wide?: boolean }) {
   return (
     <div className={wide ? "turn-in-field turn-in-wide" : "turn-in-field"}>
       <label htmlFor={fieldId(field)}>{label}{required ? <span aria-hidden="true"> *</span> : null}</label>
-      <textarea aria-describedby={fieldErrorId(field, error)} aria-invalid={error !== undefined} aria-required={required} id={fieldId(field)} maxLength={maxLengthForField(field)} onChange={(event) => onChange(event.currentTarget.value)} rows={3} value={value} />
+      <textarea aria-describedby={fieldErrorId(field, error)} aria-invalid={error !== undefined} aria-required={required} id={fieldId(field)} maxLength={maxLengthForField(field)} onChange={(event) => onChange(event.currentTarget.value)} placeholder={placeholder} rows={3} value={value} />
       <FieldError error={error} field={field} />
     </div>
   );
