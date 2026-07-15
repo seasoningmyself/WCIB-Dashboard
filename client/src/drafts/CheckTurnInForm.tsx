@@ -28,6 +28,7 @@ import {
   getTurnInWording,
   isInvoiceTransaction,
   isStandardTurnInTransactionType,
+  normalizeTurnInDate,
   suggestAnnualExpiration,
   TURN_IN_TRANSACTION_TYPE_KEY,
   TURN_IN_TRANSACTION_TYPES,
@@ -792,7 +793,13 @@ export function CheckTurnInFormView({
                     disabled={pending}
                     id={fieldId("commissionRate")}
                     inputMode="decimal"
+                    max="100"
+                    min="0"
                     onChange={(event) => onFieldChange("commissionRate", event.currentTarget.value)}
+                    onFocus={selectNumericContents}
+                    onWheel={preventNumericWheelChange}
+                    step="0.01"
+                    type="number"
                     value={form.commissionRate}
                   />
                   <span aria-hidden="true">%</span>
@@ -1164,7 +1171,19 @@ function DateField(props: Omit<Parameters<typeof TextField>[0], "type">) {
   const { error, field, label, onChange, required, value } = props;
   return (
     <FormField error={error} field={field} label={label} required={required}>
-      <input aria-describedby={fieldErrorId(field, error)} aria-invalid={error !== undefined} aria-required={required} id={fieldId(field)} onChange={(event) => onChange(event.currentTarget.value)} type="date" value={value} />
+      <input
+        aria-describedby={fieldErrorId(field, error)}
+        aria-invalid={error !== undefined}
+        aria-required={required}
+        autoComplete="off"
+        id={fieldId(field)}
+        inputMode="numeric"
+        onBlur={(event) => onChange(normalizeTurnInDate(event.currentTarget.value))}
+        onChange={(event) => onChange(event.currentTarget.value)}
+        placeholder="MM/DD/YYYY — type or say it"
+        type="text"
+        value={value}
+      />
     </FormField>
   );
 }
@@ -1175,7 +1194,7 @@ function MoneyField(props: Omit<Parameters<typeof TextField>[0], "type"> & { hin
     <FormField error={error} field={field} label={label} required={required}>
       <div className="turn-in-input-affix">
         <span aria-hidden="true">$</span>
-        <input aria-describedby={fieldErrorId(field, error)} aria-invalid={error !== undefined} aria-required={required} id={fieldId(field)} inputMode="decimal" maxLength={15} onChange={(event) => onChange(event.currentTarget.value)} placeholder={placeholder} value={value} />
+        <input aria-describedby={fieldErrorId(field, error)} aria-invalid={error !== undefined} aria-required={required} id={fieldId(field)} inputMode="decimal" min="0" onChange={(event) => onChange(event.currentTarget.value)} onFocus={selectNumericContents} onWheel={preventNumericWheelChange} placeholder={placeholder} step="0.01" type="number" value={value} />
       </div>
       {hint === undefined ? null : <span className="turn-in-hint">{hint}</span>}
     </FormField>
@@ -1241,6 +1260,16 @@ function SaveIndicator({ draft, state }: { draft: DraftResponse | null; state: S
       {state === "saving" ? "Saving" : state === "dirty" ? "Unsaved changes" : state === "error" ? "Needs attention" : draft === null ? "New draft" : draft.status === "sent_back" ? "Changes requested" : "Draft saved"}
     </span>
   );
+}
+
+function selectNumericContents(event: React.FocusEvent<HTMLInputElement>): void {
+  event.currentTarget.select();
+}
+
+function preventNumericWheelChange(event: React.WheelEvent<HTMLInputElement>): void {
+  if (document.activeElement === event.currentTarget) {
+    event.preventDefault();
+  }
 }
 
 function draftStatusLabel(draft: DraftResponse | null): string {

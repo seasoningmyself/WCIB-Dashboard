@@ -211,15 +211,64 @@ export function suggestAnnualExpiration(
     "pollution",
     "errors",
   ].some((term) => policyTypeName.toLowerCase().includes(term));
-  if (!annualPolicyType || !/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate)) {
+  const isoDate = turnInDateToIso(effectiveDate);
+  if (!annualPolicyType || isoDate === null) {
     return null;
   }
-  const date = new Date(`${effectiveDate}T12:00:00.000Z`);
+  const date = new Date(`${isoDate}T12:00:00.000Z`);
   if (Number.isNaN(date.getTime()) || date.getUTCFullYear() < 2000) {
     return null;
   }
   date.setUTCFullYear(date.getUTCFullYear() + 1);
-  return date.toISOString().slice(0, 10);
+  return formatTurnInDateInput(date.toISOString().slice(0, 10));
+}
+
+export function normalizeTurnInDate(value: string): string {
+  const raw = value.trim();
+  if (raw === "") {
+    return "";
+  }
+  if (/^\d+$/.test(raw)) {
+    return digitDateToSlash(raw);
+  }
+  if (/^[0-9][0-9./\- ]*$/.test(raw)) {
+    const parts = raw.split(/[^0-9]+/).filter(Boolean);
+    if (parts.length === 2 || parts.length >= 3) {
+      const [month, day, year] =
+        parts.length >= 3
+          ? [parts[0]!, parts[1]!, parts[2]!]
+          : [parts[0]!, "1", parts[1]!];
+      const formatted = datePartsToSlash(month, day, year);
+      if (formatted !== null) {
+        return formatted;
+      }
+    }
+  }
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+    ? new Date(`${raw}T12:00:00`)
+    : new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return raw;
+  }
+  return `${String(parsed.getMonth() + 1).padStart(2, "0")}/${String(parsed.getDate()).padStart(2, "0")}/${parsed.getFullYear()}`;
+}
+
+export function formatTurnInDateInput(value: string | null | undefined): string {
+  return value == null || value === "" ? "" : normalizeTurnInDate(value);
+}
+
+export function turnInDateToIso(value: string): string | null {
+  const normalized = normalizeTurnInDate(value);
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(normalized);
+  if (match === null) {
+    return null;
+  }
+  const [, month, day, year] = match;
+  const iso = `${year}-${month}-${day}`;
+  const parsed = new Date(`${iso}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === iso
+    ? iso
+    : null;
 }
 
 export function turnInFormToDraftInput(
@@ -242,8 +291,8 @@ export function turnInFormToDraftInput(
         : null,
     companyName: textOrNull(state.companyName),
     depositOption: moneyOrNull(state.depositOption),
-    effectiveDate: textOrNull(state.effectiveDate),
-    expirationDate: textOrNull(state.expirationDate),
+    effectiveDate: dateForApi(state.effectiveDate),
+    expirationDate: dateForApi(state.expirationDate),
     financeContact: usesIpfs
       ? {
           address: state.financeAddress.trim(),
@@ -283,8 +332,8 @@ export function turnInFormToNonfinancialDraftUpdate(
     accountAssignment: state.accountAssignment || null,
     carrierId: state.carrierId,
     companyName: textOrNull(state.companyName),
-    effectiveDate: textOrNull(state.effectiveDate),
-    expirationDate: textOrNull(state.expirationDate),
+    effectiveDate: dateForApi(state.effectiveDate),
+    expirationDate: dateForApi(state.expirationDate),
     insuredName: textOrNull(state.insuredName),
     invoiceNumber: textOrNull(state.invoiceNumber),
     mgaId: state.mgaId,
@@ -310,8 +359,8 @@ export function turnInStateFromDraft(draft: DraftResponse): TurnInFormState {
     commissionRate: draft.commissionRate ?? "",
     companyName: draft.companyName ?? "",
     depositOption: draft.depositOption ?? "",
-    effectiveDate: draft.effectiveDate ?? "",
-    expirationDate: draft.expirationDate ?? "",
+    effectiveDate: formatTurnInDateInput(draft.effectiveDate),
+    expirationDate: formatTurnInDateInput(draft.expirationDate),
     financeAddress: draft.financeContact?.address ?? "",
     financeEmail: draft.financeContact?.email ?? "",
     financeMobile: draft.financeContact?.mobile ?? "",
@@ -504,6 +553,60 @@ function requireField(
 function textOrNull(value: string): string | null {
   const normalized = value.trim();
   return normalized === "" ? null : normalized;
+}
+
+function dateForApi(value: string): string | null {
+  const normalized = value.trim();
+  return normalized === "" ? null : (turnInDateToIso(normalized) ?? normalized);
+}
+
+function digitDateToSlash(raw: string): string {
+  let month: string;
+  let day: string;
+  let year: string;
+  if (raw.length === 8) {
+    month = raw.slice(0, 2);
+    day = raw.slice(2, 4);
+    year = raw.slice(4, 8);
+  } else if (raw.length === 7) {
+    month = raw.slice(0, 1);
+    day = raw.slice(1, 3);
+    year = raw.slice(3, 7);
+  } else if (raw.length === 6) {
+    const firstTwo = Number.parseInt(raw.slice(0, 2), 10);
+    if (firstTwo >= 1 && firstTwo <= 12) {
+      month = raw.slice(0, 2);
+      day = raw.slice(2, 4);
+      year = raw.slice(4, 6);
+    } else {
+      month = raw.slice(0, 1);
+      day = raw.slice(1, 2);
+      year = raw.slice(2, 6);
+    }
+  } else if (raw.length === 5) {
+    month = raw.slice(0, 1);
+    day = raw.slice(1, 3);
+    year = raw.slice(3, 5);
+  } else if (raw.length === 4) {
+    month = raw.slice(0, 1);
+    day = raw.slice(1, 2);
+    year = raw.slice(2, 4);
+  } else {
+    return raw;
+  }
+  return datePartsToSlash(month, day, year) ?? raw;
+}
+
+function datePartsToSlash(month: string, day: string, year: string): string | null {
+  const monthNumber = Number.parseInt(month, 10);
+  const dayNumber = Number.parseInt(day, 10);
+  if (monthNumber < 1 || monthNumber > 12 || dayNumber < 1 || dayNumber > 31) {
+    return null;
+  }
+  const normalizedYear = year.length <= 2
+    ? `20${year.padStart(2, "0")}`
+    : year.padStart(4, "0");
+  return `${String(monthNumber).padStart(2, "0")}/${String(dayNumber).padStart(2, "0")}/${normalizedYear}`;
 }
 
 function moneyOrNull(value: string): string | null {

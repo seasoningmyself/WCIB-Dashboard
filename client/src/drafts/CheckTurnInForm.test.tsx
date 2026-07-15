@@ -163,6 +163,22 @@ test("Audit and Endorsement use invoice wording while quote transactions revert"
   assert.doesNotMatch(renewal, /WCIB Invoiced/);
 });
 
+test("turn-in dates accept typed text and numeric inputs expose wheel-safe controls", () => {
+  const markup = renderView({
+    form: {
+      ...createEmptyTurnInState(),
+      effectiveDate: "06/11/2026",
+      expirationDate: "06/11/2027",
+    },
+    user: producer(),
+  });
+
+  assert.match(markup, /id="turn-in-effectiveDate"[^>]*inputMode="numeric"[^>]*placeholder="MM\/DD\/YYYY — type or say it"[^>]*type="text"[^>]*value="06\/11\/2026"/);
+  assert.match(markup, /id="turn-in-expirationDate"[^>]*type="text"[^>]*value="06\/11\/2027"/);
+  assert.match(markup, /id="turn-in-proposalTotal"[^>]*min="0"[^>]*step="0\.01"[^>]*type="number"/);
+  assert.match(markup, /id="turn-in-commissionRate"[^>]*max="100"[^>]*min="0"[^>]*step="0\.01"[^>]*type="number"/);
+});
+
 test("submitted staff turn-ins immediately render no financial or IPFS controls", () => {
   const markup = renderView({
     draft: submittedDraft(),

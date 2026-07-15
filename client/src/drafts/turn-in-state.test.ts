@@ -8,7 +8,9 @@ import {
   createEmptyTurnInState,
   getTurnInWording,
   isStandardTurnInTransactionType,
+  normalizeTurnInDate,
   suggestAnnualExpiration,
+  turnInDateToIso,
   turnInFormToDraftInput,
   turnInFormToNonfinancialDraftUpdate,
   updateTurnInField,
@@ -78,7 +80,7 @@ test("turn-in validation enforces conditional invoice, commission, and IPFS fiel
   const invalid = {
     ...valid,
     commissionConfirmed: false,
-    expirationDate: "2025-07-10",
+    expirationDate: "07/10/2025",
     financeAddress: "",
     financeEmail: "",
     financeMobile: "",
@@ -246,15 +248,38 @@ test("v15 transaction wording is deterministic for invoice and notes contexts", 
 
 test("annual policy expiration suggestions are deterministic and scoped", () => {
   assert.equal(
-    suggestAnnualExpiration("2026-07-10", "General Liability"),
-    "2027-07-10",
+    suggestAnnualExpiration("07/10/2026", "General Liability"),
+    "07/10/2027",
   );
   assert.equal(
-    suggestAnnualExpiration("2024-02-29", "Workers Compensation"),
-    "2025-03-01",
+    suggestAnnualExpiration("02/29/2024", "Workers Compensation"),
+    "03/01/2025",
   );
-  assert.equal(suggestAnnualExpiration("2026-07-10", "Event Policy"), null);
+  assert.equal(suggestAnnualExpiration("07/10/2026", "Event Policy"), null);
   assert.equal(suggestAnnualExpiration("not-a-date", "Pollution"), null);
+});
+
+test("typed and spoken turn-in dates normalize like v15 and serialize as ISO", () => {
+  assert.equal(normalizeTurnInDate("06112026"), "06/11/2026");
+  assert.equal(normalizeTurnInDate("6102026"), "06/10/2026");
+  assert.equal(normalizeTurnInDate("061026"), "06/10/2026");
+  assert.equal(normalizeTurnInDate("61026"), "06/10/2026");
+  assert.equal(normalizeTurnInDate("6926"), "06/09/2026");
+  assert.equal(normalizeTurnInDate("6-11-26"), "06/11/2026");
+  assert.equal(normalizeTurnInDate("6 2026"), "06/01/2026");
+  assert.equal(normalizeTurnInDate("2026-06-11"), "06/11/2026");
+  assert.equal(normalizeTurnInDate("June 5 2026"), "06/05/2026");
+  assert.equal(normalizeTurnInDate("not a date"), "not a date");
+  assert.equal(turnInDateToIso("06/11/2026"), "2026-06-11");
+  assert.equal(turnInDateToIso("02/31/2026"), null);
+  assert.equal(
+    turnInFormToDraftInput({
+      ...createEmptyTurnInState(),
+      effectiveDate: "06/11/2026",
+      expirationDate: "06/11/2027",
+    }).effectiveDate,
+    "2026-06-11",
+  );
 });
 
 function completeState(): TurnInFormState {
@@ -269,8 +294,8 @@ function completeState(): TurnInFormState {
     commissionRate: "10",
     companyName: "Acme Holdings",
     depositOption: "500.00",
-    effectiveDate: "2026-07-10",
-    expirationDate: "2027-07-10",
+    effectiveDate: "07/10/2026",
+    expirationDate: "07/10/2027",
     financeAddress: "10 Main Street",
     financeEmail: "insured@example.test",
     financeMobile: "555-0100",
