@@ -8,6 +8,7 @@ import {
   calculateDraftNetDue,
   calculateDraftProposalTotal,
   compareMoney,
+  moneyDifferenceInCents,
 } from "../../../shared/draft-calculations.js";
 import type {
   CreateDraftRequest,
@@ -31,6 +32,68 @@ export const TURN_IN_TRANSACTION_TYPES = [
   "Endorsement",
   "Audit",
 ] as const;
+
+export const TURN_IN_TRANSACTION_TYPE_KEY = [
+  ["New", "A brand-new policy for a client or line we did not have before."],
+  ["Renewal", "A policy we already hold, continuing into a new term with the client retained."],
+  ["Rewrite", "The same retained client moved from one carrier to another for a coverage need."],
+  ["Won Back", "A policy-specific client relationship was lost and later recaptured after a gap."],
+  ["Cross-sale", "A new line of coverage added for an existing client."],
+  ["Endorsement", "A mid-term change to an existing policy."],
+  ["Audit", "A premium audit or true-up on an existing policy."],
+] as const;
+
+export function isStandardTurnInTransactionType(value: string): boolean {
+  return (TURN_IN_TRANSACTION_TYPES as readonly string[]).includes(value);
+}
+
+export interface TurnInWording {
+  calculatedTotalLabel: string;
+  depositHint: string;
+  depositLabel: string;
+  invoiceTransaction: boolean;
+  notesLabel: string;
+  notesPlaceholder: string;
+  proposalInputLabel: string;
+  proposalInputPlaceholder: string;
+  proposalSectionTitle: string;
+}
+
+const TRANSACTION_NOTES_WORDING: Readonly<Record<string, readonly [string, string]>> = {
+  Audit: ["Audit detail", "e.g. Sales increased from $50k to $200k — additional premium due"],
+  Endorsement: ["Endorsement detail", "e.g. Added 2026 excavator to existing inland marine policy"],
+  Rewrite: ["Rewrite detail", "e.g. Moved from carrier A to carrier B — same coverage, better rate"],
+  Renewal: ["Renewal notes", "e.g. Coverage unchanged, premium increased 8%"],
+  New: ["New policy notes", "Optional — any relevant details about this new account"],
+  "Cross-sale": ["Cross-sale detail", "e.g. Existing GL client — added commercial auto"],
+};
+
+export function getTurnInWording(transactionType: string): TurnInWording {
+  const invoiceTransaction = isInvoiceTransaction(transactionType);
+  const [notesLabel, notesPlaceholder] =
+    TRANSACTION_NOTES_WORDING[transactionType] ?? ["Additional detail", "Any relevant notes"];
+  return {
+    calculatedTotalLabel: invoiceTransaction
+      ? "WCIB Invoiced Total"
+      : "Proposal total (incl. broker fee)",
+    depositHint: invoiceTransaction
+      ? "Deposit option from the carrier — if a balance will be financed"
+      : "The deposit option shown on the proposal — for reference only",
+    depositLabel: invoiceTransaction ? "Deposit option from carrier" : "Deposit option from quote",
+    invoiceTransaction,
+    notesLabel,
+    notesPlaceholder,
+    proposalInputLabel: invoiceTransaction
+      ? "WCIB Invoiced Amount — the total amount on the WCIB invoice"
+      : "Proposal total from quote — confirm the premium on the proposal",
+    proposalInputPlaceholder: invoiceTransaction
+      ? "Enter the WCIB invoiced amount"
+      : "Enter the total premium shown on the proposal",
+    proposalSectionTitle: invoiceTransaction
+      ? "WCIB invoiced amount — verify against the invoice"
+      : "Proposal total — verify against the quote",
+  };
+}
 
 export interface TurnInFormState {
   accountAssignment: AccountAssignment | "";
@@ -76,6 +139,13 @@ export interface AssignmentChoice {
 }
 
 export type TurnInValidationErrors = Readonly<Record<string, string>>;
+
+export const TURN_IN_PROPOSAL_TOLERANCE_CENTS = 2n;
+
+export interface TurnInPaymentGuidance {
+  text: string;
+  tone: "error" | "good" | "neutral";
+}
 
 export function createEmptyTurnInState(): TurnInFormState {
   return {
@@ -149,15 +219,64 @@ export function suggestAnnualExpiration(
     "pollution",
     "errors",
   ].some((term) => policyTypeName.toLowerCase().includes(term));
-  if (!annualPolicyType || !/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate)) {
+  const isoDate = turnInDateToIso(effectiveDate);
+  if (!annualPolicyType || isoDate === null) {
     return null;
   }
-  const date = new Date(`${effectiveDate}T12:00:00.000Z`);
+  const date = new Date(`${isoDate}T12:00:00.000Z`);
   if (Number.isNaN(date.getTime()) || date.getUTCFullYear() < 2000) {
     return null;
   }
   date.setUTCFullYear(date.getUTCFullYear() + 1);
-  return date.toISOString().slice(0, 10);
+  return formatTurnInDateInput(date.toISOString().slice(0, 10));
+}
+
+export function normalizeTurnInDate(value: string): string {
+  const raw = value.trim();
+  if (raw === "") {
+    return "";
+  }
+  if (/^\d+$/.test(raw)) {
+    return digitDateToSlash(raw);
+  }
+  if (/^[0-9][0-9./\- ]*$/.test(raw)) {
+    const parts = raw.split(/[^0-9]+/).filter(Boolean);
+    if (parts.length === 2 || parts.length >= 3) {
+      const [month, day, year] =
+        parts.length >= 3
+          ? [parts[0]!, parts[1]!, parts[2]!]
+          : [parts[0]!, "1", parts[1]!];
+      const formatted = datePartsToSlash(month, day, year);
+      if (formatted !== null) {
+        return formatted;
+      }
+    }
+  }
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+    ? new Date(`${raw}T12:00:00`)
+    : new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return raw;
+  }
+  return `${String(parsed.getMonth() + 1).padStart(2, "0")}/${String(parsed.getDate()).padStart(2, "0")}/${parsed.getFullYear()}`;
+}
+
+export function formatTurnInDateInput(value: string | null | undefined): string {
+  return value == null || value === "" ? "" : normalizeTurnInDate(value);
+}
+
+export function turnInDateToIso(value: string): string | null {
+  const normalized = normalizeTurnInDate(value);
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(normalized);
+  if (match === null) {
+    return null;
+  }
+  const [, month, day, year] = match;
+  const iso = `${year}-${month}-${day}`;
+  const parsed = new Date(`${iso}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === iso
+    ? iso
+    : null;
 }
 
 export function turnInFormToDraftInput(
@@ -180,8 +299,8 @@ export function turnInFormToDraftInput(
         : null,
     companyName: textOrNull(state.companyName),
     depositOption: moneyOrNull(state.depositOption),
-    effectiveDate: textOrNull(state.effectiveDate),
-    expirationDate: textOrNull(state.expirationDate),
+    effectiveDate: dateForApi(state.effectiveDate),
+    expirationDate: dateForApi(state.expirationDate),
     financeContact: usesIpfs
       ? {
           address: state.financeAddress.trim(),
@@ -221,8 +340,8 @@ export function turnInFormToNonfinancialDraftUpdate(
     accountAssignment: state.accountAssignment || null,
     carrierId: state.carrierId,
     companyName: textOrNull(state.companyName),
-    effectiveDate: textOrNull(state.effectiveDate),
-    expirationDate: textOrNull(state.expirationDate),
+    effectiveDate: dateForApi(state.effectiveDate),
+    expirationDate: dateForApi(state.expirationDate),
     insuredName: textOrNull(state.insuredName),
     invoiceNumber: textOrNull(state.invoiceNumber),
     mgaId: state.mgaId,
@@ -248,8 +367,8 @@ export function turnInStateFromDraft(draft: DraftResponse): TurnInFormState {
     commissionRate: draft.commissionRate ?? "",
     companyName: draft.companyName ?? "",
     depositOption: draft.depositOption ?? "",
-    effectiveDate: draft.effectiveDate ?? "",
-    expirationDate: draft.expirationDate ?? "",
+    effectiveDate: formatTurnInDateInput(draft.effectiveDate),
+    expirationDate: formatTurnInDateInput(draft.expirationDate),
     financeAddress: draft.financeContact?.address ?? "",
     financeEmail: draft.financeContact?.email ?? "",
     financeMobile: draft.financeContact?.mobile ?? "",
@@ -302,6 +421,41 @@ export function calculateTurnInSummary(state: TurnInFormState) {
   };
 }
 
+export function getTurnInPaymentGuidance(
+  state: TurnInFormState,
+): TurnInPaymentGuidance | null {
+  const summary = calculateTurnInSummary(state);
+  if (
+    summary.proposalTotal === null ||
+    compareMoney(summary.proposalTotal, "0.00") !== 1 ||
+    compareMoney(state.amountPaid, "0.00") !== 1
+  ) {
+    return null;
+  }
+  if (state.paymentMode === "full") {
+    const difference = moneyDifferenceInCents(state.amountPaid, summary.proposalTotal);
+    return difference !== null && difference < 2n
+      ? { text: "Matches full proposal total", tone: "good" }
+      : {
+          text: `Full proposal total is ${formatGuidanceMoney(summary.proposalTotal)} — confirm this is correct`,
+          tone: "error",
+        };
+  }
+  const remaining = subtractMoney(summary.proposalTotal, state.amountPaid);
+  if (remaining === null) {
+    return null;
+  }
+  return state.paymentMode === "direct"
+    ? {
+        text: `Deposit collected · carrier direct-bills the remaining ${formatGuidanceMoney(remaining)} (not financed by us)`,
+        tone: "neutral",
+      }
+    : {
+        text: `Deposit · Balance of ${formatGuidanceMoney(remaining)} will be financed`,
+        tone: "neutral",
+      };
+}
+
 export function validateTurnInForSubmit(
   state: TurnInFormState,
 ): TurnInValidationErrors {
@@ -349,7 +503,7 @@ export function validateTurnInForSubmit(
     input.proposalTotal == null ||
     compareMoney(input.proposalTotal, "0.00") !== 1 ||
     summary.proposalTotal === null ||
-    compareMoney(input.proposalTotal, summary.proposalTotal) !== 0
+    !proposalTotalsMatch(input.proposalTotal, summary.proposalTotal)
   ) {
     errors.proposalTotal = "Proposal total must match premium, taxes, MGA fee, and broker fee.";
   }
@@ -371,6 +525,14 @@ export function validateTurnInForSubmit(
     }
   }
   return errors;
+}
+
+export function proposalTotalsMatch(
+  entered: string,
+  calculated: string,
+): boolean {
+  const difference = moneyDifferenceInCents(entered, calculated);
+  return difference !== null && difference <= TURN_IN_PROPOSAL_TOLERANCE_CENTS;
 }
 
 export function buildAssignmentChoices(
@@ -444,6 +606,60 @@ function textOrNull(value: string): string | null {
   return normalized === "" ? null : normalized;
 }
 
+function dateForApi(value: string): string | null {
+  const normalized = value.trim();
+  return normalized === "" ? null : (turnInDateToIso(normalized) ?? normalized);
+}
+
+function digitDateToSlash(raw: string): string {
+  let month: string;
+  let day: string;
+  let year: string;
+  if (raw.length === 8) {
+    month = raw.slice(0, 2);
+    day = raw.slice(2, 4);
+    year = raw.slice(4, 8);
+  } else if (raw.length === 7) {
+    month = raw.slice(0, 1);
+    day = raw.slice(1, 3);
+    year = raw.slice(3, 7);
+  } else if (raw.length === 6) {
+    const firstTwo = Number.parseInt(raw.slice(0, 2), 10);
+    if (firstTwo >= 1 && firstTwo <= 12) {
+      month = raw.slice(0, 2);
+      day = raw.slice(2, 4);
+      year = raw.slice(4, 6);
+    } else {
+      month = raw.slice(0, 1);
+      day = raw.slice(1, 2);
+      year = raw.slice(2, 6);
+    }
+  } else if (raw.length === 5) {
+    month = raw.slice(0, 1);
+    day = raw.slice(1, 3);
+    year = raw.slice(3, 5);
+  } else if (raw.length === 4) {
+    month = raw.slice(0, 1);
+    day = raw.slice(1, 2);
+    year = raw.slice(2, 4);
+  } else {
+    return raw;
+  }
+  return datePartsToSlash(month, day, year) ?? raw;
+}
+
+function datePartsToSlash(month: string, day: string, year: string): string | null {
+  const monthNumber = Number.parseInt(month, 10);
+  const dayNumber = Number.parseInt(day, 10);
+  if (monthNumber < 1 || monthNumber > 12 || dayNumber < 1 || dayNumber > 31) {
+    return null;
+  }
+  const normalizedYear = year.length <= 2
+    ? `20${year.padStart(2, "0")}`
+    : year.padStart(4, "0");
+  return `${String(monthNumber).padStart(2, "0")}/${String(dayNumber).padStart(2, "0")}/${normalizedYear}`;
+}
+
 function moneyOrNull(value: string): string | null {
   const normalized = value.trim();
   return normalized === "" ? null : normalized;
@@ -452,4 +668,26 @@ function moneyOrNull(value: string): string | null {
 function rateOrNull(value: string): string | null {
   const normalized = value.trim();
   return normalized === "" ? null : normalized;
+}
+
+function subtractMoney(left: string, right: string): string | null {
+  const leftMatch = /^(\d+)\.(\d{2})$/.exec(left);
+  const rightMatch = /^(\d+)\.(\d{2})$/.exec(right);
+  if (leftMatch === null || rightMatch === null) {
+    return null;
+  }
+  const leftCents = BigInt(leftMatch[1]!) * 100n + BigInt(leftMatch[2]!);
+  const rightCents = BigInt(rightMatch[1]!) * 100n + BigInt(rightMatch[2]!);
+  const difference = leftCents - rightCents;
+  const sign = difference < 0n ? "-" : "";
+  const absolute = difference < 0n ? -difference : difference;
+  return `${sign}${absolute / 100n}.${String(absolute % 100n).padStart(2, "0")}`;
+}
+
+function formatGuidanceMoney(value: string): string {
+  return new Intl.NumberFormat("en-US", {
+    currency: "USD",
+    minimumFractionDigits: 2,
+    style: "currency",
+  }).format(Number(value));
 }

@@ -44,7 +44,7 @@ test("Check Turn-In renders every active v15 input and exact producer assignment
     "Effective date",
     "Expiration date",
     "Invoice number",
-    "Transaction notes",
+    "Endorsement detail",
     "Insurance company",
     "MGA",
     "Policy number",
@@ -52,8 +52,8 @@ test("Check Turn-In renders every active v15 input and exact producer assignment
     "Taxes",
     "MGA fee",
     "Broker fee",
-    "Proposal total",
-    "Calculated total",
+    "WCIB Invoiced Amount",
+    "WCIB Invoiced Total",
     "Amount collected",
     "Net due to MGA",
     "Agency commission",
@@ -76,13 +76,107 @@ test("Check Turn-In renders every active v15 input and exact producer assignment
   for (const assignment of ["First-year", "House account", "Kaylee account"]) {
     assert.match(markup, new RegExp(`>${escapeRegExp(assignment)}<`));
   }
+  assertInOrder(markup, [
+    "Account assignment",
+    "Policy information",
+    "WCIB invoiced amount — verify against the invoice",
+    "Amount collected — from ePayPolicy receipt",
+    "Carrier invoice — insurance company, MGA, policy # &amp; dates",
+    "Commission",
+    "Premium detail — from carrier invoice &amp; binding docs",
+    "Payment type — confirm against ePayPolicy receipt",
+    "Net due to MGA",
+    "General notes",
+  ]);
   assert.match(markup, /Submit for approval/);
+  assert.match(markup, /Transaction type key/);
+  for (const type of ["New", "Renewal", "Rewrite", "Won Back", "Cross-sale", "Endorsement", "Audit"]) {
+    assert.match(markup, new RegExp(`>${escapeRegExp(type)}<`));
+  }
+  assert.match(markup, /aria-label="Add custom transaction type"/);
   assert.doesNotMatch(markup, /producer payout/i);
   assert.doesNotMatch(markup, /producer personal/i);
   assert.doesNotMatch(markup, /personal split/i);
   assert.doesNotMatch(markup, /producer rate/i);
   assert.doesNotMatch(markup, /localStorage/);
   assert.doesNotMatch(markup, /ownerUserId|linkedPolicyId|status selector/);
+});
+
+test("custom transaction values expose explicit add and remove controls", () => {
+  const custom = renderView({
+    form: { ...createEmptyTurnInState(), transactionType: "Reinstatement" },
+    user: producer(),
+  });
+  const standard = renderView({
+    form: { ...createEmptyTurnInState(), transactionType: "Renewal" },
+    user: producer(),
+  });
+
+  assert.match(custom, /<option selected="">Reinstatement<\/option>/);
+  assert.match(custom, /aria-label="Remove custom transaction type"/);
+  assert.match(custom, /title="Remove this custom transaction type"/);
+  assert.match(standard, /<option selected="">Renewal<\/option>/);
+  assert.doesNotMatch(standard, /aria-label="Remove custom transaction type"/);
+});
+
+test("Deposit option remains conditional while the v15 field order stays fixed", () => {
+  const depositMarkup = renderView({
+    form: { ...createEmptyTurnInState(), paymentMode: "deposit" },
+    user: producer(),
+  });
+  const fullMarkup = renderView({
+    form: { ...createEmptyTurnInState(), paymentMode: "full" },
+    user: producer(),
+  });
+
+  assert.match(depositMarkup, /Deposit option from quote/);
+  assert.doesNotMatch(fullMarkup, /Deposit option from quote/);
+  assert.ok(
+    depositMarkup.indexOf("Deposit option from quote")
+      < depositMarkup.indexOf("Amount collected — from ePayPolicy receipt"),
+  );
+});
+
+test("Audit and Endorsement use invoice wording while quote transactions revert", () => {
+  for (const transactionType of ["Audit", "Endorsement"]) {
+    const markup = renderView({
+      form: { ...createEmptyTurnInState(), paymentMode: "deposit", transactionType },
+      user: producer(),
+    });
+    assert.match(markup, /WCIB invoiced amount — verify against the invoice/);
+    assert.match(markup, /WCIB Invoiced Amount — the total amount on the WCIB invoice/);
+    assert.match(markup, /placeholder="Enter the WCIB invoiced amount"/);
+    assert.match(markup, /Deposit option from carrier/);
+    assert.match(markup, /Deposit option from the carrier — if a balance will be financed/);
+    assert.match(markup, /WCIB Invoiced Total/);
+    assert.doesNotMatch(markup, /Proposal total — verify against the quote/);
+  }
+
+  const renewal = renderView({
+    form: { ...createEmptyTurnInState(), paymentMode: "deposit", transactionType: "Renewal" },
+    user: producer(),
+  });
+  assert.match(renewal, /Proposal total — verify against the quote/);
+  assert.match(renewal, /Proposal total from quote — confirm the premium on the proposal/);
+  assert.match(renewal, /Deposit option from quote/);
+  assert.match(renewal, /Proposal total \(incl\. broker fee\)/);
+  assert.doesNotMatch(renewal, /WCIB Invoiced/);
+});
+
+test("turn-in dates accept typed text and numeric inputs expose wheel-safe controls", () => {
+  const markup = renderView({
+    form: {
+      ...createEmptyTurnInState(),
+      effectiveDate: "06/11/2026",
+      expirationDate: "06/11/2027",
+    },
+    user: producer(),
+  });
+
+  assert.match(markup, /id="turn-in-effectiveDate"[^>]*inputMode="numeric"[^>]*placeholder="MM\/DD\/YYYY — type or say it"[^>]*type="text"[^>]*value="06\/11\/2026"/);
+  assert.match(markup, /id="turn-in-expirationDate"[^>]*type="text"[^>]*value="06\/11\/2027"/);
+  assert.match(markup, /id="turn-in-proposalTotal"[^>]*min="0"[^>]*step="0\.01"[^>]*type="number"/);
+  assert.match(markup, /id="turn-in-commissionRate"[^>]*max="100"[^>]*min="0"[^>]*step="0\.01"[^>]*type="number"/);
 });
 
 test("submitted staff turn-ins immediately render no financial or IPFS controls", () => {
@@ -115,7 +209,28 @@ test("validation state is accessible and admin submission targets the ledger", (
 
   assert.match(markup, /aria-invalid="true"/);
   assert.match(markup, /aria-describedby="turn-in-insuredName-error"/);
+  assert.match(markup, /1 issue to fix before submitting/);
+  assert.match(markup, /title="Go to this field"/);
+  assert.match(markup, /Fix →/);
   assert.match(markup, /Submit to ledger/);
+});
+
+test("payment guidance renders v15 full, direct-bill, and deposit context", () => {
+  const base = {
+    ...createEmptyTurnInState(),
+    amountPaid: "1135.00",
+    basePremium: "1000.00",
+    brokerFee: "25.00",
+    mgaFee: "10.00",
+    taxes: "100.00",
+  };
+  const full = renderView({ form: { ...base, paymentMode: "full" }, user: producer() });
+  const direct = renderView({ form: { ...base, amountPaid: "500.00", paymentMode: "direct" }, user: producer() });
+  const deposit = renderView({ form: { ...base, amountPaid: "500.00", paymentMode: "deposit" }, user: producer() });
+
+  assert.match(full, /✓ Matches full proposal total/);
+  assert.match(direct, /carrier direct-bills the remaining \$635\.00 \(not financed by us\)/);
+  assert.match(deposit, /Balance of \$635\.00 will be financed/);
 });
 
 test("pending writes disable the complete form and duplicate action buttons", () => {
@@ -127,6 +242,28 @@ test("pending writes disable the complete form and duplicate action buttons", ()
   assert.match(markup, /<fieldset[^>]*class="turn-in-controls"[^>]*disabled=""/);
   assert.match(markup, /<button[^>]*disabled=""[^>]*type="submit"/);
   assert.match(markup, /<button[^>]*disabled=""[^>]*type="button"/);
+});
+
+test("v15 header and footer expose complete status and duplicate action surfaces", () => {
+  const markup = renderView({
+    draft: draftWithStatus("draft"),
+    form: { ...createEmptyTurnInState(), accountAssignment: "book", producerUserId: USER_ID },
+    help: helpControl({ canRequest: true }),
+    saveState: "saved",
+    user: producer(),
+  });
+
+  for (const label of ["Date", "Submitter", "Account", "Status", "Saved"]) {
+    assert.match(markup, new RegExp(`>${label}<`));
+  }
+  assert.match(markup, /Kaylee/);
+  assert.match(markup, /Kaylee account/);
+  assert.match(markup, />draft</);
+  assert.match(markup, /Draft saved/);
+  assert.match(markup, /Save &amp; start new/);
+  assert.match(markup, /Clear form/);
+  assert.match(markup, />Clear</);
+  assert.equal((markup.match(/>Request help</g) ?? []).length, 2);
 });
 
 test("zero, one, and many office modes drive the turn-in controls", () => {
@@ -265,9 +402,11 @@ function renderView({
           form={form}
           help={help}
           onAssignmentChange={() => {}}
+          onClear={() => {}}
           onFieldChange={() => {}}
           onRetryAssignments={() => {}}
           onSave={() => {}}
+          onSaveAndStartNew={() => {}}
           onSubmit={() => {}}
           saveState={saveState}
           user={user}
@@ -375,4 +514,14 @@ function helpControl(
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function assertInOrder(markup: string, values: readonly string[]): void {
+  let previousIndex = -1;
+  for (const value of values) {
+    const index = markup.indexOf(value);
+    assert.notEqual(index, -1, `Expected markup to include ${value}`);
+    assert.ok(index > previousIndex, `Expected ${value} to follow the prior field group`);
+    previousIndex = index;
+  }
 }

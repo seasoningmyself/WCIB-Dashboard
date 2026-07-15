@@ -6,7 +6,13 @@ import {
   buildAssignmentChoices,
   calculateTurnInSummary,
   createEmptyTurnInState,
+  getTurnInWording,
+  getTurnInPaymentGuidance,
+  isStandardTurnInTransactionType,
+  normalizeTurnInDate,
+  proposalTotalsMatch,
   suggestAnnualExpiration,
+  turnInDateToIso,
   turnInFormToDraftInput,
   turnInFormToNonfinancialDraftUpdate,
   updateTurnInField,
@@ -76,7 +82,7 @@ test("turn-in validation enforces conditional invoice, commission, and IPFS fiel
   const invalid = {
     ...valid,
     commissionConfirmed: false,
-    expirationDate: "2025-07-10",
+    expirationDate: "07/10/2025",
     financeAddress: "",
     financeEmail: "",
     financeMobile: "",
@@ -208,17 +214,109 @@ test("v15 field transitions clear commission confirmation and default financed d
   );
 });
 
+test("transaction values retain seven standards and bounded custom compatibility", () => {
+  for (const standard of ["New", "Renewal", "Rewrite", "Won Back", "Cross-sale", "Endorsement", "Audit"]) {
+    assert.equal(isStandardTurnInTransactionType(standard), true);
+  }
+  assert.equal(isStandardTurnInTransactionType("Reinstatement"), false);
+  assert.equal(
+    turnInFormToDraftInput({ ...createEmptyTurnInState(), transactionType: "Reinstatement" })
+      .transactionType,
+    "Reinstatement",
+  );
+});
+
+test("v15 transaction wording is deterministic for invoice and notes contexts", () => {
+  assert.deepEqual(getTurnInWording("Audit"), {
+    calculatedTotalLabel: "WCIB Invoiced Total",
+    depositHint: "Deposit option from the carrier — if a balance will be financed",
+    depositLabel: "Deposit option from carrier",
+    invoiceTransaction: true,
+    notesLabel: "Audit detail",
+    notesPlaceholder: "e.g. Sales increased from $50k to $200k — additional premium due",
+    proposalInputLabel: "WCIB Invoiced Amount — the total amount on the WCIB invoice",
+    proposalInputPlaceholder: "Enter the WCIB invoiced amount",
+    proposalSectionTitle: "WCIB invoiced amount — verify against the invoice",
+  });
+  assert.equal(getTurnInWording("Endorsement").invoiceTransaction, true);
+  assert.equal(getTurnInWording("Rewrite").notesLabel, "Rewrite detail");
+  assert.equal(getTurnInWording("Renewal").notesLabel, "Renewal notes");
+  assert.equal(getTurnInWording("New").notesLabel, "New policy notes");
+  assert.equal(getTurnInWording("Cross-sale").notesLabel, "Cross-sale detail");
+  assert.equal(getTurnInWording("Won Back").notesLabel, "Additional detail");
+  assert.equal(getTurnInWording("Custom").notesPlaceholder, "Any relevant notes");
+  assert.equal(getTurnInWording("Renewal").invoiceTransaction, false);
+});
+
 test("annual policy expiration suggestions are deterministic and scoped", () => {
   assert.equal(
-    suggestAnnualExpiration("2026-07-10", "General Liability"),
-    "2027-07-10",
+    suggestAnnualExpiration("07/10/2026", "General Liability"),
+    "07/10/2027",
   );
   assert.equal(
-    suggestAnnualExpiration("2024-02-29", "Workers Compensation"),
-    "2025-03-01",
+    suggestAnnualExpiration("02/29/2024", "Workers Compensation"),
+    "03/01/2025",
   );
-  assert.equal(suggestAnnualExpiration("2026-07-10", "Event Policy"), null);
+  assert.equal(suggestAnnualExpiration("07/10/2026", "Event Policy"), null);
   assert.equal(suggestAnnualExpiration("not-a-date", "Pollution"), null);
+});
+
+test("typed and spoken turn-in dates normalize like v15 and serialize as ISO", () => {
+  assert.equal(normalizeTurnInDate("06112026"), "06/11/2026");
+  assert.equal(normalizeTurnInDate("6102026"), "06/10/2026");
+  assert.equal(normalizeTurnInDate("061026"), "06/10/2026");
+  assert.equal(normalizeTurnInDate("61026"), "06/10/2026");
+  assert.equal(normalizeTurnInDate("6926"), "06/09/2026");
+  assert.equal(normalizeTurnInDate("6-11-26"), "06/11/2026");
+  assert.equal(normalizeTurnInDate("6 2026"), "06/01/2026");
+  assert.equal(normalizeTurnInDate("2026-06-11"), "06/11/2026");
+  assert.equal(normalizeTurnInDate("June 5 2026"), "06/05/2026");
+  assert.equal(normalizeTurnInDate("not a date"), "not a date");
+  assert.equal(turnInDateToIso("06/11/2026"), "2026-06-11");
+  assert.equal(turnInDateToIso("02/31/2026"), null);
+  assert.equal(
+    turnInFormToDraftInput({
+      ...createEmptyTurnInState(),
+      effectiveDate: "06/11/2026",
+      expirationDate: "06/11/2027",
+    }).effectiveDate,
+    "2026-06-11",
+  );
+});
+
+test("proposal validation accepts v15's two-cent tolerance and rejects three cents", () => {
+  const valid = completeState();
+  assert.equal(proposalTotalsMatch("1135.02", "1135.00"), true);
+  assert.equal(proposalTotalsMatch("1134.98", "1135.00"), true);
+  assert.equal(proposalTotalsMatch("1135.03", "1135.00"), false);
+  assert.equal(validateTurnInForSubmit({ ...valid, proposalTotal: "1135.02" }).proposalTotal, undefined);
+  assert.equal(
+    validateTurnInForSubmit({ ...valid, proposalTotal: "1135.03" }).proposalTotal,
+    "Proposal total must match premium, taxes, MGA fee, and broker fee.",
+  );
+});
+
+test("payment guidance matches v15 for full, direct-bill, and financed deposits", () => {
+  const state = completeState();
+  assert.deepEqual(
+    getTurnInPaymentGuidance({ ...state, amountPaid: "1135.01", paymentMode: "full" }),
+    { text: "Matches full proposal total", tone: "good" },
+  );
+  assert.deepEqual(
+    getTurnInPaymentGuidance({ ...state, amountPaid: "500.00", paymentMode: "full" }),
+    { text: "Full proposal total is $1,135.00 — confirm this is correct", tone: "error" },
+  );
+  assert.deepEqual(
+    getTurnInPaymentGuidance({ ...state, amountPaid: "500.00", paymentMode: "direct" }),
+    {
+      text: "Deposit collected · carrier direct-bills the remaining $635.00 (not financed by us)",
+      tone: "neutral",
+    },
+  );
+  assert.deepEqual(
+    getTurnInPaymentGuidance({ ...state, amountPaid: "500.00", paymentMode: "deposit" }),
+    { text: "Deposit · Balance of $635.00 will be financed", tone: "neutral" },
+  );
 });
 
 function completeState(): TurnInFormState {
@@ -233,8 +331,8 @@ function completeState(): TurnInFormState {
     commissionRate: "10",
     companyName: "Acme Holdings",
     depositOption: "500.00",
-    effectiveDate: "2026-07-10",
-    expirationDate: "2027-07-10",
+    effectiveDate: "07/10/2026",
+    expirationDate: "07/10/2027",
     financeAddress: "10 Main Street",
     financeEmail: "insured@example.test",
     financeMobile: "555-0100",

@@ -1843,6 +1843,83 @@ h1 {
   padding-bottom: 16px;
 }
 
+.turn-in-heading {
+  min-width: 0;
+}
+
+.turn-in-status-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border-right: 1px solid #cfd7da;
+  border-bottom: 1px solid #cfd7da;
+  border-left: 1px solid #cfd7da;
+  background: #f7f9f8;
+}
+
+.turn-in-status-value {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 9px 12px;
+}
+
+.turn-in-status-value + .turn-in-status-value {
+  border-left: 1px solid #d8dfe1;
+}
+
+.turn-in-status-value > span:first-child {
+  color: #68767d;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.turn-in-status-value strong {
+  overflow-wrap: anywhere;
+  color: #26353e;
+  font-size: 12px;
+  font-weight: 750;
+  text-transform: capitalize;
+}
+
+.turn-in-status-value .turn-in-save-indicator {
+  width: fit-content;
+  min-width: 0;
+  padding: 4px 7px;
+}
+
+.turn-in-draft-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.turn-in-draft-actions button {
+  min-height: 38px;
+  border: 1px solid #8da099;
+  border-radius: 5px;
+  background: #ffffff;
+  padding: 0 13px;
+  color: #285744;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.turn-in-draft-actions button.is-clear,
+.turn-in-clear {
+  border-color: #b9a5a5;
+  color: #733c3c;
+}
+
+.turn-in-draft-actions button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
 .turn-in-kicker {
   margin: 0 0 5px;
   color: #27634d;
@@ -2088,6 +2165,95 @@ h1 {
   line-height: 1.35;
 }
 
+.turn-in-hint {
+  color: #65737a;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.turn-in-payment-guidance {
+  grid-column: 1 / -1;
+  border-left: 3px solid #9aa7ad;
+  background: #f5f7f7;
+  padding: 8px 10px;
+  color: #536168;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.turn-in-payment-guidance.is-good {
+  border-left-color: #478c70;
+  background: #eef8f3;
+  color: #225440;
+}
+
+.turn-in-payment-guidance.is-error {
+  border-left-color: #b76a3e;
+  background: #fff6ec;
+  color: #74431f;
+}
+
+.turn-in-validation {
+  border-top: 1px solid #d9b1ad;
+  background: #fff4f2;
+  padding: 16px 24px;
+}
+
+.turn-in-validation h2 {
+  margin: 0 0 9px;
+  color: #7c302e;
+  font-size: 13px;
+}
+
+.turn-in-validation ul {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.turn-in-validation button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 0;
+  background: transparent;
+  padding: 5px 0;
+  color: #693937;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+}
+
+.turn-in-validation button strong {
+  flex: 0 0 auto;
+  color: #27634d;
+}
+
+.turn-in-validation button:hover,
+.turn-in-validation button:focus-visible {
+  text-decoration: underline;
+}
+
+.turn-in-jump-flash {
+  animation: turn-in-jump-flash 2.4s ease-out;
+}
+
+@keyframes turn-in-jump-flash {
+  0%, 24% {
+    box-shadow: 0 0 0 4px rgba(165, 59, 59, 0.28);
+    background: #fff0ef;
+  }
+  100% {
+    box-shadow: none;
+    background: transparent;
+  }
+}
+
 .turn-in-inline-retry {
   min-height: 36px;
   justify-self: start;
@@ -2099,6 +2265,92 @@ h1 {
   cursor: pointer;
   font-size: 11px;
   font-weight: 750;
+}
+
+.turn-in-transaction-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.8fr) minmax(360px, 1.4fr);
+  align-items: start;
+  gap: 18px;
+}
+
+.turn-in-transaction-control {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.turn-in-select-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px 42px;
+  gap: 7px;
+}
+
+.turn-in-select-add:not(:has(.is-remove)) {
+  grid-template-columns: minmax(0, 1fr) 42px;
+}
+
+.turn-in-icon-button,
+.turn-in-custom-transaction button {
+  min-height: 42px;
+  border: 1px solid #8da099;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #285744;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.turn-in-icon-button {
+  padding: 0;
+  font-size: 20px;
+}
+
+.turn-in-icon-button.is-remove {
+  border-color: #b9a5a5;
+  color: #733c3c;
+}
+
+.turn-in-custom-transaction {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+}
+
+.turn-in-custom-transaction button {
+  padding: 0 14px;
+  font-size: 11px;
+}
+
+.turn-in-transaction-key {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  border-left: 3px solid #8eb4a4;
+  background: #f5f8f6;
+  padding: 12px 14px;
+  list-style: none;
+}
+
+.turn-in-transaction-key li {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 8px;
+  color: #516067;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.turn-in-transaction-key li strong {
+  color: #2c4f41;
+}
+
+.turn-in-transaction-key .turn-in-transaction-key-title {
+  display: block;
+  margin-bottom: 2px;
+  color: #26353e;
+  font-weight: 800;
 }
 
 .turn-in-segmented {
@@ -2186,7 +2438,7 @@ h1 {
   z-index: 10;
   bottom: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto auto;
   align-items: center;
   gap: 10px;
   border-top: 1px solid #cfd7da;
@@ -3821,6 +4073,36 @@ h1 {
     align-items: start;
   }
 
+  .turn-in-status-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .turn-in-status-value:nth-child(odd) {
+    border-left: 0;
+  }
+
+  .turn-in-status-value:nth-child(n + 3) {
+    border-top: 1px solid #d8dfe1;
+  }
+
+  .turn-in-status-value:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .turn-in-draft-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .turn-in-draft-actions button {
+    min-width: 0;
+    min-height: 44px;
+  }
+
+  .turn-in-draft-actions .turn-in-help {
+    grid-column: 1 / -1;
+  }
+
   .turn-in-section {
     padding: 20px 16px 22px;
   }
@@ -3842,6 +4124,15 @@ h1 {
     min-width: 0;
   }
 
+  .turn-in-transaction-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .turn-in-transaction-key li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1px;
+  }
+
   .turn-in-segmented span {
     min-height: 44px;
     padding: 5px 8px;
@@ -3851,6 +4142,10 @@ h1 {
     position: static;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     padding: 14px 16px 16px;
+  }
+
+  .turn-in-validation {
+    padding: 15px 16px;
   }
 
   .turn-in-action-status {

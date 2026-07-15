@@ -67,7 +67,7 @@ test("active producer draft editing renders agency inputs but no personal split"
     },
   });
 
-  assert.match(markup, /Premium, fees, and agency commission/);
+  assert.match(markup, /Premium detail — from carrier invoice &amp; binding docs/);
   assert.match(markup, /Agency commission total/);
   assert.match(markup, /IPFS financing/);
   assert.match(markup, /value="1000.00"/);

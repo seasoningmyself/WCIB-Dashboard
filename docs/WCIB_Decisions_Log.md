@@ -1,7 +1,19 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 14, 2026 (recorded recoverable Start Fresh generations.)
+**Last updated:** July 14, 2026 (recorded v15 turn-in proposal tolerance.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
+
+---
+
+## July 14, 2026 — Turn-in proposal cross-check uses v15's two-cent tolerance
+
+**Recorded parity decision:** The production form initially required the entered
+proposal or invoiced amount to equal the premium-detail calculation exactly.
+Final v15 allows ordinary cent-rounding variance and rejects submission only
+when the absolute difference is greater than $0.02. The production form now
+uses the same integer-cent rule: differences of $0.00, $0.01, and $0.02 pass;
+$0.03 or more fails. This deliberately loosens the stricter ported check to
+restore final-v15 behavior without changing any stored financial calculation.
 
 ---
 

@@ -6,6 +6,7 @@ import {
   calculateDraftNetDue,
   calculateDraftProposalTotal,
   compareMoney,
+  moneyDifferenceInCents,
 } from "./draft-calculations.js";
 
 test("draft calculations use deterministic cent rounding", () => {
@@ -61,6 +62,8 @@ test("draft calculations use deterministic cent rounding", () => {
   assert.equal(compareMoney("1080.00", "1080.00"), 0);
   assert.equal(compareMoney("0.00", "1.00"), -1);
   assert.equal(compareMoney("2.00", "1.00"), 1);
+  assert.equal(moneyDifferenceInCents("1080.00", "1080.02"), 2n);
+  assert.equal(moneyDifferenceInCents("1080.03", "1080.00"), 3n);
 });
 
 test("incomplete or invalid draft calculation inputs remain unset", () => {
@@ -98,4 +101,5 @@ test("incomplete or invalid draft calculation inputs remain unset", () => {
     null,
   );
   assert.equal(compareMoney("invalid", "1.00"), null);
+  assert.equal(moneyDifferenceInCents("invalid", "1.00"), null);
 });

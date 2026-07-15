@@ -25,8 +25,13 @@ import {
   buildAssignmentChoices,
   calculateTurnInSummary,
   createEmptyTurnInState,
+  getTurnInWording,
+  getTurnInPaymentGuidance,
   isInvoiceTransaction,
+  isStandardTurnInTransactionType,
+  normalizeTurnInDate,
   suggestAnnualExpiration,
+  TURN_IN_TRANSACTION_TYPE_KEY,
   TURN_IN_TRANSACTION_TYPES,
   turnInFormToDraftInput,
   turnInFormToNonfinancialDraftUpdate,
@@ -232,6 +237,17 @@ export function CheckTurnInForm({
     setSaveState("dirty");
   }, []);
 
+  const freshForm = useCallback(() => {
+    const next = createEmptyTurnInState();
+    if (vocabulary.state.status === "ready") {
+      next.officeLocationId = normalizeTurnInOfficeSelection(
+        vocabulary.state.data,
+        next.officeLocationId,
+      );
+    }
+    return next;
+  }, [vocabulary.state]);
+
   const acceptDraft = useCallback(
     (next: DraftResponse) => {
       setDraft(next);
@@ -277,6 +293,33 @@ export function CheckTurnInForm({
       pendingRef.current = false;
     }
   }, [acceptDraft, api, draft, form, officeConfigurationBlocked]);
+
+  const clearForm = useCallback(() => {
+    if (!window.confirm("Clear all turn-in fields?")) {
+      return;
+    }
+    setForm(freshForm());
+    setErrors({});
+    setSaveState(draft === null ? "idle" : "dirty");
+    autoExpirationRef.current = null;
+    expirationSuggestionKeyRef.current = "";
+  }, [draft, freshForm]);
+
+  const saveAndStartNew = useCallback(async () => {
+    const saved = await save();
+    if (saved === null) {
+      return;
+    }
+    setDraft(null);
+    setForm(freshForm());
+    setErrors({});
+    setSaveState("idle");
+    autoExpirationRef.current = null;
+    expirationSuggestionKeyRef.current = "";
+    if (window.location.hash.startsWith("#/my-drafts")) {
+      window.location.hash = "#/turn-in";
+    }
+  }, [freshForm, save]);
 
   const submit = useCallback(async () => {
     if (
@@ -386,9 +429,11 @@ export function CheckTurnInForm({
         triggerRef: helpTriggerRef,
       }}
       onAssignmentChange={changeAssignment}
+      onClear={clearForm}
       onFieldChange={changeField}
       onRetryAssignments={() => setAssignmentAttempt((value) => value + 1)}
       onSave={() => void save()}
+      onSaveAndStartNew={() => void saveAndStartNew()}
       onSubmit={() => void submit()}
       saveState={saveState}
       user={user}
@@ -405,12 +450,14 @@ interface CheckTurnInFormViewProps {
   form: TurnInFormState;
   help?: DraftHelpControl;
   onAssignmentChange(choice: AssignmentChoice | null): void;
+  onClear(): void;
   onFieldChange<Key extends keyof TurnInFormState>(
     field: Key,
     value: TurnInFormState[Key],
   ): void;
   onRetryAssignments(): void;
   onSave(): void;
+  onSaveAndStartNew(): void;
   onSubmit(): void;
   saveState: SaveState;
   user: CurrentUser;
@@ -439,15 +486,19 @@ export function CheckTurnInFormView({
   form,
   help,
   onAssignmentChange,
+  onClear,
   onFieldChange,
   onRetryAssignments,
   onSave,
+  onSaveAndStartNew,
   onSubmit,
   saveState,
   user,
 }: CheckTurnInFormViewProps) {
   const vocabulary = useVocabulary();
   const summary = calculateTurnInSummary(form);
+  const wording = getTurnInWording(form.transactionType);
+  const paymentGuidance = getTurnInPaymentGuidance(form);
   const pending = saveState === "saving";
   const completed = draft !== null && !isEditableDraft(draft);
   const sentBack = draft?.status === "sent_back";
@@ -483,16 +534,43 @@ export function CheckTurnInFormView({
     form.accountAssignment,
     form.producerUserId,
   );
+  const assignmentLabel =
+    assignmentChoices.find(({ key }) => key === selectedAssignment)?.label ??
+    roleLabel(user.role);
 
   return (
     <section className="turn-in-page" aria-labelledby="turn-in-title">
       <header className="turn-in-header">
-        <div>
+        <div className="turn-in-heading">
           <p className="turn-in-kicker">Policy intake</p>
           <h1 id="turn-in-title">Check Turn-In</h1>
         </div>
-        <SaveIndicator draft={draft} state={saveState} />
       </header>
+
+      <div className="turn-in-status-strip" aria-label="Turn-in status">
+        <StatusValue label="Date" value={formatHeaderDate(new Date())} />
+        <StatusValue label="Submitter" value={user.displayName ?? user.email} />
+        <StatusValue label="Account" value={assignmentLabel} />
+        <StatusValue label="Status" value={draftStatusLabel(draft)} />
+        <div className="turn-in-status-value">
+          <span>Saved</span>
+          <SaveIndicator draft={draft} state={saveState} />
+        </div>
+      </div>
+
+      <div className="turn-in-draft-actions" aria-label="Draft actions">
+        <button disabled={formLocked} onClick={onSaveAndStartNew} type="button">
+          Save &amp; start new
+        </button>
+        <button className="is-clear" disabled={pending} onClick={onClear} type="button">
+          Clear form
+        </button>
+        {help?.canRequest ? (
+          <button className="turn-in-help" disabled={pending} onClick={help.onOpen} type="button">
+            Request help
+          </button>
+        ) : null}
+      </div>
 
       {errors.form === undefined ? null : (
         <div className="turn-in-alert" role="alert">{errors.form}</div>
@@ -539,7 +617,7 @@ export function CheckTurnInFormView({
           className="turn-in-controls"
           disabled={formLocked}
         >
-        <FormSection title="Account and insured">
+        <FormSection title="Account assignment">
           <div className="turn-in-grid turn-in-grid-three">
             <FormField
               error={errors.accountAssignment}
@@ -596,14 +674,12 @@ export function CheckTurnInFormView({
               </FormField>
             )}
 
-            <TextField
-              error={errors.insuredName}
-              field="insuredName"
-              label="Insured name"
-              onChange={(value) => onFieldChange("insuredName", value)}
-              required
-              value={form.insuredName}
-            />
+          </div>
+        </FormSection>
+
+        <FormSection title="Policy information">
+          <div className="turn-in-grid turn-in-grid-three">
+            <TextField error={errors.insuredName} field="insuredName" label="Insured name" onChange={(value) => onFieldChange("insuredName", value)} required value={form.insuredName} />
             <TextField
               field="companyName"
               label="Company name"
@@ -620,47 +696,11 @@ export function CheckTurnInFormView({
                 value={form.policyTypeId}
               />
             </FormField>
-          </div>
-        </FormSection>
-
-        <FormSection title="Transaction and term">
-          <div className="turn-in-grid turn-in-grid-three">
-            <FormField
+            <TransactionTypeField
               error={errors.transactionType}
-              field="transactionType"
-              label="Transaction type"
-              required
-            >
-              <input
-                aria-describedby={errorId("transactionType", errors)}
-                aria-invalid={errors.transactionType !== undefined}
-                aria-required="true"
-                disabled={pending}
-                id={fieldId("transactionType")}
-                list="turn-in-transaction-types"
-                maxLength={100}
-                onChange={(event) => onFieldChange("transactionType", event.currentTarget.value)}
-                value={form.transactionType}
-              />
-              <datalist id="turn-in-transaction-types">
-                {TURN_IN_TRANSACTION_TYPES.map((type) => <option key={type} value={type} />)}
-              </datalist>
-            </FormField>
-            <DateField
-              error={errors.effectiveDate}
-              field="effectiveDate"
-              label="Effective date"
-              onChange={(value) => onFieldChange("effectiveDate", value)}
-              required
-              value={form.effectiveDate}
-            />
-            <DateField
-              error={errors.expirationDate}
-              field="expirationDate"
-              label="Expiration date"
-              onChange={(value) => onFieldChange("expirationDate", value)}
-              required
-              value={form.expirationDate}
+              onChange={(value) => onFieldChange("transactionType", value)}
+              pending={pending}
+              value={form.transactionType}
             />
             {isInvoiceTransaction(form.transactionType) ? (
               <TextField
@@ -674,15 +714,41 @@ export function CheckTurnInFormView({
             ) : null}
             <TextAreaField
               field="transactionNotes"
-              label="Transaction notes"
+              label={wording.notesLabel}
               onChange={(value) => onFieldChange("transactionNotes", value)}
+              placeholder={wording.notesPlaceholder}
               value={form.transactionNotes}
               wide
             />
           </div>
         </FormSection>
 
-        <FormSection title="Policy placement">
+        {showFinancialFields ? (
+          <FormSection title={wording.proposalSectionTitle}>
+          <div className="turn-in-grid turn-in-grid-four">
+            <MoneyField error={errors.proposalTotal} field="proposalTotal" label={wording.proposalInputLabel} onChange={(value) => onFieldChange("proposalTotal", value)} placeholder={wording.proposalInputPlaceholder} required value={form.proposalTotal} />
+            <ReadOnlyAmount label={wording.calculatedTotalLabel} value={summary.proposalTotal} />
+            {form.paymentMode === "deposit" ? (
+              <MoneyField field="depositOption" hint={wording.depositHint} label={wording.depositLabel} onChange={(value) => onFieldChange("depositOption", value)} value={form.depositOption} />
+            ) : null}
+          </div>
+          </FormSection>
+        ) : null}
+
+        {showFinancialFields ? (
+          <FormSection title="Amount collected — from ePayPolicy receipt">
+          <div className="turn-in-grid turn-in-grid-four">
+            <MoneyField error={errors.amountPaid} field="amountPaid" label="Amount collected" onChange={(value) => onFieldChange("amountPaid", value)} required value={form.amountPaid} />
+            {paymentGuidance === null ? null : (
+              <div className={`turn-in-payment-guidance is-${paymentGuidance.tone}`} role="status">
+                {paymentGuidance.tone === "good" ? "✓ " : null}{paymentGuidance.text}
+              </div>
+            )}
+          </div>
+          </FormSection>
+        ) : null}
+
+        <FormSection title="Carrier invoice — insurance company, MGA, policy # & dates">
           <div className="turn-in-grid turn-in-grid-three">
             <FormField error={errors.carrierId} field="carrierId">
               <InlineCarrierPicker
@@ -705,30 +771,14 @@ export function CheckTurnInFormView({
                 value={form.mgaId}
               />
             </FormField>
-            <TextField
-              error={errors.policyNumber}
-              field="policyNumber"
-              label="Policy number"
-              onChange={(value) => onFieldChange("policyNumber", value)}
-              required
-              value={form.policyNumber}
-            />
+            <TextField error={errors.policyNumber} field="policyNumber" label="Policy number" onChange={(value) => onFieldChange("policyNumber", value)} required value={form.policyNumber} />
+            <DateField error={errors.effectiveDate} field="effectiveDate" label="Effective date" onChange={(value) => onFieldChange("effectiveDate", value)} required value={form.effectiveDate} />
+            <DateField error={errors.expirationDate} field="expirationDate" label="Expiration date" onChange={(value) => onFieldChange("expirationDate", value)} required value={form.expirationDate} />
           </div>
         </FormSection>
 
         {showFinancialFields ? (
-          <FormSection title="Premium, fees, and agency commission">
-          <div className="turn-in-grid turn-in-grid-four">
-            <MoneyField field="basePremium" label="Base premium" onChange={(value) => onFieldChange("basePremium", value)} value={form.basePremium} />
-            <MoneyField field="taxes" label="Taxes" onChange={(value) => onFieldChange("taxes", value)} value={form.taxes} />
-            <MoneyField field="mgaFee" label="MGA fee" onChange={(value) => onFieldChange("mgaFee", value)} value={form.mgaFee} />
-            <MoneyField error={errors.brokerFee} field="brokerFee" label="Broker fee" onChange={(value) => onFieldChange("brokerFee", value)} required value={form.brokerFee} />
-            <MoneyField error={errors.proposalTotal} field="proposalTotal" label="Proposal total" onChange={(value) => onFieldChange("proposalTotal", value)} required value={form.proposalTotal} />
-            <ReadOnlyAmount label="Calculated total" value={summary.proposalTotal} />
-            <MoneyField error={errors.amountPaid} field="amountPaid" label="Amount collected" onChange={(value) => onFieldChange("amountPaid", value)} required value={form.amountPaid} />
-            <ReadOnlyAmount label="Net due to MGA" value={summary.netDue} />
-          </div>
-
+          <FormSection title="Commission">
           <SegmentedField
             legend="Agency commission"
             name="commission-mode"
@@ -744,13 +794,19 @@ export function CheckTurnInFormView({
             {form.commissionMode === "pct" ? (
               <FormField error={errors.commissionRate} field="commissionRate" label="Carrier commission rate" required>
                 <div className="turn-in-input-affix">
-                  <input
+                <input
                     aria-describedby={errorId("commissionRate", errors)}
                     aria-invalid={errors.commissionRate !== undefined}
                     disabled={pending}
                     id={fieldId("commissionRate")}
                     inputMode="decimal"
+                    max="100"
+                    min="0"
                     onChange={(event) => onFieldChange("commissionRate", event.currentTarget.value)}
+                    onFocus={selectNumericContents}
+                    onWheel={preventNumericWheelChange}
+                    step="0.01"
+                    type="number"
                     value={form.commissionRate}
                   />
                   <span aria-hidden="true">%</span>
@@ -758,29 +814,42 @@ export function CheckTurnInFormView({
               </FormField>
             ) : null}
             <ReadOnlyAmount label="Agency commission total" value={summary.commissionAmount} />
-            {form.commissionMode === "pct" ? (
-              <label className="turn-in-check">
-                <input
-                  aria-describedby={fieldErrorId(
-                    "commissionConfirmed",
-                    errors.commissionConfirmed,
-                  )}
-                  aria-invalid={errors.commissionConfirmed !== undefined}
-                  checked={form.commissionConfirmed}
-                  disabled={pending}
-                  onChange={(event) => onFieldChange("commissionConfirmed", event.currentTarget.checked)}
-                  type="checkbox"
-                />
-                <span>Commission confirmed against carrier invoice</span>
-                <FieldError error={errors.commissionConfirmed} field="commissionConfirmed" />
-              </label>
-            ) : null}
           </div>
           </FormSection>
         ) : null}
 
         {showFinancialFields ? (
-          <FormSection title="Payment and premium financing">
+          <FormSection title="Premium detail — from carrier invoice & binding docs">
+          <div className="turn-in-grid turn-in-grid-four">
+            <MoneyField field="basePremium" label="Base premium" onChange={(value) => onFieldChange("basePremium", value)} value={form.basePremium} />
+            <MoneyField field="taxes" label="Taxes" onChange={(value) => onFieldChange("taxes", value)} value={form.taxes} />
+            <MoneyField field="mgaFee" label="MGA fee" onChange={(value) => onFieldChange("mgaFee", value)} value={form.mgaFee} />
+            <MoneyField error={errors.brokerFee} field="brokerFee" label="Broker fee" onChange={(value) => onFieldChange("brokerFee", value)} required value={form.brokerFee} />
+            <ReadOnlyAmount label={wording.calculatedTotalLabel} value={summary.proposalTotal} />
+          </div>
+          {form.commissionMode === "pct" ? (
+            <label className="turn-in-check turn-in-commission-confirmation">
+              <input
+                aria-describedby={fieldErrorId(
+                  "commissionConfirmed",
+                  errors.commissionConfirmed,
+                )}
+                aria-invalid={errors.commissionConfirmed !== undefined}
+                  checked={form.commissionConfirmed}
+                  disabled={pending}
+                  id={fieldId("commissionConfirmed")}
+                onChange={(event) => onFieldChange("commissionConfirmed", event.currentTarget.checked)}
+                type="checkbox"
+              />
+              <span>Commission confirmed against carrier invoice</span>
+              <FieldError error={errors.commissionConfirmed} field="commissionConfirmed" />
+            </label>
+          ) : null}
+          </FormSection>
+        ) : null}
+
+        {showFinancialFields ? (
+          <FormSection title="Payment type — confirm against ePayPolicy receipt">
           <SegmentedField
             legend="Payment mode"
             name="payment-mode"
@@ -796,7 +865,6 @@ export function CheckTurnInFormView({
           {form.paymentMode === "deposit" ? (
             <div className="turn-in-conditional">
               <div className="turn-in-grid turn-in-grid-three">
-                <MoneyField field="depositOption" label="Deposit option" onChange={(value) => onFieldChange("depositOption", value)} value={form.depositOption} />
                 <ReadOnlyAmount label="Finance balance" value={summary.financeBalance} />
                 <TextField field="financeReference" label="Finance reference" onChange={(value) => onFieldChange("financeReference", value)} value={form.financeReference} />
               </div>
@@ -846,15 +914,26 @@ export function CheckTurnInFormView({
           </FormSection>
         ) : null}
 
-        <FormSection title="Notes">
+        {showFinancialFields ? (
+          <FormSection title="Net due to MGA">
+            <ReadOnlyAmount label="Net due to MGA" value={summary.netDue} />
+          </FormSection>
+        ) : null}
+
+        <FormSection title="General notes">
           <TextAreaField field="notes" label="General notes" onChange={(value) => onFieldChange("notes", value)} value={form.notes} wide />
         </FormSection>
         </fieldset>
+
+        <TurnInValidationSummary errors={errors} />
 
         <footer className="turn-in-actions">
           <div aria-live="polite" className="turn-in-action-status">
             {saveMessage(saveState, sentBack)}
           </div>
+          <button className="turn-in-clear" disabled={pending} onClick={onClear} type="button">
+            Clear
+          </button>
           {help?.canRequest ? (
             <button
               className="turn-in-help"
@@ -948,6 +1027,146 @@ function FormSection({ children, title }: { children: ReactNode; title: string }
   );
 }
 
+function TransactionTypeField({
+  error,
+  onChange,
+  pending,
+  value,
+}: {
+  error?: string;
+  onChange(value: string): void;
+  pending: boolean;
+  value: string;
+}) {
+  const [addingCustom, setAddingCustom] = useState(false);
+  const [customValue, setCustomValue] = useState("");
+  const customSelected = value !== "" && !isStandardTurnInTransactionType(value);
+  const addCustom = () => {
+    const normalized = customValue.trim();
+    if (normalized === "") {
+      return;
+    }
+    onChange(normalized);
+    setCustomValue("");
+    setAddingCustom(false);
+  };
+
+  return (
+    <div className="turn-in-field turn-in-wide">
+      <label htmlFor={fieldId("transactionType")}>
+        Transaction type<span aria-hidden="true"> *</span>
+      </label>
+      <div className="turn-in-transaction-layout">
+        <div className="turn-in-transaction-control">
+          <div className="turn-in-select-add">
+            <select
+              aria-describedby={fieldErrorId("transactionType", error)}
+              aria-invalid={error !== undefined}
+              aria-required="true"
+              disabled={pending}
+              id={fieldId("transactionType")}
+              onChange={(event) => onChange(event.currentTarget.value)}
+              value={value}
+            >
+              <option value="">Select transaction type</option>
+              {TURN_IN_TRANSACTION_TYPES.map((type) => <option key={type}>{type}</option>)}
+              {customSelected ? <option>{value}</option> : null}
+            </select>
+            <button
+              aria-expanded={addingCustom}
+              aria-label="Add custom transaction type"
+              className="turn-in-icon-button"
+              disabled={pending}
+              onClick={() => setAddingCustom((current) => !current)}
+              title="Add custom transaction type"
+              type="button"
+            >
+              +
+            </button>
+            {customSelected ? (
+              <button
+                aria-label="Remove custom transaction type"
+                className="turn-in-icon-button is-remove"
+                disabled={pending}
+                onClick={() => onChange("")}
+                title="Remove this custom transaction type"
+                type="button"
+              >
+                ×
+              </button>
+            ) : null}
+          </div>
+          {addingCustom ? (
+            <div className="turn-in-custom-transaction">
+              <input
+                aria-label="Custom transaction type"
+                autoFocus
+                disabled={pending}
+                maxLength={100}
+                onChange={(event) => setCustomValue(event.currentTarget.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    addCustom();
+                  }
+                }}
+                placeholder="Enter custom transaction type"
+                value={customValue}
+              />
+              <button disabled={pending || customValue.trim() === ""} onClick={addCustom} type="button">
+                Add
+              </button>
+            </div>
+          ) : null}
+          <FieldError error={error} field="transactionType" />
+        </div>
+        <ul className="turn-in-transaction-key">
+          <li className="turn-in-transaction-key-title">Transaction type key</li>
+          {TURN_IN_TRANSACTION_TYPE_KEY.map(([term, definition]) => (
+            <li key={term}>
+              <strong>{term}</strong>
+              <span>{definition}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function StatusValue({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="turn-in-status-value">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function TurnInValidationSummary({ errors }: { errors: TurnInValidationErrors }) {
+  const issues = Object.entries(errors).filter(([field]) => field !== "form");
+  if (issues.length === 0) {
+    return null;
+  }
+  return (
+    <section aria-labelledby="turn-in-validation-title" className="turn-in-validation" role="alert">
+      <h2 id="turn-in-validation-title">
+        {issues.length} {issues.length === 1 ? "issue" : "issues"} to fix before submitting
+      </h2>
+      <ul>
+        {issues.map(([field, message]) => (
+          <li key={field}>
+            <button onClick={() => focusTurnInField(field)} title="Go to this field" type="button">
+              <span>{message}</span>
+              <strong>Fix →</strong>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function FormField({ children, error, field, label, required = false }: {
   children: ReactNode;
   error?: string;
@@ -986,28 +1205,41 @@ function DateField(props: Omit<Parameters<typeof TextField>[0], "type">) {
   const { error, field, label, onChange, required, value } = props;
   return (
     <FormField error={error} field={field} label={label} required={required}>
-      <input aria-describedby={fieldErrorId(field, error)} aria-invalid={error !== undefined} aria-required={required} id={fieldId(field)} onChange={(event) => onChange(event.currentTarget.value)} type="date" value={value} />
+      <input
+        aria-describedby={fieldErrorId(field, error)}
+        aria-invalid={error !== undefined}
+        aria-required={required}
+        autoComplete="off"
+        id={fieldId(field)}
+        inputMode="numeric"
+        onBlur={(event) => onChange(normalizeTurnInDate(event.currentTarget.value))}
+        onChange={(event) => onChange(event.currentTarget.value)}
+        placeholder="MM/DD/YYYY — type or say it"
+        type="text"
+        value={value}
+      />
     </FormField>
   );
 }
 
-function MoneyField(props: Omit<Parameters<typeof TextField>[0], "type">) {
-  const { error, field, label, onChange, required, value } = props;
+function MoneyField(props: Omit<Parameters<typeof TextField>[0], "type"> & { hint?: string; placeholder?: string }) {
+  const { error, field, hint, label, onChange, placeholder, required, value } = props;
   return (
     <FormField error={error} field={field} label={label} required={required}>
       <div className="turn-in-input-affix">
         <span aria-hidden="true">$</span>
-        <input aria-describedby={fieldErrorId(field, error)} aria-invalid={error !== undefined} aria-required={required} id={fieldId(field)} inputMode="decimal" maxLength={15} onChange={(event) => onChange(event.currentTarget.value)} value={value} />
+        <input aria-describedby={fieldErrorId(field, error)} aria-invalid={error !== undefined} aria-required={required} id={fieldId(field)} inputMode="decimal" min="0" onChange={(event) => onChange(event.currentTarget.value)} onFocus={selectNumericContents} onWheel={preventNumericWheelChange} placeholder={placeholder} step="0.01" type="number" value={value} />
       </div>
+      {hint === undefined ? null : <span className="turn-in-hint">{hint}</span>}
     </FormField>
   );
 }
 
-function TextAreaField({ error, field, label, onChange, required = false, value, wide = false }: Omit<Parameters<typeof TextField>[0], "type"> & { wide?: boolean }) {
+function TextAreaField({ error, field, label, onChange, placeholder, required = false, value, wide = false }: Omit<Parameters<typeof TextField>[0], "type"> & { placeholder?: string; wide?: boolean }) {
   return (
     <div className={wide ? "turn-in-field turn-in-wide" : "turn-in-field"}>
       <label htmlFor={fieldId(field)}>{label}{required ? <span aria-hidden="true"> *</span> : null}</label>
-      <textarea aria-describedby={fieldErrorId(field, error)} aria-invalid={error !== undefined} aria-required={required} id={fieldId(field)} maxLength={maxLengthForField(field)} onChange={(event) => onChange(event.currentTarget.value)} rows={3} value={value} />
+      <textarea aria-describedby={fieldErrorId(field, error)} aria-invalid={error !== undefined} aria-required={required} id={fieldId(field)} maxLength={maxLengthForField(field)} onChange={(event) => onChange(event.currentTarget.value)} placeholder={placeholder} rows={3} value={value} />
       <FieldError error={error} field={field} />
     </div>
   );
@@ -1028,6 +1260,7 @@ function SegmentedField({ error, errorField, legend, name, onChange, options, va
       aria-describedby={fieldErrorId(field, error)}
       aria-invalid={error !== undefined}
       className="turn-in-segmented"
+      id={fieldId(field)}
     >
       <legend>{legend}</legend>
       <div>
@@ -1062,6 +1295,37 @@ function SaveIndicator({ draft, state }: { draft: DraftResponse | null; state: S
       {state === "saving" ? "Saving" : state === "dirty" ? "Unsaved changes" : state === "error" ? "Needs attention" : draft === null ? "New draft" : draft.status === "sent_back" ? "Changes requested" : "Draft saved"}
     </span>
   );
+}
+
+function selectNumericContents(event: React.FocusEvent<HTMLInputElement>): void {
+  event.currentTarget.select();
+}
+
+function preventNumericWheelChange(event: React.WheelEvent<HTMLInputElement>): void {
+  if (document.activeElement === event.currentTarget) {
+    event.preventDefault();
+  }
+}
+
+function draftStatusLabel(draft: DraftResponse | null): string {
+  if (draft === null) {
+    return "New draft";
+  }
+  return draft.status === "sent_back"
+    ? "Changes requested"
+    : draft.status.replaceAll("_", " ");
+}
+
+function roleLabel(role: CurrentUser["role"]): string {
+  return role === "admin" ? "Admin account" : role === "producer" ? "Producer account" : "Employee account";
+}
+
+export function formatHeaderDate(date: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
 }
 
 function errorsFromApi(error: unknown): TurnInValidationErrors {
@@ -1116,8 +1380,24 @@ function omitError(errors: TurnInValidationErrors, field: PropertyKey): TurnInVa
 function focusFirstError(errors: TurnInValidationErrors): void {
   const field = Object.keys(errors)[0];
   if (field !== undefined && typeof document !== "undefined") {
-    requestAnimationFrame(() => document.getElementById(fieldId(field))?.focus());
+    requestAnimationFrame(() => focusTurnInField(field));
   }
+}
+
+function focusTurnInField(field: string): void {
+  const target = document.getElementById(fieldId(field));
+  if (target === null) {
+    return;
+  }
+  const focusTarget = target.matches("input, select, textarea, button")
+    ? target as HTMLElement
+    : target.querySelector<HTMLElement>("input, select, textarea, button") ?? target;
+  const highlight = target.closest<HTMLElement>(".turn-in-field, .turn-in-segmented") ?? target;
+  const y = window.scrollY + target.getBoundingClientRect().top - 100;
+  window.scrollTo({ behavior: "smooth", top: Math.max(0, y) });
+  highlight.classList.add("turn-in-jump-flash");
+  window.setTimeout(() => highlight.classList.remove("turn-in-jump-flash"), 2_400);
+  focusTarget.focus({ preventScroll: true });
 }
 
 function fieldId(field: PropertyKey): string {
