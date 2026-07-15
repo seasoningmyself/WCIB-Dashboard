@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  adminVocabularyManagementResponseSchema,
+  adminVocabularyParamsSchema,
+  adminVocabularyStateRequestSchema,
   activeVocabularyResponseSchema,
   carrierMutationResponseSchema,
   createCarrierRequestSchema,
@@ -154,6 +157,53 @@ test("vocabulary mutation responses are exact picker-safe contracts", () => {
     mgaMutationResponseSchema.safeParse({
       candidates: [],
       outcome: "confirmation_required",
+    }).success,
+    false,
+  );
+});
+
+test("admin vocabulary management contracts are bounded and exact", () => {
+  const response = {
+    carriers: [
+      { id: ID, inUse: false, isActive: true, name: "Travelers" },
+    ],
+    mgas: [],
+    policyTypes: [
+      {
+        classTag: "Commercial",
+        id: ID,
+        inUse: true,
+        isActive: false,
+        name: "General Liability",
+      },
+    ],
+  };
+  assert.deepEqual(
+    adminVocabularyManagementResponseSchema.parse(response),
+    response,
+  );
+  assert.deepEqual(
+    adminVocabularyParamsSchema.parse({ itemId: ID, kind: "carrier" }),
+    { itemId: ID, kind: "carrier" },
+  );
+  assert.deepEqual(adminVocabularyStateRequestSchema.parse({ active: false }), {
+    active: false,
+  });
+  for (const invalid of [
+    { itemId: ID, kind: "office" },
+    { actorUserId: ID, itemId: ID, kind: "mga" },
+  ]) {
+    assert.equal(adminVocabularyParamsSchema.safeParse(invalid).success, false);
+  }
+  assert.equal(
+    adminVocabularyStateRequestSchema.safeParse({ active: false, reason: "x" })
+      .success,
+    false,
+  );
+  assert.equal(
+    adminVocabularyManagementResponseSchema.safeParse({
+      ...response,
+      carriers: [{ ...response.carriers[0], premiumTotal: "1.00" }],
     }).success,
     false,
   );

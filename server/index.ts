@@ -25,6 +25,11 @@ import {
   createPolicyTypeVocabulary,
 } from "./vocabulary/create.js";
 import { createMgaVocabulary } from "./vocabulary/mga-create.js";
+import { registerAdminVocabularyRoutes } from "./http/admin-vocabulary.js";
+import {
+  loadAdminVocabularyManagementSource,
+  setAdminVocabularyActive,
+} from "./vocabulary/manage.js";
 import {
   registerDraftCreateRoute,
   registerDraftEditRoute,
@@ -185,6 +190,21 @@ const app = createApp({
       authorization,
       createMga: (context, input) =>
         createMgaVocabulary(database, context, input, logger),
+    });
+    registerAdminVocabularyRoutes(routes, {
+      authorization,
+      list: (context) =>
+        loadAdminVocabularyManagementSource(database, context),
+      logger,
+      setActive: (context, kind, itemId, input) =>
+        setAdminVocabularyActive(
+          database,
+          context,
+          kind,
+          itemId,
+          input,
+          logger,
+        ),
     });
     registerDraftCreateRoute(routes, {
       authorization,

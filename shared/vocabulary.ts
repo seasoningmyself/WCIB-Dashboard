@@ -6,6 +6,12 @@ import {
 } from "./office-selection.js";
 
 export const VOCABULARY_NAME_MAX_LENGTH = 200;
+export const ADMIN_VOCABULARY_MAX_RESULTS_PER_TYPE = 1_000;
+export const ADMIN_VOCABULARY_KINDS = [
+  "carrier",
+  "mga",
+  "policy_type",
+] as const;
 
 const vocabularyNameSchema = z
   .string()
@@ -105,6 +111,49 @@ export const mgaMutationResponseSchema = z.union([
     .strict(),
 ]);
 
+const adminVocabularyItemFields = {
+  id: z.string().uuid(),
+  inUse: z.boolean(),
+  isActive: z.boolean(),
+  name: vocabularyNameSchema,
+};
+
+export const adminVocabularyItemSchema = z
+  .object(adminVocabularyItemFields)
+  .strict();
+
+export const adminPolicyTypeItemSchema = z
+  .object({
+    ...adminVocabularyItemFields,
+    classTag: z.enum(POLICY_TYPE_CLASSES),
+  })
+  .strict();
+
+export const adminVocabularyManagementResponseSchema = z
+  .object({
+    carriers: z
+      .array(adminVocabularyItemSchema)
+      .max(ADMIN_VOCABULARY_MAX_RESULTS_PER_TYPE),
+    mgas: z
+      .array(adminVocabularyItemSchema)
+      .max(ADMIN_VOCABULARY_MAX_RESULTS_PER_TYPE),
+    policyTypes: z
+      .array(adminPolicyTypeItemSchema)
+      .max(ADMIN_VOCABULARY_MAX_RESULTS_PER_TYPE),
+  })
+  .strict();
+
+export const adminVocabularyParamsSchema = z
+  .object({
+    itemId: z.string().uuid(),
+    kind: z.enum(ADMIN_VOCABULARY_KINDS),
+  })
+  .strict();
+
+export const adminVocabularyStateRequestSchema = z
+  .object({ active: z.boolean() })
+  .strict();
+
 export type VocabularyOption = z.output<typeof vocabularyOptionSchema>;
 export type PolicyTypeOption = z.output<typeof policyTypeOptionSchema>;
 export type ActiveVocabularyResponse = z.output<
@@ -122,3 +171,17 @@ export type PolicyTypeMutationResponse = z.output<
   typeof policyTypeMutationResponseSchema
 >;
 export type MgaMutationResponse = z.output<typeof mgaMutationResponseSchema>;
+export type AdminVocabularyKind =
+  (typeof ADMIN_VOCABULARY_KINDS)[number];
+export type AdminVocabularyItem = z.output<
+  typeof adminVocabularyItemSchema
+>;
+export type AdminPolicyTypeItem = z.output<
+  typeof adminPolicyTypeItemSchema
+>;
+export type AdminVocabularyManagementResponse = z.output<
+  typeof adminVocabularyManagementResponseSchema
+>;
+export type AdminVocabularyStateRequest = z.output<
+  typeof adminVocabularyStateRequestSchema
+>;

@@ -1,7 +1,23 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 14, 2026 (recorded atomic MGA group settlement.)
+**Last updated:** July 14, 2026 (recorded recoverable vocabulary management.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
+
+---
+
+## July 14, 2026 — Managed vocabulary removal is recoverable deactivation
+
+**Recorded production adaptation:** Final v15 hard-removes a carrier, MGA, or
+policy type from browser storage when it is not used by the active ledger, and
+blocks removal while a live ledger policy uses it. Production preserves the
+search, classification, and guarded-removal behavior but changes removal to an
+audited `is_active` transition. Deactivated entries leave new turn-in pickers;
+their UUID rows and every historical foreign-key reference remain intact, and
+admin can reactivate them. The in-use guard considers only non-deleted policies
+in the active business generation, so soft-deleted policies and sealed
+generations do not permanently pin an entry. State changes write the generic
+`vocabulary_deactivated` or `vocabulary_reactivated` action with the existing
+carrier, MGA, or policy-type audit entity.
 
 ---
 
