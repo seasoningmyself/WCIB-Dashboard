@@ -1,7 +1,21 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 14, 2026 (recorded audited IPFS pushed-state handling.)
+**Last updated:** July 14, 2026 (recorded projected navigation count badges.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
+
+---
+
+## July 14, 2026 — Navigation badges use projected live work counts
+
+**Recorded production adaptation:** Final v15 shows navigation badges for
+pending Approvals, unseen flagged Help Requests, and sent-back My Items. Parent
+P also requires a My Commissions badge even though final v15 exposes its count
+inside the commission summary rather than in navigation. Production therefore
+uses the existing projected screen contracts: pending submission count,
+unresolved flagged-draft count (there is no prototype-only `seenBySophia`
+state), owner sent-back count, and producer `owedCount`. Zero counts stay
+hidden. Badge loading never reads raw policy or draft rows and fails closed by
+showing no count if an authorized screen API is unavailable.
 
 ---
 

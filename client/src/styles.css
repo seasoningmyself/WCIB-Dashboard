@@ -1488,6 +1488,33 @@ h1 {
   text-decoration: none;
 }
 
+.workspace-nav-link > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-nav-count {
+  min-width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  margin-left: auto;
+  border-radius: 10px;
+  background: #a33b3b;
+  padding: 0 6px;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.workspace-nav-link[aria-current="page"] .workspace-nav-count {
+  background: #7d2d2d;
+}
+
 .workspace-nav-link:hover,
 .workspace-nav-link:focus-visible {
   background: #2a3e60;
