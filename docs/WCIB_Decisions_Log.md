@@ -1,6 +1,6 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 14, 2026 (recorded recoverable vocabulary management.)
+**Last updated:** July 14, 2026 (recorded manual-IPFS pushed-state parity.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
 
 ---
@@ -75,6 +75,30 @@ state transition. Same-state retries create no duplicate audit event. Only an
 active-generation, non-deleted policy can be changed, and every response uses
 the admin policy projector. This is an admin-only state; no financial values or
 payment references are written to logs.
+
+---
+
+## July 14, 2026 — Manual IPFS policies retain v15 pushed-state actions
+
+**Recorded fidelity decision:** Final v15 permits Sophia to mark any
+IPFS-financed policy as pushed, including one flagged for manual handling; its
+`toggleIpfsPushed` action does not exclude manual policies. The production
+schema originally enforced a stricter `policies_ipfs_state_check` branch that
+allowed `ipfs_pushed = true` only when `ipfs_manual = false`. Migration `0048`
+relaxed only that branch to match v15, so a manual IPFS-financed policy may now
+carry a pushed timestamp. The `IPFS manual` classification and badge remain
+unchanged, and manual policies remain excluded from the IPFS automation work
+queue. The relaxation therefore restores the approved pushed-state action
+without changing queue behavior or losing the fact that a policy was handled
+manually. The engagement is a faithful v15 port; where the production schema
+was stricter than final v15 without a documented business or security reason,
+v15's behavior governs. This is a fidelity correction, not a new feature.
+
+**Client-facing context:** The production dashboard now allows the same
+pushed-state actions as the v15 tool Sophia approved, including for financed
+policies handled manually. Those policies still show as manual and still stay
+out of the automation work queue. This was a deliberate choice to match the
+original approved workflow.
 
 ---
 
