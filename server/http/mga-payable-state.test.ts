@@ -114,14 +114,16 @@ test("admin MGA payable mutation returns only projected state and placement", as
   assert.equal(body.item.policyId, POLICY_ID);
   assert.equal(body.item.status, "paid");
   assert.equal(body.item.netDue, "175.00");
+  assert.equal(body.item.amountPaid, "350.00");
+  assert.equal(body.item.brokerFee, "50.00");
+  assert.equal(body.item.commissionAmount, "125.00");
+  assert.equal(body.item.commissionRate, "12.5000");
   assert.deepEqual(body.placement, {
     associationCount: 1,
     paySheetIds: [SHEET_ID],
   });
   for (const excluded of [
-    "amountPaid",
     "basePremium",
-    "commissionAmount",
     "adminActorUserId",
     "paymentId",
     "frozenTotals",

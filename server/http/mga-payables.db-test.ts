@@ -247,8 +247,11 @@ test("MGA payable endpoint composes exact stored values and admin access", async
         assert.equal(paidItem.overridden, true);
         assert.equal(paidItem.status, "paid");
         assert.equal(paidItem.paymentReference, "MGA-REF-1");
-        assert.equal("amountPaid" in paidItem, false);
-        assert.equal("commissionAmount" in paidItem, false);
+        assert.equal(paidItem.amountPaid, "900.00");
+        assert.equal(paidItem.brokerFee, "50.00");
+        assert.equal(paidItem.commissionAmount, "100.00");
+        assert.equal(paidItem.commissionRate, "10.0000");
+        assert.equal("basePremium" in paidItem, false);
 
         const unpaid = await request(running.baseUrl, {
           cookie: adminCookie,

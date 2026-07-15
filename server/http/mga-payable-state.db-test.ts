@@ -241,7 +241,10 @@ test("MGA payable endpoint keeps state, placement, audit, and closed history ato
         );
         assert.equal((markedClosed.body as any).item.status, "paid");
         assert.equal((markedClosed.body as any).item.netDue, "850.00");
-        assert.equal("amountPaid" in (markedClosed.body as any).item, false);
+        assert.equal((markedClosed.body as any).item.amountPaid, "1000.00");
+        assert.equal((markedClosed.body as any).item.brokerFee, "50.00");
+        assert.equal((markedClosed.body as any).item.commissionAmount, "100.00");
+        assert.equal((markedClosed.body as any).item.commissionRate, "10.0000");
 
         const repeatedClosed = await mutate(
           running.baseUrl,

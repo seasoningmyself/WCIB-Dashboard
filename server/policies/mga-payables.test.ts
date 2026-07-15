@@ -15,7 +15,7 @@ const PRODUCER_ID = "00000000-0000-4000-8000-000000000002";
 const MGA_A = "00000000-0000-4000-8000-000000000010";
 const MGA_B = "00000000-0000-4000-8000-000000000011";
 
-test("MGA payable projection is admin-only and uses stored net due", () => {
+test("MGA payable projection is admin-only and exposes only stored row financials", () => {
   const source = sourceItem({
     amountPaid: "9999.99",
     brokerFee: "9999.99",
@@ -25,9 +25,11 @@ test("MGA payable projection is admin-only and uses stored net due", () => {
   const projected = projectAdminMgaPayable(source, adminContext());
   assert.ok(projected);
   assert.equal(projected.netDue, "123.45");
-  assert.equal("amountPaid" in projected, false);
-  assert.equal("brokerFee" in projected, false);
-  assert.equal("commissionAmount" in projected, false);
+  assert.equal(projected.amountPaid, "9999.99");
+  assert.equal(projected.brokerFee, "9999.99");
+  assert.equal(projected.commissionAmount, "9999.99");
+  assert.equal(projected.commissionRate, "12.5000");
+  assert.equal("basePremium" in projected, false);
   assert.equal(
     projectAdminMgaPayable(source, producerContext()),
     null,

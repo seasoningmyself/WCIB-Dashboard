@@ -21,7 +21,11 @@ test("MGA payable contracts default to unpaid and reject undeclared fields", () 
 
   const item = mgaPayableItemSchema.parse({
     accountAssignment: "book",
+    amountPaid: "350.00",
     approvedAt: new Date("2026-07-11T12:00:00.000Z"),
+    brokerFee: "25.00",
+    commissionAmount: "100.00",
+    commissionRate: "10.0000",
     insuredName: "Acme",
     kayleeSplit: "book",
     mgaId: ID,
@@ -39,8 +43,8 @@ test("MGA payable contracts default to unpaid and reject undeclared fields", () 
     transactionType: "New",
   });
   assert.equal(item.approvedAt, "2026-07-11T12:00:00.000Z");
-  assert.equal("amountPaid" in item, false);
-  assert.equal("commissionAmount" in item, false);
+  assert.equal(item.amountPaid, "350.00");
+  assert.equal(item.commissionAmount, "100.00");
 });
 
 test("MGA payable response totals require exact decimal money strings", () => {
@@ -93,7 +97,11 @@ test("MGA payable state requests trim bounded paid references and reject unpaid 
 test("MGA payable mutation responses require unique placement IDs and matching counts", () => {
   const item = mgaPayableItemSchema.parse({
     accountAssignment: "none",
+    amountPaid: "350.00",
     approvedAt: "2026-07-11T12:00:00.000Z",
+    brokerFee: "25.00",
+    commissionAmount: "100.00",
+    commissionRate: null,
     insuredName: "Acme",
     kayleeSplit: "none",
     mgaId: ID,

@@ -50,3 +50,9 @@ export function formatPayableDate(value: string): string {
     timeZone: "UTC",
   }).format(date);
 }
+
+export function formatPayableCommissionRate(value: string | null): string | null {
+  if (value === null) return null;
+  const normalized = value.replace(/0+$/, "").replace(/\.$/, "");
+  return normalized === "0" ? null : `${normalized}%`;
+}

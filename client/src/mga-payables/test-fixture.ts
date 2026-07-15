@@ -8,7 +8,11 @@ export function payableItemFixture(
 ): MgaPayableItem {
   return {
     accountAssignment: "book",
+    amountPaid: "1000.00",
     approvedAt: "2026-05-01T12:00:00.000Z",
+    brokerFee: "50.00",
+    commissionAmount: "100.00",
+    commissionRate: "10.0000",
     insuredName: "Acme Construction",
     kayleeSplit: "book",
     mgaId: uuid(1),

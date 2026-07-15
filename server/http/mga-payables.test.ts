@@ -99,12 +99,13 @@ test("admin MGA payable read returns only the explicit projected fields", async 
   assert.equal(body.status, "unpaid");
   assert.equal(body.groups[0].items[0].policyId, POLICY_ID);
   assert.equal(body.groups[0].items[0].netDue, "175.00");
+  assert.equal(body.groups[0].items[0].amountPaid, "350.00");
+  assert.equal(body.groups[0].items[0].brokerFee, "50.00");
+  assert.equal(body.groups[0].items[0].commissionAmount, "125.00");
+  assert.equal(body.groups[0].items[0].commissionRate, "12.5000");
   assert.equal(body.summary.outstandingAmount, "175.00");
   for (const excluded of [
-    "amountPaid",
     "basePremium",
-    "brokerFee",
-    "commissionAmount",
     "passwordHash",
     "adminActorUserId",
     "paymentId",

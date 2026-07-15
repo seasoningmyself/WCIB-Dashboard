@@ -21,7 +21,11 @@ const moneySchema = z.string().regex(/^(0|[1-9][0-9]*)\.[0-9]{2}$/);
 export const mgaPayableItemSchema = z
   .object({
     accountAssignment: z.enum(ACCOUNT_ASSIGNMENTS),
+    amountPaid: moneySchema,
     approvedAt: apiTimestampSchema,
+    brokerFee: moneySchema,
+    commissionAmount: moneySchema,
+    commissionRate: z.string().regex(/^(0|[1-9][0-9]*)(\.[0-9]+)?$/).nullable(),
     insuredName: z.string(),
     kayleeSplit: z.enum(ACCOUNT_ASSIGNMENTS),
     mgaId: z.string().uuid(),

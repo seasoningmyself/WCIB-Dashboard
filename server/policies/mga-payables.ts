@@ -120,7 +120,11 @@ export function projectAdminMgaPayable(
   const payment = requireConsistentPayment(source);
   return mgaPayableItemSchema.parse({
     accountAssignment: policy.accountAssignment,
+    amountPaid: policy.amountPaid,
     approvedAt: policy.approvedAt,
+    brokerFee: policy.brokerFee,
+    commissionAmount: policy.commissionAmount,
+    commissionRate: policy.commissionRate,
     insuredName: policy.insuredName,
     kayleeSplit: policy.kayleeSplit,
     mgaId: policy.mgaId,

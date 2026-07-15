@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { CurrentUser } from "../../../shared/current-user.js";
 import {
+  formatPayableCommissionRate,
   formatPayableDate,
   isMgaPayablesAdmin,
   payableAccountLabel,
@@ -76,4 +77,7 @@ test("MGA payable role and date formatting fail closed", () => {
     false,
   );
   assert.equal(formatPayableDate("2026-07-11T12:00:00.000Z"), "Jul 11, 2026");
+  assert.equal(formatPayableCommissionRate("12.5000"), "12.5%");
+  assert.equal(formatPayableCommissionRate("0.0000"), null);
+  assert.equal(formatPayableCommissionRate(null), null);
 });

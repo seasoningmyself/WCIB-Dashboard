@@ -36,6 +36,12 @@ test("admin view renders server totals, stored net due, deterministic groups, an
     "Acme Construction",
     "Beacon Bakery",
     "Cobalt Roofing",
+    "Collected",
+    "$1,000.00",
+    "Commission",
+    "$100.00",
+    "10%",
+    "$50.00 broker fee",
     "$850.00",
     "$225.01",
     "$400.00",
@@ -57,8 +63,6 @@ test("admin view renders server totals, stored net due, deterministic groups, an
   for (const forbidden of [
     "Mark all",
     "Unmark all",
-    "Amount collected",
-    "Agency commission",
     "Open balance",
     "Reminder",
   ]) {

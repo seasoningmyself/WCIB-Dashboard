@@ -21,6 +21,7 @@ import {
   MgaPayablesApiError,
 } from "./api.js";
 import {
+  formatPayableCommissionRate,
   formatPayableDate,
   isMgaPayablesAdmin,
   payableAccountLabel,
@@ -330,6 +331,8 @@ export function MgaPayablesView({
                   <span role="columnheader">Insured</span>
                   <span role="columnheader">Account</span>
                   <span role="columnheader">Policy</span>
+                  <span role="columnheader">Collected</span>
+                  <span role="columnheader">Commission</span>
                   <span role="columnheader">Status</span>
                   <span role="columnheader">Net due</span>
                   <span role="columnheader">Payment reference</span>
@@ -403,6 +406,18 @@ function PayableRow({
       <span data-label="Policy" role="cell">
         <strong>{item.policyNumber}</strong>
         <small>Approved {formatPayableDate(item.approvedAt)}</small>
+      </span>
+      <span className="mga-collected" data-label="Collected" role="cell">
+        <strong>{formatMoneyExact(item.amountPaid)}</strong>
+      </span>
+      <span className="mga-commission" data-label="Commission" role="cell">
+        <strong>
+          {formatMoneyExact(item.commissionAmount)}
+          {formatPayableCommissionRate(item.commissionRate) === null
+            ? null
+            : <small> ({formatPayableCommissionRate(item.commissionRate)})</small>}
+        </strong>
+        <small>+ {formatMoneyExact(item.brokerFee)} broker fee</small>
       </span>
       <span data-label="Status" role="cell">
         <Badge
