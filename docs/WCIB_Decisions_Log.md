@@ -1,6 +1,6 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 14, 2026 (recorded manual-IPFS pushed-state parity.)
+**Last updated:** July 14, 2026 (recorded Start Fresh compatibility hardening.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
 
 ---
@@ -155,6 +155,36 @@ to the still-existing rows. Live reads show only the active generation. Sealed
 closed sheets remain stored byte-for-byte but are not mixed into the current
 generation's history; they return with their original UUIDs and frozen JSON
 when that generation is restored.
+
+---
+
+## July 14, 2026 — Start Fresh migration-count compatibility is a tracked hardening limitation
+
+**Known architectural limitation:** Parent M3 stores
+`expected_migration_count` in `business_state_control` and requires the live
+schema to match that value before Start Fresh can seal and reset a generation.
+Every later migration must therefore advance the expected count on apply and
+restore it on backout. This is a fragile, non-obvious obligation for migration
+authors; migration `0048` initially omitted the update, which broke Start Fresh
+until the archived-generation test caught the mismatch and the migration was
+fixed. The current design has two safety nets: the static generation-boundary
+test checks migration participation, and the reset precondition rejects an
+incompatible schema. A missed update therefore fails loudly and immediately
+instead of silently creating an unsafe recovery point, but the manual footgun
+still exists.
+
+**Decision and recommended hardening:** Retain the current migration-count
+mechanism through v15 parity completion because it is tested and protected by
+those fail-closed checks. During the Security Hardening or Testing milestone,
+make the existing schema fingerprint the generation compatibility gate instead
+of the manually maintained count. A generation should seal under its derived
+schema fingerprint, and restore should require that fingerprint to match the
+live schema. Because the fingerprint changes automatically with the logical
+schema, future migrations would have no separate counter to remember. This is
+not a feature-completion change: replacing the gate requires full
+re-verification of Parent M3's reset, restore, sealed-generation, checksum, and
+concurrency guarantees, which belongs in the milestone where those boundaries
+are intentionally re-tested.
 
 ---
 
