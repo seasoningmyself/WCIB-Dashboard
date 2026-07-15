@@ -1,5 +1,8 @@
 import type { CurrentUser } from "../../../shared/current-user.js";
-import type { MgaPayableItem } from "../../../shared/mga-payables.js";
+import type {
+  MgaPayableGroup,
+  MgaPayableItem,
+} from "../../../shared/mga-payables.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -18,6 +21,25 @@ export function payableAccountLabel(item: MgaPayableItem): string {
   return item.kayleeSplit === "house"
     ? `${producer} first year`
     : `${producer} account`;
+}
+
+export function payableGroupAction(group: MgaPayableGroup): {
+  count: number;
+  label: "Mark all paid" | "Unmark all";
+  status: "paid" | "unpaid";
+} {
+  const fullyPaid = group.totals.paidCount === group.totals.totalCount;
+  return fullyPaid
+    ? {
+        count: group.totals.paidCount,
+        label: "Unmark all",
+        status: "unpaid",
+      }
+    : {
+        count: group.totals.unpaidCount,
+        label: "Mark all paid",
+        status: "paid",
+      };
 }
 
 export function payableAging(

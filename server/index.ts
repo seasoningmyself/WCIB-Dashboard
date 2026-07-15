@@ -86,6 +86,8 @@ import {
 import { registerMgaPayableRoute } from "./http/mga-payables.js";
 import { listMgaPayableSources } from "./policies/mga-payables.js";
 import { registerMgaPayableStateRoute } from "./http/mga-payable-state.js";
+import { registerMgaPayableGroupStateRoute } from "./http/mga-payable-group-state.js";
+import { changeMgaPayableGroupState } from "./policies/mga-payable-group-state.js";
 import { changeMgaPayableState } from "./policies/mga-payable-state.js";
 import { registerPaySheetReadRoutes } from "./http/pay-sheets.js";
 import { registerPaySheetExportRoutes } from "./http/pay-sheet-exports.js";
@@ -380,6 +382,18 @@ const app = createApp({
           database,
           context,
           policyId,
+          input,
+          logger,
+        ),
+      logger,
+    });
+    registerMgaPayableGroupStateRoute(routes, {
+      authorization,
+      change: (context, mgaId, input) =>
+        changeMgaPayableGroupState(
+          database,
+          context,
+          mgaId,
           input,
           logger,
         ),

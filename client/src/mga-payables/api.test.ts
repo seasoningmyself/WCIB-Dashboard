@@ -24,6 +24,19 @@ test("MGA payables API uses only the read and atomic state endpoints", async () 
       item: paidItem,
       placement: { associationCount: 2, paySheetIds: [uuid(20), uuid(21)] },
     }),
+    Response.json({
+      changedCount: 1,
+      results: [
+        {
+          item: paidItem,
+          placement: {
+            associationCount: 2,
+            paySheetIds: [uuid(20), uuid(21)],
+          },
+        },
+      ],
+      status: "paid",
+    }),
   ];
   const api = createMgaPayablesApi({
     async request(path, options) {
@@ -37,6 +50,7 @@ test("MGA payables API uses only the read and atomic state endpoints", async () 
     reference: "  WIRE-123  ",
     status: "paid",
   });
+  await api.changeGroup(uuid(1), { status: "paid" });
 
   assert.equal(calls[0]?.path, "/mga-payables?status=unpaid");
   assert.equal(calls[0]?.options?.method, "GET");
@@ -44,6 +58,11 @@ test("MGA payables API uses only the read and atomic state endpoints", async () 
   assert.equal(calls[1]?.options?.method, "PUT");
   assert.deepEqual(JSON.parse(String(calls[1]?.options?.body)), {
     reference: "WIRE-123",
+    status: "paid",
+  });
+  assert.equal(calls[2]?.path, `/mga-payables/groups/${uuid(1)}/state`);
+  assert.equal(calls[2]?.options?.method, "PUT");
+  assert.deepEqual(JSON.parse(String(calls[2]?.options?.body)), {
     status: "paid",
   });
   assert.equal(
@@ -62,6 +81,14 @@ test("MGA payables API rejects unsafe input before issuing a request", async () 
   });
   await assert.rejects(
     api.list("settled" as never),
+    (error: unknown) =>
+      error instanceof MgaPayablesApiError && error.kind === "rejected",
+  );
+  await assert.rejects(
+    api.changeGroup(uuid(1), {
+      reference: "not-accepted-for-groups",
+      status: "paid",
+    } as never),
     (error: unknown) =>
       error instanceof MgaPayablesApiError && error.kind === "rejected",
   );

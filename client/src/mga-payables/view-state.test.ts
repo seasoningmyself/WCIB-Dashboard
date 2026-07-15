@@ -7,8 +7,9 @@ import {
   isMgaPayablesAdmin,
   payableAccountLabel,
   payableAging,
+  payableGroupAction,
 } from "./view-state.js";
-import { payableItemFixture, uuid } from "./test-fixture.js";
+import { payableItemFixture, payablesFixture, uuid } from "./test-fixture.js";
 
 test("MGA payable account labels preserve the approved assignment display", () => {
   assert.equal(payableAccountLabel(payableItemFixture()), "Kaylee account");
@@ -56,6 +57,27 @@ test("MGA payable aging matches v15 30 and 60 day boundaries", () => {
     payableAging(payableItemFixture({ status: "paid" }), now),
     null,
   );
+});
+
+test("MGA group action targets only the state that differs", () => {
+  const group = payablesFixture().groups[0]!;
+  assert.deepEqual(payableGroupAction(group), {
+    count: 1,
+    label: "Mark all paid",
+    status: "paid",
+  });
+  group.totals = {
+    outstandingAmount: "0.00",
+    paidAmount: "850.00",
+    paidCount: 1,
+    totalCount: 1,
+    unpaidCount: 0,
+  };
+  assert.deepEqual(payableGroupAction(group), {
+    count: 1,
+    label: "Unmark all",
+    status: "unpaid",
+  });
 });
 
 test("MGA payable role and date formatting fail closed", () => {

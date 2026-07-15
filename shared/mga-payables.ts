@@ -75,6 +75,10 @@ export const mgaPayableParamsSchema = z
   .object({ policyId: z.string().uuid() })
   .strict();
 
+export const mgaPayableGroupParamsSchema = z
+  .object({ mgaId: z.string().uuid() })
+  .strict();
+
 export const mgaPayableStateRequestSchema = z
   .object({
     reference: z
@@ -121,6 +125,28 @@ export const mgaPayableStateResponseSchema = z
   })
   .strict();
 
+export const mgaPayableGroupStateRequestSchema = z
+  .object({ status: z.enum(MGA_PAYMENT_STATUSES) })
+  .strict();
+
+export const mgaPayableGroupStateResultSchema = z
+  .object({
+    item: mgaPayableItemSchema,
+    placement: mgaPayablePlacementSchema,
+  })
+  .strict();
+
+export const mgaPayableGroupStateResponseSchema = z
+  .object({
+    changedCount: z.number().int().nonnegative().max(5_000),
+    results: z.array(mgaPayableGroupStateResultSchema).max(5_000),
+    status: z.enum(MGA_PAYMENT_STATUSES),
+  })
+  .strict()
+  .refine((response) => response.changedCount === response.results.length, {
+    message: "Changed count and projected results must match",
+  });
+
 export type MgaPayableFilter = z.output<
   typeof mgaPayableListQuerySchema
 >["status"];
@@ -135,4 +161,10 @@ export type MgaPayableStateRequest = z.output<
 >;
 export type MgaPayableStateResponse = z.output<
   typeof mgaPayableStateResponseSchema
+>;
+export type MgaPayableGroupStateRequest = z.output<
+  typeof mgaPayableGroupStateRequestSchema
+>;
+export type MgaPayableGroupStateResponse = z.output<
+  typeof mgaPayableGroupStateResponseSchema
 >;

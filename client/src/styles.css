@@ -6280,6 +6280,20 @@ h1 {
   text-align: right;
 }
 
+.mga-group-action {
+  min-height: 36px;
+  border: 1px solid #315f73;
+  border-radius: 5px;
+  background: #ffffff;
+  padding: 7px 11px;
+  color: #315f73;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
 .mga-group-header dd {
   margin: 2px 0 0;
   color: #263840;

@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   MAX_MGA_PAYMENT_REFERENCE_LENGTH,
+  mgaPayableGroupStateRequestSchema,
+  mgaPayableGroupStateResponseSchema,
   mgaPayableItemSchema,
   mgaPayableListQuerySchema,
   mgaPayableListResponseSchema,
@@ -128,6 +130,32 @@ test("MGA payable mutation responses require unique placement IDs and matching c
     mgaPayableStateResponseSchema.parse({
       item,
       placement: { associationCount: 2, paySheetIds: [ID, ID] },
+    }),
+  );
+});
+
+test("MGA payable group contracts allow only one atomic target state", () => {
+  assert.deepEqual(mgaPayableGroupStateRequestSchema.parse({ status: "paid" }), {
+    status: "paid",
+  });
+  assert.throws(() =>
+    mgaPayableGroupStateRequestSchema.parse({
+      reference: "one-ref-for-many",
+      status: "paid",
+    }),
+  );
+  assert.doesNotThrow(() =>
+    mgaPayableGroupStateResponseSchema.parse({
+      changedCount: 0,
+      results: [],
+      status: "paid",
+    }),
+  );
+  assert.throws(() =>
+    mgaPayableGroupStateResponseSchema.parse({
+      changedCount: 1,
+      results: [],
+      status: "paid",
     }),
   );
 });

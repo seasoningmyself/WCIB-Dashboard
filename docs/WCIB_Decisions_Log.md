@@ -1,7 +1,21 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 14, 2026 (recorded projected navigation count badges.)
+**Last updated:** July 14, 2026 (recorded atomic MGA group settlement.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
+
+---
+
+## July 14, 2026 — MGA group settlement is one server transaction
+
+**Recorded production adaptation:** Final v15 implements Mark all paid and
+Unmark all by looping its single-policy mutation in browser memory. Production
+preserves the visible group action and the same differing-state selection, but
+runs every policy through the existing audited state-then-placement worker
+inside one admin-authorized database transaction. Policies are locked in a
+deterministic order; active-generation and soft-delete predicates define the
+group; one failure rolls back every state, audit, and open-sheet placement in
+that group. Group retries are idempotent, and unmark retains v15's confirmation
+that open placements are removed while closed history remains unchanged.
 
 ---
 
