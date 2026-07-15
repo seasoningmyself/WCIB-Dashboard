@@ -21,6 +21,12 @@ import {
   type PolicyLedgerCorrectionRequest,
 } from "../../../shared/policy-corrections.js";
 import {
+  ipfsPushedStateRequestSchema,
+  ipfsPushedStateResponseSchema,
+  type IpfsPushedStateRequest,
+  type IpfsPushedStateResponse,
+} from "../../../shared/ipfs.js";
+import {
   policyLedgerDetailResponseSchema,
   policyLedgerListQuerySchema,
   policyLedgerListResponseSchema,
@@ -53,6 +59,11 @@ export interface PolicyLedgerApi {
   list(query: Partial<PolicyLedgerListQuery>): Promise<PolicyLedgerListResponse>;
   listAssignmentOptions(): Promise<DraftAssignmentOptionsResponse>;
   listDeleted(): Promise<DeletedPolicyListResponse>;
+  downloadIpfsWorkQueue(): Promise<IpfsWorkQueueDocument>;
+  setIpfsPushed(
+    policyId: string,
+    input: IpfsPushedStateRequest,
+  ): Promise<IpfsPushedStateResponse>;
   restore(
     policyId: string,
     input: PolicyRestoreRequest,
@@ -61,6 +72,11 @@ export interface PolicyLedgerApi {
     policyId: string,
     input: PolicySoftDeleteRequest,
   ): Promise<PolicySoftDeleteResponse>;
+}
+
+export interface IpfsWorkQueueDocument {
+  blob: Blob;
+  filename: string;
 }
 
 export function createPolicyLedgerApi(client: ApiClient): PolicyLedgerApi {
@@ -110,6 +126,15 @@ export function createPolicyLedgerApi(client: ApiClient): PolicyLedgerApi {
       ),
     listDeleted: () =>
       read(client, "/deleted-policies", deletedPolicyListResponseSchema),
+    downloadIpfsWorkQueue: () => readIpfsWorkQueue(client),
+    async setIpfsPushed(policyId, input) {
+      return mutate(
+        client,
+        `/policies/${encodeURIComponent(policyId)}/ipfs-pushed`,
+        parseRequest(ipfsPushedStateRequestSchema, input),
+        ipfsPushedStateResponseSchema,
+      );
+    },
     restore: (policyId, input) =>
       mutate(
         client,
@@ -127,6 +152,48 @@ export function createPolicyLedgerApi(client: ApiClient): PolicyLedgerApi {
         "POST",
       ),
   };
+}
+
+async function readIpfsWorkQueue(
+  client: ApiClient,
+): Promise<IpfsWorkQueueDocument> {
+  let response: Response;
+  try {
+    response = await client.request("/ipfs/work-queue.csv", {
+      cache: "no-store",
+      headers: { Accept: "text/csv" },
+      method: "GET",
+    });
+  } catch {
+    throw new PolicyLedgerApiError("unavailable");
+  }
+  if (response.status !== 200) {
+    if (response.status === 401 || response.status === 403) {
+      throw new PolicyLedgerApiError("denied");
+    }
+    if (response.status === 404 || response.status === 409) {
+      throw new PolicyLedgerApiError("conflict");
+    }
+    throw new PolicyLedgerApiError("unavailable");
+  }
+  if (response.headers.get("content-type") !== "text/csv; charset=utf-8") {
+    throw new PolicyLedgerApiError("invalid_response");
+  }
+  const disposition = response.headers.get("content-disposition");
+  const match = disposition === null
+    ? null
+    : /^attachment; filename="(WCIB_IPFS_Financed_\d{4}-\d{2}-\d{2}\.csv)"$/.exec(disposition);
+  if (match?.[1] === undefined) {
+    throw new PolicyLedgerApiError("invalid_response");
+  }
+  let blob: Blob;
+  try {
+    blob = await response.blob();
+  } catch {
+    throw new PolicyLedgerApiError("unavailable");
+  }
+  if (blob.size === 0) throw new PolicyLedgerApiError("invalid_response");
+  return Object.freeze({ blob, filename: match[1] });
 }
 
 async function read<Schema extends z.ZodTypeAny>(

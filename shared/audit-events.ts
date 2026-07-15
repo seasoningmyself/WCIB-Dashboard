@@ -34,6 +34,8 @@ export const AUDIT_ACTIONS = [
   "approval_work_restored",
   "business_state_reset",
   "business_state_restored",
+  "policy_ipfs_pushed",
+  "policy_ipfs_unpushed",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

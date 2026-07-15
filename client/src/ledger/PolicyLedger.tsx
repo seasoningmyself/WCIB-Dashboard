@@ -27,6 +27,7 @@ import {
   type LedgerCorrectionDialog,
 } from "./CorrectionDialogs.js";
 import { PolicyLedgerApiError, createPolicyLedgerApi } from "./api.js";
+import { IpfsExportResources } from "./ipfs-export-resource.js";
 import {
   LEDGER_DETAIL_GROUPS,
   currentLedgerMonth,
@@ -95,11 +96,19 @@ function AdminPolicyLedger() {
   const [deletedOpen, setDeletedOpen] = useState(false);
   const [deletedState, setDeletedState] = useState<DeletedPolicyState>({ status: "closed" });
   const [pending, setPending] = useState(false);
+  const [exportingIpfs, setExportingIpfs] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const listVersion = useRef(0);
   const detailVersion = useRef(0);
   const deletedVersion = useRef(0);
   const pendingRef = useRef(false);
+  const exportingIpfsRef = useRef(false);
+  const ipfsExportResources = useRef<IpfsExportResources | null>(null);
+  if (ipfsExportResources.current === null) {
+    ipfsExportResources.current = new IpfsExportResources();
+  }
+
+  useEffect(() => () => ipfsExportResources.current?.dispose(), []);
 
   const load = useCallback(async () => {
     const version = listVersion.current + 1;
@@ -207,7 +216,10 @@ function AdminPolicyLedger() {
     setDeletedState({ status: "closed" });
     setNotice(null);
     pendingRef.current = false;
+    exportingIpfsRef.current = false;
     setPending(false);
+    setExportingIpfs(false);
+    ipfsExportResources.current?.dispose();
   }, []);
   useSensitiveSessionCleanup(clearSensitiveState);
 
@@ -344,6 +356,81 @@ function AdminPolicyLedger() {
     [],
   );
 
+  const exportIpfsWorkQueue = useCallback(async () => {
+    if (exportingIpfsRef.current) return;
+    exportingIpfsRef.current = true;
+    setExportingIpfs(true);
+    setNotice(null);
+    try {
+      const document = await api.downloadIpfsWorkQueue();
+      ipfsExportResources.current?.download(document);
+      setNotice("IPFS work queue downloaded.");
+    } catch (error) {
+      if (error instanceof PolicyLedgerApiError && error.kind === "denied") {
+        listVersion.current += 1;
+        setState({ status: "denied" });
+        setNotice(null);
+      } else if (error instanceof PolicyLedgerApiError && error.kind === "conflict") {
+        setNotice("No IPFS-financed policies are pending automation.");
+      } else {
+        setNotice("The IPFS work queue could not be downloaded. Try again.");
+      }
+    } finally {
+      exportingIpfsRef.current = false;
+      setExportingIpfs(false);
+    }
+  }, [api]);
+
+  const setIpfsPushed = useCallback(
+    async (item: PolicyLedgerItem, pushed: boolean) => {
+      if (pendingRef.current) return;
+      pendingRef.current = true;
+      setPending(true);
+      setNotice(null);
+      try {
+        const response = await api.setIpfsPushed(item.policy.id, {
+          expectedUpdatedAt: item.policy.updatedAt,
+          pushed,
+        });
+        setDetail({ data: { item: response.item }, status: "ready" });
+        setNotice(
+          response.changed
+            ? pushed
+              ? "Policy marked pushed through to IPFS."
+              : "IPFS pushed status removed."
+            : "IPFS pushed status was already up to date.",
+        );
+        await load();
+      } catch (error) {
+        if (error instanceof PolicyLedgerApiError && error.kind === "denied") {
+          listVersion.current += 1;
+          setState({ status: "denied" });
+          setExpandedPolicyId(null);
+          setDetail({ status: "closed" });
+          setNotice(null);
+        } else if (
+          error instanceof PolicyLedgerApiError && error.kind === "conflict"
+        ) {
+          setNotice("This policy changed. The ledger has been refreshed.");
+          await load();
+          if (expandedPolicyId === item.policy.id) {
+            setDetail({ status: "loading" });
+          }
+        } else if (
+          error instanceof PolicyLedgerApiError && error.kind === "rejected"
+        ) {
+          setNotice("Only IPFS-financed policies can use pushed status.");
+        } else {
+          setNotice("The IPFS pushed status could not be saved. Try again.");
+        }
+      } finally {
+        pendingRef.current = false;
+        setPending(false);
+      }
+    },
+    [api, expandedPolicyId, load],
+  );
+
   return (
     <>
       <PolicyLedgerView
@@ -352,10 +439,14 @@ function AdminPolicyLedger() {
         notice={notice}
         onCorrect={(item, kind) => setDialog({ item, kind })}
         onDelete={(item) => setDeletionDialog({ item, kind: "delete" })}
+        onExportIpfs={() => void exportIpfsWorkQueue()}
         onOpenDeleted={() => {
           setDeletedOpen(true);
           void loadDeleted();
         }}
+        onSetIpfsPushed={(item, pushed) =>
+          void setIpfsPushed(item, pushed)
+        }
         onPage={(offset) => setQuery((current) => ({ ...current, offset }))}
         onQuery={updateQuery}
         onRetry={() => void load()}
@@ -370,6 +461,7 @@ function AdminPolicyLedger() {
         onSearchInput={setSearchInput}
         onToggleDetail={toggleDetail}
         pending={pending}
+        exportingIpfs={exportingIpfs}
         query={query}
         searchInput={searchInput}
         state={state}
@@ -377,7 +469,11 @@ function AdminPolicyLedger() {
       <PolicyCorrectionDialog
         assignmentOptions={assignmentOptions}
         dialog={dialog}
-        key={dialog === null ? "closed" : `${dialog.kind}:${dialog.item.policy.id}:${dialog.item.policy.updatedAt}`}
+        key={
+          dialog === null
+            ? "correction:closed"
+            : `correction:${dialog.kind}:${dialog.item.policy.id}:${dialog.item.policy.updatedAt}`
+        }
         onCancel={() => {
           if (!pending) setDialog(null);
         }}
@@ -400,8 +496,8 @@ function AdminPolicyLedger() {
         dialog={deletionDialog}
         key={
           deletionDialog === null
-            ? "closed"
-            : `${deletionDialog.kind}:${deletionDialog.item.policy.id}:${deletionDialog.item.policy.updatedAt}`
+            ? "deletion:closed"
+            : `deletion:${deletionDialog.kind}:${deletionDialog.item.policy.id}:${deletionDialog.item.policy.updatedAt}`
         }
         onCancel={() => {
           if (!pending) setDeletionDialog(null);
@@ -419,6 +515,7 @@ export function PolicyLedgerView({
   notice,
   onCorrect,
   onDelete,
+  onExportIpfs,
   onOpenDeleted,
   onPage,
   onQuery,
@@ -426,8 +523,10 @@ export function PolicyLedgerView({
   onRetryDetail,
   onSearch,
   onSearchInput,
+  onSetIpfsPushed,
   onToggleDetail,
   pending,
+  exportingIpfs,
   query,
   searchInput,
   state,
@@ -437,6 +536,7 @@ export function PolicyLedgerView({
   notice: string | null;
   onCorrect(item: PolicyLedgerItem, kind: "general" | "override"): void;
   onDelete(item: PolicyLedgerItem): void;
+  onExportIpfs(): void;
   onOpenDeleted(): void;
   onPage(offset: number): void;
   onQuery(query: Partial<PolicyLedgerListQuery>): void;
@@ -444,8 +544,10 @@ export function PolicyLedgerView({
   onRetryDetail(policyId: string): void;
   onSearch(event: FormEvent<HTMLFormElement>): void;
   onSearchInput(value: string): void;
+  onSetIpfsPushed(item: PolicyLedgerItem, pushed: boolean): void;
   onToggleDetail(policyId: string): void;
   pending: boolean;
+  exportingIpfs: boolean;
   query: PolicyLedgerListQuery;
   searchInput: string;
   state: PolicyLedgerState;
@@ -493,9 +595,14 @@ export function PolicyLedgerView({
           <strong>{state.data.filteredTotal}</strong>
           <span>Policies</span>
         </div>
-        <button className="ledger-deleted-button" disabled={pending} onClick={onOpenDeleted} type="button">
-          Deleted policies
-        </button>
+        <div className="ledger-page-actions">
+          <button className="ledger-deleted-button" disabled={pending || exportingIpfs} onClick={onExportIpfs} type="button">
+            {exportingIpfs ? "Preparing CSV..." : "Export IPFS CSV"}
+          </button>
+          <button className="ledger-deleted-button" disabled={pending || exportingIpfs} onClick={onOpenDeleted} type="button">
+            Deleted policies
+          </button>
+        </div>
       </header>
 
       <LedgerMetrics totals={state.data.totals} />
@@ -604,6 +711,7 @@ export function PolicyLedgerView({
               onCorrect={onCorrect}
               onDelete={onDelete}
               onRetryDetail={onRetryDetail}
+              onSetIpfsPushed={onSetIpfsPushed}
               onToggle={onToggleDetail}
               pending={pending}
             />
@@ -660,6 +768,7 @@ function LedgerRow({
   onCorrect,
   onDelete,
   onRetryDetail,
+  onSetIpfsPushed,
   onToggle,
   pending,
 }: {
@@ -669,6 +778,7 @@ function LedgerRow({
   onCorrect(item: PolicyLedgerItem, kind: "general" | "override"): void;
   onDelete(item: PolicyLedgerItem): void;
   onRetryDetail(policyId: string): void;
+  onSetIpfsPushed(item: PolicyLedgerItem, pushed: boolean): void;
   onToggle(policyId: string): void;
   pending: boolean;
 }) {
@@ -718,6 +828,7 @@ function LedgerRow({
           onCorrect={onCorrect}
           onDelete={onDelete}
           onRetry={() => onRetryDetail(item.policy.id)}
+          onSetIpfsPushed={onSetIpfsPushed}
           pending={pending}
         />
       ) : null}
@@ -730,12 +841,14 @@ function LedgerDetail({
   onCorrect,
   onDelete,
   onRetry,
+  onSetIpfsPushed,
   pending,
 }: {
   detail: PolicyLedgerDetailState;
   onCorrect(item: PolicyLedgerItem, kind: "general" | "override"): void;
   onDelete(item: PolicyLedgerItem): void;
   onRetry(): void;
+  onSetIpfsPushed(item: PolicyLedgerItem, pushed: boolean): void;
   pending: boolean;
 }) {
   if (detail.status === "loading" || detail.status === "closed") {
@@ -768,6 +881,30 @@ function LedgerDetail({
         ))}
       </div>
       <div className="ledger-detail-actions">
+        {currentItem.policy.paymentMode === "deposit" &&
+        currentItem.policy.ipfsFinanced === "yes" ? (
+          <button
+            className={currentItem.policy.ipfsPushed ? "is-ipfs-pushed" : "is-ipfs"}
+            disabled={pending}
+            onClick={() =>
+              onSetIpfsPushed(currentItem, !currentItem.policy.ipfsPushed)
+            }
+            title={
+              currentItem.policy.ipfsPushed
+                ? "Undo pushed-through status"
+                : "Mark once the finance agreement is signed and sent to IPFS"
+            }
+            type="button"
+          >
+            {currentItem.policy.ipfsPushed
+              ? `✓ Pushed through to IPFS${
+                  currentItem.policy.ipfsPushedAt === null
+                    ? ""
+                    : ` · ${shortDate(currentItem.policy.ipfsPushedAt)}`
+                }`
+              : "Mark pushed through to IPFS"}
+          </button>
+        ) : null}
         <button disabled={pending} onClick={() => onCorrect(currentItem, "general")} type="button">
           Correct fields
         </button>

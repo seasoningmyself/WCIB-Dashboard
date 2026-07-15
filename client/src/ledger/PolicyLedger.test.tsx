@@ -4,6 +4,8 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { CurrentUser } from "../../../shared/current-user.js";
 import type { PolicyLedgerListQuery } from "../../../shared/policy-ledger.js";
+import { ApiClientProvider } from "../api/context.js";
+import { createSessionBoundary } from "../auth/session-boundary.js";
 import {
   DeletedPolicyPanel,
   PolicyLedger,
@@ -52,7 +54,7 @@ test("admin ledger renders financial totals, filters, badges, detail, and separa
     "Amount collected",
     "Search policies",
     "IPFS pending",
-    "IPFS completed",
+    "IPFS ✓",
     "Duplicates only",
     "Override",
     "Likely duplicate (2)",
@@ -61,10 +63,12 @@ test("admin ledger renders financial totals, filters, badges, detail, and separa
     "MGA paid",
     "Agency financials",
     "Record",
+    "Mark pushed through to IPFS",
     "Correct fields",
     "Financial override",
     "Delete policy",
     "Deleted policies",
+    "Export IPFS CSV",
   ]) {
     assert.match(markup, new RegExp(escapeRegExp(visible)));
   }
@@ -170,6 +174,40 @@ test("non-admin ledger entry fails closed before mounting the data controller", 
   assert.doesNotMatch(markup, /Agency financials/);
 });
 
+test("admin ledger dialogs retain distinct keys while both are closed", () => {
+  const warnings: unknown[][] = [];
+  const originalError = console.error;
+  console.error = (...args: unknown[]) => warnings.push(args);
+  try {
+    renderToStaticMarkup(
+      <ApiClientProvider
+        boundary={createSessionBoundary(() => {})}
+        client={{ async request() { return Response.json({}); } }}
+      >
+        <PolicyLedger
+          user={{
+            allowedNavigation: ["policy_ledger"],
+            capabilities: ["admin"],
+            displayName: "Sophia",
+            email: "admin@example.test",
+            id: uuid(91),
+            role: "admin",
+          }}
+        />
+      </ApiClientProvider>,
+    );
+  } finally {
+    console.error = originalError;
+  }
+
+  assert.equal(
+    warnings.some((args) => args.some((value) =>
+      typeof value === "string" && value.includes("same key")
+    )),
+    false,
+  );
+});
+
 test("expanded detail has an explicit retry state without exposing stale policy data", () => {
   const item = ledgerItemFixture();
   const markup = ledgerMarkup({
@@ -199,6 +237,7 @@ function ledgerMarkup({
       notice={null}
       onCorrect={() => {}}
       onDelete={() => {}}
+      onExportIpfs={() => {}}
       onOpenDeleted={() => {}}
       onPage={() => {}}
       onQuery={() => {}}
@@ -206,8 +245,10 @@ function ledgerMarkup({
       onRetryDetail={() => {}}
       onSearch={() => {}}
       onSearchInput={() => {}}
+      onSetIpfsPushed={() => {}}
       onToggleDetail={() => {}}
       pending={false}
+      exportingIpfs={false}
       query={query}
       searchInput=""
       state={state}

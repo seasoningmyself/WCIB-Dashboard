@@ -2433,6 +2433,29 @@ h1 {
   margin-top: 16px;
 }
 
+.turn-in-ipfs-history {
+  display: grid;
+  gap: 3px;
+  border: 1px solid #c9d5da;
+  background: #f7fafb;
+  padding: 10px 12px;
+  color: #52636d;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.turn-in-ipfs-history.is-match {
+  border-color: #d4b66f;
+  background: #fff9e8;
+  color: #604d20;
+}
+
+.turn-in-ipfs-history.is-error {
+  border-color: #d6a29c;
+  background: #fff6f4;
+  color: #7d3730;
+}
+
 .turn-in-actions {
   position: sticky;
   z-index: 10;
@@ -5115,6 +5138,13 @@ h1 {
   background: #edf2f3;
 }
 
+.ledger-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .ledger-metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -5530,6 +5560,16 @@ h1 {
   color: #633870;
 }
 
+.ledger-detail-actions button.is-ipfs {
+  border-color: #8a67a4;
+  color: #6d448c;
+}
+
+.ledger-detail-actions button.is-ipfs-pushed {
+  border-color: #43836a;
+  color: #28624b;
+}
+
 .ledger-detail-actions button.is-danger,
 .ledger-dialog-actions button.is-danger {
   border-color: #9a4545;
@@ -5919,6 +5959,12 @@ h1 {
 
   .ledger-page-header {
     align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .ledger-page-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .ledger-page-header h1 {

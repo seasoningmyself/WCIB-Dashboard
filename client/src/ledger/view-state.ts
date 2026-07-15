@@ -212,11 +212,16 @@ export function ledgerBadges(item: PolicyLedgerItem): readonly LedgerBadge[] {
     badges.push({
       label:
         item.policy.ipfsFinanced === "yes"
-          ? item.policy.ipfsPushed
-            ? "IPFS completed"
-            : "IPFS pending"
+          ? item.policy.ipfsManual
+            ? "IPFS manual"
+            : item.policy.ipfsPushed
+              ? "IPFS ✓"
+              : "IPFS pending"
           : "Financed",
-      tone: "finance",
+      tone:
+        item.policy.ipfsFinanced === "yes" && item.policy.ipfsPushed
+          ? "positive"
+          : "finance",
     });
   }
   badges.push(

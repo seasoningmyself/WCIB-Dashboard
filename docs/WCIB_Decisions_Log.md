@@ -1,7 +1,50 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 14, 2026 (recorded v15 turn-in proposal tolerance.)
+**Last updated:** July 14, 2026 (recorded audited IPFS pushed-state handling.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
+
+---
+
+## July 14, 2026 — IPFS automation work queue is streamed from active live policies
+
+**Recorded production adaptation:** Final v15's `exportLedgerCSV` enumerates
+**47 columns** (the older session note saying 46 is a stale intermediate count)
+and includes only deposit-mode, IPFS-financed, non-manual, not-yet-pushed
+policies. Production preserves that final filter and column order, but applies
+Parent M's active-generation and soft-delete boundaries: sealed-generation and
+soft-deleted policies are not current automation work. The admin-only endpoint
+projects each policy through the established admin policy projector before
+rendering, streams UTF-8 CSV with BOM and CRLF, applies spreadsheet-formula
+escaping, uses `Cache-Control: no-store`, and persists no export file or job.
+
+---
+
+## July 14, 2026 — IPFS pushed state is audited and active-record scoped
+
+**Recorded production adaptation:** Final v15 lets Sophia mark or unmark any
+IPFS-financed policy as pushed, stores the transition timestamp, retains the
+`IPFS manual` badge precedence for manually handled agreements, and removes
+non-manual pushed policies from the automation work queue. Production preserves
+that behavior, including allowing a manual agreement to be marked complete,
+while writing `policy_ipfs_pushed` or `policy_ipfs_unpushed` atomically with the
+state transition. Same-state retries create no duplicate audit event. Only an
+active-generation, non-deleted policy can be changed, and every response uses
+the admin policy projector. This is an admin-only state; no financial values or
+payment references are written to logs.
+
+---
+
+## July 14, 2026 — IPFS prior-financing detection uses active live history
+
+**Recorded production adaptation:** Final v15 detects a returning IPFS insured
+from the single browser ledger, where deleted records no longer exist and there
+is no archived business-state concept. The multi-user app preserves that intent
+by exact-matching the trimmed, case-insensitive insured name against IPFS-financed
+policies in the active business generation with `deleted_at IS NULL`. A
+soft-deleted policy and a sealed generation do not influence a new active
+turn-in. The endpoint returns only whether prior financing exists and its latest
+approval date; it exposes no policy ID, money, contact, carrier, MGA, or account
+data. New/Returning remains a human-overridable selection exactly as in v15.
 
 ---
 
@@ -575,7 +618,7 @@ Follow-up to the June 26 reorder: the `#agent-section` (Account assignment, empl
 - **"Finance manually" toggle + Record ID column + pending-only automation export (June 26, 2026).**
   - **Manual finance flag (all logins).** In the IPFS contact block (financed + IPFS=yes), a checkbox "Finance this manually — special/approval agreement" (`m-ipfs-manual`, module var `ipfsManual`, `setIpfsManual`). When checked, the 4 contact fields become OPTIONAL (validation skips them) and the policy is EXCLUDED from the automation export — for weird agreements needing special approval that a human keys into IPFS. Wired through snapshot/restore, both ledger builders (`ipfsManual` stored only when deposit+IPFS), resets (resetFormState + clearForm block, incl. unchecking the box). Ledger badge shows gray "💰 IPFS manual"; detail shows "Finance handling: Manual — excluded from automation".
   - **Record ID column** = the entry's internal `id`, first column of the export — stable key so the automation can dedupe and write status back (the future round-trip that would auto-flip `ipfsPushed`).
-  - **Export scope = automation work queue.** `exportLedgerCSV` now exports IPFS-financed policies that are NOT pushed-through AND NOT manual (was: all IPFS-financed). Rationale (explained to Sophia): the export feeds the automation, so it should only contain what the automation should act on — sending already-done (pushed) or manual ones risks duplicate IPFS quotes. 46 columns; verified 13 exported = 15 IPFS − 1 pushed − 1 manual.
+  - **Export scope = automation work queue.** `exportLedgerCSV` now exports IPFS-financed policies that are NOT pushed-through AND NOT manual (was: all IPFS-financed). Rationale (explained to Sophia): the export feeds the automation, so it should only contain what the automation should act on — sending already-done (pushed) or manual ones risks duplicate IPFS quotes. Final v15 has 47 columns; verified 13 exported = 15 IPFS − 1 pushed − 1 manual.
   - **Resolved with Sophia:** SAIF uses literal "General Liability" (the snip's GLPL was a coverage they don't write). Still TODO: full coverage-name→IPFS-code list + carrier/MGA preferred-list name mapping (Sophia to provide). IPFS terms never change (interval/pymt#/dates standard → automation hardcodes). Existing financed data is throwaway (parallel old system); real integration happens after an engineer moves this to a shared multi-user system. Address stays one field for now (automation parses Street, City, State ZIP).
 
 - **IPFS Section 3 (Program) constants added to export (June 26, 2026).** Snip of IPFS Program section: Billing Type always Invoice, Loan Type Commercial, Program Name WESTCOAST, and the two bottom toggles **All Tax In Down: No** and **Doc Stamp: No**. Added export columns `IPFS Program Name`='WESTCOAST', `IPFS All Tax In Down`='No', `IPFS Doc Stamp`='No' alongside the existing Billing/Loan type. Rate/Fee Rate (WEST COAST SELL RATES 11.23 / BASE 11.23 SPRD) auto-fill from the program selection — not exported. 45 columns total now.

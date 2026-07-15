@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { CurrentUser } from "../../../shared/current-user.js";
 import {
+  applyIpfsReturningDetection,
   assignmentKey,
   buildAssignmentChoices,
   calculateTurnInSummary,
@@ -211,6 +212,27 @@ test("v15 field transitions clear commission confirmation and default financed d
     updateTurnInField(createEmptyTurnInState(), "paymentMode", "deposit")
       .ipfsFinanced,
     "yes",
+  );
+});
+
+test("IPFS prior-financing detection defaults until a human overrides", () => {
+  const state = { ...createEmptyTurnInState(), ipfsReturning: "" as const };
+  assert.equal(
+    applyIpfsReturningDetection(state, true, false).ipfsReturning,
+    "returning",
+  );
+  assert.equal(
+    applyIpfsReturningDetection(state, false, false).ipfsReturning,
+    "new",
+  );
+  assert.equal(
+    applyIpfsReturningDetection(
+      { ...state, ipfsReturning: "new" },
+      true,
+      true,
+    ).ipfsReturning,
+    "new",
+    "manual New selection must survive a later prior-history match",
   );
 });
 
