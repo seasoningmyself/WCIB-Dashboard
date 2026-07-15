@@ -5,9 +5,10 @@ import { myItem, uuid } from "./test-fixture.js";
 import {
   countMyItems,
   filterMyItems,
-  isEditableMyItem,
   isMyItemsStaff,
+  myItemAgeLabel,
   myItemFilterLabel,
+  myItemOpenLabel,
 } from "./view-state.js";
 
 const employee: CurrentUser = {
@@ -39,7 +40,7 @@ test("My Items filtering and counts cover every workflow status", () => {
   assert.equal(myItemFilterLabel("flagged"), "Waiting on Sophia");
 });
 
-test("My Items access and editability stay explicit", () => {
+test("My Items access and status actions stay explicit", () => {
   assert.equal(isMyItemsStaff(employee), true);
   assert.equal(isMyItemsStaff({ ...employee, role: "producer" }), true);
   assert.equal(isMyItemsStaff({ ...employee, role: "admin" }), false);
@@ -47,7 +48,24 @@ test("My Items access and editability stay explicit", () => {
     isMyItemsStaff({ ...employee, allowedNavigation: ["turn_in"] }),
     false,
   );
-  assert.equal(isEditableMyItem(myItem()), true);
-  assert.equal(isEditableMyItem(myItem({ status: "sent_back" })), true);
-  assert.equal(isEditableMyItem(myItem({ status: "submitted" })), false);
+  assert.equal(myItemOpenLabel(myItem()), "Continue draft");
+  assert.equal(
+    myItemOpenLabel(myItem({ status: "sent_back" })),
+    "Review changes",
+  );
+  assert.equal(
+    myItemOpenLabel(myItem({ status: "submitted" })),
+    "View submission",
+  );
+  assert.equal(
+    myItemOpenLabel(myItem({ status: "approved" })),
+    "View approved item",
+  );
+  assert.equal(
+    myItemAgeLabel(
+      "2026-07-11T12:00:00.000Z",
+      new Date("2026-07-12T14:00:00.000Z"),
+    ),
+    "1 day ago",
+  );
 });

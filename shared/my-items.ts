@@ -12,6 +12,8 @@ export const myItemSchema = z
   .object({
     id: z.string().uuid(),
     lastActivityAt: apiTimestampSchema,
+    mgaName: z.string().min(1).max(200).nullable(),
+    policyNumber: z.string().min(1).max(200).nullable(),
     reason: z.string().max(500).nullable(),
     status: z.enum(MY_ITEM_STATUSES),
     submittedAt: apiTimestampSchema.nullable(),

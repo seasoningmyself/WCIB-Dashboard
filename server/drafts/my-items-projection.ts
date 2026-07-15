@@ -1,10 +1,12 @@
 import type { MyItem } from "../../shared/my-items.js";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
-import type { DraftRecord } from "../db/schema.js";
+import type { MyItemSource } from "./my-items.js";
 
 export const MY_ITEM_FIELDS = [
   "id",
   "lastActivityAt",
+  "mgaName",
+  "policyNumber",
   "reason",
   "status",
   "submittedAt",
@@ -12,7 +14,7 @@ export const MY_ITEM_FIELDS = [
 ] as const satisfies readonly (keyof MyItem)[];
 
 export function projectMyItemForAuthorizedContext(
-  source: Readonly<DraftRecord>,
+  source: Readonly<MyItemSource>,
   context: AuthorizedRequestContext,
 ): MyItem | null {
   const { principal } = context;
@@ -25,6 +27,8 @@ export function projectMyItemForAuthorizedContext(
   return {
     id: source.id,
     lastActivityAt: source.lastEditedAt.toISOString(),
+    mgaName: boundedText(source.mgaName, 200),
+    policyNumber: boundedText(source.policyNumber, 200),
     reason: statusReason(source),
     status: source.status,
     submittedAt: source.submittedAt?.toISOString() ?? null,
@@ -35,7 +39,7 @@ export function projectMyItemForAuthorizedContext(
   };
 }
 
-function statusReason(source: Readonly<DraftRecord>): string | null {
+function statusReason(source: Readonly<MyItemSource>): string | null {
   if (source.status === "flagged") {
     return boundedText(source.flagReason, 500);
   }

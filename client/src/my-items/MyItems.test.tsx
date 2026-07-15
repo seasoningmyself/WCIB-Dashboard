@@ -49,7 +49,7 @@ const PROHIBITED_FIELDS = [
   "producerUserId",
 ] as const;
 
-test("My Items renders counts, statuses, bounded reasons, and only editable links", () => {
+test("My Items renders v15 identifiers, age, reasons, and all status links", () => {
   const markup = renderReady(populatedFixture());
   for (const visible of [
     "My Items",
@@ -59,20 +59,24 @@ test("My Items renders counts, statuses, bounded reasons, and only editable link
     "Sent back",
     "Approved",
     "Acme Construction",
+    "POL-1001",
+    "Summit MGA",
     "Continue draft",
     "Beacon Bakery",
-    "Status only",
+    "View submission",
     "Cobalt Roofing",
+    "View help request",
     "Help request",
     "Confirm the account assignment",
     "Delta Dental",
     "Review changes",
     "Changes requested",
     "Correct the carrier selection",
+    "View approved item",
   ]) {
     assert.match(markup, new RegExp(escapeRegExp(visible)));
   }
-  assert.equal((markup.match(/href="#\/my-drafts\?draft=/g) ?? []).length, 2);
+  assert.equal((markup.match(/href="#\/my-drafts\?draft=/g) ?? []).length, 5);
 });
 
 test("My Items never renders richer draft fields even if an unsafe object reaches the view", () => {
@@ -89,6 +93,8 @@ test("My Items never renders richer draft fields even if an unsafe object reache
   assert.deepEqual(Object.keys(myItem()), [
     "id",
     "lastActivityAt",
+    "mgaName",
+    "policyNumber",
     "reason",
     "status",
     "submittedAt",

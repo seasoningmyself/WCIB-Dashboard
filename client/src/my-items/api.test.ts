@@ -37,7 +37,7 @@ test("My Items API rejects a response containing any richer draft field", async 
     "financeReference",
     "ipfsFinanced",
     "ownerUserId",
-    "policyNumber",
+    "mgaId",
   ]) {
     const unsafe = { ...myItem(), [field]: `SENSITIVE_${field}` };
     const api = createMyItemsApi(client(Response.json({ items: [unsafe] })));

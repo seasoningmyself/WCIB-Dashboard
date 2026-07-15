@@ -13,9 +13,10 @@ import {
   MY_ITEM_FILTERS,
   countMyItems,
   filterMyItems,
-  isEditableMyItem,
   isMyItemsStaff,
+  myItemAgeLabel,
   myItemFilterLabel,
+  myItemOpenLabel,
   myItemStatusLabel,
   type MyItemFilter,
 } from "./view-state.js";
@@ -175,25 +176,29 @@ export function MyItemsView({
                       {myItemStatusLabel(item.status)}
                     </span>
                     <time dateTime={item.lastActivityAt}>
-                      {formatTimestamp(item.lastActivityAt)}
+                      {myItemAgeLabel(item.lastActivityAt)}
                     </time>
                   </div>
                   <div className="my-item-main">
                     <div>
                       <h2>{item.title}</h2>
+                      {item.policyNumber === null && item.mgaName === null ? null : (
+                        <p className="my-item-identifiers">
+                          {[
+                            item.policyNumber,
+                            item.mgaName,
+                          ].filter((value): value is string => value !== null).join(" · ")}
+                        </p>
+                      )}
                       {item.submittedAt === null ? null : (
                         <p>
                           Submitted <time dateTime={item.submittedAt}>{formatTimestamp(item.submittedAt)}</time>
                         </p>
                       )}
                     </div>
-                    {isEditableMyItem(item) ? (
-                      <a href={`#/my-drafts?draft=${encodeURIComponent(item.id)}`}>
-                        {item.status === "sent_back" ? "Review changes" : "Continue draft"}
-                      </a>
-                    ) : (
-                      <span className="my-item-status-only">Status only</span>
-                    )}
+                    <a href={`#/my-drafts?draft=${encodeURIComponent(item.id)}`}>
+                      {myItemOpenLabel(item)}
+                    </a>
                   </div>
                   {item.reason === null ? null : (
                     <div className="my-item-reason">

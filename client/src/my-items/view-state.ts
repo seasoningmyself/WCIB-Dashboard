@@ -61,6 +61,39 @@ export function myItemStatusLabel(status: MyItem["status"]): string {
     : myItemFilterLabel(status);
 }
 
-export function isEditableMyItem(item: MyItem): boolean {
-  return item.status === "draft" || item.status === "sent_back";
+export function myItemOpenLabel(item: MyItem): string {
+  switch (item.status) {
+    case "draft":
+      return "Continue draft";
+    case "submitted":
+      return "View submission";
+    case "flagged":
+      return "View help request";
+    case "sent_back":
+      return "Review changes";
+    case "approved":
+      return "View approved item";
+  }
+}
+
+export function myItemAgeLabel(
+  value: string,
+  now = new Date(),
+): string {
+  const timestamp = new Date(value);
+  const elapsedMinutes = Math.max(
+    0,
+    Math.floor((now.getTime() - timestamp.getTime()) / 60_000),
+  );
+  if (elapsedMinutes < 1) return "just now";
+  if (elapsedMinutes < 60) return `${elapsedMinutes} min ago`;
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+  if (elapsedHours < 24) {
+    return `${elapsedHours} hour${elapsedHours === 1 ? "" : "s"} ago`;
+  }
+  const elapsedDays = Math.floor(elapsedHours / 24);
+  if (elapsedDays < 30) {
+    return `${elapsedDays} day${elapsedDays === 1 ? "" : "s"} ago`;
+  }
+  return new Intl.DateTimeFormat("en-US").format(timestamp);
 }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { AccessPrincipal } from "../auth/access.js";
-import type { DraftRecord } from "../db/schema.js";
+import type { MyItemSource } from "./my-items.js";
 import {
   MY_ITEM_FIELDS,
   projectMyItemForAuthorizedContext,
@@ -19,12 +19,13 @@ test("My Items projection exposes exactly the status-safe allowlist", () => {
     assert.ok(projected);
     assert.deepEqual(Object.keys(projected), MY_ITEM_FIELDS);
     assert.equal(projected.title, "Acme Construction");
+    assert.equal(projected.policyNumber, "PRIVATE-POLICY");
+    assert.equal(projected.mgaName, "Summit MGA");
 
     for (const field of [
       ...DRAFT_FINANCIAL_FIELDS,
       "agencyCommissionAmount",
       "ownerUserId",
-      "policyNumber",
       "producerUserId",
       "linkedPolicyId",
       "linkedQueueEntryId",
@@ -111,7 +112,7 @@ function principal(input: Partial<AccessPrincipal> = {}): AccessPrincipal {
   };
 }
 
-function draft(input: Partial<DraftRecord> = {}): DraftRecord {
+function draft(input: Partial<MyItemSource> = {}): MyItemSource {
   const timestamp = new Date("2026-07-11T12:00:00.000Z");
   return {
     accountAssignment: "book",
@@ -154,6 +155,7 @@ function draft(input: Partial<DraftRecord> = {}): DraftRecord {
     linkedQueueEntryId: null,
     mgaFee: "25.00",
     mgaId: null,
+    mgaName: "Summit MGA",
     netDue: "475.00",
     notes: "Private note",
     officeLocationId: null,
