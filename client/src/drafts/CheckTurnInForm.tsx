@@ -26,6 +26,7 @@ import {
   calculateTurnInSummary,
   createEmptyTurnInState,
   getTurnInWording,
+  getTurnInPaymentGuidance,
   isInvoiceTransaction,
   isStandardTurnInTransactionType,
   normalizeTurnInDate,
@@ -497,6 +498,7 @@ export function CheckTurnInFormView({
   const vocabulary = useVocabulary();
   const summary = calculateTurnInSummary(form);
   const wording = getTurnInWording(form.transactionType);
+  const paymentGuidance = getTurnInPaymentGuidance(form);
   const pending = saveState === "saving";
   const completed = draft !== null && !isEditableDraft(draft);
   const sentBack = draft?.status === "sent_back";
@@ -737,6 +739,11 @@ export function CheckTurnInFormView({
           <FormSection title="Amount collected — from ePayPolicy receipt">
           <div className="turn-in-grid turn-in-grid-four">
             <MoneyField error={errors.amountPaid} field="amountPaid" label="Amount collected" onChange={(value) => onFieldChange("amountPaid", value)} required value={form.amountPaid} />
+            {paymentGuidance === null ? null : (
+              <div className={`turn-in-payment-guidance is-${paymentGuidance.tone}`} role="status">
+                {paymentGuidance.tone === "good" ? "✓ " : null}{paymentGuidance.text}
+              </div>
+            )}
           </div>
           </FormSection>
         ) : null}
@@ -787,7 +794,7 @@ export function CheckTurnInFormView({
             {form.commissionMode === "pct" ? (
               <FormField error={errors.commissionRate} field="commissionRate" label="Carrier commission rate" required>
                 <div className="turn-in-input-affix">
-                  <input
+                <input
                     aria-describedby={errorId("commissionRate", errors)}
                     aria-invalid={errors.commissionRate !== undefined}
                     disabled={pending}
@@ -828,8 +835,9 @@ export function CheckTurnInFormView({
                   errors.commissionConfirmed,
                 )}
                 aria-invalid={errors.commissionConfirmed !== undefined}
-                checked={form.commissionConfirmed}
-                disabled={pending}
+                  checked={form.commissionConfirmed}
+                  disabled={pending}
+                  id={fieldId("commissionConfirmed")}
                 onChange={(event) => onFieldChange("commissionConfirmed", event.currentTarget.checked)}
                 type="checkbox"
               />
@@ -916,6 +924,8 @@ export function CheckTurnInFormView({
           <TextAreaField field="notes" label="General notes" onChange={(value) => onFieldChange("notes", value)} value={form.notes} wide />
         </FormSection>
         </fieldset>
+
+        <TurnInValidationSummary errors={errors} />
 
         <footer className="turn-in-actions">
           <div aria-live="polite" className="turn-in-action-status">
@@ -1133,6 +1143,30 @@ function StatusValue({ label, value }: { label: string; value: string }) {
   );
 }
 
+function TurnInValidationSummary({ errors }: { errors: TurnInValidationErrors }) {
+  const issues = Object.entries(errors).filter(([field]) => field !== "form");
+  if (issues.length === 0) {
+    return null;
+  }
+  return (
+    <section aria-labelledby="turn-in-validation-title" className="turn-in-validation" role="alert">
+      <h2 id="turn-in-validation-title">
+        {issues.length} {issues.length === 1 ? "issue" : "issues"} to fix before submitting
+      </h2>
+      <ul>
+        {issues.map(([field, message]) => (
+          <li key={field}>
+            <button onClick={() => focusTurnInField(field)} title="Go to this field" type="button">
+              <span>{message}</span>
+              <strong>Fix →</strong>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function FormField({ children, error, field, label, required = false }: {
   children: ReactNode;
   error?: string;
@@ -1226,6 +1260,7 @@ function SegmentedField({ error, errorField, legend, name, onChange, options, va
       aria-describedby={fieldErrorId(field, error)}
       aria-invalid={error !== undefined}
       className="turn-in-segmented"
+      id={fieldId(field)}
     >
       <legend>{legend}</legend>
       <div>
@@ -1345,8 +1380,24 @@ function omitError(errors: TurnInValidationErrors, field: PropertyKey): TurnInVa
 function focusFirstError(errors: TurnInValidationErrors): void {
   const field = Object.keys(errors)[0];
   if (field !== undefined && typeof document !== "undefined") {
-    requestAnimationFrame(() => document.getElementById(fieldId(field))?.focus());
+    requestAnimationFrame(() => focusTurnInField(field));
   }
+}
+
+function focusTurnInField(field: string): void {
+  const target = document.getElementById(fieldId(field));
+  if (target === null) {
+    return;
+  }
+  const focusTarget = target.matches("input, select, textarea, button")
+    ? target as HTMLElement
+    : target.querySelector<HTMLElement>("input, select, textarea, button") ?? target;
+  const highlight = target.closest<HTMLElement>(".turn-in-field, .turn-in-segmented") ?? target;
+  const y = window.scrollY + target.getBoundingClientRect().top - 100;
+  window.scrollTo({ behavior: "smooth", top: Math.max(0, y) });
+  highlight.classList.add("turn-in-jump-flash");
+  window.setTimeout(() => highlight.classList.remove("turn-in-jump-flash"), 2_400);
+  focusTarget.focus({ preventScroll: true });
 }
 
 function fieldId(field: PropertyKey): string {

@@ -8,6 +8,7 @@ import {
   calculateDraftNetDue,
   calculateDraftProposalTotal,
   compareMoney,
+  moneyDifferenceInCents,
 } from "../../../shared/draft-calculations.js";
 import type {
   CreateDraftRequest,
@@ -138,6 +139,13 @@ export interface AssignmentChoice {
 }
 
 export type TurnInValidationErrors = Readonly<Record<string, string>>;
+
+export const TURN_IN_PROPOSAL_TOLERANCE_CENTS = 2n;
+
+export interface TurnInPaymentGuidance {
+  text: string;
+  tone: "error" | "good" | "neutral";
+}
 
 export function createEmptyTurnInState(): TurnInFormState {
   return {
@@ -413,6 +421,41 @@ export function calculateTurnInSummary(state: TurnInFormState) {
   };
 }
 
+export function getTurnInPaymentGuidance(
+  state: TurnInFormState,
+): TurnInPaymentGuidance | null {
+  const summary = calculateTurnInSummary(state);
+  if (
+    summary.proposalTotal === null ||
+    compareMoney(summary.proposalTotal, "0.00") !== 1 ||
+    compareMoney(state.amountPaid, "0.00") !== 1
+  ) {
+    return null;
+  }
+  if (state.paymentMode === "full") {
+    const difference = moneyDifferenceInCents(state.amountPaid, summary.proposalTotal);
+    return difference !== null && difference < 2n
+      ? { text: "Matches full proposal total", tone: "good" }
+      : {
+          text: `Full proposal total is ${formatGuidanceMoney(summary.proposalTotal)} — confirm this is correct`,
+          tone: "error",
+        };
+  }
+  const remaining = subtractMoney(summary.proposalTotal, state.amountPaid);
+  if (remaining === null) {
+    return null;
+  }
+  return state.paymentMode === "direct"
+    ? {
+        text: `Deposit collected · carrier direct-bills the remaining ${formatGuidanceMoney(remaining)} (not financed by us)`,
+        tone: "neutral",
+      }
+    : {
+        text: `Deposit · Balance of ${formatGuidanceMoney(remaining)} will be financed`,
+        tone: "neutral",
+      };
+}
+
 export function validateTurnInForSubmit(
   state: TurnInFormState,
 ): TurnInValidationErrors {
@@ -460,7 +503,7 @@ export function validateTurnInForSubmit(
     input.proposalTotal == null ||
     compareMoney(input.proposalTotal, "0.00") !== 1 ||
     summary.proposalTotal === null ||
-    compareMoney(input.proposalTotal, summary.proposalTotal) !== 0
+    !proposalTotalsMatch(input.proposalTotal, summary.proposalTotal)
   ) {
     errors.proposalTotal = "Proposal total must match premium, taxes, MGA fee, and broker fee.";
   }
@@ -482,6 +525,14 @@ export function validateTurnInForSubmit(
     }
   }
   return errors;
+}
+
+export function proposalTotalsMatch(
+  entered: string,
+  calculated: string,
+): boolean {
+  const difference = moneyDifferenceInCents(entered, calculated);
+  return difference !== null && difference <= TURN_IN_PROPOSAL_TOLERANCE_CENTS;
 }
 
 export function buildAssignmentChoices(
@@ -617,4 +668,26 @@ function moneyOrNull(value: string): string | null {
 function rateOrNull(value: string): string | null {
   const normalized = value.trim();
   return normalized === "" ? null : normalized;
+}
+
+function subtractMoney(left: string, right: string): string | null {
+  const leftMatch = /^(\d+)\.(\d{2})$/.exec(left);
+  const rightMatch = /^(\d+)\.(\d{2})$/.exec(right);
+  if (leftMatch === null || rightMatch === null) {
+    return null;
+  }
+  const leftCents = BigInt(leftMatch[1]!) * 100n + BigInt(leftMatch[2]!);
+  const rightCents = BigInt(rightMatch[1]!) * 100n + BigInt(rightMatch[2]!);
+  const difference = leftCents - rightCents;
+  const sign = difference < 0n ? "-" : "";
+  const absolute = difference < 0n ? -difference : difference;
+  return `${sign}${absolute / 100n}.${String(absolute % 100n).padStart(2, "0")}`;
+}
+
+function formatGuidanceMoney(value: string): string {
+  return new Intl.NumberFormat("en-US", {
+    currency: "USD",
+    minimumFractionDigits: 2,
+    style: "currency",
+  }).format(Number(value));
 }

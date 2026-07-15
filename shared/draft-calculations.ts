@@ -105,6 +105,19 @@ export function compareMoney(
   return leftCents < rightCents ? -1 : leftCents > rightCents ? 1 : 0;
 }
 
+export function moneyDifferenceInCents(
+  left: string,
+  right: string,
+): bigint | null {
+  const leftCents = parseFixed(left, 2);
+  const rightCents = parseFixed(right, 2);
+  if (leftCents === null || rightCents === null) {
+    return null;
+  }
+  const difference = leftCents - rightCents;
+  return difference < 0n ? -difference : difference;
+}
+
 function parseFixed(value: string, scale: number): bigint | null {
   const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(value);
   if (match === null) {

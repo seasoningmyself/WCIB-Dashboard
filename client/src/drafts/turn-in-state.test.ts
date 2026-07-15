@@ -7,8 +7,10 @@ import {
   calculateTurnInSummary,
   createEmptyTurnInState,
   getTurnInWording,
+  getTurnInPaymentGuidance,
   isStandardTurnInTransactionType,
   normalizeTurnInDate,
+  proposalTotalsMatch,
   suggestAnnualExpiration,
   turnInDateToIso,
   turnInFormToDraftInput,
@@ -279,6 +281,41 @@ test("typed and spoken turn-in dates normalize like v15 and serialize as ISO", (
       expirationDate: "06/11/2027",
     }).effectiveDate,
     "2026-06-11",
+  );
+});
+
+test("proposal validation accepts v15's two-cent tolerance and rejects three cents", () => {
+  const valid = completeState();
+  assert.equal(proposalTotalsMatch("1135.02", "1135.00"), true);
+  assert.equal(proposalTotalsMatch("1134.98", "1135.00"), true);
+  assert.equal(proposalTotalsMatch("1135.03", "1135.00"), false);
+  assert.equal(validateTurnInForSubmit({ ...valid, proposalTotal: "1135.02" }).proposalTotal, undefined);
+  assert.equal(
+    validateTurnInForSubmit({ ...valid, proposalTotal: "1135.03" }).proposalTotal,
+    "Proposal total must match premium, taxes, MGA fee, and broker fee.",
+  );
+});
+
+test("payment guidance matches v15 for full, direct-bill, and financed deposits", () => {
+  const state = completeState();
+  assert.deepEqual(
+    getTurnInPaymentGuidance({ ...state, amountPaid: "1135.01", paymentMode: "full" }),
+    { text: "Matches full proposal total", tone: "good" },
+  );
+  assert.deepEqual(
+    getTurnInPaymentGuidance({ ...state, amountPaid: "500.00", paymentMode: "full" }),
+    { text: "Full proposal total is $1,135.00 — confirm this is correct", tone: "error" },
+  );
+  assert.deepEqual(
+    getTurnInPaymentGuidance({ ...state, amountPaid: "500.00", paymentMode: "direct" }),
+    {
+      text: "Deposit collected · carrier direct-bills the remaining $635.00 (not financed by us)",
+      tone: "neutral",
+    },
+  );
+  assert.deepEqual(
+    getTurnInPaymentGuidance({ ...state, amountPaid: "500.00", paymentMode: "deposit" }),
+    { text: "Deposit · Balance of $635.00 will be financed", tone: "neutral" },
   );
 });
 

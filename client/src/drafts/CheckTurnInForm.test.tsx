@@ -209,7 +209,28 @@ test("validation state is accessible and admin submission targets the ledger", (
 
   assert.match(markup, /aria-invalid="true"/);
   assert.match(markup, /aria-describedby="turn-in-insuredName-error"/);
+  assert.match(markup, /1 issue to fix before submitting/);
+  assert.match(markup, /title="Go to this field"/);
+  assert.match(markup, /Fix →/);
   assert.match(markup, /Submit to ledger/);
+});
+
+test("payment guidance renders v15 full, direct-bill, and deposit context", () => {
+  const base = {
+    ...createEmptyTurnInState(),
+    amountPaid: "1135.00",
+    basePremium: "1000.00",
+    brokerFee: "25.00",
+    mgaFee: "10.00",
+    taxes: "100.00",
+  };
+  const full = renderView({ form: { ...base, paymentMode: "full" }, user: producer() });
+  const direct = renderView({ form: { ...base, amountPaid: "500.00", paymentMode: "direct" }, user: producer() });
+  const deposit = renderView({ form: { ...base, amountPaid: "500.00", paymentMode: "deposit" }, user: producer() });
+
+  assert.match(full, /✓ Matches full proposal total/);
+  assert.match(direct, /carrier direct-bills the remaining \$635\.00 \(not financed by us\)/);
+  assert.match(deposit, /Balance of \$635\.00 will be financed/);
 });
 
 test("pending writes disable the complete form and duplicate action buttons", () => {

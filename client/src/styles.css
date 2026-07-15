@@ -2171,6 +2171,89 @@ h1 {
   line-height: 1.35;
 }
 
+.turn-in-payment-guidance {
+  grid-column: 1 / -1;
+  border-left: 3px solid #9aa7ad;
+  background: #f5f7f7;
+  padding: 8px 10px;
+  color: #536168;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.turn-in-payment-guidance.is-good {
+  border-left-color: #478c70;
+  background: #eef8f3;
+  color: #225440;
+}
+
+.turn-in-payment-guidance.is-error {
+  border-left-color: #b76a3e;
+  background: #fff6ec;
+  color: #74431f;
+}
+
+.turn-in-validation {
+  border-top: 1px solid #d9b1ad;
+  background: #fff4f2;
+  padding: 16px 24px;
+}
+
+.turn-in-validation h2 {
+  margin: 0 0 9px;
+  color: #7c302e;
+  font-size: 13px;
+}
+
+.turn-in-validation ul {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.turn-in-validation button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 0;
+  background: transparent;
+  padding: 5px 0;
+  color: #693937;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+}
+
+.turn-in-validation button strong {
+  flex: 0 0 auto;
+  color: #27634d;
+}
+
+.turn-in-validation button:hover,
+.turn-in-validation button:focus-visible {
+  text-decoration: underline;
+}
+
+.turn-in-jump-flash {
+  animation: turn-in-jump-flash 2.4s ease-out;
+}
+
+@keyframes turn-in-jump-flash {
+  0%, 24% {
+    box-shadow: 0 0 0 4px rgba(165, 59, 59, 0.28);
+    background: #fff0ef;
+  }
+  100% {
+    box-shadow: none;
+    background: transparent;
+  }
+}
+
 .turn-in-inline-retry {
   min-height: 36px;
   justify-self: start;
@@ -4059,6 +4142,10 @@ h1 {
     position: static;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     padding: 14px 16px 16px;
+  }
+
+  .turn-in-validation {
+    padding: 15px 16px;
   }
 
   .turn-in-action-status {
