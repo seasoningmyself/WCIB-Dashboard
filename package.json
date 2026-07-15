@@ -59,6 +59,7 @@
     "test:db:approval-send-back": "node --import tsx --test server/approval-queue/send-back.db-test.ts",
     "test:db:policy-ledger": "node --import tsx --test server/http/policies.db-test.ts",
     "test:db:ipfs-history": "node --import tsx --test server/policies/ipfs-history.db-test.ts",
+    "test:db:ipfs-work-queue": "node --import tsx --test server/policies/ipfs-work-queue.db-test.ts",
     "test:db:policy-ledger-correction": "node --import tsx --test server/http/policy-corrections.db-test.ts",
     "test:db:policy-change-requests": "node --import tsx --test server/policy-change-requests/service.db-test.ts",
     "test:db:mga-payables": "node --import tsx --test server/http/mga-payables.db-test.ts",

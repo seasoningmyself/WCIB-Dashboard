@@ -65,6 +65,7 @@ test("admin ledger renders financial totals, filters, badges, detail, and separa
     "Financial override",
     "Delete policy",
     "Deleted policies",
+    "Export IPFS CSV",
   ]) {
     assert.match(markup, new RegExp(escapeRegExp(visible)));
   }
@@ -199,6 +200,7 @@ function ledgerMarkup({
       notice={null}
       onCorrect={() => {}}
       onDelete={() => {}}
+      onExportIpfs={() => {}}
       onOpenDeleted={() => {}}
       onPage={() => {}}
       onQuery={() => {}}
@@ -208,6 +210,7 @@ function ledgerMarkup({
       onSearchInput={() => {}}
       onToggleDetail={() => {}}
       pending={false}
+      exportingIpfs={false}
       query={query}
       searchInput=""
       state={state}

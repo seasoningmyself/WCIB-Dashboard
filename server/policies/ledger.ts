@@ -46,6 +46,11 @@ export interface PolicyLedgerSourceItem {
   policy: PolicyRecord;
 }
 
+export type IpfsWorkQueueSourceItem = Omit<
+  PolicyLedgerSourceItem,
+  "duplicate"
+>;
+
 export interface DeletedPolicyLedgerSourceItem {
   labels: PolicyLedgerLabels;
   policy: PolicyRecord;
@@ -166,6 +171,30 @@ export async function getDeletedPolicyLedgerItem(
     throw new PolicyLedgerNotFoundError();
   }
   return mapPolicyRow(rows[0]);
+}
+
+export async function listIpfsWorkQueueSources(
+  database: AuthDatabase,
+  context: AuthorizedRequestContext,
+): Promise<readonly IpfsWorkQueueSourceItem[]> {
+  requirePolicyLedgerAdmin(context);
+  const rows = await basePolicyQuery(database)
+    .where(
+      and(
+        eq(policies.paymentMode, "deposit"),
+        eq(policies.ipfsFinanced, "yes"),
+        eq(policies.ipfsManual, false),
+        eq(policies.ipfsPushed, false),
+        isNull(policies.deletedAt),
+        inActiveBusinessGeneration(policies.businessGenerationId),
+      ),
+    )
+    .orderBy(asc(policies.approvedAt), asc(policies.id))
+    .limit(MAX_POLICY_LEDGER_SOURCE_ROWS + 1);
+  if (rows.length > MAX_POLICY_LEDGER_SOURCE_ROWS) {
+    throw new PolicyLedgerBoundsError();
+  }
+  return rows.map(mapPolicyRow);
 }
 
 export function normalizeLedgerSearch(value: string): string {

@@ -5138,6 +5138,13 @@ h1 {
   background: #edf2f3;
 }
 
+.ledger-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .ledger-metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -5942,6 +5949,12 @@ h1 {
 
   .ledger-page-header {
     align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .ledger-page-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .ledger-page-header h1 {

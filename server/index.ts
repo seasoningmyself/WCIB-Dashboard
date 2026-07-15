@@ -45,6 +45,7 @@ import { listDraftAssignmentOptions } from "./drafts/assignment-options.js";
 import { registerDraftAssignmentOptionsRoute } from "./http/draft-assignment-options.js";
 import { registerIpfsPriorFinancingRoute } from "./http/ipfs.js";
 import { findPriorIpfsFinancing } from "./policies/ipfs-history.js";
+import { registerIpfsWorkQueueRoute } from "./http/ipfs-work-queue.js";
 import { registerApprovalWorkRoute } from "./http/approval-queue.js";
 import { listApprovalWork } from "./approval-queue/list.js";
 import { registerApprovalWorkDeletionRoutes } from "./http/approval-work-deletions.js";
@@ -70,6 +71,7 @@ import { registerPolicyLedgerRoutes } from "./http/policies.js";
 import {
   getPolicyLedgerItem,
   listDeletedPolicyLedgerItems,
+  listIpfsWorkQueueSources,
   listPolicyLedger,
 } from "./policies/ledger.js";
 import { registerPolicyLedgerCorrectionRoute } from "./http/policy-corrections.js";
@@ -229,6 +231,11 @@ const app = createApp({
       authorization,
       find: (context, insuredName) =>
         findPriorIpfsFinancing(database, context, insuredName),
+      logger,
+    });
+    registerIpfsWorkQueueRoute(routes, {
+      authorization,
+      list: (context) => listIpfsWorkQueueSources(database, context),
       logger,
     });
     registerApprovalWorkRoute(routes, {

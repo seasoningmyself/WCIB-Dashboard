@@ -31,6 +31,12 @@ test("policy ledger API uses the real list, detail, assignment, and correction p
     Response.json({ items: [deletedItem] }),
     Response.json({ changed: true, detachedOpenSheetCount: 2, item: deletedItem }),
     Response.json({ changed: true, item }),
+    new Response("\ufeffRecord ID\r\n1", {
+      headers: {
+        "content-disposition": 'attachment; filename="WCIB_IPFS_Financed_2026-07-14.csv"',
+        "content-type": "text/csv; charset=utf-8",
+      },
+    }),
   ];
   const api = createPolicyLedgerApi({
     async request(path, options) {
@@ -69,6 +75,9 @@ test("policy ledger API uses the real list, detail, assignment, and correction p
   await api.restore(uuid(10), {
     expectedUpdatedAt: "2026-07-12T12:00:00.000Z",
   });
+  const csv = await api.downloadIpfsWorkQueue();
+  assert.equal(csv.filename, "WCIB_IPFS_Financed_2026-07-14.csv");
+  assert.equal(await csv.blob.text(), "Record ID\r\n1");
   assert.equal(
     calls[0]?.path,
     "/policies?duplicates=only&finance=ipfs_pending&limit=50&offset=100&search=Acme+%26+Sons&sort=insured&direction=asc&month=2026-07",
@@ -97,6 +106,12 @@ test("policy ledger API uses the real list, detail, assignment, and correction p
   });
   assert.equal(calls[6]?.path, `/deleted-policies/${uuid(10)}/restore`);
   assert.equal(calls[6]?.options?.method, "POST");
+  assert.equal(calls[7]?.path, "/ipfs/work-queue.csv");
+  assert.equal(calls[7]?.options?.method, "GET");
+  assert.equal(
+    (calls[7]?.options?.headers as Record<string, string>)?.Accept,
+    "text/csv",
+  );
 });
 
 test("policy ledger API rejects invalid input before a request", async () => {
