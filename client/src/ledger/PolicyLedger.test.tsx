@@ -46,12 +46,18 @@ test("admin ledger renders financial totals, filters, badges, detail, and separa
   });
 
   for (const visible of [
+    "Collected",
+    "$350.00",
+    "Commission",
+    "$125.00",
+    "Broker fees",
+    "$50.00",
     "Agency revenue",
     "$175.00",
-    "Sophia retained",
+    "Sophia share",
     "$131.25",
-    "Producer payout",
-    "Amount collected",
+    "Producer share",
+    "$43.75",
     "Search policies",
     "IPFS pending",
     "IPFS ✓",
