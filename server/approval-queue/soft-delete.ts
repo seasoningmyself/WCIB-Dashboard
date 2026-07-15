@@ -18,6 +18,7 @@ import {
 } from "../../shared/approval-work-deletions.js";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AuthDatabase } from "../auth/users.js";
+import { inActiveBusinessGeneration } from "../db/business-state.js";
 import { readDatabaseErrorCode } from "../db/error-code.js";
 import {
   approvalQueueEntries,
@@ -100,6 +101,9 @@ export async function listDeletedApprovalWork(
         and(
           isNotNull(approvalQueueEntries.deletedAt),
           inArray(approvalQueueEntries.status, ["pending", "flagged"]),
+          inActiveBusinessGeneration(
+            approvalQueueEntries.businessGenerationId,
+          ),
         ),
       )
       .orderBy(
@@ -119,6 +123,7 @@ export async function listDeletedApprovalWork(
           eq(drafts.status, "flagged"),
           isNull(drafts.linkedQueueEntryId),
           isNotNull(drafts.deletedAt),
+          inActiveBusinessGeneration(drafts.businessGenerationId),
         ),
       )
       .orderBy(desc(drafts.deletedAt), asc(drafts.id))
@@ -287,6 +292,9 @@ async function getApprovalWorkDeletionSource(
           deleted
             ? isNotNull(approvalQueueEntries.deletedAt)
             : isNull(approvalQueueEntries.deletedAt),
+          inActiveBusinessGeneration(
+            approvalQueueEntries.businessGenerationId,
+          ),
         ),
       )
       .limit(1);
@@ -306,6 +314,7 @@ async function getApprovalWorkDeletionSource(
       and(
         eq(drafts.id, targetId),
         deleted ? isNotNull(drafts.deletedAt) : isNull(drafts.deletedAt),
+        inActiveBusinessGeneration(drafts.businessGenerationId),
       ),
     )
     .limit(1);

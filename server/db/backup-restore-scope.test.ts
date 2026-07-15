@@ -35,7 +35,7 @@ const schemaSource = readFileSync(
 );
 const snapshot = JSON.parse(
   readFileSync(
-    resolve(process.cwd(), "drizzle/meta/0044_snapshot.json"),
+    resolve(process.cwd(), "drizzle/meta/0047_snapshot.json"),
     "utf8",
   ),
 ) as DrizzleSnapshot;

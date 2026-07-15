@@ -5,6 +5,7 @@ import {
 } from "../../shared/drafts.js";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AuthDatabase } from "../auth/users.js";
+import { inActiveBusinessGeneration } from "../db/business-state.js";
 import { drafts, type DraftRecord } from "../db/schema.js";
 import { reopenSentBackDraft } from "../policies/lifecycle.js";
 import { requireDraftSelfServiceActor } from "./access.js";
@@ -52,7 +53,11 @@ export async function editOwnDraft(
       .select()
       .from(drafts)
       .where(
-        and(eq(drafts.id, draftId), eq(drafts.ownerUserId, ownerUserId)),
+        and(
+          eq(drafts.id, draftId),
+          eq(drafts.ownerUserId, ownerUserId),
+          inActiveBusinessGeneration(drafts.businessGenerationId),
+        ),
       )
       .limit(1)
       .for("update");
@@ -85,6 +90,7 @@ export async function editOwnDraft(
           eq(drafts.id, draftId),
           eq(drafts.ownerUserId, ownerUserId),
           eq(drafts.status, "draft"),
+          inActiveBusinessGeneration(drafts.businessGenerationId),
         ),
       )
       .returning();

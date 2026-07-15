@@ -11,10 +11,10 @@ import {
 test("every journaled migration has ordered forward and backout SQL", () => {
   const plan = loadMigrationPlan();
 
-  assert.equal(plan.length, 47);
+  assert.equal(plan.length, 48);
   assert.deepEqual(
     plan.map((entry) => entry.idx),
-    Array.from({ length: 47 }, (_, index) => index),
+    Array.from({ length: 48 }, (_, index) => index),
   );
   for (const entry of plan) {
     assert.equal(basename(entry.forwardPath), `${entry.tag}.sql`);

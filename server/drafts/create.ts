@@ -11,6 +11,7 @@ import {
 import type { ApiErrorDetail } from "../../shared/api-errors.js";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AuthDatabase } from "../auth/users.js";
+import { inActiveBusinessGeneration } from "../db/business-state.js";
 import { requireDraftSelfServiceActor } from "./access.js";
 import {
   carriers,
@@ -109,6 +110,7 @@ async function enforceContentBearingDraftLimit(
         eq(drafts.ownerUserId, ownerUserId),
         eq(drafts.status, "draft"),
         isNull(drafts.deletedAt),
+        inActiveBusinessGeneration(drafts.businessGenerationId),
         draftHasContentPredicate(),
       ),
     );

@@ -1,7 +1,37 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 14, 2026 (recorded recoverable approval-work deletion.)
+**Last updated:** July 14, 2026 (recorded recoverable Start Fresh generations.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
+
+---
+
+## July 14, 2026 — Start Fresh uses recoverable business-data generations
+
+**Recorded production decision:** v15's Start Fresh action irreversibly removes
+working policies, approvals, drafts, and pay-sheet data. The multi-user app
+preserves the clean-start intent through versioned business-data generations.
+No transactional row is deleted or reconstructed: the current generation is
+sealed with a versioned manifest, row counts, schema fingerprint, and logical
+checksum; a new empty generation is created; Sophia's open pay-sheet chain is
+initialized through the existing trusted K1 function; and the active pointer
+changes atomically. Frozen closed-sheet policy, rate, adjustment, and total
+snapshots are never rewritten.
+
+Identity, staff, credentials, capabilities, producer rates, sessions, offices,
+and carrier/MGA/policy-type vocabularies survive. KPI targets copy into the new
+generation unless admin explicitly selects the clear-targets option. Audit
+events remain global and append-only, with reset/restore events containing
+only actor, generation, counts, options, and checksum metadata.
+
+Admin may restore a sealed generation only while the current post-reset
+generation still matches its baseline checksum. If any work has been entered,
+restore rejects; admin must Start Fresh again to preserve that work as its own
+recovery point before restoring an older generation. Restore verifies format,
+schema, migration count, row counts, and checksum, then flips the active pointer
+to the still-existing rows. Live reads show only the active generation. Sealed
+closed sheets remain stored byte-for-byte but are not mixed into the current
+generation's history; they return with their original UUIDs and frozen JSON
+when that generation is restored.
 
 ---
 

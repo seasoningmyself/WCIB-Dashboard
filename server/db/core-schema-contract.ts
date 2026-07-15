@@ -1,9 +1,11 @@
 export const approvedCoreSchemaFingerprint =
-  "5b922a9769782c1905c336c7cca32ff5775e2afa828ed1d644c79560a80d2d8d";
+  "6a06ce086a9beb6b68f788f18afc03712019d56f56003401a9c796fec751991a";
 
 export const coreSchemaTables = [
   "approval_queue_entries",
   "audit_events",
+  "business_state_control",
+  "business_state_generations",
   "carriers",
   "drafts",
   "kpi_targets",

@@ -4,6 +4,13 @@ Settings -> Back up & restore is deferred to a separately approved feature and
 security design. Core Schema contains no backup, export-job, staging, import,
 restore, storage, encryption, endpoint, or UI implementation.
 
+This deferral applies to portable backup/export artifacts. Parent M adds a
+separate, database-local Start Fresh recovery mechanism: transactional rows are
+retained in sealed business-state generations and restored by a verified active
+pointer change. It creates no downloadable artifact, external storage, import
+path, credential copy, or cross-database restore mechanism. See
+`BUSINESS_STATE_GENERATIONS.md`.
+
 A future backup is a complete financial and PII export. It must be admin-only,
 encrypted in transit and at rest, retained for an explicitly approved period,
 and logged without payload values. The design must preserve UUID identity,
@@ -65,8 +72,8 @@ immutability. No such bypass or procedure exists in Core Schema.
 
 ## Current review result
 
-The current 23-table schema has no SQL array relationship columns, no name-based
-foreign key, no orphaning domain cascade, and no backup/export/staging table.
-The schema is blank-slate and restore-friendly, but restore behavior remains
-intentionally unimplemented until its feature and security boundaries are
-approved.
+The schema has no SQL array relationship columns, no name-based foreign key, no
+orphaning domain cascade, and no backup/export/staging table. Portable backup
+and cross-database restore remain intentionally unimplemented. Start Fresh
+generation recovery is not a substitute for managed Postgres backups or a
+future encrypted export/restore feature.

@@ -15,6 +15,7 @@ import {
   AdminOfficeApiError,
   createAdminOfficeApi,
 } from "./api.js";
+import { BusinessStateSettings } from "../business-state/BusinessStateSettings.js";
 
 type OfficeState =
   | { status: "denied" | "error" | "loading" }
@@ -114,6 +115,7 @@ function OfficeLocationsController() {
         pending={pending}
         state={state}
       />
+      <BusinessStateSettings />
       <OfficeEditorDialog
         dialog={editor}
         error={error}

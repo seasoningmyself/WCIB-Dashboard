@@ -8,6 +8,7 @@ import type { ApiErrorDetail } from "../../shared/api-errors.js";
 import type { CreateDraftRequest } from "../../shared/drafts.js";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AuthDatabase } from "../auth/users.js";
+import { inActiveBusinessGeneration } from "../db/business-state.js";
 import { drafts, type DraftRecord } from "../db/schema.js";
 import {
   submitAdminPolicyDirectInTransaction,
@@ -105,7 +106,11 @@ export async function submitOwnDraft(
       .select()
       .from(drafts)
       .where(
-        and(eq(drafts.id, draftId), eq(drafts.ownerUserId, ownerUserId)),
+        and(
+          eq(drafts.id, draftId),
+          eq(drafts.ownerUserId, ownerUserId),
+          inActiveBusinessGeneration(drafts.businessGenerationId),
+        ),
       )
       .limit(1)
       .for("update");
@@ -143,7 +148,12 @@ export async function submitOwnDraft(
     const [updated] = await transaction
       .select()
       .from(drafts)
-      .where(eq(drafts.id, record.id))
+      .where(
+        and(
+          eq(drafts.id, record.id),
+          inActiveBusinessGeneration(drafts.businessGenerationId),
+        ),
+      )
       .limit(1);
     if (updated === undefined) {
       throw new DraftNotSubmittableError();

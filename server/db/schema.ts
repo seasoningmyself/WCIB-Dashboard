@@ -41,6 +41,10 @@ import {
 import { MAX_APPROVAL_WORK_DELETE_REASON_LENGTH } from "../../shared/approval-work-deletions.js";
 import { MAX_POLICY_DELETE_REASON_LENGTH } from "../../shared/policy-deletions.js";
 import {
+  BUSINESS_STATE_GENERATION_FORMAT_VERSION,
+  BUSINESS_STATE_GENERATION_STATUSES,
+} from "../../shared/business-state.js";
+import {
   type AnyPgColumn,
   boolean,
   check,
@@ -133,6 +137,10 @@ export const staffPronounEnum = pgEnum("staff_pronoun", [
   "his",
   "their",
 ]);
+export const businessStateGenerationStatusEnum = pgEnum(
+  "business_state_generation_status",
+  BUSINESS_STATE_GENERATION_STATUSES,
+);
 
 export const sessions = pgTable(
   "sessions",
@@ -178,6 +186,123 @@ export const users = pgTable(
 
 export type UserRecord = typeof users.$inferSelect;
 export type NewUserRecord = typeof users.$inferInsert;
+
+export const businessStateGenerations = pgTable(
+  "business_state_generations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    code: text("code").notNull(),
+    status: businessStateGenerationStatusEnum("status")
+      .notNull()
+      .default("active"),
+    formatVersion: integer("format_version")
+      .notNull()
+      .default(BUSINESS_STATE_GENERATION_FORMAT_VERSION),
+    schemaFingerprint: text("schema_fingerprint").notNull(),
+    migrationCount: integer("migration_count").notNull(),
+    rowCounts: jsonb("row_counts"),
+    logicalChecksum: text("logical_checksum"),
+    baselineChecksum: text("baseline_checksum"),
+    clearKpiTargets: boolean("clear_kpi_targets").notNull().default(false),
+    sourceGenerationId: uuid("source_generation_id").references(
+      (): AnyPgColumn => businessStateGenerations.id,
+      { onDelete: "restrict" },
+    ),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "restrict",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    sealedByUserId: uuid("sealed_by_user_id").references(() => users.id, {
+      onDelete: "restrict",
+    }),
+    sealedAt: timestamp("sealed_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("business_state_generations_code_unique_idx").on(table.code),
+    uniqueIndex("business_state_generations_single_active_idx")
+      .on(table.status)
+      .where(sql`${table.status} = 'active'`),
+    index("business_state_generations_created_at_idx").on(table.createdAt),
+    check(
+      "business_state_generations_code_check",
+      sql`${table.code} ~ '^[A-Z0-9]{12}$'`,
+    ),
+    check(
+      "business_state_generations_format_version_check",
+      sql`${table.formatVersion} = ${sql.raw(
+        String(BUSINESS_STATE_GENERATION_FORMAT_VERSION),
+      )}`,
+    ),
+    check(
+      "business_state_generations_schema_fingerprint_check",
+      sql`${table.schemaFingerprint} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      "business_state_generations_migration_count_check",
+      sql`${table.migrationCount} > 0`,
+    ),
+    check(
+      "business_state_generations_manifest_check",
+      sql`(
+        ${table.status} = 'active'
+        AND ${table.logicalChecksum} is null
+        AND ${table.rowCounts} is null
+        AND ${table.sealedByUserId} is null
+        AND ${table.sealedAt} is null
+      ) OR (
+        ${table.status} = 'sealed'
+        AND ${table.logicalChecksum} ~ '^[0-9a-f]{32}$'
+        AND jsonb_typeof(${table.rowCounts}) = 'object'
+        AND pg_column_size(${table.rowCounts}) <= 4096
+        AND ${table.sealedByUserId} is not null
+        AND ${table.sealedAt} is not null
+      )`,
+    ),
+    check(
+      "business_state_generations_baseline_checksum_check",
+      sql`${table.baselineChecksum} is null OR ${table.baselineChecksum} ~ '^[0-9a-f]{32}$'`,
+    ),
+  ],
+);
+
+export type BusinessStateGenerationRecord =
+  typeof businessStateGenerations.$inferSelect;
+
+export const businessStateControl = pgTable(
+  "business_state_control",
+  {
+    singletonId: integer("singleton_id").primaryKey().default(1),
+    activeGenerationId: uuid("active_generation_id")
+      .notNull()
+      .references(() => businessStateGenerations.id, { onDelete: "restrict" }),
+    expectedSchemaFingerprint: text("expected_schema_fingerprint").notNull(),
+    expectedMigrationCount: integer("expected_migration_count").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "restrict",
+    }),
+  },
+  (table) => [
+    check(
+      "business_state_control_singleton_check",
+      sql`${table.singletonId} = 1`,
+    ),
+    check(
+      "business_state_control_schema_fingerprint_check",
+      sql`${table.expectedSchemaFingerprint} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      "business_state_control_migration_count_check",
+      sql`${table.expectedMigrationCount} > 0`,
+    ),
+  ],
+);
+
+export type BusinessStateControlRecord = typeof businessStateControl.$inferSelect;
 
 export const auditEvents = pgTable(
   "audit_events",
@@ -546,6 +671,10 @@ export const drafts = pgTable(
   "drafts",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    businessGenerationId: uuid("business_generation_id")
+      .notNull()
+      .default(sql`current_business_state_generation_id()`)
+      .references(() => businessStateGenerations.id, { onDelete: "restrict" }),
     ownerUserId: uuid("owner_user_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
@@ -624,6 +753,7 @@ export const drafts = pgTable(
     history: jsonb("history").notNull().default(sql`'[]'::jsonb`),
   },
   (table) => [
+    index("drafts_business_generation_idx").on(table.businessGenerationId),
     index("drafts_owner_status_idx").on(table.ownerUserId, table.status),
     index("drafts_policy_type_idx").on(table.policyTypeId),
     index("drafts_carrier_idx").on(table.carrierId),
@@ -711,13 +841,20 @@ export const drafts = pgTable(
   ],
 );
 
-export type DraftRecord = typeof drafts.$inferSelect;
+export type DraftRecord = Omit<
+  typeof drafts.$inferSelect,
+  "businessGenerationId"
+>;
 export type NewDraftRecord = typeof drafts.$inferInsert;
 
 export const approvalQueueEntries = pgTable(
   "approval_queue_entries",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    businessGenerationId: uuid("business_generation_id")
+      .notNull()
+      .default(sql`current_business_state_generation_id()`)
+      .references(() => businessStateGenerations.id, { onDelete: "restrict" }),
     draftId: uuid("draft_id")
       .notNull()
       .references(() => drafts.id, { onDelete: "restrict" }),
@@ -747,6 +884,9 @@ export const approvalQueueEntries = pgTable(
     deleteReason: text("delete_reason"),
   },
   (table) => [
+    index("approval_queue_entries_business_generation_idx").on(
+      table.businessGenerationId,
+    ),
     uniqueIndex("approval_queue_entries_active_draft_idx")
       .on(table.draftId)
       .where(sql`${table.status} in ('pending', 'flagged')`),
@@ -822,8 +962,10 @@ export const approvalQueueEntries = pgTable(
   ],
 );
 
-export type ApprovalQueueEntryRecord =
-  typeof approvalQueueEntries.$inferSelect;
+export type ApprovalQueueEntryRecord = Omit<
+  typeof approvalQueueEntries.$inferSelect,
+  "businessGenerationId"
+>;
 export type NewApprovalQueueEntryRecord =
   typeof approvalQueueEntries.$inferInsert;
 
@@ -831,6 +973,10 @@ export const policies = pgTable(
   "policies",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    businessGenerationId: uuid("business_generation_id")
+      .notNull()
+      .default(sql`current_business_state_generation_id()`)
+      .references(() => businessStateGenerations.id, { onDelete: "restrict" }),
     sourceDraftId: uuid("source_draft_id").references(() => drafts.id, {
       onDelete: "restrict",
     }),
@@ -952,6 +1098,7 @@ export const policies = pgTable(
       .defaultNow(),
   },
   (table) => [
+    index("policies_business_generation_idx").on(table.businessGenerationId),
     uniqueIndex("policies_source_draft_unique_idx")
       .on(table.sourceDraftId)
       .where(sql`${table.sourceDraftId} is not null`),
@@ -1147,13 +1294,20 @@ export const policies = pgTable(
   ],
 );
 
-export type PolicyRecord = typeof policies.$inferSelect;
+export type PolicyRecord = Omit<
+  typeof policies.$inferSelect,
+  "businessGenerationId"
+>;
 export type NewPolicyRecord = typeof policies.$inferInsert;
 
 export const policyChangeRequests = pgTable(
   "policy_change_requests",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    businessGenerationId: uuid("business_generation_id")
+      .notNull()
+      .default(sql`current_business_state_generation_id()`)
+      .references(() => businessStateGenerations.id, { onDelete: "restrict" }),
     policyId: uuid("policy_id")
       .notNull()
       .references(() => policies.id, { onDelete: "restrict" }),
@@ -1177,6 +1331,9 @@ export const policyChangeRequests = pgTable(
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
   },
   (table) => [
+    index("policy_change_requests_business_generation_idx").on(
+      table.businessGenerationId,
+    ),
     uniqueIndex("policy_change_requests_pending_policy_idx")
       .on(table.policyId)
       .where(sql`${table.status} = 'pending'`),
@@ -1243,7 +1400,10 @@ export const policyChangeRequests = pgTable(
   ],
 );
 
-export type PolicyChangeRequestRecord = typeof policyChangeRequests.$inferSelect;
+export type PolicyChangeRequestRecord = Omit<
+  typeof policyChangeRequests.$inferSelect,
+  "businessGenerationId"
+>;
 export type NewPolicyChangeRequestRecord =
   typeof policyChangeRequests.$inferInsert;
 
@@ -1251,6 +1411,10 @@ export const policyOverrides = pgTable(
   "policy_overrides",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    businessGenerationId: uuid("business_generation_id")
+      .notNull()
+      .default(sql`current_business_state_generation_id()`)
+      .references(() => businessStateGenerations.id, { onDelete: "restrict" }),
     policyId: uuid("policy_id")
       .notNull()
       .references(() => policies.id, { onDelete: "restrict" }),
@@ -1265,6 +1429,9 @@ export const policyOverrides = pgTable(
       .defaultNow(),
   },
   (table) => [
+    index("policy_overrides_business_generation_idx").on(
+      table.businessGenerationId,
+    ),
     index("policy_overrides_policy_timeline_idx").on(
       table.policyId,
       table.createdAt,
@@ -1304,13 +1471,20 @@ export const policyOverrides = pgTable(
   ],
 );
 
-export type PolicyOverrideRecord = typeof policyOverrides.$inferSelect;
+export type PolicyOverrideRecord = Omit<
+  typeof policyOverrides.$inferSelect,
+  "businessGenerationId"
+>;
 export type NewPolicyOverrideRecord = typeof policyOverrides.$inferInsert;
 
 export const mgaPayments = pgTable(
   "mga_payments",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    businessGenerationId: uuid("business_generation_id")
+      .notNull()
+      .default(sql`current_business_state_generation_id()`)
+      .references(() => businessStateGenerations.id, { onDelete: "restrict" }),
     policyId: uuid("policy_id")
       .notNull()
       .references(() => policies.id, { onDelete: "restrict" }),
@@ -1329,6 +1503,9 @@ export const mgaPayments = pgTable(
       .defaultNow(),
   },
   (table) => [
+    index("mga_payments_business_generation_idx").on(
+      table.businessGenerationId,
+    ),
     uniqueIndex("mga_payments_policy_unique_idx").on(table.policyId),
     check(
       "mga_payments_state_check",
@@ -1358,13 +1535,20 @@ export const mgaPayments = pgTable(
   ],
 );
 
-export type MgaPaymentRecord = typeof mgaPayments.$inferSelect;
+export type MgaPaymentRecord = Omit<
+  typeof mgaPayments.$inferSelect,
+  "businessGenerationId"
+>;
 export type NewMgaPaymentRecord = typeof mgaPayments.$inferInsert;
 
 export const paySheets = pgTable(
   "pay_sheets",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    businessGenerationId: uuid("business_generation_id")
+      .notNull()
+      .default(sql`current_business_state_generation_id()`)
+      .references(() => businessStateGenerations.id, { onDelete: "restrict" }),
     ownerUserId: uuid("owner_user_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
@@ -1388,17 +1572,21 @@ export const paySheets = pgTable(
       .defaultNow(),
   },
   (table) => [
+    index("pay_sheets_business_generation_idx").on(
+      table.businessGenerationId,
+    ),
     uniqueIndex("pay_sheets_owner_period_unique_idx").on(
+      table.businessGenerationId,
       table.ownerUserId,
       table.ownerType,
       table.periodYear,
       table.periodMonth,
     ),
     uniqueIndex("pay_sheets_single_open_sophia_idx")
-      .on(table.ownerType)
+      .on(table.businessGenerationId, table.ownerType)
       .where(sql`${table.ownerType} = 'sophia' AND ${table.status} = 'open'`),
     uniqueIndex("pay_sheets_single_open_producer_idx")
-      .on(table.ownerUserId)
+      .on(table.businessGenerationId, table.ownerUserId)
       .where(sql`${table.ownerType} = 'producer' AND ${table.status} = 'open'`),
     check(
       "pay_sheets_period_check",
@@ -1458,13 +1646,20 @@ export const paySheets = pgTable(
   ],
 );
 
-export type PaySheetRecord = typeof paySheets.$inferSelect;
+export type PaySheetRecord = Omit<
+  typeof paySheets.$inferSelect,
+  "businessGenerationId"
+>;
 export type NewPaySheetRecord = typeof paySheets.$inferInsert;
 
 export const paySheetPolicies = pgTable(
   "pay_sheet_policies",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    businessGenerationId: uuid("business_generation_id")
+      .notNull()
+      .default(sql`current_business_state_generation_id()`)
+      .references(() => businessStateGenerations.id, { onDelete: "restrict" }),
     paySheetId: uuid("pay_sheet_id")
       .notNull()
       .references(() => paySheets.id, { onDelete: "restrict" }),
@@ -1485,6 +1680,9 @@ export const paySheetPolicies = pgTable(
       .defaultNow(),
   },
   (table) => [
+    index("pay_sheet_policies_business_generation_idx").on(
+      table.businessGenerationId,
+    ),
     uniqueIndex("pay_sheet_policies_sheet_policy_unique_idx").on(
       table.paySheetId,
       table.policyId,
@@ -1548,13 +1746,20 @@ export const paySheetPolicies = pgTable(
   ],
 );
 
-export type PaySheetPolicyRecord = typeof paySheetPolicies.$inferSelect;
+export type PaySheetPolicyRecord = Omit<
+  typeof paySheetPolicies.$inferSelect,
+  "businessGenerationId"
+>;
 export type NewPaySheetPolicyRecord = typeof paySheetPolicies.$inferInsert;
 
 export const paySheetAdjustments = pgTable(
   "pay_sheet_adjustments",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    businessGenerationId: uuid("business_generation_id")
+      .notNull()
+      .default(sql`current_business_state_generation_id()`)
+      .references(() => businessStateGenerations.id, { onDelete: "restrict" }),
     paySheetId: uuid("pay_sheet_id")
       .notNull()
       .references(() => paySheets.id, { onDelete: "restrict" }),
@@ -1603,6 +1808,9 @@ export const paySheetAdjustments = pgTable(
       .defaultNow(),
   },
   (table) => [
+    index("pay_sheet_adjustments_business_generation_idx").on(
+      table.businessGenerationId,
+    ),
     index("pay_sheet_adjustments_sheet_idx").on(table.paySheetId),
     index("pay_sheet_adjustments_policy_type_idx").on(table.policyTypeId),
     index("pay_sheet_adjustments_producer_idx").on(table.producerUserId),
@@ -1664,7 +1872,10 @@ export const paySheetAdjustments = pgTable(
   ],
 );
 
-export type PaySheetAdjustmentRecord = typeof paySheetAdjustments.$inferSelect;
+export type PaySheetAdjustmentRecord = Omit<
+  typeof paySheetAdjustments.$inferSelect,
+  "businessGenerationId"
+>;
 export type NewPaySheetAdjustmentRecord =
   typeof paySheetAdjustments.$inferInsert;
 
@@ -1672,6 +1883,10 @@ export const kpiTargets = pgTable(
   "kpi_targets",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    businessGenerationId: uuid("business_generation_id")
+      .notNull()
+      .default(sql`current_business_state_generation_id()`)
+      .references(() => businessStateGenerations.id, { onDelete: "restrict" }),
     scopeType: kpiTargetScopeTypeEnum("scope_type").notNull(),
     producerUserId: uuid("producer_user_id").references(
       () => staffProfiles.userId,
@@ -1695,11 +1910,14 @@ export const kpiTargets = pgTable(
       .defaultNow(),
   },
   (table) => [
+    index("kpi_targets_business_generation_idx").on(
+      table.businessGenerationId,
+    ),
     uniqueIndex("kpi_targets_company_year_unique_idx")
-      .on(table.year)
+      .on(table.businessGenerationId, table.year)
       .where(sql`${table.scopeType} = 'company'`),
     uniqueIndex("kpi_targets_producer_year_unique_idx")
-      .on(table.producerUserId, table.year)
+      .on(table.businessGenerationId, table.producerUserId, table.year)
       .where(sql`${table.scopeType} = 'producer'`),
     check(
       "kpi_targets_scope_shape_check",
@@ -1730,5 +1948,8 @@ export const kpiTargets = pgTable(
   ],
 );
 
-export type KpiTargetRecord = typeof kpiTargets.$inferSelect;
+export type KpiTargetRecord = Omit<
+  typeof kpiTargets.$inferSelect,
+  "businessGenerationId"
+>;
 export type NewKpiTargetRecord = typeof kpiTargets.$inferInsert;

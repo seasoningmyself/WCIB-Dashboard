@@ -1,10 +1,11 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   policyLedgerCorrectionRequestSchema,
   type PolicyLedgerCorrectionRequest,
 } from "../../shared/policy-corrections.js";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AuthDatabase } from "../auth/users.js";
+import { inActiveBusinessGeneration } from "../db/business-state.js";
 import { readDatabaseErrorCode } from "../db/error-code.js";
 import { policies, type PolicyRecord } from "../db/schema.js";
 import type { AppLogger } from "../logging/logger.js";
@@ -91,7 +92,12 @@ export async function correctPolicyLedgerItemInTransaction(
   const [current] = await transaction
     .select()
     .from(policies)
-    .where(eq(policies.id, policyId))
+    .where(
+      and(
+        eq(policies.id, policyId),
+        inActiveBusinessGeneration(policies.businessGenerationId),
+      ),
+    )
     .limit(1)
     .for("update");
   if (current === undefined) {
@@ -145,7 +151,12 @@ export async function correctPolicyLedgerItemInTransaction(
   const [updated] = await transaction
     .select()
     .from(policies)
-    .where(eq(policies.id, policyId))
+    .where(
+      and(
+        eq(policies.id, policyId),
+        inActiveBusinessGeneration(policies.businessGenerationId),
+      ),
+    )
     .limit(1);
   if (updated === undefined) {
     throw new PolicyLedgerCorrectionNotFoundError();

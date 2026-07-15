@@ -3,6 +3,7 @@ import { myCommissionReceiptRequestSchema } from "../../shared/my-commissions.js
 import { writeAuditEventInDrizzleTransaction } from "../audit/event.js";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AuthDatabase } from "../auth/users.js";
+import { inActiveBusinessGeneration } from "../db/business-state.js";
 import { paySheetPolicies, paySheets, policies } from "../db/schema.js";
 import type { AppLogger } from "../logging/logger.js";
 import { parsePaySheetPolicySnapshot } from "../pay-sheets/snapshots.js";
@@ -58,7 +59,13 @@ export async function setProducerCommissionReceipt(
           producerUserId: policies.producerUserId,
         })
         .from(policies)
-        .where(and(eq(policies.id, policyId), isNull(policies.deletedAt)))
+        .where(
+          and(
+            eq(policies.id, policyId),
+            isNull(policies.deletedAt),
+            inActiveBusinessGeneration(policies.businessGenerationId),
+          ),
+        )
         .limit(1)
         .for("update");
       if (policy === undefined) {
@@ -89,7 +96,12 @@ export async function setProducerCommissionReceipt(
           .set({
             producerCommissionReceivedAt: input.received ? changedAt : null,
           })
-          .where(eq(policies.id, policy.id));
+          .where(
+            and(
+              eq(policies.id, policy.id),
+              inActiveBusinessGeneration(policies.businessGenerationId),
+            ),
+          );
         await writeAuditEventInDrizzleTransaction(
           transaction,
           context,
@@ -170,6 +182,8 @@ async function requireOwnedCommissionItem(
         eq(paySheetPolicies.policyId, policy.id),
         eq(paySheets.ownerType, "producer"),
         eq(paySheets.status, "closed"),
+        inActiveBusinessGeneration(paySheetPolicies.businessGenerationId),
+        inActiveBusinessGeneration(paySheets.businessGenerationId),
       ),
     )
     .limit(2);

@@ -5,6 +5,7 @@ import {
 } from "../../shared/my-commissions.js";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AuthDatabase } from "../auth/users.js";
+import { inActiveBusinessGeneration } from "../db/business-state.js";
 import {
   approvalQueueEntries,
   paySheetPolicies,
@@ -128,6 +129,9 @@ async function loadClosedItems(
         eq(paySheets.ownerUserId, ownerUserId),
         eq(paySheets.status, "closed"),
         isNull(policies.deletedAt),
+        inActiveBusinessGeneration(paySheetPolicies.businessGenerationId),
+        inActiveBusinessGeneration(paySheets.businessGenerationId),
+        inActiveBusinessGeneration(policies.businessGenerationId),
       ),
     )
     .orderBy(asc(paySheetPolicies.id))
@@ -186,6 +190,7 @@ async function loadLiveRows(
       and(
         eq(policies.producerUserId, ownerUserId),
         isNull(policies.deletedAt),
+        inActiveBusinessGeneration(policies.businessGenerationId),
         inArray(policies.kayleeSplit, ["book", "house"]),
         sql`not exists (
           select 1
@@ -195,6 +200,8 @@ async function loadLiveRows(
           where mc_closed_association.policy_id = ${policies.id}
             and mc_closed_sheet.owner_type = 'producer'
             and mc_closed_sheet.status = 'closed'
+            and mc_closed_association.business_generation_id = current_business_state_generation_id()
+            and mc_closed_sheet.business_generation_id = current_business_state_generation_id()
         )`,
       ),
     )
@@ -218,6 +225,9 @@ async function loadReviewRows(
       and(
         eq(approvalQueueEntries.status, "pending"),
         isNull(approvalQueueEntries.deletedAt),
+        inActiveBusinessGeneration(
+          approvalQueueEntries.businessGenerationId,
+        ),
         sql`${approvalQueueEntries.submittedPayload} ->> 'producerUserId' = ${ownerUserId}`,
       ),
     )

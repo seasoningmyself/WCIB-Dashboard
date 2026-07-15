@@ -138,6 +138,12 @@ import {
   resolvePolicyChangeRequestAsIs,
   sendBackPolicyChangeRequest,
 } from "./policy-change-requests/service.js";
+import { registerBusinessStateRoutes } from "./http/business-state.js";
+import {
+  listBusinessStateSources,
+  resetBusinessState,
+  restoreBusinessState,
+} from "./business-state/service.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -473,6 +479,20 @@ const app = createApp({
           officeLocationId,
           active,
           logger,
+        ),
+    });
+    registerBusinessStateRoutes(routes, {
+      authorization,
+      list: (context) => listBusinessStateSources(database, context),
+      logger,
+      reset: (context, input) =>
+        resetBusinessState(database, context, input),
+      restore: (context, generationId, input) =>
+        restoreBusinessState(
+          database,
+          context,
+          generationId,
+          input,
         ),
     });
     registerKpiTargetRoutes(routes, {

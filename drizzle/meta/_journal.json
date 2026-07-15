@@ -330,6 +330,13 @@
       "when": 1784068965695,
       "tag": "0046_approval_work_soft_delete",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1784072546253,
+      "tag": "0047_business_state_generations",
+      "breakpoints": true
     }
   ]
 }

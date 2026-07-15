@@ -2,6 +2,7 @@ import { and, asc, eq, inArray, type SQL } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { PaySheetPolicySnapshot } from "../../shared/pay-sheet-snapshots.js";
 import * as databaseSchema from "../db/schema.js";
+import { inActiveBusinessGeneration } from "../db/business-state.js";
 import { paySheetPolicies, paySheets } from "../db/schema.js";
 import { parsePaySheetPolicySnapshot } from "../pay-sheets/snapshots.js";
 
@@ -55,6 +56,8 @@ export async function listClosedKpiFacts(
   const conditions: SQL[] = [
     eq(paySheets.status, "closed"),
     eq(paySheets.periodYear, requireYear(scope.year)),
+    inActiveBusinessGeneration(paySheets.businessGenerationId),
+    inActiveBusinessGeneration(paySheetPolicies.businessGenerationId),
   ];
   if (scope.scopeType === "company") {
     conditions.push(eq(paySheets.ownerType, "sophia"));
@@ -81,6 +84,8 @@ export async function listAllClosedProducerKpiFacts(
     eq(paySheets.status, "closed"),
     eq(paySheets.ownerType, "producer"),
     eq(paySheets.periodYear, requireYear(scope.year)),
+    inActiveBusinessGeneration(paySheets.businessGenerationId),
+    inActiveBusinessGeneration(paySheetPolicies.businessGenerationId),
   ];
   const periodMonths = normalizePeriodMonths(scope.periodMonths);
   if (periodMonths !== undefined) {

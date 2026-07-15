@@ -21,6 +21,7 @@ import {
 import { KAYLEE_PRODUCER_SHARE_PERCENT } from "../../shared/policy-fields.js";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AuthDatabase } from "../auth/users.js";
+import { inActiveBusinessGeneration } from "../db/business-state.js";
 import {
   carriers,
   mgas,
@@ -132,7 +133,12 @@ export async function listDeletedPolicyLedgerItems(
 ): Promise<readonly DeletedPolicyLedgerSourceItem[]> {
   requirePolicyLedgerAdmin(context);
   const rows = await basePolicyQuery(database)
-    .where(isNotNull(policies.deletedAt))
+    .where(
+      and(
+        isNotNull(policies.deletedAt),
+        inActiveBusinessGeneration(policies.businessGenerationId),
+      ),
+    )
     .orderBy(desc(policies.deletedAt), asc(policies.id))
     .limit(MAX_DELETED_POLICY_ITEMS + 1);
   if (rows.length > MAX_DELETED_POLICY_ITEMS) {
@@ -148,7 +154,13 @@ export async function getDeletedPolicyLedgerItem(
 ): Promise<DeletedPolicyLedgerSourceItem> {
   requirePolicyLedgerAdmin(context);
   const rows = await basePolicyQuery(database)
-    .where(and(eq(policies.id, policyId), isNotNull(policies.deletedAt)))
+    .where(
+      and(
+        eq(policies.id, policyId),
+        isNotNull(policies.deletedAt),
+        inActiveBusinessGeneration(policies.businessGenerationId),
+      ),
+    )
     .limit(1);
   if (rows[0] === undefined) {
     throw new PolicyLedgerNotFoundError();
@@ -387,6 +399,7 @@ async function loadPolicyRows(
     .where(
       and(
         isNull(policies.deletedAt),
+        inActiveBusinessGeneration(policies.businessGenerationId),
         gte(policies.approvedAt, range.start),
         lt(policies.approvedAt, range.end),
       ),
@@ -404,7 +417,13 @@ async function loadPolicyRow(
   policyId: string,
 ): Promise<Omit<PolicyLedgerSourceItem, "duplicate"> | undefined> {
   const rows = await basePolicyQuery(database)
-    .where(and(eq(policies.id, policyId), isNull(policies.deletedAt)))
+    .where(
+      and(
+        eq(policies.id, policyId),
+        isNull(policies.deletedAt),
+        inActiveBusinessGeneration(policies.businessGenerationId),
+      ),
+    )
     .limit(1);
   return rows[0] === undefined ? undefined : mapPolicyRow(rows[0]);
 }

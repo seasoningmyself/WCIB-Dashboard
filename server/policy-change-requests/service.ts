@@ -8,6 +8,7 @@ import {
 } from "../../shared/policy-change-requests.js";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AuthDatabase } from "../auth/users.js";
+import { inActiveBusinessGeneration } from "../db/business-state.js";
 import { readDatabaseErrorCode } from "../db/error-code.js";
 import {
   policies,
@@ -115,6 +116,8 @@ export async function listOwnPolicyChangeRequests(
       and(
         eq(policyChangeRequests.requestedByUserId, actorUserId),
         isNull(policies.deletedAt),
+        inActiveBusinessGeneration(policyChangeRequests.businessGenerationId),
+        inActiveBusinessGeneration(policies.businessGenerationId),
       ),
     )
     .orderBy(
@@ -146,6 +149,8 @@ export async function listPendingPolicyChangeRequests(
       and(
         eq(policyChangeRequests.status, "pending"),
         isNull(policies.deletedAt),
+        inActiveBusinessGeneration(policyChangeRequests.businessGenerationId),
+        inActiveBusinessGeneration(policies.businessGenerationId),
       ),
     )
     .orderBy(
@@ -230,7 +235,14 @@ export async function correctPolicyChangeRequest(
       const [request] = await transaction
         .select()
         .from(policyChangeRequests)
-        .where(eq(policyChangeRequests.id, requestId))
+        .where(
+          and(
+            eq(policyChangeRequests.id, requestId),
+            inActiveBusinessGeneration(
+              policyChangeRequests.businessGenerationId,
+            ),
+          ),
+        )
         .limit(1)
         .for("update");
       if (request === undefined) {
@@ -281,6 +293,8 @@ async function loadRequest(
       and(
         eq(policyChangeRequests.id, requestId),
         isNull(policies.deletedAt),
+        inActiveBusinessGeneration(policyChangeRequests.businessGenerationId),
+        inActiveBusinessGeneration(policies.businessGenerationId),
       ),
     )
     .limit(1);
@@ -311,6 +325,8 @@ async function loadAdminSource(
       and(
         eq(policyChangeRequests.id, requestId),
         isNull(policies.deletedAt),
+        inActiveBusinessGeneration(policyChangeRequests.businessGenerationId),
+        inActiveBusinessGeneration(policies.businessGenerationId),
       ),
     )
     .limit(1);

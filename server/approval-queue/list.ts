@@ -5,6 +5,7 @@ import {
 } from "../../shared/approval-queue.js";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AuthDatabase } from "../auth/users.js";
+import { inActiveBusinessGeneration } from "../db/business-state.js";
 import {
   approvalQueueEntries,
   drafts,
@@ -61,6 +62,9 @@ export async function listApprovalWork(
             and(
               eq(approvalQueueEntries.status, "pending"),
               isNull(approvalQueueEntries.deletedAt),
+              inActiveBusinessGeneration(
+                approvalQueueEntries.businessGenerationId,
+              ),
             ),
           )
           .orderBy(
@@ -85,7 +89,13 @@ export async function listApprovalWork(
           })
           .from(drafts)
           .leftJoin(staffProfiles, eq(staffProfiles.userId, drafts.ownerUserId))
-          .where(and(eq(drafts.status, "flagged"), isNull(drafts.deletedAt)))
+          .where(
+            and(
+              eq(drafts.status, "flagged"),
+              isNull(drafts.deletedAt),
+              inActiveBusinessGeneration(drafts.businessGenerationId),
+            ),
+          )
           .orderBy(asc(drafts.lastEditedAt), asc(drafts.id))
           .limit(MAX_APPROVAL_WORK_ITEMS_PER_TYPE)
           .then((rows) =>
