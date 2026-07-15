@@ -31,6 +31,7 @@ test("policy ledger API uses the real list, detail, assignment, and correction p
     Response.json({ items: [deletedItem] }),
     Response.json({ changed: true, detachedOpenSheetCount: 2, item: deletedItem }),
     Response.json({ changed: true, item }),
+    Response.json({ changed: true, item }),
     new Response("\ufeffRecord ID\r\n1", {
       headers: {
         "content-disposition": 'attachment; filename="WCIB_IPFS_Financed_2026-07-14.csv"',
@@ -75,6 +76,11 @@ test("policy ledger API uses the real list, detail, assignment, and correction p
   await api.restore(uuid(10), {
     expectedUpdatedAt: "2026-07-12T12:00:00.000Z",
   });
+  const pushed = await api.setIpfsPushed(uuid(10), {
+    expectedUpdatedAt: "2026-07-11T12:00:00.000Z",
+    pushed: true,
+  });
+  assert.equal(pushed.changed, true);
   const csv = await api.downloadIpfsWorkQueue();
   assert.equal(csv.filename, "WCIB_IPFS_Financed_2026-07-14.csv");
   assert.equal(await csv.blob.text(), "Record ID\r\n1");
@@ -106,10 +112,16 @@ test("policy ledger API uses the real list, detail, assignment, and correction p
   });
   assert.equal(calls[6]?.path, `/deleted-policies/${uuid(10)}/restore`);
   assert.equal(calls[6]?.options?.method, "POST");
-  assert.equal(calls[7]?.path, "/ipfs/work-queue.csv");
-  assert.equal(calls[7]?.options?.method, "GET");
+  assert.equal(calls[7]?.path, `/policies/${uuid(10)}/ipfs-pushed`);
+  assert.equal(calls[7]?.options?.method, "PATCH");
+  assert.deepEqual(JSON.parse(String(calls[7]?.options?.body)), {
+    expectedUpdatedAt: "2026-07-11T12:00:00.000Z",
+    pushed: true,
+  });
+  assert.equal(calls[8]?.path, "/ipfs/work-queue.csv");
+  assert.equal(calls[8]?.options?.method, "GET");
   assert.equal(
-    (calls[7]?.options?.headers as Record<string, string>)?.Accept,
+    (calls[8]?.options?.headers as Record<string, string>)?.Accept,
     "text/csv",
   );
 });
@@ -137,6 +149,14 @@ test("policy ledger API rejects invalid input before a request", async () => {
       expectedUpdatedAt: "2026-07-11T12:00:00.000Z",
       kind: "general",
     } as never),
+    (error: unknown) =>
+      error instanceof PolicyLedgerApiError && error.kind === "rejected",
+  );
+  await assert.rejects(
+    api.setIpfsPushed(uuid(10), {
+      expectedUpdatedAt: "not-a-timestamp",
+      pushed: true,
+    }),
     (error: unknown) =>
       error instanceof PolicyLedgerApiError && error.kind === "rejected",
   );

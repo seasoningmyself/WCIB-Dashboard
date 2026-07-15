@@ -5560,6 +5560,16 @@ h1 {
   color: #633870;
 }
 
+.ledger-detail-actions button.is-ipfs {
+  border-color: #8a67a4;
+  color: #6d448c;
+}
+
+.ledger-detail-actions button.is-ipfs-pushed {
+  border-color: #43836a;
+  color: #28624b;
+}
+
 .ledger-detail-actions button.is-danger,
 .ledger-dialog-actions button.is-danger {
   border-color: #9a4545;

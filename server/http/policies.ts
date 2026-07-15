@@ -59,7 +59,9 @@ export function createPolicyLedgerListHandler(
     } catch (error) {
       throw mapPolicyLedgerError(error);
     }
-    const items = source.items.map((item) => projectLedgerItem(res, item));
+    const items = source.items.map((item) =>
+      projectPolicyLedgerItem(res, item),
+    );
     const response = policyLedgerListResponseSchema.parse({
       ...source,
       items,
@@ -88,7 +90,7 @@ export function createPolicyLedgerDetailHandler(
       throw mapPolicyLedgerError(error);
     }
     const response = policyLedgerDetailResponseSchema.parse({
-      item: projectLedgerItem(res, source),
+      item: projectPolicyLedgerItem(res, source),
     });
     dependencies.logger.info("Policy ledger item loaded", {
       component: "policy_ledger",
@@ -119,7 +121,7 @@ export function registerPolicyLedgerRoutes(
   );
 }
 
-function projectLedgerItem(
+export function projectPolicyLedgerItem(
   res: Response,
   source: PolicyLedgerSourceItem,
 ): PolicyLedgerItem {

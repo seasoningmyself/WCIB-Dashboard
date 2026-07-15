@@ -1,6 +1,6 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 14, 2026 (recorded the production IPFS automation work queue.)
+**Last updated:** July 14, 2026 (recorded audited IPFS pushed-state handling.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
 
 ---
@@ -16,6 +16,21 @@ soft-deleted policies are not current automation work. The admin-only endpoint
 projects each policy through the established admin policy projector before
 rendering, streams UTF-8 CSV with BOM and CRLF, applies spreadsheet-formula
 escaping, uses `Cache-Control: no-store`, and persists no export file or job.
+
+---
+
+## July 14, 2026 — IPFS pushed state is audited and active-record scoped
+
+**Recorded production adaptation:** Final v15 lets Sophia mark or unmark any
+IPFS-financed policy as pushed, stores the transition timestamp, retains the
+`IPFS manual` badge precedence for manually handled agreements, and removes
+non-manual pushed policies from the automation work queue. Production preserves
+that behavior, including allowing a manual agreement to be marked complete,
+while writing `policy_ipfs_pushed` or `policy_ipfs_unpushed` atomically with the
+state transition. Same-state retries create no duplicate audit event. Only an
+active-generation, non-deleted policy can be changed, and every response uses
+the admin policy projector. This is an admin-only state; no financial values or
+payment references are written to logs.
 
 ---
 

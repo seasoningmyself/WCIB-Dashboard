@@ -1236,8 +1236,7 @@ export const policies = pgTable(
         AND (
           (${table.ipfsPushed} = false AND ${table.ipfsPushedAt} is null)
           OR (
-            ${table.ipfsManual} = false
-            AND ${table.ipfsPushed} = true
+            ${table.ipfsPushed} = true
             AND ${table.ipfsPushedAt} is not null
           )
         )

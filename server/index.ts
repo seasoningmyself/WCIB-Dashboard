@@ -46,6 +46,8 @@ import { registerDraftAssignmentOptionsRoute } from "./http/draft-assignment-opt
 import { registerIpfsPriorFinancingRoute } from "./http/ipfs.js";
 import { findPriorIpfsFinancing } from "./policies/ipfs-history.js";
 import { registerIpfsWorkQueueRoute } from "./http/ipfs-work-queue.js";
+import { registerPolicyIpfsPushedRoute } from "./http/ipfs-pushed.js";
+import { setPolicyIpfsPushedState } from "./policies/ipfs-pushed.js";
 import { registerApprovalWorkRoute } from "./http/approval-queue.js";
 import { listApprovalWork } from "./approval-queue/list.js";
 import { registerApprovalWorkDeletionRoutes } from "./http/approval-work-deletions.js";
@@ -237,6 +239,18 @@ const app = createApp({
       authorization,
       list: (context) => listIpfsWorkQueueSources(database, context),
       logger,
+    });
+    registerPolicyIpfsPushedRoute(routes, {
+      authorization,
+      logger,
+      setState: (context, policyId, input) =>
+        setPolicyIpfsPushedState(
+          database,
+          context,
+          policyId,
+          input,
+          logger,
+        ),
     });
     registerApprovalWorkRoute(routes, {
       authorization,

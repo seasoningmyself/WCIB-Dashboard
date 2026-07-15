@@ -21,6 +21,12 @@ import {
   type PolicyLedgerCorrectionRequest,
 } from "../../../shared/policy-corrections.js";
 import {
+  ipfsPushedStateRequestSchema,
+  ipfsPushedStateResponseSchema,
+  type IpfsPushedStateRequest,
+  type IpfsPushedStateResponse,
+} from "../../../shared/ipfs.js";
+import {
   policyLedgerDetailResponseSchema,
   policyLedgerListQuerySchema,
   policyLedgerListResponseSchema,
@@ -54,6 +60,10 @@ export interface PolicyLedgerApi {
   listAssignmentOptions(): Promise<DraftAssignmentOptionsResponse>;
   listDeleted(): Promise<DeletedPolicyListResponse>;
   downloadIpfsWorkQueue(): Promise<IpfsWorkQueueDocument>;
+  setIpfsPushed(
+    policyId: string,
+    input: IpfsPushedStateRequest,
+  ): Promise<IpfsPushedStateResponse>;
   restore(
     policyId: string,
     input: PolicyRestoreRequest,
@@ -117,6 +127,14 @@ export function createPolicyLedgerApi(client: ApiClient): PolicyLedgerApi {
     listDeleted: () =>
       read(client, "/deleted-policies", deletedPolicyListResponseSchema),
     downloadIpfsWorkQueue: () => readIpfsWorkQueue(client),
+    async setIpfsPushed(policyId, input) {
+      return mutate(
+        client,
+        `/policies/${encodeURIComponent(policyId)}/ipfs-pushed`,
+        parseRequest(ipfsPushedStateRequestSchema, input),
+        ipfsPushedStateResponseSchema,
+      );
+    },
     restore: (policyId, input) =>
       mutate(
         client,

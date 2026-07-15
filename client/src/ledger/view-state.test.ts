@@ -38,9 +38,12 @@ test("ledger badges distinguish override, duplicate, financing, and MGA state by
   assert.deepEqual(ledgerBadges(completed).map(({ label }) => label), [
     "Override",
     "Possible duplicate (3)",
-    "IPFS completed",
+    "IPFS ✓",
     "MGA paid",
   ]);
+  const manual = ledgerItemFixture();
+  manual.policy.ipfsManual = true;
+  assert.equal(ledgerBadges(manual)[2]?.label, "IPFS manual");
 });
 
 test("general editor inventory equals the Core Schema allowlist exactly", () => {
