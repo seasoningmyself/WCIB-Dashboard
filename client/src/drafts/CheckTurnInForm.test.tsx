@@ -159,6 +159,28 @@ test("pending writes disable the complete form and duplicate action buttons", ()
   assert.match(markup, /<button[^>]*disabled=""[^>]*type="button"/);
 });
 
+test("v15 header and footer expose complete status and duplicate action surfaces", () => {
+  const markup = renderView({
+    draft: draftWithStatus("draft"),
+    form: { ...createEmptyTurnInState(), accountAssignment: "book", producerUserId: USER_ID },
+    help: helpControl({ canRequest: true }),
+    saveState: "saved",
+    user: producer(),
+  });
+
+  for (const label of ["Date", "Submitter", "Account", "Status", "Saved"]) {
+    assert.match(markup, new RegExp(`>${label}<`));
+  }
+  assert.match(markup, /Kaylee/);
+  assert.match(markup, /Kaylee account/);
+  assert.match(markup, />draft</);
+  assert.match(markup, /Draft saved/);
+  assert.match(markup, /Save &amp; start new/);
+  assert.match(markup, /Clear form/);
+  assert.match(markup, />Clear</);
+  assert.equal((markup.match(/>Request help</g) ?? []).length, 2);
+});
+
 test("zero, one, and many office modes drive the turn-in controls", () => {
   const zero = renderView({
     form: createEmptyTurnInState(),
@@ -295,9 +317,11 @@ function renderView({
           form={form}
           help={help}
           onAssignmentChange={() => {}}
+          onClear={() => {}}
           onFieldChange={() => {}}
           onRetryAssignments={() => {}}
           onSave={() => {}}
+          onSaveAndStartNew={() => {}}
           onSubmit={() => {}}
           saveState={saveState}
           user={user}

@@ -1843,6 +1843,83 @@ h1 {
   padding-bottom: 16px;
 }
 
+.turn-in-heading {
+  min-width: 0;
+}
+
+.turn-in-status-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border-right: 1px solid #cfd7da;
+  border-bottom: 1px solid #cfd7da;
+  border-left: 1px solid #cfd7da;
+  background: #f7f9f8;
+}
+
+.turn-in-status-value {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 9px 12px;
+}
+
+.turn-in-status-value + .turn-in-status-value {
+  border-left: 1px solid #d8dfe1;
+}
+
+.turn-in-status-value > span:first-child {
+  color: #68767d;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.turn-in-status-value strong {
+  overflow-wrap: anywhere;
+  color: #26353e;
+  font-size: 12px;
+  font-weight: 750;
+  text-transform: capitalize;
+}
+
+.turn-in-status-value .turn-in-save-indicator {
+  width: fit-content;
+  min-width: 0;
+  padding: 4px 7px;
+}
+
+.turn-in-draft-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.turn-in-draft-actions button {
+  min-height: 38px;
+  border: 1px solid #8da099;
+  border-radius: 5px;
+  background: #ffffff;
+  padding: 0 13px;
+  color: #285744;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.turn-in-draft-actions button.is-clear,
+.turn-in-clear {
+  border-color: #b9a5a5;
+  color: #733c3c;
+}
+
+.turn-in-draft-actions button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
 .turn-in-kicker {
   margin: 0 0 5px;
   color: #27634d;
@@ -2186,7 +2263,7 @@ h1 {
   z-index: 10;
   bottom: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto auto;
   align-items: center;
   gap: 10px;
   border-top: 1px solid #cfd7da;
@@ -3819,6 +3896,36 @@ h1 {
 
   .turn-in-header {
     align-items: start;
+  }
+
+  .turn-in-status-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .turn-in-status-value:nth-child(odd) {
+    border-left: 0;
+  }
+
+  .turn-in-status-value:nth-child(n + 3) {
+    border-top: 1px solid #d8dfe1;
+  }
+
+  .turn-in-status-value:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .turn-in-draft-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .turn-in-draft-actions button {
+    min-width: 0;
+    min-height: 44px;
+  }
+
+  .turn-in-draft-actions .turn-in-help {
+    grid-column: 1 / -1;
   }
 
   .turn-in-section {

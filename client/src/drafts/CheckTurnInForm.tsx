@@ -232,6 +232,17 @@ export function CheckTurnInForm({
     setSaveState("dirty");
   }, []);
 
+  const freshForm = useCallback(() => {
+    const next = createEmptyTurnInState();
+    if (vocabulary.state.status === "ready") {
+      next.officeLocationId = normalizeTurnInOfficeSelection(
+        vocabulary.state.data,
+        next.officeLocationId,
+      );
+    }
+    return next;
+  }, [vocabulary.state]);
+
   const acceptDraft = useCallback(
     (next: DraftResponse) => {
       setDraft(next);
@@ -277,6 +288,33 @@ export function CheckTurnInForm({
       pendingRef.current = false;
     }
   }, [acceptDraft, api, draft, form, officeConfigurationBlocked]);
+
+  const clearForm = useCallback(() => {
+    if (!window.confirm("Clear all turn-in fields?")) {
+      return;
+    }
+    setForm(freshForm());
+    setErrors({});
+    setSaveState(draft === null ? "idle" : "dirty");
+    autoExpirationRef.current = null;
+    expirationSuggestionKeyRef.current = "";
+  }, [draft, freshForm]);
+
+  const saveAndStartNew = useCallback(async () => {
+    const saved = await save();
+    if (saved === null) {
+      return;
+    }
+    setDraft(null);
+    setForm(freshForm());
+    setErrors({});
+    setSaveState("idle");
+    autoExpirationRef.current = null;
+    expirationSuggestionKeyRef.current = "";
+    if (window.location.hash.startsWith("#/my-drafts")) {
+      window.location.hash = "#/turn-in";
+    }
+  }, [freshForm, save]);
 
   const submit = useCallback(async () => {
     if (
@@ -386,9 +424,11 @@ export function CheckTurnInForm({
         triggerRef: helpTriggerRef,
       }}
       onAssignmentChange={changeAssignment}
+      onClear={clearForm}
       onFieldChange={changeField}
       onRetryAssignments={() => setAssignmentAttempt((value) => value + 1)}
       onSave={() => void save()}
+      onSaveAndStartNew={() => void saveAndStartNew()}
       onSubmit={() => void submit()}
       saveState={saveState}
       user={user}
@@ -405,12 +445,14 @@ interface CheckTurnInFormViewProps {
   form: TurnInFormState;
   help?: DraftHelpControl;
   onAssignmentChange(choice: AssignmentChoice | null): void;
+  onClear(): void;
   onFieldChange<Key extends keyof TurnInFormState>(
     field: Key,
     value: TurnInFormState[Key],
   ): void;
   onRetryAssignments(): void;
   onSave(): void;
+  onSaveAndStartNew(): void;
   onSubmit(): void;
   saveState: SaveState;
   user: CurrentUser;
@@ -439,9 +481,11 @@ export function CheckTurnInFormView({
   form,
   help,
   onAssignmentChange,
+  onClear,
   onFieldChange,
   onRetryAssignments,
   onSave,
+  onSaveAndStartNew,
   onSubmit,
   saveState,
   user,
@@ -483,16 +527,43 @@ export function CheckTurnInFormView({
     form.accountAssignment,
     form.producerUserId,
   );
+  const assignmentLabel =
+    assignmentChoices.find(({ key }) => key === selectedAssignment)?.label ??
+    roleLabel(user.role);
 
   return (
     <section className="turn-in-page" aria-labelledby="turn-in-title">
       <header className="turn-in-header">
-        <div>
+        <div className="turn-in-heading">
           <p className="turn-in-kicker">Policy intake</p>
           <h1 id="turn-in-title">Check Turn-In</h1>
         </div>
-        <SaveIndicator draft={draft} state={saveState} />
       </header>
+
+      <div className="turn-in-status-strip" aria-label="Turn-in status">
+        <StatusValue label="Date" value={formatHeaderDate(new Date())} />
+        <StatusValue label="Submitter" value={user.displayName ?? user.email} />
+        <StatusValue label="Account" value={assignmentLabel} />
+        <StatusValue label="Status" value={draftStatusLabel(draft)} />
+        <div className="turn-in-status-value">
+          <span>Saved</span>
+          <SaveIndicator draft={draft} state={saveState} />
+        </div>
+      </div>
+
+      <div className="turn-in-draft-actions" aria-label="Draft actions">
+        <button disabled={formLocked} onClick={onSaveAndStartNew} type="button">
+          Save &amp; start new
+        </button>
+        <button className="is-clear" disabled={pending} onClick={onClear} type="button">
+          Clear form
+        </button>
+        {help?.canRequest ? (
+          <button className="turn-in-help" disabled={pending} onClick={help.onOpen} type="button">
+            Request help
+          </button>
+        ) : null}
+      </div>
 
       {errors.form === undefined ? null : (
         <div className="turn-in-alert" role="alert">{errors.form}</div>
@@ -853,6 +924,9 @@ export function CheckTurnInFormView({
           <div aria-live="polite" className="turn-in-action-status">
             {saveMessage(saveState, sentBack)}
           </div>
+          <button className="turn-in-clear" disabled={pending} onClick={onClear} type="button">
+            Clear
+          </button>
           {help?.canRequest ? (
             <button
               className="turn-in-help"
@@ -943,6 +1017,15 @@ function FormSection({ children, title }: { children: ReactNode; title: string }
       <h2>{title}</h2>
       {children}
     </section>
+  );
+}
+
+function StatusValue({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="turn-in-status-value">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
   );
 }
 
@@ -1060,6 +1143,27 @@ function SaveIndicator({ draft, state }: { draft: DraftResponse | null; state: S
       {state === "saving" ? "Saving" : state === "dirty" ? "Unsaved changes" : state === "error" ? "Needs attention" : draft === null ? "New draft" : draft.status === "sent_back" ? "Changes requested" : "Draft saved"}
     </span>
   );
+}
+
+function draftStatusLabel(draft: DraftResponse | null): string {
+  if (draft === null) {
+    return "New draft";
+  }
+  return draft.status === "sent_back"
+    ? "Changes requested"
+    : draft.status.replaceAll("_", " ");
+}
+
+function roleLabel(role: CurrentUser["role"]): string {
+  return role === "admin" ? "Admin account" : role === "producer" ? "Producer account" : "Employee account";
+}
+
+export function formatHeaderDate(date: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
 }
 
 function errorsFromApi(error: unknown): TurnInValidationErrors {
