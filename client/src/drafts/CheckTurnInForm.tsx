@@ -22,6 +22,7 @@ import { createDraftApi, DraftApiError } from "./api.js";
 import { canRequestDraftHelp, parseHelpReason } from "./help-request.js";
 import {
   assignmentKey,
+  applyIpfsReturningDetection,
   buildAssignmentChoices,
   calculateTurnInSummary,
   createEmptyTurnInState,
@@ -51,6 +52,9 @@ interface CheckTurnInFormProps {
 
 type SaveState = "dirty" | "error" | "idle" | "saved" | "saving";
 type AssignmentLoadState = "error" | "loading" | "ready";
+type IpfsHistoryState =
+  | { status: "idle" | "loading" | "none" | "error" }
+  | { lastFinancedAt: string; status: "matched" };
 
 export function CheckTurnInForm({
   initialDraft = null,
@@ -80,7 +84,10 @@ export function CheckTurnInForm({
   const [helpReason, setHelpReason] = useState("");
   const [helpError, setHelpError] = useState<string | null>(null);
   const [helpPending, setHelpPending] = useState(false);
+  const [ipfsHistory, setIpfsHistory] = useState<IpfsHistoryState>({ status: "idle" });
   const pendingRef = useRef(false);
+  const ipfsHistoryVersionRef = useRef(0);
+  const ipfsReturningUserSetRef = useRef(initialDraft?.ipfsReturning != null);
   const autoExpirationRef = useRef<string | null>(null);
   const expirationSuggestionKeyRef = useRef("");
   const helpReasonRef = useRef<HTMLTextAreaElement>(null);
@@ -102,9 +109,56 @@ export function CheckTurnInForm({
     setHelpReason("");
     setHelpError(null);
     setHelpPending(false);
+    setIpfsHistory({ status: "idle" });
+    ipfsHistoryVersionRef.current += 1;
+    ipfsReturningUserSetRef.current = initialDraft?.ipfsReturning != null;
     autoExpirationRef.current = null;
     expirationSuggestionKeyRef.current = "";
   }, [initialDraft]);
+
+  useEffect(() => {
+    const active =
+      form.paymentMode === "deposit" &&
+      form.ipfsFinanced === "yes" &&
+      form.insuredName.trim().length > 0;
+    const version = ipfsHistoryVersionRef.current + 1;
+    ipfsHistoryVersionRef.current = version;
+    if (!active) {
+      setIpfsHistory({ status: "idle" });
+      return;
+    }
+
+    setIpfsHistory({ status: "loading" });
+    const timer = window.setTimeout(() => {
+      void api
+        .lookupPriorIpfsFinancing(form.insuredName)
+        .then(({ priorFinancing }) => {
+          if (ipfsHistoryVersionRef.current !== version) return;
+          const matched = priorFinancing !== null;
+          setIpfsHistory(
+            matched
+              ? {
+                  lastFinancedAt: priorFinancing.lastFinancedAt,
+                  status: "matched",
+                }
+              : { status: "none" },
+          );
+          setForm((current) =>
+            applyIpfsReturningDetection(
+              current,
+              matched,
+              ipfsReturningUserSetRef.current,
+            ),
+          );
+        })
+        .catch(() => {
+          if (ipfsHistoryVersionRef.current === version) {
+            setIpfsHistory({ status: "error" });
+          }
+        });
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [api, form.insuredName, form.ipfsFinanced, form.paymentMode]);
 
   useEffect(() => {
     if (!helpOpen) {
@@ -198,6 +252,9 @@ export function CheckTurnInForm({
     setHelpReason("");
     setHelpError(null);
     setHelpPending(false);
+    setIpfsHistory({ status: "idle" });
+    ipfsHistoryVersionRef.current += 1;
+    ipfsReturningUserSetRef.current = false;
     autoExpirationRef.current = null;
     expirationSuggestionKeyRef.current = "";
   }, []);
@@ -217,6 +274,9 @@ export function CheckTurnInForm({
       field: Key,
       value: TurnInFormState[Key],
     ) => {
+      if (field === "ipfsReturning") {
+        ipfsReturningUserSetRef.current = true;
+      }
       setForm((current) => updateTurnInField(current, field, value));
       if (field === "expirationDate") {
         autoExpirationRef.current = null;
@@ -301,6 +361,9 @@ export function CheckTurnInForm({
     setForm(freshForm());
     setErrors({});
     setSaveState(draft === null ? "idle" : "dirty");
+    setIpfsHistory({ status: "idle" });
+    ipfsHistoryVersionRef.current += 1;
+    ipfsReturningUserSetRef.current = false;
     autoExpirationRef.current = null;
     expirationSuggestionKeyRef.current = "";
   }, [draft, freshForm]);
@@ -314,6 +377,9 @@ export function CheckTurnInForm({
     setForm(freshForm());
     setErrors({});
     setSaveState("idle");
+    setIpfsHistory({ status: "idle" });
+    ipfsHistoryVersionRef.current += 1;
+    ipfsReturningUserSetRef.current = false;
     autoExpirationRef.current = null;
     expirationSuggestionKeyRef.current = "";
     if (window.location.hash.startsWith("#/my-drafts")) {
@@ -428,6 +494,7 @@ export function CheckTurnInForm({
         reasonRef: helpReasonRef,
         triggerRef: helpTriggerRef,
       }}
+      ipfsHistory={ipfsHistory}
       onAssignmentChange={changeAssignment}
       onClear={clearForm}
       onFieldChange={changeField}
@@ -449,6 +516,7 @@ interface CheckTurnInFormViewProps {
   errors: TurnInValidationErrors;
   form: TurnInFormState;
   help?: DraftHelpControl;
+  ipfsHistory?: IpfsHistoryState;
   onAssignmentChange(choice: AssignmentChoice | null): void;
   onClear(): void;
   onFieldChange<Key extends keyof TurnInFormState>(
@@ -485,6 +553,7 @@ export function CheckTurnInFormView({
   errors,
   form,
   help,
+  ipfsHistory = { status: "idle" },
   onAssignmentChange,
   onClear,
   onFieldChange,
@@ -888,6 +957,10 @@ export function CheckTurnInFormView({
                   </label>
                   {!form.ipfsManual ? (
                     <div className="turn-in-finance-details">
+                      <IpfsPriorFinancingNotice
+                        insuredName={form.insuredName}
+                        state={ipfsHistory}
+                      />
                       <SegmentedField
                         error={errors.ipfsReturning}
                         errorField="ipfsReturning"
@@ -957,6 +1030,40 @@ export function CheckTurnInFormView({
       </form>
     </section>
   );
+}
+
+function IpfsPriorFinancingNotice({
+  insuredName,
+  state,
+}: {
+  insuredName: string;
+  state: IpfsHistoryState;
+}) {
+  if (state.status === "matched") {
+    return (
+      <div className="turn-in-ipfs-history is-match" role="status">
+        <strong>Prior IPFS financing found</strong>
+        <span>
+          We financed {insuredName.trim()} with IPFS before (last financed {formatHeaderDate(new Date(state.lastFinancedAt))}). Choose Returning to keep the existing account and auto-pay setup.
+        </span>
+      </div>
+    );
+  }
+  if (state.status === "error") {
+    return (
+      <div className="turn-in-ipfs-history is-error" role="status">
+        Financing history could not be checked. Select New or Returning manually.
+      </div>
+    );
+  }
+  if (state.status === "loading") {
+    return (
+      <div className="turn-in-ipfs-history" role="status">
+        Checking prior IPFS financing...
+      </div>
+    );
+  }
+  return null;
 }
 
 function DraftHelpDialog({ control }: { control: DraftHelpControl }) {

@@ -1,7 +1,21 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 14, 2026 (recorded v15 turn-in proposal tolerance.)
+**Last updated:** July 14, 2026 (recorded production IPFS-history scope.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
+
+---
+
+## July 14, 2026 — IPFS prior-financing detection uses active live history
+
+**Recorded production adaptation:** Final v15 detects a returning IPFS insured
+from the single browser ledger, where deleted records no longer exist and there
+is no archived business-state concept. The multi-user app preserves that intent
+by exact-matching the trimmed, case-insensitive insured name against IPFS-financed
+policies in the active business generation with `deleted_at IS NULL`. A
+soft-deleted policy and a sealed generation do not influence a new active
+turn-in. The endpoint returns only whether prior financing exists and its latest
+approval date; it exposes no policy ID, money, contact, carrier, MGA, or account
+data. New/Returning remains a human-overridable selection exactly as in v15.
 
 ---
 

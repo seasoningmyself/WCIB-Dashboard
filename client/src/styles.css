@@ -2433,6 +2433,29 @@ h1 {
   margin-top: 16px;
 }
 
+.turn-in-ipfs-history {
+  display: grid;
+  gap: 3px;
+  border: 1px solid #c9d5da;
+  background: #f7fafb;
+  padding: 10px 12px;
+  color: #52636d;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.turn-in-ipfs-history.is-match {
+  border-color: #d4b66f;
+  background: #fff9e8;
+  color: #604d20;
+}
+
+.turn-in-ipfs-history.is-error {
+  border-color: #d6a29c;
+  background: #fff6f4;
+  color: #7d3730;
+}
+
 .turn-in-actions {
   position: sticky;
   z-index: 10;

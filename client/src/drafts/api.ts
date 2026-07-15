@@ -36,6 +36,11 @@ import {
   type ListOwnPolicyChangeRequestsResponse,
 } from "../../../shared/policy-change-requests.js";
 import type { ApiClient } from "../api/client.js";
+import {
+  ipfsPriorFinancingQuerySchema,
+  ipfsPriorFinancingResponseSchema,
+  type IpfsPriorFinancingResponse,
+} from "../../../shared/ipfs.js";
 
 const safeApiErrorSchema = z.object({
   error: z.object({
@@ -74,6 +79,7 @@ export interface DraftApi {
   list(query?: ListDraftsQuery): Promise<ListDraftsResponse>;
   listAssignmentOptions(): Promise<DraftAssignmentOptionsResponse>;
   listChangeRequests(): Promise<ListOwnPolicyChangeRequestsResponse>;
+  lookupPriorIpfsFinancing(insuredName: string): Promise<IpfsPriorFinancingResponse>;
   submit(draftId: string): Promise<SubmitDraftResponse>;
   withdrawHelp(draftId: string): Promise<WithdrawFlaggedDraftResponse>;
   withdrawSubmission(draftId: string): Promise<WithdrawSubmittedDraftResponse>;
@@ -142,6 +148,15 @@ export function createDraftApi(client: ApiClient): DraftApi {
         "/policy-change-requests/mine",
         listOwnPolicyChangeRequestsResponseSchema,
       ),
+    lookupPriorIpfsFinancing(insuredName) {
+      const query = parseRequest(ipfsPriorFinancingQuerySchema, { insuredName });
+      const params = new URLSearchParams({ insuredName: query.insuredName });
+      return read(
+        client,
+        `/ipfs/prior-financing?${params.toString()}`,
+        ipfsPriorFinancingResponseSchema,
+      );
+    },
     submit: (draftId) =>
       mutate(
         client,

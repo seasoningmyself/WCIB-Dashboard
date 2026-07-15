@@ -140,6 +140,18 @@ export interface AssignmentChoice {
 
 export type TurnInValidationErrors = Readonly<Record<string, string>>;
 
+export function applyIpfsReturningDetection(
+  state: TurnInFormState,
+  hasPriorFinancing: boolean,
+  userSelected: boolean,
+): TurnInFormState {
+  if (userSelected) return state;
+  const ipfsReturning = hasPriorFinancing ? "returning" : "new";
+  return state.ipfsReturning === ipfsReturning
+    ? state
+    : { ...state, ipfsReturning };
+}
+
 export const TURN_IN_PROPOSAL_TOLERANCE_CENTS = 2n;
 
 export interface TurnInPaymentGuidance {

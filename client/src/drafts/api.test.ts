@@ -33,6 +33,9 @@ test("draft API uses documented create, edit, flag, withdrawal, list, submit, an
     }),
     Response.json({ request: changeRequestResponse() }, { status: 201 }),
     Response.json({ requests: [changeRequestResponse()] }),
+    Response.json({
+      priorFinancing: { lastFinancedAt: "2026-06-01T12:00:00.000Z" },
+    }),
   ];
   const client: ApiClient = {
     async request(path, options) {
@@ -58,6 +61,9 @@ test("draft API uses documented create, edit, flag, withdrawal, list, submit, an
     reason: "  Please review the insured name.  ",
   });
   assert.equal((await api.listChangeRequests()).requests.length, 1);
+  assert.deepEqual(await api.lookupPriorIpfsFinancing("  Acme LLC  "), {
+    priorFinancing: { lastFinancedAt: "2026-06-01T12:00:00.000Z" },
+  });
 
   assert.equal(calls[0]?.path, "/drafts");
   assert.equal(calls[0]?.options?.method, "POST");
@@ -92,6 +98,8 @@ test("draft API uses documented create, edit, flag, withdrawal, list, submit, an
   });
   assert.equal(calls[9]?.path, "/policy-change-requests/mine");
   assert.equal(calls[9]?.options?.cache, "no-store");
+  assert.equal(calls[10]?.path, "/ipfs/prior-financing?insuredName=Acme+LLC");
+  assert.equal(calls[10]?.options?.cache, "no-store");
 });
 
 test("draft API normalizes input, network, status, and response failures", async () => {

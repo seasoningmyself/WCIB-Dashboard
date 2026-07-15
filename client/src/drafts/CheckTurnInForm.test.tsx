@@ -200,6 +200,28 @@ test("submitted staff turn-ins immediately render no financial or IPFS controls"
   }
 });
 
+test("IPFS history shows prior context while preserving explicit selection controls", () => {
+  const markup = renderView({
+    form: {
+      ...createEmptyTurnInState(),
+      insuredName: "Acme LLC",
+      ipfsFinanced: "yes",
+      ipfsReturning: "new",
+      paymentMode: "deposit",
+    },
+    ipfsHistory: {
+      lastFinancedAt: "2026-06-01T12:00:00.000Z",
+      status: "matched",
+    },
+    user: producer(),
+  });
+  assert.match(markup, /Prior IPFS financing found/);
+  assert.match(markup, /last financed 06\/01\/2026/);
+  assert.match(markup, /existing account and auto-pay setup/);
+  assert.match(markup, /value="new"/);
+  assert.match(markup, /value="returning"/);
+});
+
 test("validation state is accessible and admin submission targets the ledger", () => {
   const markup = renderView({
     errors: { insuredName: "Enter the insured name." },
@@ -375,6 +397,7 @@ function renderView({
   errors = {},
   form,
   help,
+  ipfsHistory,
   saveState = "idle",
   user,
   vocabulary,
@@ -383,6 +406,7 @@ function renderView({
   errors?: Readonly<Record<string, string>>;
   form: TurnInFormState;
   help?: DraftHelpControl;
+  ipfsHistory?: Parameters<typeof CheckTurnInFormView>[0]["ipfsHistory"];
   saveState?: "dirty" | "error" | "idle" | "saved" | "saving";
   user: CurrentUser;
   vocabulary?: ActiveVocabularyResponse;
@@ -401,6 +425,7 @@ function renderView({
           errors={errors}
           form={form}
           help={help}
+          ipfsHistory={ipfsHistory}
           onAssignmentChange={() => {}}
           onClear={() => {}}
           onFieldChange={() => {}}

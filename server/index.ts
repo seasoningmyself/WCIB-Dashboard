@@ -43,6 +43,8 @@ import { withdrawOwnFlaggedHelp } from "./drafts/withdraw-help.js";
 import { withdrawOwnSubmittedDraft } from "./drafts/withdraw-submission.js";
 import { listDraftAssignmentOptions } from "./drafts/assignment-options.js";
 import { registerDraftAssignmentOptionsRoute } from "./http/draft-assignment-options.js";
+import { registerIpfsPriorFinancingRoute } from "./http/ipfs.js";
+import { findPriorIpfsFinancing } from "./policies/ipfs-history.js";
 import { registerApprovalWorkRoute } from "./http/approval-queue.js";
 import { listApprovalWork } from "./approval-queue/list.js";
 import { registerApprovalWorkDeletionRoutes } from "./http/approval-work-deletions.js";
@@ -221,6 +223,12 @@ const app = createApp({
     registerDraftAssignmentOptionsRoute(routes, {
       authorization,
       list: () => listDraftAssignmentOptions(database),
+      logger,
+    });
+    registerIpfsPriorFinancingRoute(routes, {
+      authorization,
+      find: (context, insuredName) =>
+        findPriorIpfsFinancing(database, context, insuredName),
       logger,
     });
     registerApprovalWorkRoute(routes, {

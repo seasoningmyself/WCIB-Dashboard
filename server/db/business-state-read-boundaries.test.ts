@@ -36,6 +36,7 @@ const reviewedReadModules = [
   "server/kpi/targets.ts",
   "server/pay-sheets/adjustment-target.ts",
   "server/pay-sheets/read.ts",
+  "server/policies/ipfs-history.ts",
   "server/policies/ledger-corrections.ts",
   "server/policies/ledger.ts",
   "server/policies/lifecycle.ts",
