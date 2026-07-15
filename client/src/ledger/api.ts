@@ -4,6 +4,18 @@ import {
   type DraftAssignmentOptionsResponse,
 } from "../../../shared/draft-assignment-options.js";
 import {
+  deletedPolicyListResponseSchema,
+  policyRestoreRequestSchema,
+  policyRestoreResponseSchema,
+  policySoftDeleteRequestSchema,
+  policySoftDeleteResponseSchema,
+  type DeletedPolicyListResponse,
+  type PolicyRestoreRequest,
+  type PolicyRestoreResponse,
+  type PolicySoftDeleteRequest,
+  type PolicySoftDeleteResponse,
+} from "../../../shared/policy-deletions.js";
+import {
   policyLedgerCorrectionRequestSchema,
   policyLedgerCorrectionResponseSchema,
   type PolicyLedgerCorrectionRequest,
@@ -40,6 +52,15 @@ export interface PolicyLedgerApi {
   get(policyId: string): Promise<PolicyLedgerDetailResponse>;
   list(query: Partial<PolicyLedgerListQuery>): Promise<PolicyLedgerListResponse>;
   listAssignmentOptions(): Promise<DraftAssignmentOptionsResponse>;
+  listDeleted(): Promise<DeletedPolicyListResponse>;
+  restore(
+    policyId: string,
+    input: PolicyRestoreRequest,
+  ): Promise<PolicyRestoreResponse>;
+  softDelete(
+    policyId: string,
+    input: PolicySoftDeleteRequest,
+  ): Promise<PolicySoftDeleteResponse>;
 }
 
 export function createPolicyLedgerApi(client: ApiClient): PolicyLedgerApi {
@@ -87,6 +108,24 @@ export function createPolicyLedgerApi(client: ApiClient): PolicyLedgerApi {
         "/draft-assignment-options",
         draftAssignmentOptionsResponseSchema,
       ),
+    listDeleted: () =>
+      read(client, "/deleted-policies", deletedPolicyListResponseSchema),
+    restore: (policyId, input) =>
+      mutate(
+        client,
+        `/deleted-policies/${encodeURIComponent(policyId)}/restore`,
+        parseRequest(policyRestoreRequestSchema, input),
+        policyRestoreResponseSchema,
+        "POST",
+      ),
+    softDelete: (policyId, input) =>
+      mutate(
+        client,
+        `/policies/${encodeURIComponent(policyId)}/soft-delete`,
+        parseRequest(policySoftDeleteRequestSchema, input),
+        policySoftDeleteResponseSchema,
+        "POST",
+      ),
   };
 }
 
@@ -113,6 +152,7 @@ async function mutate<Schema extends z.ZodTypeAny>(
   path: string,
   body: unknown,
   schema: Schema,
+  method: "PATCH" | "POST" = "PATCH",
 ): Promise<z.output<Schema>> {
   let response: Response;
   try {
@@ -122,7 +162,7 @@ async function mutate<Schema extends z.ZodTypeAny>(
         Accept: "application/json",
         "Content-Type": "application/json",
       },
-      method: "PATCH",
+      method,
     });
   } catch {
     throw new PolicyLedgerApiError("unavailable");

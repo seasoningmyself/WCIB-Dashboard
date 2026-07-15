@@ -23,6 +23,11 @@ interface MigrationHistoryRow {
   hash: string;
 }
 
+const expectedBlankTableRows: Readonly<Record<string, number>> = {
+  business_state_control: 1,
+  business_state_generations: 1,
+};
+
 export interface ManagedSchemaVerificationResult {
   catalog: CatalogCounts;
   checkedAt: string;
@@ -128,9 +133,11 @@ export async function verifyManagedSchema(
       const count = await client.query<{ count: number }>(
         `SELECT count(*)::int AS count FROM ${quoteIdentifier(table)}`,
       );
-      totalRows += count.rows[0]?.count ?? 0;
+      const tableRows = count.rows[0]?.count ?? 0;
+      assert.equal(tableRows, expectedBlankTableRows[table] ?? 0);
+      totalRows += tableRows;
     }
-    assert.equal(totalRows, 0);
+    assert.equal(totalRows, 2);
 
     const catalog = await client.query<{
       checks: number;

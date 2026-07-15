@@ -1,4 +1,12 @@
-import { and, desc, eq, getTableColumns, lte, type SQL } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  getTableColumns,
+  isNull,
+  lte,
+  type SQL,
+} from "drizzle-orm";
 import {
   paySheetCloseResultSchema,
   paySheetAdjustmentViewSchema,
@@ -20,6 +28,7 @@ import {
 } from "../../shared/pay-sheet-api.js";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AuthDatabase } from "../auth/users.js";
+import { inActiveBusinessGeneration } from "../db/business-state.js";
 import {
   paySheetAdjustments,
   paySheetPolicies,
@@ -150,7 +159,12 @@ export async function getPaySheetSource(
   requirePolicyLedgerAdmin(context);
   requireTimestamp(asOf);
   const [header] = await baseHeaderQuery(database)
-    .where(eq(paySheets.id, paySheetId))
+    .where(
+      and(
+        eq(paySheets.id, paySheetId),
+        inActiveBusinessGeneration(paySheets.businessGenerationId),
+      ),
+    )
     .limit(1);
   if (header === undefined) {
     throw new PaySheetNotFoundError();
@@ -419,7 +433,9 @@ async function loadHeaders(
   database: PaySheetReadDatabase,
   query: PaySheetListQuery,
 ): Promise<PaySheetHeaderSource[]> {
-  const conditions: SQL[] = [];
+  const conditions: SQL[] = [
+    inActiveBusinessGeneration(paySheets.businessGenerationId),
+  ];
   if (query.status !== "all") {
     conditions.push(eq(paySheets.status, query.status));
   }
@@ -436,7 +452,7 @@ async function loadHeaders(
     conditions.push(eq(paySheets.periodYear, query.periodYear));
   }
   const rows = await baseHeaderQuery(database)
-    .where(conditions.length === 0 ? undefined : and(...conditions))
+    .where(and(...conditions))
     .limit(MAX_PAY_SHEET_ROWS + 1);
   if (rows.length > MAX_PAY_SHEET_ROWS) {
     throw new PaySheetBoundsError();
@@ -518,7 +534,14 @@ async function loadLivePolicies(
     .from(paySheetPolicies)
     .innerJoin(policies, eq(policies.id, paySheetPolicies.policyId))
     .innerJoin(policyTypes, eq(policyTypes.id, policies.policyTypeId))
-    .where(eq(paySheetPolicies.paySheetId, paySheetId));
+    .where(
+      and(
+        eq(paySheetPolicies.paySheetId, paySheetId),
+        isNull(policies.deletedAt),
+        inActiveBusinessGeneration(paySheetPolicies.businessGenerationId),
+        inActiveBusinessGeneration(policies.businessGenerationId),
+      ),
+    );
   return rows.map((value) => ({ kind: "live" as const, value }));
 }
 
@@ -534,7 +557,12 @@ async function loadFrozenPolicies(
       frozenRateSnapshot: paySheetPolicies.frozenRateSnapshot,
     })
     .from(paySheetPolicies)
-    .where(eq(paySheetPolicies.paySheetId, paySheetId));
+    .where(
+      and(
+        eq(paySheetPolicies.paySheetId, paySheetId),
+        inActiveBusinessGeneration(paySheetPolicies.businessGenerationId),
+      ),
+    );
   return rows.map((value) => ({ kind: "frozen" as const, value }));
 }
 
@@ -554,7 +582,12 @@ async function loadAdjustments(
       staffProfiles,
       eq(staffProfiles.userId, paySheetAdjustments.producerUserId),
     )
-    .where(eq(paySheetAdjustments.paySheetId, paySheetId));
+    .where(
+      and(
+        eq(paySheetAdjustments.paySheetId, paySheetId),
+        inActiveBusinessGeneration(paySheetAdjustments.businessGenerationId),
+      ),
+    );
   return rows.map(({ policyTypeName, producerDisplayName, ...adjustment }) => ({
     adjustment,
     policyTypeName,

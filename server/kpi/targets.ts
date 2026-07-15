@@ -14,6 +14,7 @@ import {
 } from "../../shared/kpi-target-api.js";
 import type { KpiTargetScopeType } from "../../shared/kpi-targets.js";
 import { readDatabaseErrorCode } from "../db/error-code.js";
+import { inActiveBusinessGeneration } from "../db/business-state.js";
 import {
   kpiTargets,
   paySheets,
@@ -79,7 +80,10 @@ export async function listKpiTargetSources(
 ): Promise<KpiTargetListSource> {
   requireKpiAdmin(context);
   const query = kpiTargetListQuerySchema.parse(rawQuery);
-  const conditions = [eq(kpiTargets.year, query.year)];
+  const conditions = [
+    eq(kpiTargets.year, query.year),
+    inActiveBusinessGeneration(kpiTargets.businessGenerationId),
+  ];
   if (query.scopeType !== undefined) {
     conditions.push(eq(kpiTargets.scopeType, query.scopeType));
   }
@@ -158,14 +162,18 @@ export async function upsertKpiTarget(
         ? await statement
             .onConflictDoUpdate({
               set,
-              target: kpiTargets.year,
+              target: [kpiTargets.businessGenerationId, kpiTargets.year],
               targetWhere: sql`${kpiTargets.scopeType} = 'company'`,
             })
             .returning()
         : await statement
             .onConflictDoUpdate({
               set,
-              target: [kpiTargets.producerUserId, kpiTargets.year],
+              target: [
+                kpiTargets.businessGenerationId,
+                kpiTargets.producerUserId,
+                kpiTargets.year,
+              ],
               targetWhere: sql`${kpiTargets.scopeType} = 'producer'`,
             })
             .returning();
@@ -241,11 +249,21 @@ export async function listKpiProducerSources(
     database
       .selectDistinct({ userId: paySheets.ownerUserId })
       .from(paySheets)
-      .where(eq(paySheets.ownerType, "producer")),
+      .where(
+        and(
+          eq(paySheets.ownerType, "producer"),
+          inActiveBusinessGeneration(paySheets.businessGenerationId),
+        ),
+      ),
     database
       .selectDistinct({ userId: kpiTargets.producerUserId })
       .from(kpiTargets)
-      .where(eq(kpiTargets.scopeType, "producer")),
+      .where(
+        and(
+          eq(kpiTargets.scopeType, "producer"),
+          inActiveBusinessGeneration(kpiTargets.businessGenerationId),
+        ),
+      ),
   ]);
   const historicalIds = new Set(
     [...rateOwners, ...sheetOwners, ...targetOwners]

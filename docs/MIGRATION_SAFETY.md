@@ -143,11 +143,15 @@ owners, not every transitive predecessor.
 | `0041_pay_sheet_chargeback_mirrors` | Atomic House chargeback normalization and read-only producer-sheet mirrors | `0031`, `0039`, `0040` | Refuses linkage loss while mirrors exist; forward-fix after mirror use |
 | `0042_submitted_draft_withdrawal` | Audited owner withdrawal of still-pending submitted drafts with preserved queue snapshots | `0013`, `0018`, `0020`, `0041` | Refuses enum reversal after withdrawal history exists; forward-fix after use |
 | `0043_policy_change_requests` | Reason-only owner requests linked to canonical policies with audited admin resolution | `0018`, `0020`, `0034`, `0042` | Refuses reversal after request or audit history exists; forward-fix after use |
+| `0044_policy_soft_delete` | Recoverable audited policy deletion, live-view exclusion, open-sheet detach, and deleted-policy attachment guards | `0018`, `0024`, `0027`-`0030`, `0034`, `0040`, `0043` | Refuses deletion-state loss while any policy remains deleted; forward-fix after use |
+| `0045_policy_soft_delete_guard_hardening` | Security-invoker enforcement for trusted policy delete/restore transaction context | `0044` | Refuses guard weakening after deletion audit history exists; forward-fix after use |
+| `0046_approval_work_soft_delete` | Recoverable audited soft-delete/restore for pending submissions and flagged help drafts, with live-read exclusion | `0013`, `0014`, `0018`, `0020`, `0045` | Refuses deletion-state or audit-vocabulary loss while deleted work or its audit history exists; forward-fix after use |
+| `0047_business_state_generations` | Recoverable Start Fresh generations, active-pointer reset/restore, checksummed manifests, and generation-scoped transactional reads/writes | `0013`-`0015`, `0018`, `0020`-`0034`, `0039`-`0046` | Refuses backout after any reset/restore history; sealed generations are immutable and require a forward-fix after use |
 
 ## Dependency-safe full reverse order
 
 For a disposable or confirmed-empty database only, execute backouts from
-`0043` down through `0000`, deleting the matching Drizzle history row in the
+`0047` down through `0000`, deleting the matching Drizzle history row in the
 same transaction as each backout. The automated verifier is the reference
 implementation. There is intentionally no production `db:rollback` command:
 an operator must make and document the recovery decision rather than invoke a

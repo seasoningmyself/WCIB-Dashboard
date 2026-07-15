@@ -1,6 +1,7 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AuthDatabase } from "../auth/users.js";
+import { inActiveBusinessGeneration } from "../db/business-state.js";
 import { drafts, type DraftRecord } from "../db/schema.js";
 import { requireDraftStaffActor } from "./access.js";
 
@@ -46,7 +47,20 @@ export async function listOwnMyItemSources(
   const rows = await database
     .select()
     .from(drafts)
-    .where(eq(drafts.ownerUserId, ownerUserId))
+    .where(
+      and(
+        eq(drafts.ownerUserId, ownerUserId),
+        isNull(drafts.deletedAt),
+        inActiveBusinessGeneration(drafts.businessGenerationId),
+        sql`not exists (
+          select 1
+          from policies deleted_policy
+          where deleted_policy.source_draft_id = ${drafts.id}
+            and deleted_policy.deleted_at is not null
+            and deleted_policy.business_generation_id = current_business_state_generation_id()
+        )`,
+      ),
+    )
     .orderBy(desc(drafts.lastEditedAt), desc(drafts.createdAt), desc(drafts.id));
   return rows.filter(isVisibleMyItemSource);
 }

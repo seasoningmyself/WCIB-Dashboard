@@ -1,6 +1,7 @@
-import { eq, getTableColumns, sql } from "drizzle-orm";
+import { and, eq, getTableColumns, sql } from "drizzle-orm";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AuthDatabase } from "../auth/users.js";
+import { inActiveBusinessGeneration } from "../db/business-state.js";
 import {
   approvalQueueEntries,
   drafts,
@@ -16,6 +17,7 @@ type PolicyLifecycleDatabase = Pick<
 
 type SystemManagedPolicyField =
   | "approvedAt"
+  | "businessGenerationId"
   | "balanceDueDate"
   | "collectedToDate"
   | "createdAt"
@@ -58,6 +60,7 @@ export class PolicyLifecycleStateError extends Error {
 const policyColumnNames = new Set(Object.keys(getTableColumns(policies)));
 const systemManagedPolicyFields = new Set<SystemManagedPolicyField>([
   "approvedAt",
+  "businessGenerationId",
   "balanceDueDate",
   "collectedToDate",
   "createdAt",
@@ -323,7 +326,12 @@ export async function approveQueuedPolicyInTransaction(
       submittedByUserId: approvalQueueEntries.submittedByUserId,
     })
     .from(approvalQueueEntries)
-    .where(eq(approvalQueueEntries.id, queueEntryId))
+    .where(
+      and(
+        eq(approvalQueueEntries.id, queueEntryId),
+        inActiveBusinessGeneration(approvalQueueEntries.businessGenerationId),
+      ),
+    )
     .limit(1)
     .for("update");
 
@@ -392,7 +400,12 @@ export async function submitAdminPolicyDirectInTransaction(
     const [sourceDraft] = await database
       .select({ ownerUserId: drafts.ownerUserId })
       .from(drafts)
-      .where(eq(drafts.id, sourceDraftId))
+      .where(
+        and(
+          eq(drafts.id, sourceDraftId),
+          inActiveBusinessGeneration(drafts.businessGenerationId),
+        ),
+      )
       .limit(1);
     if (sourceDraft === undefined) {
       throw new PolicyLifecycleStateError("Source draft was not found");

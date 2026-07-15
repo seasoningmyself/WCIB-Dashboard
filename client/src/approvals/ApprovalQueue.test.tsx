@@ -9,6 +9,10 @@ import { ApiClientProvider } from "../api/context.js";
 import { createSessionBoundary } from "../auth/session-boundary.js";
 import { VocabularyProvider } from "../vocabulary/context.js";
 import { ApprovalDialogs } from "./ApprovalDialogs.js";
+import {
+  ApprovalWorkDeletionDialogView,
+  DeletedApprovalWorkPanel,
+} from "./ApprovalWorkDeletionDialogs.js";
 import { PolicyChangeRequestDialogs } from "./PolicyChangeRequestDialogs.js";
 import {
   ApprovalQueue,
@@ -25,7 +29,11 @@ const CHANGE_REQUEST_ID = "00000000-0000-4000-8000-000000000706";
 const POLICY_ID = "00000000-0000-4000-8000-000000000707";
 
 test("admin queue renders every financial review group and live resolution action", () => {
-  const markup = renderView({ status: "ready", work: approvalWork() });
+  const markup = renderView({
+    deleted: deletedApprovalWork(),
+    status: "ready",
+    work: approvalWork(),
+  });
 
   for (const label of [
     "Pending submissions",
@@ -47,6 +55,7 @@ test("admin queue renders every financial review group and live resolution actio
     "Open &amp; fix",
     "Push through as-is",
     "Send back",
+    "Delete",
   ]) {
     assert.match(markup, new RegExp(`>${action}<`));
   }
@@ -63,11 +72,41 @@ test("approval queue has bounded loading, error, empty, and denied states", () =
   assert.match(renderView({ status: "denied" }), /Approvals unavailable/);
   assert.match(
     renderView({
+      deleted: { items: [] },
       status: "ready",
       work: { changeRequests: [], helpRequests: [], submissions: [] },
     }),
     /Queue clear/,
   );
+});
+
+test("approval deletion UI requires a reason and exposes recoverable restore", () => {
+  const work = approvalWork();
+  const deleteDialog = renderToStaticMarkup(
+    <ApprovalWorkDeletionDialogView
+      dialog={{ item: work.submissions[0]!, kind: "delete_submission" }}
+      onCancel={() => {}}
+      onDelete={() => {}}
+      onRestore={() => {}}
+      pending={false}
+    />,
+  );
+  assert.match(deleteDialog, /Move this non-approved item/);
+  assert.match(deleteDialog, /maxLength="500"/);
+  assert.match(deleteDialog, />Delete</);
+
+  const panel = renderToStaticMarkup(
+    <DeletedApprovalWorkPanel
+      data={deletedApprovalWork()}
+      onClose={() => {}}
+      onRestore={() => {}}
+      open
+      pending={false}
+    />,
+  );
+  assert.match(panel, /Deleted approval work/);
+  assert.match(panel, /Recoverable reason/);
+  assert.match(panel, />Restore</);
 });
 
 test("non-admin component fails closed before API or queue rendering", () => {
@@ -185,14 +224,35 @@ function renderView(state: ApprovalQueueState): string {
       filter="all"
       lookups={{}}
       notice={null}
+      onDeleteHelp={() => {}}
+      onDeleteSubmission={() => {}}
       onFilter={() => {}}
       onOpen={() => {}}
       onOpenChangeFix={() => {}}
+      onOpenDeleted={() => {}}
       onRetry={() => {}}
       pending={false}
       state={state}
     />,
   );
+}
+
+function deletedApprovalWork() {
+  const work = approvalWork();
+  return {
+    items: [
+      {
+        deletion: {
+          deletedAt: "2026-07-12T12:00:00.000Z",
+          deletedByUserId: ADMIN_ID,
+          reason: "Recoverable reason",
+        },
+        entry: work.submissions[0]!.entry,
+        kind: "submission" as const,
+        submitterDisplayName: "Mercedes",
+      },
+    ],
+  };
 }
 
 function withProviders(children: React.ReactNode) {

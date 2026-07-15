@@ -1,10 +1,11 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   approveWithOverrideRequestSchema,
   type ApproveWithOverrideRequest,
 } from "../../shared/policy-overrides.js";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AuthDatabase } from "../auth/users.js";
+import { inActiveBusinessGeneration } from "../db/business-state.js";
 import {
   approvalQueueEntries,
   policies,
@@ -53,7 +54,12 @@ export async function approvePendingSubmissionWithOverride(
     const [entry] = await transaction
       .select()
       .from(approvalQueueEntries)
-      .where(eq(approvalQueueEntries.id, queueEntryId))
+      .where(
+        and(
+          eq(approvalQueueEntries.id, queueEntryId),
+          inActiveBusinessGeneration(approvalQueueEntries.businessGenerationId),
+        ),
+      )
       .limit(1)
       .for("update");
     if (entry === undefined) {
@@ -99,7 +105,12 @@ export async function approvePendingSubmissionWithOverride(
     const [policy] = await transaction
       .select()
       .from(policies)
-      .where(eq(policies.id, approvedPolicy.id))
+      .where(
+        and(
+          eq(policies.id, approvedPolicy.id),
+          inActiveBusinessGeneration(policies.businessGenerationId),
+        ),
+      )
       .limit(1);
     if (policy === undefined || !policy.overridden) {
       throw new ApprovalItemStateError();

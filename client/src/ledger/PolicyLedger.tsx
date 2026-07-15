@@ -8,6 +8,10 @@ import React, {
 } from "react";
 import type { CurrentUser } from "../../../shared/current-user.js";
 import type { DraftAssignmentOption } from "../../../shared/draft-assignment-options.js";
+import type {
+  DeletedPolicyLedgerItem,
+  DeletedPolicyListResponse,
+} from "../../../shared/policy-deletions.js";
 import {
   POLICY_LEDGER_FINANCE_FILTERS,
   POLICY_LEDGER_SORTS,
@@ -45,6 +49,16 @@ export type PolicyLedgerDetailState =
   | { status: "loading" }
   | { data: PolicyLedgerDetailResponse; status: "ready" };
 
+export type DeletedPolicyState =
+  | { status: "closed" }
+  | { status: "error" }
+  | { status: "loading" }
+  | { data: DeletedPolicyListResponse; status: "ready" };
+
+type PolicyDeletionDialog =
+  | { item: PolicyLedgerItem; kind: "delete" }
+  | { item: DeletedPolicyLedgerItem; kind: "restore" };
+
 const INITIAL_LIMIT = 100;
 
 export function PolicyLedger({ user }: { user: CurrentUser }) {
@@ -77,10 +91,14 @@ function AdminPolicyLedger() {
   const [detail, setDetail] = useState<PolicyLedgerDetailState>({ status: "closed" });
   const [assignmentOptions, setAssignmentOptions] = useState<readonly DraftAssignmentOption[]>([]);
   const [dialog, setDialog] = useState<LedgerCorrectionDialog | null>(null);
+  const [deletionDialog, setDeletionDialog] = useState<PolicyDeletionDialog | null>(null);
+  const [deletedOpen, setDeletedOpen] = useState(false);
+  const [deletedState, setDeletedState] = useState<DeletedPolicyState>({ status: "closed" });
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const listVersion = useRef(0);
   const detailVersion = useRef(0);
+  const deletedVersion = useRef(0);
   const pendingRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -102,6 +120,28 @@ function AdminPolicyLedger() {
       });
     }
   }, [api, query]);
+
+  const loadDeleted = useCallback(async () => {
+    const version = deletedVersion.current + 1;
+    deletedVersion.current = version;
+    setDeletedState({ status: "loading" });
+    try {
+      const data = await api.listDeleted();
+      if (deletedVersion.current === version) {
+        setDeletedState({ data, status: "ready" });
+      }
+    } catch (error) {
+      if (deletedVersion.current !== version) return;
+      if (error instanceof PolicyLedgerApiError && error.kind === "denied") {
+        listVersion.current += 1;
+        setState({ status: "denied" });
+        setDeletedOpen(false);
+        setDeletedState({ status: "closed" });
+      } else {
+        setDeletedState({ status: "error" });
+      }
+    }
+  }, [api]);
 
   const loadDetail = useCallback(
     async (policyId: string) => {
@@ -156,11 +196,15 @@ function AdminPolicyLedger() {
   const clearSensitiveState = useCallback(() => {
     listVersion.current += 1;
     detailVersion.current += 1;
+    deletedVersion.current += 1;
     setState({ status: "loading" });
     setExpandedPolicyId(null);
     setDetail({ status: "closed" });
     setAssignmentOptions([]);
     setDialog(null);
+    setDeletionDialog(null);
+    setDeletedOpen(false);
+    setDeletedState({ status: "closed" });
     setNotice(null);
     pendingRef.current = false;
     setPending(false);
@@ -235,6 +279,60 @@ function AdminPolicyLedger() {
     [api, dialog, expandedPolicyId, load],
   );
 
+  const submitDeletion = useCallback(
+    async (reason: string) => {
+      if (deletionDialog === null || pendingRef.current) return;
+      pendingRef.current = true;
+      setPending(true);
+      setNotice(null);
+      const policyId = deletionDialog.item.policy.id;
+      try {
+        if (deletionDialog.kind === "delete") {
+          await api.softDelete(policyId, {
+            expectedUpdatedAt: deletionDialog.item.policy.updatedAt,
+            reason,
+          });
+          setNotice("Policy moved to deleted records. Closed history was preserved.");
+          setExpandedPolicyId(null);
+          setDetail({ status: "closed" });
+        } else {
+          await api.restore(policyId, {
+            expectedUpdatedAt: deletionDialog.item.policy.updatedAt,
+          });
+          setNotice("Policy restored to live records.");
+        }
+        setDeletionDialog(null);
+        await load();
+        if (deletedOpen) await loadDeleted();
+      } catch (error) {
+        setDeletionDialog(null);
+        if (error instanceof PolicyLedgerApiError && error.kind === "denied") {
+          listVersion.current += 1;
+          setState({ status: "denied" });
+          setDeletedOpen(false);
+          setDeletedState({ status: "closed" });
+          setNotice(null);
+        } else if (
+          error instanceof PolicyLedgerApiError && error.kind === "conflict"
+        ) {
+          setNotice("This policy changed. The ledger has been refreshed.");
+          await load();
+          if (deletedOpen) await loadDeleted();
+        } else if (
+          error instanceof PolicyLedgerApiError && error.kind === "rejected"
+        ) {
+          setNotice("The policy action was rejected. Review the request and try again.");
+        } else {
+          setNotice("The policy action could not be completed. Try again.");
+        }
+      } finally {
+        pendingRef.current = false;
+        setPending(false);
+      }
+    },
+    [api, deletedOpen, deletionDialog, load, loadDeleted],
+  );
+
   const updateQuery = useCallback(
     (update: Partial<PolicyLedgerListQuery>) => {
       setExpandedPolicyId(null);
@@ -253,6 +351,11 @@ function AdminPolicyLedger() {
         expandedPolicyId={expandedPolicyId}
         notice={notice}
         onCorrect={(item, kind) => setDialog({ item, kind })}
+        onDelete={(item) => setDeletionDialog({ item, kind: "delete" })}
+        onOpenDeleted={() => {
+          setDeletedOpen(true);
+          void loadDeleted();
+        }}
         onPage={(offset) => setQuery((current) => ({ ...current, offset }))}
         onQuery={updateQuery}
         onRetry={() => void load()}
@@ -281,6 +384,31 @@ function AdminPolicyLedger() {
         onSubmit={(input) => void submitCorrection(input)}
         pending={pending}
       />
+      <DeletedPolicyPanel
+        onClose={() => {
+          deletedVersion.current += 1;
+          setDeletedOpen(false);
+          setDeletedState({ status: "closed" });
+        }}
+        onRestore={(item) => setDeletionDialog({ item, kind: "restore" })}
+        onRetry={() => void loadDeleted()}
+        open={deletedOpen}
+        pending={pending}
+        state={deletedState}
+      />
+      <PolicyDeletionDialogView
+        dialog={deletionDialog}
+        key={
+          deletionDialog === null
+            ? "closed"
+            : `${deletionDialog.kind}:${deletionDialog.item.policy.id}:${deletionDialog.item.policy.updatedAt}`
+        }
+        onCancel={() => {
+          if (!pending) setDeletionDialog(null);
+        }}
+        onSubmit={(reason) => void submitDeletion(reason)}
+        pending={pending}
+      />
     </>
   );
 }
@@ -290,6 +418,8 @@ export function PolicyLedgerView({
   expandedPolicyId,
   notice,
   onCorrect,
+  onDelete,
+  onOpenDeleted,
   onPage,
   onQuery,
   onRetry,
@@ -306,6 +436,8 @@ export function PolicyLedgerView({
   expandedPolicyId: string | null;
   notice: string | null;
   onCorrect(item: PolicyLedgerItem, kind: "general" | "override"): void;
+  onDelete(item: PolicyLedgerItem): void;
+  onOpenDeleted(): void;
   onPage(offset: number): void;
   onQuery(query: Partial<PolicyLedgerListQuery>): void;
   onRetry(): void;
@@ -361,6 +493,9 @@ export function PolicyLedgerView({
           <strong>{state.data.filteredTotal}</strong>
           <span>Policies</span>
         </div>
+        <button className="ledger-deleted-button" disabled={pending} onClick={onOpenDeleted} type="button">
+          Deleted policies
+        </button>
       </header>
 
       <LedgerMetrics totals={state.data.totals} />
@@ -467,6 +602,7 @@ export function PolicyLedgerView({
               item={item}
               key={item.policy.id}
               onCorrect={onCorrect}
+              onDelete={onDelete}
               onRetryDetail={onRetryDetail}
               onToggle={onToggleDetail}
               pending={pending}
@@ -522,6 +658,7 @@ function LedgerRow({
   expanded,
   item,
   onCorrect,
+  onDelete,
   onRetryDetail,
   onToggle,
   pending,
@@ -530,6 +667,7 @@ function LedgerRow({
   expanded: boolean;
   item: PolicyLedgerItem;
   onCorrect(item: PolicyLedgerItem, kind: "general" | "override"): void;
+  onDelete(item: PolicyLedgerItem): void;
   onRetryDetail(policyId: string): void;
   onToggle(policyId: string): void;
   pending: boolean;
@@ -578,6 +716,7 @@ function LedgerRow({
         <LedgerDetail
           detail={detail}
           onCorrect={onCorrect}
+          onDelete={onDelete}
           onRetry={() => onRetryDetail(item.policy.id)}
           pending={pending}
         />
@@ -589,11 +728,13 @@ function LedgerRow({
 function LedgerDetail({
   detail,
   onCorrect,
+  onDelete,
   onRetry,
   pending,
 }: {
   detail: PolicyLedgerDetailState;
   onCorrect(item: PolicyLedgerItem, kind: "general" | "override"): void;
+  onDelete(item: PolicyLedgerItem): void;
   onRetry(): void;
   pending: boolean;
 }) {
@@ -633,7 +774,185 @@ function LedgerDetail({
         <button className="is-override" disabled={pending} onClick={() => onCorrect(currentItem, "override")} type="button">
           Financial override
         </button>
+        <button className="is-danger" disabled={pending} onClick={() => onDelete(currentItem)} type="button">
+          Delete policy
+        </button>
       </div>
+    </div>
+  );
+}
+
+export function DeletedPolicyPanel({
+  onClose,
+  onRestore,
+  onRetry,
+  open,
+  pending,
+  state,
+}: {
+  onClose(): void;
+  onRestore(item: DeletedPolicyLedgerItem): void;
+  onRetry(): void;
+  open: boolean;
+  pending: boolean;
+  state: DeletedPolicyState;
+}) {
+  if (!open) return null;
+  return (
+    <div className="ledger-dialog-backdrop" role="presentation">
+      <section
+        aria-labelledby="deleted-policy-title"
+        aria-modal="true"
+        className="ledger-dialog is-wide ledger-deleted-panel"
+        role="dialog"
+      >
+        <header>
+          <div>
+            <p>Recoverable records</p>
+            <h2 id="deleted-policy-title">Deleted policies</h2>
+          </div>
+          <button
+            aria-label="Close deleted policies"
+            disabled={pending}
+            onClick={onClose}
+            title="Close"
+            type="button"
+          >
+            ×
+          </button>
+        </header>
+        {state.status === "loading" || state.status === "closed" ? (
+          <p className="ledger-deleted-status" role="status">
+            Loading deleted policies...
+          </p>
+        ) : state.status === "error" ? (
+          <div className="ledger-deleted-status is-error">
+            <p>Deleted policies could not be loaded.</p>
+            <button disabled={pending} onClick={onRetry} type="button">
+              Try again
+            </button>
+          </div>
+        ) : state.data.items.length === 0 ? (
+          <p className="ledger-deleted-status">No deleted policies.</p>
+        ) : (
+          <div className="ledger-deleted-list">
+            {state.data.items.map((item) => (
+              <article key={item.policy.id}>
+                <div>
+                  <strong>{item.policy.insuredName}</strong>
+                  <span>
+                    {item.policy.policyNumber} · {item.labels.policyTypeName}
+                  </span>
+                  <small>
+                    Deleted {shortDate(item.deletion.deletedAt)} · {item.deletion.reason}
+                  </small>
+                </div>
+                <button
+                  disabled={pending}
+                  onClick={() => onRestore(item)}
+                  type="button"
+                >
+                  Restore
+                </button>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function PolicyDeletionDialogView({
+  dialog,
+  onCancel,
+  onSubmit,
+  pending,
+}: {
+  dialog: PolicyDeletionDialog | null;
+  onCancel(): void;
+  onSubmit(reason: string): void;
+  pending: boolean;
+}) {
+  const [reason, setReason] = useState("");
+  const [invalid, setInvalid] = useState(false);
+  if (dialog === null) return null;
+  const deleting = dialog.kind === "delete";
+  const submit = () => {
+    const normalizedReason = reason.trim();
+    if (deleting && normalizedReason.length === 0) {
+      setInvalid(true);
+      return;
+    }
+    onSubmit(normalizedReason);
+  };
+  return (
+    <div className="ledger-dialog-backdrop" role="presentation">
+      <section
+        aria-labelledby="policy-deletion-dialog-title"
+        aria-modal="true"
+        className="ledger-dialog"
+        role="dialog"
+      >
+        <header>
+          <h2 id="policy-deletion-dialog-title">
+            {deleting ? "Delete" : "Restore"} {dialog.item.policy.insuredName}
+          </h2>
+          <button
+            aria-label="Close policy action"
+            disabled={pending}
+            onClick={onCancel}
+            title="Close"
+            type="button"
+          >
+            ×
+          </button>
+        </header>
+        <p className="ledger-deletion-explanation">
+          {deleting
+            ? "The policy will leave all live views and open pay sheets. Any closed pay-sheet history remains unchanged."
+            : "The policy will return to live records. A settled policy will not be placed on a pay sheet again."}
+        </p>
+        {deleting ? (
+          <label className="ledger-dialog-field">
+            <span>Required reason</span>
+            <textarea
+              disabled={pending}
+              maxLength={500}
+              onChange={(event) => {
+                setReason(event.currentTarget.value);
+                setInvalid(false);
+              }}
+              rows={4}
+              value={reason}
+            />
+          </label>
+        ) : null}
+        {invalid ? (
+          <p className="ledger-correction-error" role="alert">
+            Enter a reason before deleting this policy.
+          </p>
+        ) : null}
+        <div className="ledger-dialog-actions">
+          <button disabled={pending} onClick={onCancel} type="button">
+            Cancel
+          </button>
+          <button
+            className={deleting ? "is-danger" : "is-primary"}
+            disabled={pending}
+            onClick={submit}
+            type="button"
+          >
+            {pending
+              ? deleting
+                ? "Deleting..."
+                : "Restoring..."
+              : deleting
+                ? "Delete policy"
+                : "Restore policy"}
+          </button>
+        </div>
+      </section>
     </div>
   );
 }

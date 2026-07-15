@@ -1,10 +1,11 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createDraftRequestSchema,
   updateDraftRequestSchema,
 } from "../../shared/drafts.js";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AuthDatabase } from "../auth/users.js";
+import { inActiveBusinessGeneration } from "../db/business-state.js";
 import {
   approvalQueueEntries,
   drafts,
@@ -58,7 +59,12 @@ export async function approvePendingSubmission(
     const [entry] = await transaction
       .select()
       .from(approvalQueueEntries)
-      .where(eq(approvalQueueEntries.id, queueEntryId))
+      .where(
+        and(
+          eq(approvalQueueEntries.id, queueEntryId),
+          inActiveBusinessGeneration(approvalQueueEntries.businessGenerationId),
+        ),
+      )
       .limit(1)
       .for("update");
     if (entry === undefined) {
@@ -118,7 +124,12 @@ async function approveFlaggedHelp(
     const [record] = await transaction
       .select()
       .from(drafts)
-      .where(eq(drafts.id, draftId))
+      .where(
+        and(
+          eq(drafts.id, draftId),
+          inActiveBusinessGeneration(drafts.businessGenerationId),
+        ),
+      )
       .limit(1)
       .for("update");
     if (record === undefined) {

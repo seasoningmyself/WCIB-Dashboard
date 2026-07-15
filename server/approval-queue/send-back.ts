@@ -1,10 +1,11 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   approvalSendBackRequestSchema,
   type ApprovalSendBackRequest,
 } from "../../shared/approval-queue.js";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AuthDatabase } from "../auth/users.js";
+import { inActiveBusinessGeneration } from "../db/business-state.js";
 import {
   approvalQueueEntries,
   drafts,
@@ -37,7 +38,12 @@ export async function sendBackPendingSubmission(
     const [entry] = await transaction
       .select()
       .from(approvalQueueEntries)
-      .where(eq(approvalQueueEntries.id, queueEntryId))
+      .where(
+        and(
+          eq(approvalQueueEntries.id, queueEntryId),
+          inActiveBusinessGeneration(approvalQueueEntries.businessGenerationId),
+        ),
+      )
       .limit(1)
       .for("update");
     if (entry === undefined) {
@@ -57,7 +63,12 @@ export async function sendBackPendingSubmission(
     const [updated] = await transaction
       .select()
       .from(approvalQueueEntries)
-      .where(eq(approvalQueueEntries.id, queueEntryId))
+      .where(
+        and(
+          eq(approvalQueueEntries.id, queueEntryId),
+          inActiveBusinessGeneration(approvalQueueEntries.businessGenerationId),
+        ),
+      )
       .limit(1);
     if (updated === undefined || updated.status !== "sent_back") {
       throw new ApprovalItemStateError();
@@ -82,7 +93,12 @@ export async function sendBackFlaggedHelp(
     const [draft] = await transaction
       .select()
       .from(drafts)
-      .where(eq(drafts.id, draftId))
+      .where(
+        and(
+          eq(drafts.id, draftId),
+          inActiveBusinessGeneration(drafts.businessGenerationId),
+        ),
+      )
       .limit(1)
       .for("update");
     if (draft === undefined) {
@@ -102,7 +118,12 @@ export async function sendBackFlaggedHelp(
     const [updated] = await transaction
       .select()
       .from(drafts)
-      .where(eq(drafts.id, draftId))
+      .where(
+        and(
+          eq(drafts.id, draftId),
+          inActiveBusinessGeneration(drafts.businessGenerationId),
+        ),
+      )
       .limit(1);
     if (updated === undefined || updated.status !== "sent_back") {
       throw new ApprovalItemStateError();

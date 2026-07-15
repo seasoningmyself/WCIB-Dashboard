@@ -1,7 +1,83 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 14, 2026 (recorded approved-policy change-request adaptation.)
+**Last updated:** July 14, 2026 (recorded recoverable Start Fresh generations.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
+
+---
+
+## July 14, 2026 — Start Fresh uses recoverable business-data generations
+
+**Recorded production decision:** v15's Start Fresh action irreversibly removes
+working policies, approvals, drafts, and pay-sheet data. The multi-user app
+preserves the clean-start intent through versioned business-data generations.
+No transactional row is deleted or reconstructed: the current generation is
+sealed with a versioned manifest, row counts, schema fingerprint, and logical
+checksum; a new empty generation is created; Sophia's open pay-sheet chain is
+initialized through the existing trusted K1 function; and the active pointer
+changes atomically. Frozen closed-sheet policy, rate, adjustment, and total
+snapshots are never rewritten.
+
+Identity, staff, credentials, capabilities, producer rates, sessions, offices,
+and carrier/MGA/policy-type vocabularies survive. KPI targets copy into the new
+generation unless admin explicitly selects the clear-targets option. Audit
+events remain global and append-only, with reset/restore events containing
+only actor, generation, counts, options, and checksum metadata.
+
+Admin may restore a sealed generation only while the current post-reset
+generation still matches its baseline checksum. If any work has been entered,
+restore rejects; admin must Start Fresh again to preserve that work as its own
+recovery point before restoring an older generation. Restore verifies format,
+schema, migration count, row counts, and checksum, then flips the active pointer
+to the still-existing rows. Live reads show only the active generation. Sealed
+closed sheets remain stored byte-for-byte but are not mixed into the current
+generation's history; they return with their original UUIDs and frozen JSON
+when that generation is restored.
+
+---
+
+## July 14, 2026 — Approval work deletion is recoverable
+
+**Recorded production decision:** v15 permanently deletes a pending approval
+submission and its linked draft. The multi-user app preserves the admin delete
+intent as an audited soft-delete with a required reason. Pending submissions
+and standalone flagged help requests move to a restricted deleted-work list;
+their immutable submitted payload, draft content, lifecycle status, ownership,
+and timestamps remain stored and can be restored by admin.
+
+Deleted approval work is excluded from the live approval queue, My Drafts, My
+Items, draft-cap counts, and in-review commission reads. Only non-approved
+work is eligible. Any queue/draft already approved, linked to a policy, or
+represented on a pay sheet is rejected, and this flow never changes or deletes
+an approved policy. Delete and restore run through trusted database functions
+that lock queue before draft and write one append-only audit event atomically.
+
+---
+
+## July 14, 2026 — Recoverable policy deletion preserves financial history
+
+**Recorded production decision:** v15 permanently removes an admin-deleted
+policy and also strips it from closed pay-sheet snapshots. The latter behavior
+is a prototype bug because it rewrites a period after settlement. The
+multi-user app adapts the admin delete intent as an audited, recoverable policy
+soft-delete with a required reason; it never removes the policy row or mutates
+closed financial history.
+
+A deleted policy disappears from the live ledger, MGA payables and totals,
+open pay sheets and their live KPI widget, My Commissions, My Items/My Drafts,
+change-request activity, and correction targets. Any open-sheet associations
+are detached in the same transaction, while MGA-paid state and payment history
+remain unchanged. Frozen policy, rate, adjustment, and total snapshots on
+closed sheets remain byte-identical. Historical KPI actuals continue to derive
+from those frozen closed facts, so a policy that was actually settled remains
+part of its historical period after live deletion.
+
+Admin may restore the live policy. An unsettled MGA-paid policy returns through
+the established placement function and attaches to eligible current open
+sheets. A policy already represented on a closed sheet is restored to the live
+ledger without any new pay-sheet placement, preventing a second payment. A
+shared transaction advisory lock serializes deletion with close and MGA
+placement, and an attachment guard prevents deleted policies from being added
+to an open sheet.
 
 ---
 

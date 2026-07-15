@@ -1,10 +1,11 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   paySheetAdjustmentMutationSchema,
   type PaySheetAdjustmentMutation,
 } from "../../shared/pay-sheet-adjustment-api.js";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AuthDatabase } from "../auth/users.js";
+import { inActiveBusinessGeneration } from "../db/business-state.js";
 import { paySheetAdjustments, paySheets } from "../db/schema.js";
 import { requirePolicyLedgerAdmin } from "../policies/ledger-access.js";
 
@@ -39,7 +40,13 @@ export async function getPaySheetAdjustmentTarget(
     })
     .from(paySheetAdjustments)
     .innerJoin(paySheets, eq(paySheets.id, paySheetAdjustments.paySheetId))
-    .where(eq(paySheetAdjustments.id, adjustmentId))
+    .where(
+      and(
+        eq(paySheetAdjustments.id, adjustmentId),
+        inActiveBusinessGeneration(paySheetAdjustments.businessGenerationId),
+        inActiveBusinessGeneration(paySheets.businessGenerationId),
+      ),
+    )
     .limit(1);
   if (target === undefined) throw new PaySheetAdjustmentNotFoundError();
   return target;

@@ -292,19 +292,25 @@ test("cascade migration rolls back and reapplies byte-identically", async () => 
       const client = new pg.Client({ connectionString: databaseUrl });
       await client.connect();
       try {
-        const migration = loadMigrationPlan().find(
+        const plan = loadMigrationPlan();
+        const migrationIndex = plan.findIndex(
           ({ tag }) => tag === "0040_pay_sheet_cascade_close",
         );
-        assert.ok(migration);
+        assert.notEqual(migrationIndex, -1);
+        const replayPlan = plan.slice(migrationIndex);
         const fingerprint = await captureSchemaFingerprint(client);
         assert.equal(await cascadeFunctionExists(client), true);
-        for (const statement of migration.backoutStatements) {
-          await client.query(statement);
+        for (const migration of [...replayPlan].reverse()) {
+          for (const statement of migration.backoutStatements) {
+            await client.query(statement);
+          }
         }
         assert.equal(await cascadeFunctionExists(client), false);
         assert.notEqual(await captureSchemaFingerprint(client), fingerprint);
-        for (const statement of migration.forwardStatements) {
-          await client.query(statement);
+        for (const migration of replayPlan) {
+          for (const statement of migration.forwardStatements) {
+            await client.query(statement);
+          }
         }
         assert.equal(await cascadeFunctionExists(client), true);
         assert.equal(await captureSchemaFingerprint(client), fingerprint);

@@ -53,6 +53,7 @@
     "test:db:assignment-payout": "node --import tsx --test server/drafts/assignment-payout.db-test.ts",
     "test:db:approval-queue": "node --import tsx --test server/db/approval-queue.db-test.ts",
     "test:db:approval-work": "node --import tsx --test server/approval-queue/list.db-test.ts",
+    "test:db:approval-work-deletion": "node --import tsx --test server/approval-queue/soft-delete.db-test.ts",
     "test:db:approval-actions": "node --import tsx --test server/approval-queue/approve.db-test.ts",
     "test:db:approval-override": "node --import tsx --test server/approval-queue/approve-with-override.db-test.ts",
     "test:db:approval-send-back": "node --import tsx --test server/approval-queue/send-back.db-test.ts",
@@ -68,6 +69,7 @@
     "test:db:vocabulary-audit": "node --import tsx --test server/db/vocabulary-audit-migration.db-test.ts",
     "test:db:policy-corrected-audit": "node --import tsx --test server/db/policy-corrected-audit-migration.db-test.ts",
     "test:db:policy-correction": "node --import tsx --test server/db/policy-correction.db-test.ts",
+    "test:db:policy-soft-delete": "node --import tsx --test server/db/policy-soft-delete.db-test.ts",
     "test:db:producer-commission-received": "node --import tsx --test server/db/producer-commission-received-migration.db-test.ts",
     "test:db:producer-commission-receipt-audit": "node --import tsx --test server/db/producer-commission-receipt-audit-migration.db-test.ts",
     "test:db:my-commissions": "node --import tsx --test server/http/my-commissions.db-test.ts",
@@ -97,7 +99,8 @@
     "test:db:kpi-closed-facts": "node --import tsx --test server/kpi/closed-facts.db-test.ts",
     "test:db:kpi-actual-endpoints": "node --import tsx --test server/http/kpi-actuals.db-test.ts",
     "test:db:migration-safety": "node --import tsx --test server/db/migration-safety.db-test.ts",
-    "test:db:managed-schema": "node --import tsx --test server/db/managed-schema-verification.db-test.ts"
+    "test:db:managed-schema": "node --import tsx --test server/db/managed-schema-verification.db-test.ts",
+    "test:db:business-state": "node --import tsx --test server/db/business-state-generations.db-test.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

@@ -45,6 +45,12 @@ import { listDraftAssignmentOptions } from "./drafts/assignment-options.js";
 import { registerDraftAssignmentOptionsRoute } from "./http/draft-assignment-options.js";
 import { registerApprovalWorkRoute } from "./http/approval-queue.js";
 import { listApprovalWork } from "./approval-queue/list.js";
+import { registerApprovalWorkDeletionRoutes } from "./http/approval-work-deletions.js";
+import {
+  listDeletedApprovalWork,
+  restoreApprovalWork,
+  softDeleteApprovalWork,
+} from "./approval-queue/soft-delete.js";
 import { registerApprovalActionRoutes } from "./http/approval-actions.js";
 import {
   approveCorrectedFlaggedHelp,
@@ -61,10 +67,16 @@ import {
 import { registerPolicyLedgerRoutes } from "./http/policies.js";
 import {
   getPolicyLedgerItem,
+  listDeletedPolicyLedgerItems,
   listPolicyLedger,
 } from "./policies/ledger.js";
 import { registerPolicyLedgerCorrectionRoute } from "./http/policy-corrections.js";
 import { correctPolicyLedgerItem } from "./policies/ledger-corrections.js";
+import { registerPolicyDeletionRoutes } from "./http/policy-deletions.js";
+import {
+  restorePolicy,
+  softDeletePolicy,
+} from "./policies/soft-delete.js";
 import { registerMgaPayableRoute } from "./http/mga-payables.js";
 import { listMgaPayableSources } from "./policies/mga-payables.js";
 import { registerMgaPayableStateRoute } from "./http/mga-payable-state.js";
@@ -126,6 +138,12 @@ import {
   resolvePolicyChangeRequestAsIs,
   sendBackPolicyChangeRequest,
 } from "./policy-change-requests/service.js";
+import { registerBusinessStateRoutes } from "./http/business-state.js";
+import {
+  listBusinessStateSources,
+  resetBusinessState,
+  restoreBusinessState,
+} from "./business-state/service.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -210,6 +228,29 @@ const app = createApp({
       list: (context, query) => listApprovalWork(database, context, query),
       logger,
     });
+    registerApprovalWorkDeletionRoutes(routes, {
+      authorization,
+      list: (context) => listDeletedApprovalWork(database, context),
+      logger,
+      restore: (context, kind, targetId, input) =>
+        restoreApprovalWork(
+          database,
+          context,
+          kind,
+          targetId,
+          input,
+          logger,
+        ),
+      softDelete: (context, kind, targetId, input) =>
+        softDeleteApprovalWork(
+          database,
+          context,
+          kind,
+          targetId,
+          input,
+          logger,
+        ),
+    });
     registerApprovalActionRoutes(routes, {
       approve: (context, queueEntryId) =>
         approvePendingSubmission(database, context, queueEntryId),
@@ -250,6 +291,15 @@ const app = createApp({
           logger,
         ),
       logger,
+    });
+    registerPolicyDeletionRoutes(routes, {
+      authorization,
+      list: (context) => listDeletedPolicyLedgerItems(database, context),
+      logger,
+      restore: (context, policyId, input) =>
+        restorePolicy(database, context, policyId, input, logger),
+      softDelete: (context, policyId, input) =>
+        softDeletePolicy(database, context, policyId, input, logger),
     });
     registerPolicyChangeRequestRoutes(routes, {
       authorization,
@@ -429,6 +479,20 @@ const app = createApp({
           officeLocationId,
           active,
           logger,
+        ),
+    });
+    registerBusinessStateRoutes(routes, {
+      authorization,
+      list: (context) => listBusinessStateSources(database, context),
+      logger,
+      reset: (context, input) =>
+        resetBusinessState(database, context, input),
+      restore: (context, generationId, input) =>
+        restoreBusinessState(
+          database,
+          context,
+          generationId,
+          input,
         ),
     });
     registerKpiTargetRoutes(routes, {

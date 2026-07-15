@@ -28,6 +28,12 @@ export const AUDIT_ACTIONS = [
   "policy_change_request_corrected",
   "policy_change_request_resolved_as_is",
   "policy_change_request_sent_back",
+  "policy_soft_deleted",
+  "policy_restored",
+  "approval_work_soft_deleted",
+  "approval_work_restored",
+  "business_state_reset",
+  "business_state_restored",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -47,6 +53,7 @@ export const AUDIT_ENTITY_TYPES = [
   "policy_type",
   "mga",
   "policy_change_request",
+  "business_state_generation",
 ] as const;
 
 export type AuditEntityType = (typeof AUDIT_ENTITY_TYPES)[number];

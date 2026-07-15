@@ -13,11 +13,24 @@ import {
 
 test("policy ledger API uses the real list, detail, assignment, and correction paths", async () => {
   const calls: Array<{ options: RequestInit | undefined; path: string }> = [];
+  const item = ledgerItemFixture();
+  const deletedItem = {
+    deletion: {
+      deletedAt: "2026-07-12T12:00:00.000Z",
+      deletedByUserId: uuid(1),
+      reason: "Duplicate entry",
+    },
+    labels: item.labels,
+    policy: item.policy,
+  };
   const responses = [
     Response.json(ledgerListFixture()),
-    Response.json({ item: ledgerItemFixture() }),
+    Response.json({ item }),
     Response.json({ producers: [{ displayName: "Kaylee", userId: uuid(5) }] }),
-    Response.json({ policy: ledgerItemFixture().policy }),
+    Response.json({ policy: item.policy }),
+    Response.json({ items: [deletedItem] }),
+    Response.json({ changed: true, detachedOpenSheetCount: 2, item: deletedItem }),
+    Response.json({ changed: true, item }),
   ];
   const api = createPolicyLedgerApi({
     async request(path, options) {
@@ -48,6 +61,14 @@ test("policy ledger API uses the real list, detail, assignment, and correction p
     kind: "general",
   });
   assert.equal(kind, "general");
+  await api.listDeleted();
+  await api.softDelete(uuid(10), {
+    expectedUpdatedAt: "2026-07-11T12:00:00.000Z",
+    reason: "Duplicate entry",
+  });
+  await api.restore(uuid(10), {
+    expectedUpdatedAt: "2026-07-12T12:00:00.000Z",
+  });
   assert.equal(
     calls[0]?.path,
     "/policies?duplicates=only&finance=ipfs_pending&limit=50&offset=100&search=Acme+%26+Sons&sort=insured&direction=asc&month=2026-07",
@@ -66,6 +87,16 @@ test("policy ledger API uses the real list, detail, assignment, and correction p
     expectedUpdatedAt: "2026-07-11T12:00:00.000Z",
     kind: "general",
   });
+  assert.equal(calls[4]?.path, "/deleted-policies");
+  assert.equal(calls[4]?.options?.method, "GET");
+  assert.equal(calls[5]?.path, `/policies/${uuid(10)}/soft-delete`);
+  assert.equal(calls[5]?.options?.method, "POST");
+  assert.deepEqual(JSON.parse(String(calls[5]?.options?.body)), {
+    expectedUpdatedAt: "2026-07-11T12:00:00.000Z",
+    reason: "Duplicate entry",
+  });
+  assert.equal(calls[6]?.path, `/deleted-policies/${uuid(10)}/restore`);
+  assert.equal(calls[6]?.options?.method, "POST");
 });
 
 test("policy ledger API rejects invalid input before a request", async () => {

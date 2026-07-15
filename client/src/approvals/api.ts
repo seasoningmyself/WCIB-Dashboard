@@ -10,6 +10,19 @@ import {
   type ListApprovalWorkQuery,
 } from "../../../shared/approval-queue.js";
 import {
+  approvalWorkRestoreRequestSchema,
+  approvalWorkRestoreResponseSchema,
+  approvalWorkSoftDeleteRequestSchema,
+  approvalWorkSoftDeleteResponseSchema,
+  deletedApprovalWorkListResponseSchema,
+  type ApprovalWorkDeletionKind,
+  type ApprovalWorkRestoreRequest,
+  type ApprovalWorkRestoreResponse,
+  type ApprovalWorkSoftDeleteRequest,
+  type ApprovalWorkSoftDeleteResponse,
+  type DeletedApprovalWorkListResponse,
+} from "../../../shared/approval-work-deletions.js";
+import {
   submitDraftRequestSchema,
   updateDraftRequestSchema,
   type UpdateDraftRequest,
@@ -72,6 +85,7 @@ export interface ApprovalApi {
     requestId: string,
     input: PolicyLedgerCorrectionRequest,
   ): Promise<z.output<typeof policyChangeRequestCorrectionResponseSchema>>;
+  listDeleted(): Promise<DeletedApprovalWorkListResponse>;
   list(query?: Partial<ListApprovalWorkQuery>): Promise<ApprovalWorkListResponse>;
   openFixHelp(
     draftId: string,
@@ -81,6 +95,11 @@ export interface ApprovalApi {
   resolvePolicyChangeRequestAsIs(
     requestId: string,
   ): Promise<z.output<typeof policyChangeRequestResolutionResponseSchema>>;
+  restoreDeleted(
+    kind: ApprovalWorkDeletionKind,
+    targetId: string,
+    input: ApprovalWorkRestoreRequest,
+  ): Promise<ApprovalWorkRestoreResponse>;
   sendBackHelp(draftId: string, input: ApprovalSendBackRequest): Promise<void>;
   sendBackSubmission(
     queueEntryId: string,
@@ -90,6 +109,11 @@ export interface ApprovalApi {
     requestId: string,
     input: ApprovalSendBackRequest,
   ): Promise<z.output<typeof policyChangeRequestResolutionResponseSchema>>;
+  softDelete(
+    kind: ApprovalWorkDeletionKind,
+    targetId: string,
+    input: ApprovalWorkSoftDeleteRequest,
+  ): Promise<ApprovalWorkSoftDeleteResponse>;
 }
 
 export function createApprovalApi(client: ApiClient): ApprovalApi {
@@ -128,6 +152,12 @@ export function createApprovalApi(client: ApiClient): ApprovalApi {
       const suffix = params.size === 0 ? "" : `?${params.toString()}`;
       return read(client, `/approvals${suffix}`, approvalWorkListResponseSchema);
     },
+    listDeleted: () =>
+      read(
+        client,
+        "/deleted-approval-work",
+        deletedApprovalWorkListResponseSchema,
+      ),
     async openFixHelp(draftId, input) {
       return mutate(
         client,
@@ -150,6 +180,16 @@ export function createApprovalApi(client: ApiClient): ApprovalApi {
         `/policy-change-requests/${encodeURIComponent(requestId)}/resolve-as-is`,
         resolvePolicyChangeRequestAsIsSchema.parse({}),
         policyChangeRequestResolutionResponseSchema,
+        200,
+      ),
+    restoreDeleted: (kind, targetId, input) =>
+      mutate(
+        client,
+        `/deleted-approval-work/${
+          kind === "submission" ? "submissions" : "help"
+        }/${encodeURIComponent(targetId)}/restore`,
+        parseRequest(approvalWorkRestoreRequestSchema, input),
+        approvalWorkRestoreResponseSchema,
         200,
       ),
     async sendBackHelp(draftId, input) {
@@ -176,6 +216,16 @@ export function createApprovalApi(client: ApiClient): ApprovalApi {
         `/policy-change-requests/${encodeURIComponent(requestId)}/send-back`,
         parseRequest(sendBackPolicyChangeRequestSchema, input),
         policyChangeRequestResolutionResponseSchema,
+        200,
+      ),
+    softDelete: (kind, targetId, input) =>
+      mutate(
+        client,
+        kind === "submission"
+          ? `/approvals/${encodeURIComponent(targetId)}/soft-delete`
+          : `/approvals/help/${encodeURIComponent(targetId)}/soft-delete`,
+        parseRequest(approvalWorkSoftDeleteRequestSchema, input),
+        approvalWorkSoftDeleteResponseSchema,
         200,
       ),
   };
