@@ -26,7 +26,9 @@ import {
   calculateTurnInSummary,
   createEmptyTurnInState,
   isInvoiceTransaction,
+  isStandardTurnInTransactionType,
   suggestAnnualExpiration,
+  TURN_IN_TRANSACTION_TYPE_KEY,
   TURN_IN_TRANSACTION_TYPES,
   turnInFormToDraftInput,
   turnInFormToNonfinancialDraftUpdate,
@@ -689,27 +691,12 @@ export function CheckTurnInFormView({
                 value={form.policyTypeId}
               />
             </FormField>
-            <FormField
+            <TransactionTypeField
               error={errors.transactionType}
-              field="transactionType"
-              label="Transaction type"
-              required
-            >
-              <input
-                aria-describedby={errorId("transactionType", errors)}
-                aria-invalid={errors.transactionType !== undefined}
-                aria-required="true"
-                disabled={pending}
-                id={fieldId("transactionType")}
-                list="turn-in-transaction-types"
-                maxLength={100}
-                onChange={(event) => onFieldChange("transactionType", event.currentTarget.value)}
-                value={form.transactionType}
-              />
-              <datalist id="turn-in-transaction-types">
-                {TURN_IN_TRANSACTION_TYPES.map((type) => <option key={type} value={type} />)}
-              </datalist>
-            </FormField>
+              onChange={(value) => onFieldChange("transactionType", value)}
+              pending={pending}
+              value={form.transactionType}
+            />
             {isInvoiceTransaction(form.transactionType) ? (
               <TextField
                 error={errors.invoiceNumber}
@@ -1017,6 +1004,113 @@ function FormSection({ children, title }: { children: ReactNode; title: string }
       <h2>{title}</h2>
       {children}
     </section>
+  );
+}
+
+function TransactionTypeField({
+  error,
+  onChange,
+  pending,
+  value,
+}: {
+  error?: string;
+  onChange(value: string): void;
+  pending: boolean;
+  value: string;
+}) {
+  const [addingCustom, setAddingCustom] = useState(false);
+  const [customValue, setCustomValue] = useState("");
+  const customSelected = value !== "" && !isStandardTurnInTransactionType(value);
+  const addCustom = () => {
+    const normalized = customValue.trim();
+    if (normalized === "") {
+      return;
+    }
+    onChange(normalized);
+    setCustomValue("");
+    setAddingCustom(false);
+  };
+
+  return (
+    <div className="turn-in-field turn-in-wide">
+      <label htmlFor={fieldId("transactionType")}>
+        Transaction type<span aria-hidden="true"> *</span>
+      </label>
+      <div className="turn-in-transaction-layout">
+        <div className="turn-in-transaction-control">
+          <div className="turn-in-select-add">
+            <select
+              aria-describedby={fieldErrorId("transactionType", error)}
+              aria-invalid={error !== undefined}
+              aria-required="true"
+              disabled={pending}
+              id={fieldId("transactionType")}
+              onChange={(event) => onChange(event.currentTarget.value)}
+              value={value}
+            >
+              <option value="">Select transaction type</option>
+              {TURN_IN_TRANSACTION_TYPES.map((type) => <option key={type}>{type}</option>)}
+              {customSelected ? <option>{value}</option> : null}
+            </select>
+            <button
+              aria-expanded={addingCustom}
+              aria-label="Add custom transaction type"
+              className="turn-in-icon-button"
+              disabled={pending}
+              onClick={() => setAddingCustom((current) => !current)}
+              title="Add custom transaction type"
+              type="button"
+            >
+              +
+            </button>
+            {customSelected ? (
+              <button
+                aria-label="Remove custom transaction type"
+                className="turn-in-icon-button is-remove"
+                disabled={pending}
+                onClick={() => onChange("")}
+                title="Remove this custom transaction type"
+                type="button"
+              >
+                ×
+              </button>
+            ) : null}
+          </div>
+          {addingCustom ? (
+            <div className="turn-in-custom-transaction">
+              <input
+                aria-label="Custom transaction type"
+                autoFocus
+                disabled={pending}
+                maxLength={100}
+                onChange={(event) => setCustomValue(event.currentTarget.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    addCustom();
+                  }
+                }}
+                placeholder="Enter custom transaction type"
+                value={customValue}
+              />
+              <button disabled={pending || customValue.trim() === ""} onClick={addCustom} type="button">
+                Add
+              </button>
+            </div>
+          ) : null}
+          <FieldError error={error} field="transactionType" />
+        </div>
+        <ul className="turn-in-transaction-key">
+          <li className="turn-in-transaction-key-title">Transaction type key</li>
+          {TURN_IN_TRANSACTION_TYPE_KEY.map(([term, definition]) => (
+            <li key={term}>
+              <strong>{term}</strong>
+              <span>{definition}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
   );
 }
 

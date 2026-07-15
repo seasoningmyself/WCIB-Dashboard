@@ -89,12 +89,34 @@ test("Check Turn-In renders every active v15 input and exact producer assignment
     "General notes",
   ]);
   assert.match(markup, /Submit for approval/);
+  assert.match(markup, /Transaction type key/);
+  for (const type of ["New", "Renewal", "Rewrite", "Won Back", "Cross-sale", "Endorsement", "Audit"]) {
+    assert.match(markup, new RegExp(`>${escapeRegExp(type)}<`));
+  }
+  assert.match(markup, /aria-label="Add custom transaction type"/);
   assert.doesNotMatch(markup, /producer payout/i);
   assert.doesNotMatch(markup, /producer personal/i);
   assert.doesNotMatch(markup, /personal split/i);
   assert.doesNotMatch(markup, /producer rate/i);
   assert.doesNotMatch(markup, /localStorage/);
   assert.doesNotMatch(markup, /ownerUserId|linkedPolicyId|status selector/);
+});
+
+test("custom transaction values expose explicit add and remove controls", () => {
+  const custom = renderView({
+    form: { ...createEmptyTurnInState(), transactionType: "Reinstatement" },
+    user: producer(),
+  });
+  const standard = renderView({
+    form: { ...createEmptyTurnInState(), transactionType: "Renewal" },
+    user: producer(),
+  });
+
+  assert.match(custom, /<option selected="">Reinstatement<\/option>/);
+  assert.match(custom, /aria-label="Remove custom transaction type"/);
+  assert.match(custom, /title="Remove this custom transaction type"/);
+  assert.match(standard, /<option selected="">Renewal<\/option>/);
+  assert.doesNotMatch(standard, /aria-label="Remove custom transaction type"/);
 });
 
 test("Deposit option remains conditional while the v15 field order stays fixed", () => {

@@ -6,6 +6,7 @@ import {
   buildAssignmentChoices,
   calculateTurnInSummary,
   createEmptyTurnInState,
+  isStandardTurnInTransactionType,
   suggestAnnualExpiration,
   turnInFormToDraftInput,
   turnInFormToNonfinancialDraftUpdate,
@@ -205,6 +206,18 @@ test("v15 field transitions clear commission confirmation and default financed d
     updateTurnInField(createEmptyTurnInState(), "paymentMode", "deposit")
       .ipfsFinanced,
     "yes",
+  );
+});
+
+test("transaction values retain seven standards and bounded custom compatibility", () => {
+  for (const standard of ["New", "Renewal", "Rewrite", "Won Back", "Cross-sale", "Endorsement", "Audit"]) {
+    assert.equal(isStandardTurnInTransactionType(standard), true);
+  }
+  assert.equal(isStandardTurnInTransactionType("Reinstatement"), false);
+  assert.equal(
+    turnInFormToDraftInput({ ...createEmptyTurnInState(), transactionType: "Reinstatement" })
+      .transactionType,
+    "Reinstatement",
   );
 });
 

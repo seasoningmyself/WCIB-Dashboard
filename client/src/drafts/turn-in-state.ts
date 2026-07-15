@@ -32,6 +32,20 @@ export const TURN_IN_TRANSACTION_TYPES = [
   "Audit",
 ] as const;
 
+export const TURN_IN_TRANSACTION_TYPE_KEY = [
+  ["New", "A brand-new policy for a client or line we did not have before."],
+  ["Renewal", "A policy we already hold, continuing into a new term with the client retained."],
+  ["Rewrite", "The same retained client moved from one carrier to another for a coverage need."],
+  ["Won Back", "A policy-specific client relationship was lost and later recaptured after a gap."],
+  ["Cross-sale", "A new line of coverage added for an existing client."],
+  ["Endorsement", "A mid-term change to an existing policy."],
+  ["Audit", "A premium audit or true-up on an existing policy."],
+] as const;
+
+export function isStandardTurnInTransactionType(value: string): boolean {
+  return (TURN_IN_TRANSACTION_TYPES as readonly string[]).includes(value);
+}
+
 export interface TurnInFormState {
   accountAssignment: AccountAssignment | "";
   amountPaid: string;
