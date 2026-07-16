@@ -2,9 +2,13 @@ import { z } from "zod";
 import {
   mgaPayableListQuerySchema,
   mgaPayableListResponseSchema,
+  mgaPayableGroupStateRequestSchema,
+  mgaPayableGroupStateResponseSchema,
   mgaPayableStateRequestSchema,
   mgaPayableStateResponseSchema,
   type MgaPayableFilter,
+  type MgaPayableGroupStateRequest,
+  type MgaPayableGroupStateResponse,
   type MgaPayableListResponse,
   type MgaPayableStateRequest,
   type MgaPayableStateResponse,
@@ -30,6 +34,10 @@ export interface MgaPayablesApi {
     policyId: string,
     input: MgaPayableStateRequest,
   ): Promise<MgaPayableStateResponse>;
+  changeGroup(
+    mgaId: string,
+    input: MgaPayableGroupStateRequest,
+  ): Promise<MgaPayableGroupStateResponse>;
   list(status: MgaPayableFilter): Promise<MgaPayableListResponse>;
 }
 
@@ -42,6 +50,18 @@ export function createMgaPayablesApi(client: ApiClient): MgaPayablesApi {
         `/mga-payables/${encodeURIComponent(policyId)}/state`,
         normalized,
         mgaPayableStateResponseSchema,
+      );
+    },
+    async changeGroup(mgaId, input) {
+      const normalized = parseRequest(
+        mgaPayableGroupStateRequestSchema,
+        input,
+      );
+      return mutate(
+        client,
+        `/mga-payables/groups/${encodeURIComponent(mgaId)}/state`,
+        normalized,
+        mgaPayableGroupStateResponseSchema,
       );
     },
     async list(status) {

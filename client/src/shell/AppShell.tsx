@@ -1,4 +1,5 @@
 import React, {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -6,6 +7,7 @@ import React, {
   type ChangeEvent,
 } from "react";
 import type { CurrentUser } from "../../../shared/current-user.js";
+import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
 import { CheckTurnInForm } from "../drafts/CheckTurnInForm.js";
 import { MyDrafts } from "../drafts/MyDrafts.js";
 import { ApprovalQueue } from "../approvals/ApprovalQueue.js";
@@ -24,6 +26,11 @@ import {
   resolveShellRoute,
   type ShellNavigationItem,
 } from "./navigation.js";
+import {
+  loadNavigationCounts,
+  visibleNavigationCount,
+  type NavigationCounts,
+} from "./navigation-counts.js";
 
 interface AppShellProps {
   onLogout(): void;
@@ -33,12 +40,26 @@ interface AppShellProps {
 interface AppShellViewProps extends AppShellProps {
   currentPath: string;
   mainRef?: React.RefObject<HTMLElement>;
+  navigationCounts?: NavigationCounts;
   onNavigate?(path: string): void;
 }
 
 export function AppShell({ onLogout, user }: AppShellProps) {
+  const client = useApiClient();
   const [currentPath, setCurrentPath] = useState(readHashPath);
+  const [navigationCounts, setNavigationCounts] =
+    useState<NavigationCounts>({});
   const mainRef = useRef<HTMLElement>(null);
+  const countRequestVersion = useRef(0);
+
+  const refreshNavigationCounts = useCallback(async () => {
+    const version = countRequestVersion.current + 1;
+    countRequestVersion.current = version;
+    const counts = await loadNavigationCounts(client, user);
+    if (countRequestVersion.current === version) {
+      setNavigationCounts(counts);
+    }
+  }, [client, user]);
 
   useEffect(() => {
     const handleHashChange = () => setCurrentPath(readHashPath());
@@ -50,10 +71,24 @@ export function AppShell({ onLogout, user }: AppShellProps) {
     mainRef.current?.focus();
   }, [currentPath]);
 
+  useEffect(() => {
+    void refreshNavigationCounts();
+    return () => {
+      countRequestVersion.current += 1;
+    };
+  }, [currentPath, refreshNavigationCounts]);
+
+  const clearSensitiveCounts = useCallback(() => {
+    countRequestVersion.current += 1;
+    setNavigationCounts({});
+  }, []);
+  useSensitiveSessionCleanup(clearSensitiveCounts);
+
   return (
     <AppShellView
       currentPath={currentPath}
       mainRef={mainRef}
+      navigationCounts={navigationCounts}
       onNavigate={(path) => {
         window.location.hash = path;
         setCurrentPath(path);
@@ -67,6 +102,7 @@ export function AppShell({ onLogout, user }: AppShellProps) {
 export function AppShellView({
   currentPath,
   mainRef,
+  navigationCounts = {},
   onNavigate,
   onLogout,
   user,
@@ -116,16 +152,30 @@ export function AppShellView({
       <div className="workspace-body">
         <nav className="workspace-nav" aria-label="Primary navigation">
           <div className="workspace-nav-label">Workspace</div>
-          {navigation.map((item) => (
-            <a
-              aria-current={activeId === item.id ? "page" : undefined}
-              className="workspace-nav-link"
-              href={`#${item.path}`}
-              key={item.id}
-            >
-              {item.label}
-            </a>
-          ))}
+          {navigation.map((item) => {
+            const count = visibleNavigationCount(
+              navigationCounts,
+              item.id,
+            );
+            return (
+              <a
+                aria-current={activeId === item.id ? "page" : undefined}
+                className="workspace-nav-link"
+                href={`#${item.path}`}
+                key={item.id}
+              >
+                <span>{item.label}</span>
+                {count === null ? null : (
+                  <span
+                    aria-label={`${count} items need attention`}
+                    className="workspace-nav-count"
+                  >
+                    {count}
+                  </span>
+                )}
+              </a>
+            );
+          })}
         </nav>
 
         <div className="workspace-mobile-nav">
@@ -138,7 +188,7 @@ export function AppShellView({
             {activeId === null ? <option value="">Select a page</option> : null}
             {navigation.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.label}
+                {mobileNavigationLabel(item, navigationCounts)}
               </option>
             ))}
           </select>
@@ -155,6 +205,14 @@ export function AppShellView({
       </div>
     </div>
   );
+}
+
+function mobileNavigationLabel(
+  item: ShellNavigationItem,
+  counts: NavigationCounts,
+): string {
+  const count = visibleNavigationCount(counts, item.id);
+  return count === null ? item.label : `${item.label} (${count})`;
 }
 
 function ShellContent({

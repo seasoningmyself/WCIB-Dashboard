@@ -21,10 +21,12 @@ import {
   MgaPayablesApiError,
 } from "./api.js";
 import {
+  formatPayableCommissionRate,
   formatPayableDate,
   isMgaPayablesAdmin,
   payableAccountLabel,
   payableAging,
+  payableGroupAction,
 } from "./view-state.js";
 
 export type MgaPayablesState =
@@ -148,6 +150,56 @@ function AdminMgaPayables() {
     [api, dialog, load],
   );
 
+  const changeGroup = useCallback(
+    async (
+      mgaId: string,
+      mgaName: string,
+      count: number,
+      status: "paid" | "unpaid",
+    ) => {
+      if (pendingRef.current) return;
+      if (
+        status === "unpaid" &&
+        !window.confirm(
+          `Mark all ${count} policies in ${mgaName} unpaid? Open pay-sheet placements will be removed; closed history stays unchanged.`,
+        )
+      ) {
+        return;
+      }
+      pendingRef.current = true;
+      setPending(true);
+      setDialog(null);
+      setDialogError(null);
+      setNotice(null);
+      try {
+        const changed = await api.changeGroup(mgaId, { status });
+        setNotice(
+          changed.changedCount === 0
+            ? "That MGA group was already up to date."
+            : `${changed.changedCount} MGA ${changed.changedCount === 1 ? "payment" : "payments"} marked ${status}.`,
+        );
+        await load();
+      } catch (error) {
+        if (error instanceof MgaPayablesApiError && error.kind === "denied") {
+          requestVersion.current += 1;
+          setState({ status: "denied" });
+        } else if (
+          error instanceof MgaPayablesApiError &&
+          error.kind === "conflict"
+        ) {
+          setNotice("That MGA group changed. The server view has been refreshed.");
+          await load();
+        } else {
+          setNotice("The MGA group could not be changed. No payments were updated.");
+        }
+      } finally {
+        pendingRef.current = false;
+        setPending(false);
+      }
+    },
+    [api, load],
+  );
+
   return (
     <>
       <MgaPayablesView
@@ -160,6 +212,8 @@ function AdminMgaPayables() {
           setNotice(null);
           setFilter(next);
         }}
+        onGroupChange={(mgaId, mgaName, count, status) =>
+          void changeGroup(mgaId, mgaName, count, status)}
         onOpen={(nextDialog) => {
           if (pendingRef.current) return;
           setDialogError(null);
@@ -195,6 +249,7 @@ export function MgaPayablesView({
   notice,
   now = new Date(),
   onFilter,
+  onGroupChange,
   onOpen,
   onRetry,
   pending,
@@ -204,6 +259,12 @@ export function MgaPayablesView({
   notice: string | null;
   now?: Date;
   onFilter(filter: MgaPayableFilter): void;
+  onGroupChange(
+    mgaId: string,
+    mgaName: string,
+    count: number,
+    status: "paid" | "unpaid",
+  ): void;
   onOpen(dialog: MgaPaymentDialog): void;
   onRetry(): void;
   pending: boolean;
@@ -324,12 +385,33 @@ export function MgaPayablesView({
                     <dd>{formatMoneyExact(group.totals.paidAmount)}</dd>
                   </div>
                 </dl>
+                {(() => {
+                  const action = payableGroupAction(group);
+                  return (
+                    <button
+                      className="mga-group-action"
+                      disabled={pending || action.count === 0}
+                      onClick={() =>
+                        onGroupChange(
+                          group.mgaId,
+                          group.mgaName,
+                          action.count,
+                          action.status,
+                        )}
+                      type="button"
+                    >
+                      {action.label}
+                    </button>
+                  );
+                })()}
               </header>
               <div className="mga-table" role="table" aria-label={`${group.mgaName} payables`}>
                 <div className="mga-table-header" role="row">
                   <span role="columnheader">Insured</span>
                   <span role="columnheader">Account</span>
                   <span role="columnheader">Policy</span>
+                  <span role="columnheader">Collected</span>
+                  <span role="columnheader">Commission</span>
                   <span role="columnheader">Status</span>
                   <span role="columnheader">Net due</span>
                   <span role="columnheader">Payment reference</span>
@@ -403,6 +485,18 @@ function PayableRow({
       <span data-label="Policy" role="cell">
         <strong>{item.policyNumber}</strong>
         <small>Approved {formatPayableDate(item.approvedAt)}</small>
+      </span>
+      <span className="mga-collected" data-label="Collected" role="cell">
+        <strong>{formatMoneyExact(item.amountPaid)}</strong>
+      </span>
+      <span className="mga-commission" data-label="Commission" role="cell">
+        <strong>
+          {formatMoneyExact(item.commissionAmount)}
+          {formatPayableCommissionRate(item.commissionRate) === null
+            ? null
+            : <small> ({formatPayableCommissionRate(item.commissionRate)})</small>}
+        </strong>
+        <small>+ {formatMoneyExact(item.brokerFee)} broker fee</small>
       </span>
       <span data-label="Status" role="cell">
         <Badge

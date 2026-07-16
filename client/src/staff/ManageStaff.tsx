@@ -22,6 +22,7 @@ import {
   type StaffDialogState,
 } from "./StaffDialogs.js";
 import { AdminStaffApiError, createAdminStaffApi } from "./api.js";
+import { VocabularyManagement } from "./VocabularyManagement.js";
 import {
   formatRate,
   formatStaffDate,
@@ -254,6 +255,7 @@ function AdminManageStaff() {
         }
         pending={pending}
         state={state}
+        vocabulary={<VocabularyManagement />}
       />
       <StaffEditorDialog
         dialog={staffDialog}
@@ -323,6 +325,7 @@ export function ManageStaffView({
   onToggle,
   pending,
   state,
+  vocabulary,
 }: {
   expandedUserId: string | null;
   notice: string | null;
@@ -335,6 +338,7 @@ export function ManageStaffView({
   onToggle(userId: string): void;
   pending: boolean;
   state: ManageStaffState;
+  vocabulary?: React.ReactNode;
 }) {
   if (state.status === "loading") {
     return <StaffMessage body="Retrieving staff accounts and rate history..." busy title="Loading staff" />;
@@ -433,6 +437,7 @@ export function ManageStaffView({
           })}
         </div>
       )}
+      {vocabulary}
     </section>
   );
 }

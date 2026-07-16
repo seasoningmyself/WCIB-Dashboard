@@ -4,6 +4,8 @@ export function myItem(overrides: Partial<MyItem> = {}): MyItem {
   return {
     id: uuid(1),
     lastActivityAt: "2026-07-11T12:00:00.000Z",
+    mgaName: "Summit MGA",
+    policyNumber: "POL-1001",
     reason: null,
     status: "draft",
     submittedAt: null,

@@ -17,7 +17,7 @@ import {
 } from "./mga-payables.js";
 import { setMgaPaymentState } from "./mga-payments.js";
 
-type MgaPayableTransaction = Pick<AuthDatabase, "execute" | "select">;
+export type MgaPayableTransaction = Pick<AuthDatabase, "execute" | "select">;
 
 export interface MgaPayableStateChangeResult {
   placement: MgaPaySheetPlacementResult;
@@ -62,7 +62,7 @@ export class MgaPayableStateValidationError extends Error {
   }
 }
 
-const defaultOperations: MgaPayableStateOperations = {
+export const defaultMgaPayableStateOperations: MgaPayableStateOperations = {
   get: getMgaPayableSource,
   async set(database, context, policyId, input, logger, changedAt) {
     await setMgaPaymentState(
@@ -85,7 +85,7 @@ export async function changeMgaPayableState(
   rawInput: unknown,
   logger: AppLogger,
   changedAt = new Date(),
-  operations: MgaPayableStateOperations = defaultOperations,
+  operations: MgaPayableStateOperations = defaultMgaPayableStateOperations,
 ): Promise<MgaPayableStateChangeResult> {
   const input = mgaPayableStateRequestSchema.parse(rawInput);
   if (Number.isNaN(changedAt.getTime())) {
@@ -94,24 +94,15 @@ export async function changeMgaPayableState(
 
   try {
     const result = await database.transaction(async (transaction) => {
-      await operations.set(
+      return applyMgaPayableStateInTransaction(
         transaction,
         context,
         policyId,
         input,
         logger,
         changedAt,
+        operations,
       );
-      const placement = await operations.sync(
-        transaction,
-        context,
-        policyId,
-        input.status === "paid",
-        logger,
-        changedAt,
-      );
-      const source = await operations.get(transaction, context, policyId);
-      return { placement, source };
     });
     logger.info("MGA payable transaction committed", {
       actorUserId: context.principal.userId,
@@ -138,7 +129,36 @@ export async function changeMgaPayableState(
   }
 }
 
-function mapMgaPayableStateError(error: unknown): unknown {
+export async function applyMgaPayableStateInTransaction(
+  database: MgaPayableTransaction,
+  context: AuthorizedRequestContext,
+  policyId: string,
+  input: MgaPayableStateRequest,
+  logger: AppLogger,
+  changedAt: Date,
+  operations: MgaPayableStateOperations = defaultMgaPayableStateOperations,
+): Promise<MgaPayableStateChangeResult> {
+  await operations.set(
+    database,
+    context,
+    policyId,
+    input,
+    logger,
+    changedAt,
+  );
+  const placement = await operations.sync(
+    database,
+    context,
+    policyId,
+    input.status === "paid",
+    logger,
+    changedAt,
+  );
+  const source = await operations.get(database, context, policyId);
+  return { placement, source };
+}
+
+export function mapMgaPayableStateError(error: unknown): unknown {
   if (
     error instanceof MgaPayableNotFoundError ||
     error instanceof MgaPayableStateConflictError ||

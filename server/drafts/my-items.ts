@@ -1,8 +1,15 @@
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  getTableColumns,
+  isNull,
+  sql,
+} from "drizzle-orm";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AuthDatabase } from "../auth/users.js";
 import { inActiveBusinessGeneration } from "../db/business-state.js";
-import { drafts, type DraftRecord } from "../db/schema.js";
+import { drafts, mgas, type DraftRecord } from "../db/schema.js";
 import { requireDraftStaffActor } from "./access.js";
 
 const CONTENT_FIELDS = [
@@ -42,11 +49,12 @@ const CONTENT_FIELDS = [
 export async function listOwnMyItemSources(
   database: Pick<AuthDatabase, "select">,
   context: AuthorizedRequestContext,
-): Promise<readonly DraftRecord[]> {
+): Promise<readonly MyItemSource[]> {
   const ownerUserId = requireDraftStaffActor(context);
   const rows = await database
-    .select()
+    .select({ ...getTableColumns(drafts), mgaName: mgas.name })
     .from(drafts)
+    .leftJoin(mgas, eq(mgas.id, drafts.mgaId))
     .where(
       and(
         eq(drafts.ownerUserId, ownerUserId),
@@ -64,6 +72,8 @@ export async function listOwnMyItemSources(
     .orderBy(desc(drafts.lastEditedAt), desc(drafts.createdAt), desc(drafts.id));
   return rows.filter(isVisibleMyItemSource);
 }
+
+export type MyItemSource = DraftRecord & { mgaName: string | null };
 
 export function isVisibleMyItemSource(source: Readonly<DraftRecord>): boolean {
   if (source.status !== "draft") return true;

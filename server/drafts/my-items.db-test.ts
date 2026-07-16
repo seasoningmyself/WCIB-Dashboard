@@ -15,7 +15,7 @@ import { createSessionMiddleware } from "../auth/sessions.js";
 import { createUser } from "../auth/users.js";
 import { createDatabasePool } from "../db/client.js";
 import { withDisposableMigratedDatabase } from "../db/disposable-database-test-helper.js";
-import { staffProfiles, userCapabilities } from "../db/schema.js";
+import { mgas, staffProfiles, userCapabilities } from "../db/schema.js";
 import * as databaseSchema from "../db/schema.js";
 import { LOGIN_PATH, registerAuthRoutes } from "../http/auth.js";
 import { MY_ITEMS_PATH, registerMyItemsRoute } from "../http/my-items.js";
@@ -30,7 +30,6 @@ const SESSION_SECRET = "my-items-test-secret-at-least-32-characters";
 
 const PROHIBITED_FIELDS = [
   "ownerUserId",
-  "policyNumber",
   "policyTypeId",
   "transactionType",
   "effectiveDate",
@@ -107,6 +106,11 @@ test("My Items is UUID-owned, blank-safe, role-guarded, and exact-field projecte
           capability: "admin",
           userId: admin.id,
         });
+        const [mga] = await database
+          .insert(mgas)
+          .values({ name: "P2 Test MGA" })
+          .returning({ id: mgas.id });
+        assert.ok(mga);
 
         const employeeContext = context(employee.id, "employee");
         const producerContext = context(producer.id, "producer");
@@ -123,6 +127,8 @@ test("My Items is UUID-owned, blank-safe, role-guarded, and exact-field projecte
             basePremium: "1000.00",
             financeReference: "PRIVATE-FINANCE",
             insuredName: "Employee Own Item",
+            mgaId: mga.id,
+            policyNumber: "P2-1001",
           },
           new Date("2026-07-11T11:00:00.000Z"),
         );
@@ -202,6 +208,19 @@ test("My Items is UUID-owned, blank-safe, role-guarded, and exact-field projecte
           JSON.stringify(employeeResponse.body).includes("Other Producer Secret"),
           false,
         );
+        assert.deepEqual(
+          employeeItems.find((item: any) => item.id === employeeDraft.id),
+          {
+            id: employeeDraft.id,
+            lastActivityAt: "2026-07-11T11:00:00.000Z",
+            mgaName: "P2 Test MGA",
+            policyNumber: "P2-1001",
+            reason: null,
+            status: "draft",
+            submittedAt: null,
+            title: "Employee Own Item",
+          },
+        );
         assertExactStatusProjection(employeeResponse.body);
 
         const producerResponse = await request(running.baseUrl, {
@@ -269,6 +288,8 @@ function assertExactStatusProjection(body: unknown): void {
     assert.deepEqual(Object.keys(item), [
       "id",
       "lastActivityAt",
+      "mgaName",
+      "policyNumber",
       "reason",
       "status",
       "submittedAt",

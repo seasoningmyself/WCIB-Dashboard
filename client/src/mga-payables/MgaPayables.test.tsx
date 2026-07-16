@@ -36,6 +36,12 @@ test("admin view renders server totals, stored net due, deterministic groups, an
     "Acme Construction",
     "Beacon Bakery",
     "Cobalt Roofing",
+    "Collected",
+    "$1,000.00",
+    "Commission",
+    "$100.00",
+    "10%",
+    "$50.00 broker fee",
     "$850.00",
     "$225.01",
     "$400.00",
@@ -45,6 +51,8 @@ test("admin view renders server totals, stored net due, deterministic groups, an
     "Kaylee account",
     "Kaylee first year",
     "Sophia house",
+    "Mark all paid",
+    "Unmark all",
     "Mark paid",
     "Unmark",
     "WIRE-400",
@@ -55,10 +63,6 @@ test("admin view renders server totals, stored net due, deterministic groups, an
   assert.match(markup, /Alpha Managing General Agency[\s\S]*Beta MGA/);
   assert.match(markup, /Acme Construction[\s\S]*Beacon Bakery/);
   for (const forbidden of [
-    "Mark all",
-    "Unmark all",
-    "Amount collected",
-    "Agency commission",
     "Open balance",
     "Reminder",
   ]) {
@@ -234,6 +238,7 @@ function renderState(
       notice={null}
       now={NOW}
       onFilter={() => {}}
+      onGroupChange={() => {}}
       onOpen={() => {}}
       onRetry={() => {}}
       pending={false}

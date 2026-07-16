@@ -56,7 +56,7 @@ export function createMgaPayableStateHandler(
       throw mapMgaPayableStateHttpError(error);
     }
     const response = mgaPayableStateResponseSchema.parse({
-      item: projectPayable(res, changed.source),
+      item: projectMgaPayableForResponse(res, changed.source),
       placement: changed.placement,
     });
     dependencies.logger.info("MGA payable state returned", {
@@ -86,7 +86,7 @@ export function registerMgaPayableStateRoute(
   );
 }
 
-function projectPayable(
+export function projectMgaPayableForResponse(
   res: Response,
   source: MgaPayableSourceItem,
 ): MgaPayableItem {

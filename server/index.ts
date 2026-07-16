@@ -25,6 +25,11 @@ import {
   createPolicyTypeVocabulary,
 } from "./vocabulary/create.js";
 import { createMgaVocabulary } from "./vocabulary/mga-create.js";
+import { registerAdminVocabularyRoutes } from "./http/admin-vocabulary.js";
+import {
+  loadAdminVocabularyManagementSource,
+  setAdminVocabularyActive,
+} from "./vocabulary/manage.js";
 import {
   registerDraftCreateRoute,
   registerDraftEditRoute,
@@ -86,6 +91,8 @@ import {
 import { registerMgaPayableRoute } from "./http/mga-payables.js";
 import { listMgaPayableSources } from "./policies/mga-payables.js";
 import { registerMgaPayableStateRoute } from "./http/mga-payable-state.js";
+import { registerMgaPayableGroupStateRoute } from "./http/mga-payable-group-state.js";
+import { changeMgaPayableGroupState } from "./policies/mga-payable-group-state.js";
 import { changeMgaPayableState } from "./policies/mga-payable-state.js";
 import { registerPaySheetReadRoutes } from "./http/pay-sheets.js";
 import { registerPaySheetExportRoutes } from "./http/pay-sheet-exports.js";
@@ -183,6 +190,21 @@ const app = createApp({
       authorization,
       createMga: (context, input) =>
         createMgaVocabulary(database, context, input, logger),
+    });
+    registerAdminVocabularyRoutes(routes, {
+      authorization,
+      list: (context) =>
+        loadAdminVocabularyManagementSource(database, context),
+      logger,
+      setActive: (context, kind, itemId, input) =>
+        setAdminVocabularyActive(
+          database,
+          context,
+          kind,
+          itemId,
+          input,
+          logger,
+        ),
     });
     registerDraftCreateRoute(routes, {
       authorization,
@@ -380,6 +402,18 @@ const app = createApp({
           database,
           context,
           policyId,
+          input,
+          logger,
+        ),
+      logger,
+    });
+    registerMgaPayableGroupStateRoute(routes, {
+      authorization,
+      change: (context, mgaId, input) =>
+        changeMgaPayableGroupState(
+          database,
+          context,
+          mgaId,
           input,
           logger,
         ),

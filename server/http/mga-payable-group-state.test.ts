@@ -12,13 +12,12 @@ import type { UserAccount } from "../auth/users.js";
 import type { PolicyRecord } from "../db/schema.js";
 import type { AppLogger } from "../logging/logger.js";
 import type { MgaPayableSourceItem } from "../policies/mga-payables.js";
-import { MgaPayableStateConflictError } from "../policies/mga-payable-state.js";
 import { toErrorResponse } from "./errors.js";
 import {
-  MGA_PAYABLE_STATE_PATH,
-  registerMgaPayableStateRoute,
-  type RegisterMgaPayableStateRouteOptions,
-} from "./mga-payable-state.js";
+  MGA_PAYABLE_GROUP_STATE_PATH,
+  registerMgaPayableGroupStateRoute,
+  type RegisterMgaPayableGroupStateRouteOptions,
+} from "./mga-payable-group-state.js";
 import type {
   RouteAccessDeclaration,
   RouteRegistrar,
@@ -31,7 +30,6 @@ const INACTIVE_ID = "00000000-0000-4000-8000-000000000004";
 const POLICY_ID = "00000000-0000-4000-8000-000000000010";
 const MGA_ID = "00000000-0000-4000-8000-000000000011";
 const SHEET_ID = "00000000-0000-4000-8000-000000000012";
-
 const logger: AppLogger = { error() {}, info() {}, warn() {} };
 
 interface Registration {
@@ -40,85 +38,23 @@ interface Registration {
   path: string;
 }
 
-function createFixture(options: { conflict?: boolean } = {}) {
-  const users = new Map<string, UserAccount>([
-    [ADMIN_ID, account(ADMIN_ID)],
-    [PRODUCER_ID, account(PRODUCER_ID)],
-    [EMPLOYEE_ID, account(EMPLOYEE_ID)],
-    [INACTIVE_ID, account(INACTIVE_ID, false)],
-  ]);
-  const principals = new Map<string, AccessPrincipal>([
-    [ADMIN_ID, principal(ADMIN_ID, { capabilities: ["admin"] })],
-    [PRODUCER_ID, principal(PRODUCER_ID, { staffRole: "producer" })],
-    [EMPLOYEE_ID, principal(EMPLOYEE_ID, { staffRole: "employee" })],
-    [
-      INACTIVE_ID,
-      principal(INACTIVE_ID, { staffRole: "employee", userActive: false }),
-    ],
-  ]);
-  const authorization = createAuthorizationGuards({
-    async findUser(userId) {
-      return users.get(userId) ?? null;
-    },
-    async loadPrincipal(userId) {
-      return principals.get(userId) ?? null;
-    },
-    logger,
-  });
-  const calls: Array<{ input: unknown; policyId: string; userId: string }> = [];
-  const registrations: Registration[] = [];
-  const routeOptions: RegisterMgaPayableStateRouteOptions = {
-    authorization,
-    async change(context, policyId, input) {
-      calls.push({ input, policyId, userId: context.principal.userId });
-      if (options.conflict === true) {
-        throw new MgaPayableStateConflictError();
-      }
-      return {
-        placement: { associationCount: 1, paySheetIds: [SHEET_ID] },
-        source: sourceItem(),
-      };
-    },
-    logger,
-  };
-  const routes = {
-    put(
-      path: string,
-      access: RouteAccessDeclaration,
-      ...handlers: RequestHandler[]
-    ) {
-      assert.ok(handlers[0]);
-      registrations.push({ access, handler: handlers[0], path });
-    },
-  } as unknown as RouteRegistrar;
-  registerMgaPayableStateRoute(routes, routeOptions);
-  return { calls, registrations };
-}
-
-test("admin MGA payable mutation returns only projected state and placement", async () => {
+test("admin group mutation returns only projected policy and placement fields", async () => {
   const fixture = createFixture();
   const response = await invoke(fixture, {
-    body: { reference: "  WIRE-123  ", status: "paid" },
+    body: { status: "paid" },
     identity: "admin",
   });
   assert.equal(response.status, 200);
   assert.equal(response.headers["cache-control"], "no-store");
   assert.deepEqual(fixture.calls, [
-    {
-      input: { reference: "WIRE-123", status: "paid" },
-      policyId: POLICY_ID,
-      userId: ADMIN_ID,
-    },
+    { input: { status: "paid" }, mgaId: MGA_ID, userId: ADMIN_ID },
   ]);
   const body = response.body as any;
-  assert.equal(body.item.policyId, POLICY_ID);
-  assert.equal(body.item.status, "paid");
-  assert.equal(body.item.netDue, "175.00");
-  assert.equal(body.item.amountPaid, "350.00");
-  assert.equal(body.item.brokerFee, "50.00");
-  assert.equal(body.item.commissionAmount, "125.00");
-  assert.equal(body.item.commissionRate, "12.5000");
-  assert.deepEqual(body.placement, {
+  assert.equal(body.changedCount, 1);
+  assert.equal(body.status, "paid");
+  assert.equal(body.results[0].item.policyId, POLICY_ID);
+  assert.equal(body.results[0].item.amountPaid, "350.00");
+  assert.deepEqual(body.results[0].placement, {
     associationCount: 1,
     paySheetIds: [SHEET_ID],
   });
@@ -132,7 +68,7 @@ test("admin MGA payable mutation returns only projected state and placement", as
   }
 });
 
-test("non-admin identities receive no MGA mutation payload and cause no write", async () => {
+test("non-admin identities receive no group payload and cause no mutation", async () => {
   for (const identity of [
     undefined,
     "employee",
@@ -153,9 +89,9 @@ test("non-admin identities receive no MGA mutation payload and cause no write", 
   }
 });
 
-test("MGA payable mutation rejects unsafe inputs before service access", async () => {
+test("group mutation rejects undeclared inputs and is explicitly admin guarded", async () => {
   for (const body of [
-    { reference: "not-allowed", status: "unpaid" },
+    { reference: "shared-ref", status: "paid" },
     { actorUserId: ADMIN_ID, status: "paid" },
     { status: "settled" },
   ]) {
@@ -164,25 +100,7 @@ test("MGA payable mutation rejects unsafe inputs before service access", async (
     assert.equal(response.status, 400);
     assert.deepEqual(fixture.calls, []);
   }
-});
 
-test("MGA payable mutation maps transaction conflicts to a minimal response", async () => {
-  const fixture = createFixture({ conflict: true });
-  const response = await invoke(fixture, {
-    body: { status: "paid" },
-    identity: "admin",
-  });
-  assert.equal(response.status, 409);
-  assert.deepEqual(response.body, {
-    error: {
-      code: "bad_request",
-      message: "MGA payable state cannot be changed",
-    },
-  });
-  assert.equal(JSON.stringify(response.body).includes("pay_sheet"), false);
-});
-
-test("MGA payable mutation is explicitly admin-guarded and its handler fails closed alone", async () => {
   const fixture = createFixture();
   const registration = fixture.registrations[0];
   assert.ok(registration);
@@ -192,17 +110,65 @@ test("MGA payable mutation is explicitly admin-guarded and its handler fails clo
       path: registration.path,
       public: "public" in registration.access,
     },
-    { authorized: true, path: MGA_PAYABLE_STATE_PATH, public: false },
+    { authorized: true, path: MGA_PAYABLE_GROUP_STATE_PATH, public: false },
   );
-
-  const req = request({ status: "paid" }, ADMIN_ID);
   const response = createTestResponse();
-  registration.handler(req, response.res, response.next);
-  const error = await response.completed;
-  assert.notEqual(error, null);
-  assert.equal(errorResult(error).status, 500);
+  registration.handler(
+    request({ status: "paid" }, ADMIN_ID),
+    response.res,
+    response.next,
+  );
+  assert.equal(errorResult(await response.completed).status, 500);
   assert.deepEqual(fixture.calls, []);
 });
+
+function createFixture() {
+  const users = new Map<string, UserAccount>([
+    [ADMIN_ID, account(ADMIN_ID)],
+    [PRODUCER_ID, account(PRODUCER_ID)],
+    [EMPLOYEE_ID, account(EMPLOYEE_ID)],
+    [INACTIVE_ID, account(INACTIVE_ID, false)],
+  ]);
+  const principals = new Map<string, AccessPrincipal>([
+    [ADMIN_ID, principal(ADMIN_ID, { capabilities: ["admin"] })],
+    [PRODUCER_ID, principal(PRODUCER_ID, { staffRole: "producer" })],
+    [EMPLOYEE_ID, principal(EMPLOYEE_ID, { staffRole: "employee" })],
+    [INACTIVE_ID, principal(INACTIVE_ID, { staffRole: "employee", userActive: false })],
+  ]);
+  const authorization = createAuthorizationGuards({
+    async findUser(userId) { return users.get(userId) ?? null; },
+    async loadPrincipal(userId) { return principals.get(userId) ?? null; },
+    logger,
+  });
+  const calls: Array<{ input: unknown; mgaId: string; userId: string }> = [];
+  const registrations: Registration[] = [];
+  const options: RegisterMgaPayableGroupStateRouteOptions = {
+    authorization,
+    async change(context, mgaId, input) {
+      calls.push({ input, mgaId, userId: context.principal.userId });
+      return {
+        results: [{
+          placement: { associationCount: 1, paySheetIds: [SHEET_ID] },
+          source: sourceItem(),
+        }],
+        status: "paid",
+      };
+    },
+    logger,
+  };
+  const routes = {
+    put(
+      path: string,
+      access: RouteAccessDeclaration,
+      ...handlers: RequestHandler[]
+    ) {
+      assert.ok(handlers[0]);
+      registrations.push({ access, handler: handlers[0], path });
+    },
+  } as unknown as RouteRegistrar;
+  registerMgaPayableGroupStateRoute(routes, options);
+  return { calls, registrations };
+}
 
 function sourceItem(): MgaPayableSourceItem {
   const at = new Date("2026-07-11T12:00:00.000Z");
@@ -215,7 +181,7 @@ function sourceItem(): MgaPayableSourceItem {
     payment: {
       paidAt: at,
       policyId: POLICY_ID,
-      reference: "WIRE-123",
+      reference: null,
       status: "paid",
     },
     policy: {
@@ -233,6 +199,9 @@ function sourceItem(): MgaPayableSourceItem {
       commissionRate: "12.5000",
       companyName: null,
       createdAt: at,
+      deletedAt: null,
+      deletedByUserId: null,
+      deleteReason: null,
       depositOption: "350.00",
       effectiveDate: "2026-07-01",
       expirationDate: "2027-07-01",
@@ -253,11 +222,7 @@ function sourceItem(): MgaPayableSourceItem {
       mgaId: MGA_ID,
       mgaPaid: true,
       mgaPaidAt: at,
-    producerCommissionReceivedAt: null,
-    deletedAt: null,
-    deletedByUserId: null,
-    deleteReason: null,
-      mgaPayReference: "WIRE-123",
+      mgaPayReference: null,
       netDue: "175.00",
       netDueTotal: "0.00",
       notes: null,
@@ -268,6 +233,7 @@ function sourceItem(): MgaPayableSourceItem {
       policyNumber: "GL-100",
       policyTypeId: "00000000-0000-4000-8000-000000000022",
       premiumTotal: "0.00",
+      producerCommissionReceivedAt: null,
       producerUserId: PRODUCER_ID,
       proposalTotal: "1075.00",
       receivableStatus: "paid",
@@ -289,56 +255,46 @@ async function invoke(
   fixture: ReturnType<typeof createFixture>,
   options: { body: unknown; identity?: Identity },
 ): Promise<TestResult> {
-  const registration = fixture.registrations[0];
-  assert.ok(registration);
-  const userId =
-    options.identity === "admin"
-      ? ADMIN_ID
-      : options.identity === "employee"
-        ? EMPLOYEE_ID
-        : options.identity === "producer"
-          ? PRODUCER_ID
-          : options.identity === "inactive"
-            ? INACTIVE_ID
-            : undefined;
+  const registration = fixture.registrations[0]!;
+  const userId = options.identity === "admin"
+    ? ADMIN_ID
+    : options.identity === "employee"
+      ? EMPLOYEE_ID
+      : options.identity === "producer"
+        ? PRODUCER_ID
+        : options.identity === "inactive"
+          ? INACTIVE_ID
+          : undefined;
   const req = request(options.body, userId);
   const response = createTestResponse();
   const guard = registration.access.authorization;
   assert.ok(guard);
-  const guardError = await invokeNextMiddleware(guard, req, response.res);
-  if (guardError !== null) {
-    return errorResult(guardError);
-  }
+  const guardError = await invokeMiddleware(guard, req, response.res);
+  if (guardError !== null) return errorResult(guardError);
   registration.handler(req, response.res, response.next);
   const handlerError = await response.completed;
   return handlerError === null ? response.result() : errorResult(handlerError);
 }
 
 function request(body: unknown, userId?: string): Request {
-  return {
-    body,
-    headers: {},
-    method: "PUT",
-    originalUrl: MGA_PAYABLE_STATE_PATH,
-    params: { policyId: POLICY_ID },
-    query: {},
-    route: { path: MGA_PAYABLE_STATE_PATH },
-    session: fakeSession(userId),
-  } as unknown as Request;
-}
-
-function fakeSession(userId?: string): Request["session"] {
   const session = {
     cookie: {},
-    destroy(callback: (error?: unknown) => void) {
-      callback();
-    },
+    destroy(callback: (error?: unknown) => void) { callback(); },
   } as unknown as Request["session"];
   if (userId !== undefined) {
     session.userId = userId;
     session.sessionVersion = 0;
   }
-  return session;
+  return {
+    body,
+    headers: {},
+    method: "PUT",
+    originalUrl: MGA_PAYABLE_GROUP_STATE_PATH,
+    params: { mgaId: MGA_ID },
+    query: {},
+    route: { path: MGA_PAYABLE_GROUP_STATE_PATH },
+    session,
+  } as unknown as Request;
 }
 
 interface TestResult {
@@ -356,46 +312,30 @@ function createTestResponse(): {
   let status = 200;
   let body: unknown;
   const headers: Record<string, string> = {};
-  let resolveCompleted!: (error: unknown | null) => void;
-  const completed = new Promise<unknown | null>((resolve) => {
-    resolveCompleted = resolve;
-  });
+  let complete!: (error: unknown | null) => void;
+  const completed = new Promise<unknown | null>((resolve) => { complete = resolve; });
   const res = {
-    clearCookie() {
-      return res;
-    },
+    clearCookie() { return res; },
     locals: {},
-    json(value: unknown) {
-      body = value;
-      resolveCompleted(null);
-      return res;
-    },
-    set(name: string, value: string) {
-      headers[name.toLowerCase()] = value;
-      return res;
-    },
-    status(value: number) {
-      status = value;
-      return res;
-    },
+    json(value: unknown) { body = value; complete(null); return res; },
+    set(name: string, value: string) { headers[name.toLowerCase()] = value; return res; },
+    status(value: number) { status = value; return res; },
   } as unknown as Response;
   return {
     completed,
-    next(error?: unknown) {
-      resolveCompleted(error ?? null);
-    },
+    next(error?: unknown) { complete(error ?? null); },
     res,
-    result: () => ({ body, headers, status }),
+    result() { return { body, headers, status }; },
   };
 }
 
-async function invokeNextMiddleware(
-  middleware: RequestHandler,
+async function invokeMiddleware(
+  handler: RequestHandler,
   req: Request,
   res: Response,
 ): Promise<unknown | null> {
   return new Promise((resolve) => {
-    middleware(req, res, (error?: unknown) => resolve(error ?? null));
+    handler(req, res, (error?: unknown) => resolve(error ?? null));
   });
 }
 
@@ -409,9 +349,8 @@ function errorResult(error: unknown): TestResult {
 }
 
 function account(id: string, isActive = true): UserAccount {
-  const at = new Date("2026-07-11T12:00:00.000Z");
   return {
-    createdAt: at,
+    createdAt: new Date("2026-07-11T12:00:00.000Z"),
     email: `${id}@example.test`,
     id,
     isActive,
@@ -420,14 +359,14 @@ function account(id: string, isActive = true): UserAccount {
 }
 
 function principal(
-  id: string,
-  access: Partial<AccessPrincipal> = {},
+  userId: string,
+  overrides: Partial<AccessPrincipal> = {},
 ): AccessPrincipal {
   return {
     capabilities: [],
     staffRole: null,
     userActive: true,
-    userId: id,
-    ...access,
+    userId,
+    ...overrides,
   };
 }

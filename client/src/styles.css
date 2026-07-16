@@ -343,6 +343,202 @@
   font-weight: 700;
 }
 
+.staff-vocabulary {
+  margin-top: 36px;
+  border-top: 1px solid #bfcacc;
+  padding-top: 22px;
+}
+
+.staff-vocabulary > header,
+.staff-vocabulary-section > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.staff-vocabulary > header p {
+  margin: 0 0 4px;
+  color: #6a787c;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.staff-vocabulary > header h2,
+.staff-vocabulary-message h2 {
+  margin: 0;
+  color: #263d36;
+  font-size: 20px;
+  letter-spacing: 0;
+}
+
+.staff-vocabulary > header > span,
+.staff-vocabulary-section > header > span {
+  color: #68777b;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.staff-vocabulary-sections {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.staff-vocabulary-section {
+  min-width: 0;
+  border-top: 3px solid #638276;
+  border-bottom: 1px solid #cbd5d7;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.staff-vocabulary-section > header h3 {
+  margin: 0;
+  color: #30453f;
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+.staff-vocabulary-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+  margin-top: 14px;
+}
+
+.staff-vocabulary-add.has-class {
+  grid-template-columns: minmax(0, 1fr) minmax(105px, .55fr) auto;
+}
+
+.staff-vocabulary-add input,
+.staff-vocabulary-add select,
+.staff-vocabulary-search input {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  border: 1px solid #bdc9cd;
+  border-radius: 4px;
+  background: #ffffff;
+  padding: 7px 9px;
+  color: #2d4243;
+  font-size: 11px;
+}
+
+.staff-vocabulary-search {
+  display: grid;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.staff-vocabulary-search > span {
+  color: #627175;
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.staff-vocabulary-list {
+  display: grid;
+  max-height: 360px;
+  overflow-y: auto;
+  margin-top: 10px;
+  border-top: 1px solid #d4dcde;
+}
+
+.staff-vocabulary-list > p,
+.staff-vocabulary-message p {
+  margin: 0;
+  padding: 18px 0;
+  color: #718085;
+  font-size: 10px;
+}
+
+.staff-vocabulary-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid #e0e5e6;
+  padding: 9px 0;
+}
+
+.staff-vocabulary-row.is-inactive {
+  opacity: .66;
+}
+
+.staff-vocabulary-row > div:first-child {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.staff-vocabulary-row strong {
+  overflow: hidden;
+  color: #354a45;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staff-vocabulary-class,
+.staff-vocabulary-state span {
+  border: 1px solid #cbd4d5;
+  border-radius: 999px;
+  background: #f4f6f6;
+  padding: 3px 5px;
+  color: #647276;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.staff-vocabulary-class.is-commercial {
+  border-color: #b8d0c2;
+  background: #edf5f0;
+  color: #35604c;
+}
+
+.staff-vocabulary-class.is-personal {
+  border-color: #cfbfda;
+  background: #f3eff6;
+  color: #655070;
+}
+
+.staff-vocabulary-class.is-life-health {
+  border-color: #d6c79d;
+  background: #faf5e8;
+  color: #6f5a27;
+}
+
+.staff-vocabulary-state {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.staff-vocabulary-state span.is-in-use {
+  border-color: #d8c39f;
+  background: #fff6e6;
+  color: #795d2b;
+}
+
+.staff-vocabulary-row button {
+  min-width: 80px;
+  padding-right: 8px;
+  padding-left: 8px;
+}
+
+.staff-vocabulary-message {
+  margin-top: 36px;
+  border-top: 1px solid #bfcacc;
+  padding-top: 22px;
+}
+
 .staff-empty,
 .staff-message {
   color: #68777c;
@@ -536,6 +732,10 @@
     grid-column: 2;
     grid-row: 1;
   }
+
+  .staff-vocabulary-sections {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 680px) {
@@ -593,6 +793,36 @@
   .staff-row-actions button {
     min-width: 0;
     overflow-wrap: anywhere;
+  }
+
+  .staff-vocabulary > header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .staff-vocabulary-add,
+  .staff-vocabulary-add.has-class {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-vocabulary-add button {
+    justify-self: start;
+  }
+
+  .staff-vocabulary-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .staff-vocabulary-state {
+    grid-column: 1;
+    grid-row: 2;
+    justify-content: flex-start;
+  }
+
+  .staff-vocabulary-row button {
+    grid-column: 2;
+    grid-row: 1 / span 2;
   }
 
   .staff-dialog-backdrop {
@@ -1486,6 +1716,33 @@ h1 {
   font-size: 13px;
   font-weight: 600;
   text-decoration: none;
+}
+
+.workspace-nav-link > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-nav-count {
+  min-width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  margin-left: auto;
+  border-radius: 10px;
+  background: #a33b3b;
+  padding: 0 6px;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.workspace-nav-link[aria-current="page"] .workspace-nav-count {
+  background: #7d2d2d;
 }
 
 .workspace-nav-link:hover,
@@ -5147,7 +5404,7 @@ h1 {
 
 .ledger-metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
   margin: 18px 0;
 }
@@ -5171,6 +5428,14 @@ h1 {
 
 .ledger-metric:nth-child(4) {
   border-top-color: #9a6a2f;
+}
+
+.ledger-metric:nth-child(5) {
+  border-top-color: #8a4f45;
+}
+
+.ledger-metric:nth-child(6) {
+  border-top-color: #4b6170;
 }
 
 .ledger-metric span {
@@ -5872,6 +6137,10 @@ h1 {
 }
 
 @media (max-width: 1160px) {
+  .ledger-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .ledger-toolbar {
     grid-template-columns: minmax(250px, 1fr) repeat(3, minmax(130px, 0.55fr));
   }
@@ -6241,6 +6510,20 @@ h1 {
   text-align: right;
 }
 
+.mga-group-action {
+  min-height: 36px;
+  border: 1px solid #315f73;
+  border-radius: 5px;
+  background: #ffffff;
+  padding: 7px 11px;
+  color: #315f73;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
 .mga-group-header dd {
   margin: 2px 0 0;
   color: #263840;
@@ -6252,7 +6535,7 @@ h1 {
 .mga-table-header,
 .mga-table-row {
   display: grid;
-  grid-template-columns: minmax(190px, 1.45fr) minmax(120px, 0.8fr) minmax(145px, 0.9fr) minmax(95px, 0.65fr) minmax(105px, 0.65fr) minmax(145px, 0.85fr) 94px;
+  grid-template-columns: minmax(180px, 1.35fr) minmax(110px, 0.72fr) minmax(125px, 0.8fr) minmax(95px, 0.62fr) minmax(130px, 0.82fr) minmax(88px, 0.56fr) minmax(100px, 0.62fr) minmax(125px, 0.76fr) 90px;
   align-items: center;
   gap: 12px;
 }
@@ -6294,6 +6577,13 @@ h1 {
 
 .mga-table-row strong {
   color: #273940;
+}
+
+.mga-commission strong > small {
+  display: inline;
+  margin: 0;
+  font-size: 10px;
+  font-weight: 650;
 }
 
 .mga-table-row small {
@@ -8748,6 +9038,13 @@ h1 {
 
 .my-item-main p {
   margin: 4px 0 0;
+}
+
+.my-item-main .my-item-identifiers {
+  color: #465b60;
+  font-size: 11px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
 }
 
 .my-item-main > a,

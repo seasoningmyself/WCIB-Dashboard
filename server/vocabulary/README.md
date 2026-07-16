@@ -27,6 +27,15 @@ later policy foreign-key migration.
 decisions for carriers and policy types. Callers must pass all existing names,
 including inactive rows, so a deactivated name cannot be silently reused.
 
+`manage.ts` owns the admin-only management view and recoverable active-state
+transition. It lists active and inactive entries with a boolean active-ledger
+usage marker, blocks deactivation while an active-generation, non-deleted
+policy uses the entry, and writes the state plus its append-only audit event in
+one transaction. It never deletes vocabulary rows or historical references.
+
 Run contract tests with `npm test`. Run the database-backed active read check
 with `npm run test:db:vocabulary-read` against a migrated database.
 Run the audited MGA write check with `npm run test:db:mga-create`.
+Run management state and migration checks with
+`npm run test:db:vocabulary-manage` and
+`npm run test:db:vocabulary-management-audit`.

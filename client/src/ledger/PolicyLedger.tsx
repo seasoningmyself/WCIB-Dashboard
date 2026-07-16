@@ -744,10 +744,12 @@ export function PolicyLedgerView({
 
 function LedgerMetrics({ totals }: { totals: PolicyLedgerListResponse["totals"] }) {
   const metrics = [
+    ["Collected", totals.amountPaid],
+    ["Commission", totals.commissionAmount],
+    ["Broker fees", totals.brokerFee],
     ["Agency revenue", totals.agencyRevenue],
-    ["Sophia retained", totals.sophiaRetained],
-    ["Producer payout", totals.producerPayout],
-    ["Amount collected", totals.amountPaid],
+    ["Producer share", totals.producerPayout],
+    ["Sophia share", totals.sophiaRetained],
   ] as const;
   return (
     <div className="ledger-metrics" aria-label="Ledger totals">

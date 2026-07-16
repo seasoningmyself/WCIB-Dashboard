@@ -41,8 +41,10 @@ const reviewedReadModules = [
   "server/policies/ledger-corrections.ts",
   "server/policies/ledger.ts",
   "server/policies/lifecycle.ts",
+  "server/policies/mga-payable-group-state.ts",
   "server/policies/mga-payables.ts",
   "server/policy-change-requests/service.ts",
+  "server/vocabulary/manage.ts",
 ] as const;
 
 test("every direct transactional read is reviewed and active-generation scoped", () => {

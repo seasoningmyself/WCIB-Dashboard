@@ -80,6 +80,32 @@ test("producer and employee shells render only their universal draft navigation"
   assert.doesNotMatch(employee, />Policy Ledger</);
 });
 
+test("shell renders count badges only for positive projected counts", () => {
+  const markup = renderToStaticMarkup(
+    withApi(
+      <AppShellView
+        currentPath="/approvals"
+        navigationCounts={{ approvals: 3, help_requests: 0 }}
+        onLogout={() => {}}
+        user={{
+          ...baseUser,
+          allowedNavigation: ["approvals", "help_requests"],
+          capabilities: ["admin"],
+          role: "admin",
+        }}
+      />,
+    ),
+  );
+
+  assert.match(markup, /aria-label="3 items need attention"[^>]*>3</);
+  assert.doesNotMatch(markup, /0 items need attention/);
+  assert.match(
+    markup,
+    /<option value="approvals"[^>]*>Approvals \(3\)<\/option>/,
+  );
+  assert.match(markup, /<option value="help_requests">Help Requests<\/option>/);
+});
+
 test("server-authorized staff my_items route mounts the status-only My Items screen", () => {
   const markup = renderToStaticMarkup(
     withApi(

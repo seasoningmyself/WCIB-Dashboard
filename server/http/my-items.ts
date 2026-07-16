@@ -12,7 +12,7 @@ import {
 } from "../auth/authorization.js";
 import { DRAFT_HELP_ACCESS } from "../drafts/access.js";
 import { projectMyItemForAuthorizedContext } from "../drafts/my-items-projection.js";
-import type { DraftRecord } from "../db/schema.js";
+import type { MyItemSource } from "../drafts/my-items.js";
 import type { AppLogger } from "../logging/logger.js";
 import { projectAuthorizedFields } from "../security/field-projection.js";
 import { asyncRoute, HttpError } from "./errors.js";
@@ -23,7 +23,7 @@ export const MY_ITEMS_PATH = "/api/my-items";
 const myItemsQuerySchema = z.object({}).strict();
 
 export interface MyItemsHandlerDependencies {
-  list(context: AuthorizedRequestContext): Promise<readonly DraftRecord[]>;
+  list(context: AuthorizedRequestContext): Promise<readonly MyItemSource[]>;
   logger: AppLogger;
 }
 

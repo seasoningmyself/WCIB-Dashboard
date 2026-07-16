@@ -5,6 +5,8 @@ import { myItemSchema, myItemsResponseSchema } from "./my-items.js";
 const item = {
   id: "00000000-0000-4000-8000-000000000001",
   lastActivityAt: "2026-07-11T12:00:00.000Z",
+  mgaName: "Summit MGA",
+  policyNumber: "POL-1001",
   reason: null,
   status: "draft" as const,
   submittedAt: null,

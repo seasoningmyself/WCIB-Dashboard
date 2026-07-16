@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { CurrentUser } from "../../../shared/current-user.js";
 import {
+  formatPayableCommissionRate,
   formatPayableDate,
   isMgaPayablesAdmin,
   payableAccountLabel,
   payableAging,
+  payableGroupAction,
 } from "./view-state.js";
-import { payableItemFixture, uuid } from "./test-fixture.js";
+import { payableItemFixture, payablesFixture, uuid } from "./test-fixture.js";
 
 test("MGA payable account labels preserve the approved assignment display", () => {
   assert.equal(payableAccountLabel(payableItemFixture()), "Kaylee account");
@@ -57,6 +59,27 @@ test("MGA payable aging matches v15 30 and 60 day boundaries", () => {
   );
 });
 
+test("MGA group action targets only the state that differs", () => {
+  const group = payablesFixture().groups[0]!;
+  assert.deepEqual(payableGroupAction(group), {
+    count: 1,
+    label: "Mark all paid",
+    status: "paid",
+  });
+  group.totals = {
+    outstandingAmount: "0.00",
+    paidAmount: "850.00",
+    paidCount: 1,
+    totalCount: 1,
+    unpaidCount: 0,
+  };
+  assert.deepEqual(payableGroupAction(group), {
+    count: 1,
+    label: "Unmark all",
+    status: "unpaid",
+  });
+});
+
 test("MGA payable role and date formatting fail closed", () => {
   const admin: CurrentUser = {
     allowedNavigation: ["mga_payables"],
@@ -76,4 +99,7 @@ test("MGA payable role and date formatting fail closed", () => {
     false,
   );
   assert.equal(formatPayableDate("2026-07-11T12:00:00.000Z"), "Jul 11, 2026");
+  assert.equal(formatPayableCommissionRate("12.5000"), "12.5%");
+  assert.equal(formatPayableCommissionRate("0.0000"), null);
+  assert.equal(formatPayableCommissionRate(null), null);
 });

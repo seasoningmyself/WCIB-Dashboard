@@ -1,7 +1,51 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 14, 2026 (recorded audited IPFS pushed-state handling.)
+**Last updated:** July 14, 2026 (recorded Start Fresh compatibility hardening.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
+
+---
+
+## July 14, 2026 — Managed vocabulary removal is recoverable deactivation
+
+**Recorded production adaptation:** Final v15 hard-removes a carrier, MGA, or
+policy type from browser storage when it is not used by the active ledger, and
+blocks removal while a live ledger policy uses it. Production preserves the
+search, classification, and guarded-removal behavior but changes removal to an
+audited `is_active` transition. Deactivated entries leave new turn-in pickers;
+their UUID rows and every historical foreign-key reference remain intact, and
+admin can reactivate them. The in-use guard considers only non-deleted policies
+in the active business generation, so soft-deleted policies and sealed
+generations do not permanently pin an entry. State changes write the generic
+`vocabulary_deactivated` or `vocabulary_reactivated` action with the existing
+carrier, MGA, or policy-type audit entity.
+
+---
+
+## July 14, 2026 — MGA group settlement is one server transaction
+
+**Recorded production adaptation:** Final v15 implements Mark all paid and
+Unmark all by looping its single-policy mutation in browser memory. Production
+preserves the visible group action and the same differing-state selection, but
+runs every policy through the existing audited state-then-placement worker
+inside one admin-authorized database transaction. Policies are locked in a
+deterministic order; active-generation and soft-delete predicates define the
+group; one failure rolls back every state, audit, and open-sheet placement in
+that group. Group retries are idempotent, and unmark retains v15's confirmation
+that open placements are removed while closed history remains unchanged.
+
+---
+
+## July 14, 2026 — Navigation badges use projected live work counts
+
+**Recorded production adaptation:** Final v15 shows navigation badges for
+pending Approvals, unseen flagged Help Requests, and sent-back My Items. Parent
+P also requires a My Commissions badge even though final v15 exposes its count
+inside the commission summary rather than in navigation. Production therefore
+uses the existing projected screen contracts: pending submission count,
+unresolved flagged-draft count (there is no prototype-only `seenBySophia`
+state), owner sent-back count, and producer `owedCount`. Zero counts stay
+hidden. Badge loading never reads raw policy or draft rows and fails closed by
+showing no count if an authorized screen API is unavailable.
 
 ---
 
@@ -31,6 +75,30 @@ state transition. Same-state retries create no duplicate audit event. Only an
 active-generation, non-deleted policy can be changed, and every response uses
 the admin policy projector. This is an admin-only state; no financial values or
 payment references are written to logs.
+
+---
+
+## July 14, 2026 — Manual IPFS policies retain v15 pushed-state actions
+
+**Recorded fidelity decision:** Final v15 permits Sophia to mark any
+IPFS-financed policy as pushed, including one flagged for manual handling; its
+`toggleIpfsPushed` action does not exclude manual policies. The production
+schema originally enforced a stricter `policies_ipfs_state_check` branch that
+allowed `ipfs_pushed = true` only when `ipfs_manual = false`. Migration `0048`
+relaxed only that branch to match v15, so a manual IPFS-financed policy may now
+carry a pushed timestamp. The `IPFS manual` classification and badge remain
+unchanged, and manual policies remain excluded from the IPFS automation work
+queue. The relaxation therefore restores the approved pushed-state action
+without changing queue behavior or losing the fact that a policy was handled
+manually. The engagement is a faithful v15 port; where the production schema
+was stricter than final v15 without a documented business or security reason,
+v15's behavior governs. This is a fidelity correction, not a new feature.
+
+**Client-facing context:** The production dashboard now allows the same
+pushed-state actions as the v15 tool Sophia approved, including for financed
+policies handled manually. Those policies still show as manual and still stay
+out of the automation work queue. This was a deliberate choice to match the
+original approved workflow.
 
 ---
 
@@ -87,6 +155,36 @@ to the still-existing rows. Live reads show only the active generation. Sealed
 closed sheets remain stored byte-for-byte but are not mixed into the current
 generation's history; they return with their original UUIDs and frozen JSON
 when that generation is restored.
+
+---
+
+## July 14, 2026 — Start Fresh migration-count compatibility is a tracked hardening limitation
+
+**Known architectural limitation:** Parent M3 stores
+`expected_migration_count` in `business_state_control` and requires the live
+schema to match that value before Start Fresh can seal and reset a generation.
+Every later migration must therefore advance the expected count on apply and
+restore it on backout. This is a fragile, non-obvious obligation for migration
+authors; migration `0048` initially omitted the update, which broke Start Fresh
+until the archived-generation test caught the mismatch and the migration was
+fixed. The current design has two safety nets: the static generation-boundary
+test checks migration participation, and the reset precondition rejects an
+incompatible schema. A missed update therefore fails loudly and immediately
+instead of silently creating an unsafe recovery point, but the manual footgun
+still exists.
+
+**Decision and recommended hardening:** Retain the current migration-count
+mechanism through v15 parity completion because it is tested and protected by
+those fail-closed checks. During the Security Hardening or Testing milestone,
+make the existing schema fingerprint the generation compatibility gate instead
+of the manually maintained count. A generation should seal under its derived
+schema fingerprint, and restore should require that fingerprint to match the
+live schema. Because the fingerprint changes automatically with the logical
+schema, future migrations would have no separate counter to remember. This is
+not a feature-completion change: replacing the gate requires full
+re-verification of Parent M3's reset, restore, sealed-generation, checksum, and
+concurrency guarantees, which belongs in the milestone where those boundaries
+are intentionally re-tested.
 
 ---
 

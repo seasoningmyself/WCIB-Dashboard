@@ -148,6 +148,7 @@ owners, not every transitive predecessor.
 | `0046_approval_work_soft_delete` | Recoverable audited soft-delete/restore for pending submissions and flagged help drafts, with live-read exclusion | `0013`, `0014`, `0018`, `0020`, `0045` | Refuses deletion-state or audit-vocabulary loss while deleted work or its audit history exists; forward-fix after use |
 | `0047_business_state_generations` | Recoverable Start Fresh generations, active-pointer reset/restore, checksummed manifests, and generation-scoped transactional reads/writes | `0013`-`0015`, `0018`, `0020`-`0034`, `0039`-`0046` | Refuses backout after any reset/restore history; sealed generations are immutable and require a forward-fix after use |
 | `0048_ipfs_pushed_audit_actions` | Audited IPFS pushed/unpushed state plus v15-compatible completion tracking for manual IPFS agreements | `0015`, `0017`, `0018`, `0044`, `0047` | Refuses audit-vocabulary or constraint backout after pushed-state audit history exists; preserve history and forward-fix |
+| `0049_vocabulary_management_audit_actions` | Audited recoverable deactivation/reactivation for carrier, MGA, and policy-type vocabulary | `0017`, `0018`, `0035`, `0047`, `0048` | Refuses audit-vocabulary backout after vocabulary state history exists; preserve history and forward-fix |
 
 ## Dependency-safe full reverse order
 
