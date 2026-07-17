@@ -85,11 +85,21 @@ test("shell renders count badges only for positive projected counts", () => {
     withApi(
       <AppShellView
         currentPath="/approvals"
-        navigationCounts={{ approvals: 3, help_requests: 0 }}
+        navigationCounts={{
+          approvals: 3,
+          help_requests: 0,
+          mga_payables: 7,
+          pay_sheets: 2,
+        }}
         onLogout={() => {}}
         user={{
           ...baseUser,
-          allowedNavigation: ["approvals", "help_requests"],
+          allowedNavigation: [
+            "approvals",
+            "help_requests",
+            "mga_payables",
+            "pay_sheets",
+          ],
           capabilities: ["admin"],
           role: "admin",
         }}
@@ -104,6 +114,8 @@ test("shell renders count badges only for positive projected counts", () => {
     /<option value="approvals"[^>]*>Approvals \(3\)<\/option>/,
   );
   assert.match(markup, /<option value="help_requests">Help Requests<\/option>/);
+  assert.match(markup, /<option value="mga_payables">MGA Payables \(7\)<\/option>/);
+  assert.match(markup, /<option value="pay_sheets">Pay Sheets \(2\)<\/option>/);
 });
 
 test("server-authorized staff my_items route mounts the status-only My Items screen", () => {
