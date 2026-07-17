@@ -50,7 +50,7 @@ export const policyLedgerListQuerySchema = z
       .optional(),
     offset: queryInteger(0, 10_000).default(0),
     search: z.string().trim().max(200).default(""),
-    sort: z.enum(POLICY_LEDGER_SORTS).default("date"),
+    sort: z.enum(POLICY_LEDGER_SORTS).default("insured"),
   })
   .strict();
 

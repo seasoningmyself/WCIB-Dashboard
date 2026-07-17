@@ -4,6 +4,7 @@ import type { PolicyLedgerSourceItem } from "./ledger.js";
 import {
   calculateLedgerTotals,
   classifyLedgerDuplicates,
+  matchesLedgerSearch,
   normalizeLedgerSearch,
   sortLedgerRows,
 } from "./ledger.js";
@@ -111,6 +112,26 @@ test("ledger sorting is deterministic for every v15 key", () => {
     beta.policy.id,
     gamma.policy.id,
   ]);
+});
+
+test("ledger search covers insured, policy number, carrier, and MGA", () => {
+  const row = item(
+    "00000000-0000-4000-8000-000000000024",
+    {
+      insuredName: "Acme Construction",
+      policyNumber: "GL-2048",
+    },
+    {
+      carrierName: "Travelers Insurance",
+      mgaName: "Burns and Wilcox",
+    },
+  );
+
+  for (const search of ["acme", "gl-2048", "travelers", "burns and wilcox"]) {
+    assert.equal(matchesLedgerSearch(row, search), true);
+  }
+  assert.equal(matchesLedgerSearch(row, "unrelated"), false);
+  assert.equal(matchesLedgerSearch(row, ""), true);
 });
 
 test("ledger totals use exact cents and keep Sophia and producer shares distinct", () => {
