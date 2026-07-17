@@ -1,6 +1,6 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 17, 2026 (recorded production supersessions for v15 pay-sheet maintenance tools.)
+**Last updated:** July 17, 2026 (corrected parity records for navigation badges, help-request roles, and production vocabulary.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
 
 ---
@@ -114,14 +114,33 @@ that open placements are removed while closed history remains unchanged.
 ## July 14, 2026 — Navigation badges use projected live work counts
 
 **Recorded production adaptation:** Final v15 shows navigation badges for
-pending Approvals, unseen flagged Help Requests, and sent-back My Items. Parent
-P also requires a My Commissions badge even though final v15 exposes its count
-inside the commission summary rather than in navigation. Production therefore
-uses the existing projected screen contracts: pending submission count,
-unresolved flagged-draft count (there is no prototype-only `seenBySophia`
-state), owner sent-back count, and producer `owedCount`. Zero counts stay
-hidden. Badge loading never reads raw policy or draft rows and fails closed by
-showing no count if an authorized screen API is unavailable.
+pending Approvals, unseen flagged Help Requests, unpaid MGA policies, open Pay
+Sheets containing policies, and sent-back My Items (`wcib_dashboard_v15.html`,
+lines 2369–2400, 2751–2758, 3854–3863, 3949–3957, 4781–4787, and 6363–6369).
+Parent P also requires a My Commissions badge even though final v15 exposes its
+count inside the commission summary rather than in navigation. Production uses
+the existing projected screen contracts: pending submission count, unresolved
+flagged-draft count (there is no prototype-only `seenBySophia` state), unpaid
+MGA-policy count, open-sheet-with-policies count, owner sent-back count, and
+producer `owedCount`. Parent R added the previously omitted MGA Payables and Pay
+Sheets counts. Zero counts stay hidden. Badge loading never reads raw policy,
+pay-sheet, or draft rows and fails closed by showing no count if an authorized
+screen API is unavailable.
+
+---
+
+## July 17, 2026 — Employees and producers may request help on their own drafts
+
+**Recorded role-resolution decision:** Final v15's `notifyAdmin` guard is
+written in terms of the prototype's generic `employee` login role
+(`wcib_dashboard_v15.html`, lines 3197–3201), while the authoritative
+Permissions Matrix explicitly grants **Flag form / request help from Sophia**
+to both Producer and Employee (`WCIB_Permissions_Matrix.md`, line 61).
+Production follows the Permissions Matrix: authenticated employees and
+producers may flag only their own active draft for Sophia's help. This does not
+grant either role access to Help Requests or admin resolution actions; those
+remain admin-only. The choice preserves the universal turn-in workflow and
+records why production does not narrow help requests to employee staff alone.
 
 ---
 
@@ -386,11 +405,14 @@ The inline expansion is a native disclosure control and is intentionally session
 
 ---
 
-## July 13, 2026 — Add-as-you-go production vocabulary (pending client confirmation)
+## July 13, 2026 — Add-as-you-go production vocabulary
 
 **Recorded production decision:** v15 shipped with starting carrier, policy-type, and MGA vocabularies. The production app deliberately starts those vocabularies blank and adds entries as work is entered (add-as-you-go); it does not bulk-seed the v15 lists. The schema remains able to accept a reviewed bulk seed later without structural change.
 
-**Confirmation status:** pending client confirmation. If the client requests the full lists preloaded for day one, revisit this as a reviewed data-loading task rather than silently changing the application schema or runtime behavior.
+**Adopted approach:** Add-as-you-go is the production behavior used for launch.
+If the client later requests the full lists preloaded, revisit that as a
+reviewed data-loading task rather than silently changing the application schema
+or runtime behavior.
 
 ---
 
