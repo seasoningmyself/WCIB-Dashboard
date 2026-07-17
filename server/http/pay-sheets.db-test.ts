@@ -7,6 +7,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { Express } from "express";
 import { test } from "node:test";
+import { paySheetAdjustmentViewSchema } from "../../shared/pay-sheet-api.js";
 import { createApp } from "../app.js";
 import { createDatabaseAuthorizationGuards } from "../auth/authorization.js";
 import { createSessionMiddleware } from "../auth/sessions.js";
@@ -269,6 +270,17 @@ test("pay-sheet endpoints compose open totals and immutable closed history", asy
         const directIncomeId = directIncome.mutation.adjustmentId;
         assert.equal(directIncome.mutation.action, "created");
         assert.equal(directIncome.sheet.totals.sophiaAgencyGross, "250.00");
+        const projectedDirectIncome = directIncome.sheet.adjustments.find(
+          (adjustment: Record<string, unknown>) =>
+            adjustment.id === directIncomeId,
+        );
+        assert.ok(projectedDirectIncome);
+        assert.deepEqual(
+          paySheetAdjustmentViewSchema.parse(projectedDirectIncome),
+          projectedDirectIncome,
+        );
+        assert.equal("businessGenerationId" in projectedDirectIncome, false);
+        assert.equal("business_generation_id" in projectedDirectIncome, false);
 
         const temporaryCorrection = await createAdjustment(
           running.baseUrl,
