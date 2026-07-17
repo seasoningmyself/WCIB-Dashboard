@@ -1,6 +1,6 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 17, 2026 (aligned server proposal validation with the recorded two-cent tolerance.)
+**Last updated:** July 17, 2026 (aligned proposal validation and producer-share reporting with shared trusted calculations.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
 
 ---
@@ -14,6 +14,28 @@ still required exact equality, so a turn-in shown as ready could be rejected at
 submit. Browser and server now use one shared integer-cent constant and
 comparison function. This changes no stored calculation; it makes the trusted
 submission boundary enforce the same approved rounding tolerance as the form.
+
+---
+
+## July 17, 2026 — Producer shares use dated rates on every financial surface
+
+**Recorded correctness decision:** Final v15 is internally inconsistent about
+producer compensation. Its ledger and IPFS CSV hard-code `Producer 25%` and
+`Sophia 75%` (`wcib_dashboard_v15.html`, lines 4390–4391), while the same file
+stores dated commission and broker-rate pairs, selects the latest entry
+effective on the relevant date (lines 2096–2117), and freezes that active rate
+when a producer pay sheet closes (lines 6328–6339). A producer whose configured
+rate differs from 25% could therefore see one payout on their pay sheet while
+the ledger and export reported another.
+
+Production treats the dated Pay Sheet / My Commissions calculation as the
+authoritative amount actually paid. Ledger totals and the IPFS work-queue CSV
+now use that same calculation: open work uses the producer rate effective on
+the read date; settled work uses the payout frozen at pay-sheet close. Agency
+commission and broker-fee totals do not change. Sophia's retained amount on
+these surfaces is agency revenue less the actual producer payout. This is a
+deliberate correctness improvement over contradictory v15 behavior, ensuring
+Ledger, IPFS export, Pay Sheets, and My Commissions report one producer payout.
 
 ---
 

@@ -20,6 +20,7 @@ import {
 import * as databaseSchema from "../db/schema.js";
 import {
   policies,
+  producerRateHistory,
   userCapabilities,
   users,
 } from "../db/schema.js";
@@ -66,6 +67,14 @@ test("policy ledger endpoints enforce admin sessions over a migrated database", 
           userId: admin.id,
         });
         const references = await createPolicyReferenceFixture(database);
+        await database.insert(producerRateHistory).values({
+          effectiveDate: "2000-01-01",
+          newBrokerRate: "25.00",
+          newCommissionRate: "25.00",
+          producerUserId: references.producerUserId,
+          renewalBrokerRate: "25.00",
+          renewalCommissionRate: "25.00",
+        });
         const fixtureUsers = await database
           .select({ email: users.email, id: users.id })
           .from(users)

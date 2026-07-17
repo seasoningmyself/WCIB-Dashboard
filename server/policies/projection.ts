@@ -1,5 +1,9 @@
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { PolicyRecord } from "../db/schema.js";
+import {
+  policyLedgerTotalsSchema,
+  type PolicyLedgerTotals,
+} from "../../shared/policy-ledger.js";
 
 export const POLICY_FINANCIAL_FIELDS = [
   "accountAssignment",
@@ -78,6 +82,11 @@ export interface AdminDeletedPolicyProjection {
   policy: AdminPolicyProjection;
 }
 
+export interface AdminPolicyFinancialSplitProjection {
+  producerPayout: string;
+  sophiaRetained: string;
+}
+
 export function projectAdminPolicy(
   source: Readonly<PolicyRecord>,
   context: AuthorizedRequestContext,
@@ -90,6 +99,26 @@ export function projectAdminPolicy(
   return Object.fromEntries(
     ADMIN_POLICY_FIELDS.map((field) => [field, source[field]]),
   ) as AdminPolicyProjection;
+}
+
+export function projectAdminPolicyFinancialSplit(
+  source: Readonly<AdminPolicyFinancialSplitProjection>,
+  context: AuthorizedRequestContext,
+): AdminPolicyFinancialSplitProjection | null {
+  if (!canProjectAdmin(context)) {
+    return null;
+  }
+  return {
+    producerPayout: source.producerPayout,
+    sophiaRetained: source.sophiaRetained,
+  };
+}
+
+export function projectAdminPolicyLedgerTotals(
+  source: Readonly<PolicyLedgerTotals>,
+  context: AuthorizedRequestContext,
+): PolicyLedgerTotals | null {
+  return canProjectAdmin(context) ? policyLedgerTotalsSchema.parse(source) : null;
 }
 
 export function projectAdminDeletedPolicy(
@@ -115,4 +144,9 @@ export function projectAdminDeletedPolicy(
     },
     policy,
   };
+}
+
+function canProjectAdmin(context: AuthorizedRequestContext): boolean {
+  const { principal } = context;
+  return principal.userActive && principal.capabilities.includes("admin");
 }
