@@ -3,6 +3,7 @@ import {
   desc,
   eq,
   getTableColumns,
+  inArray,
   isNull,
   lte,
   type SQL,
@@ -427,6 +428,111 @@ export function calculateProducerPayout(
       10_000n,
     ),
   );
+}
+
+export interface ProducerPayoutPolicySource {
+  brokerFee: string;
+  commissionAmount: string;
+  id: string;
+  kayleeSplit: "book" | "house" | "none";
+  producerUserId: string | null;
+  transactionType: string;
+}
+
+export async function resolveProducerPayouts(
+  database: PaySheetReadDatabase,
+  policyRows: readonly ProducerPayoutPolicySource[],
+  asOfDate: string,
+): Promise<ReadonlyMap<string, string>> {
+  const payoutByPolicyId = new Map<string, string>();
+  if (policyRows.length === 0) {
+    return payoutByPolicyId;
+  }
+
+  const policyById = new Map(policyRows.map((policy) => [policy.id, policy]));
+  const closedRows = await database
+    .select({
+      frozenPolicySnapshot: paySheetPolicies.frozenPolicySnapshot,
+      frozenRateSnapshot: paySheetPolicies.frozenRateSnapshot,
+      policyId: paySheetPolicies.policyId,
+    })
+    .from(paySheetPolicies)
+    .innerJoin(paySheets, eq(paySheets.id, paySheetPolicies.paySheetId))
+    .where(
+      and(
+        inArray(
+          paySheetPolicies.policyId,
+          policyRows.map((policy) => policy.id),
+        ),
+        eq(paySheets.ownerType, "producer"),
+        eq(paySheets.status, "closed"),
+        inActiveBusinessGeneration(paySheetPolicies.businessGenerationId),
+        inActiveBusinessGeneration(paySheets.businessGenerationId),
+      ),
+    );
+  for (const closed of closedRows) {
+    const policy = policyById.get(closed.policyId);
+    const snapshot = parsePaySheetPolicySnapshot(closed.frozenPolicySnapshot);
+    parsePaySheetRateSnapshot(closed.frozenRateSnapshot);
+    if (
+      policy === undefined ||
+      snapshot.policyId !== policy.id ||
+      snapshot.producerUserId === null ||
+      payoutByPolicyId.has(policy.id)
+    ) {
+      throw new PaySheetReadConsistencyError();
+    }
+    payoutByPolicyId.set(policy.id, snapshot.producerPayout);
+  }
+
+  const openRows = policyRows.filter(
+    (policy) => !payoutByPolicyId.has(policy.id),
+  );
+  for (const policy of openRows) {
+    if (policy.kayleeSplit === "none") {
+      payoutByPolicyId.set(policy.id, "0.00");
+    }
+  }
+  const assignedRows = openRows.filter(
+    (policy) => policy.kayleeSplit !== "none",
+  );
+  const producerIds = [
+    ...new Set(
+      assignedRows.map((policy) => {
+        if (policy.producerUserId === null) {
+          throw new PaySheetReadConsistencyError();
+        }
+        return policy.producerUserId;
+      }),
+    ),
+  ];
+  const rates = await Promise.all(
+    producerIds.map(async (producerUserId) => ({
+      producerUserId,
+      rate: await loadEffectiveProducerRate(
+        database,
+        producerUserId,
+        asOfDate,
+      ),
+    })),
+  );
+  const rateByProducerId = new Map(
+    rates.map(({ producerUserId, rate }) => [producerUserId, rate] as const),
+  );
+  for (const policy of assignedRows) {
+    const rate =
+      policy.producerUserId === null
+        ? null
+        : rateByProducerId.get(policy.producerUserId);
+    if (rate == null) {
+      throw new PaySheetReadConsistencyError();
+    }
+    payoutByPolicyId.set(
+      policy.id,
+      calculateProducerPayout(policy, buildPaySheetRateSnapshot(rate)),
+    );
+  }
+  return payoutByPolicyId;
 }
 
 async function loadHeaders(

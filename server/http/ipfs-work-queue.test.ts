@@ -185,6 +185,8 @@ function sourceItem(): IpfsWorkQueueSourceItem {
       ...policyRecord(),
       passwordHash: "must-not-leak",
     } as PolicyRecord,
+    producerPayout: "52.50",
+    sophiaRetained: "122.50",
   };
 }
 

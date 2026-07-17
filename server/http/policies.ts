@@ -22,7 +22,10 @@ import {
   type PolicyLedgerSourceList,
 } from "../policies/ledger.js";
 import { POLICY_LEDGER_ADMIN_ACCESS } from "../policies/ledger-access.js";
-import { projectAdminPolicy } from "../policies/projection.js";
+import {
+  projectAdminPolicy,
+  projectAdminPolicyLedgerTotals,
+} from "../policies/projection.js";
 import { projectAuthorizedFields } from "../security/field-projection.js";
 import { asyncRoute, HttpError } from "./errors.js";
 import type { RouteRegistrar } from "./routes.js";
@@ -62,9 +65,18 @@ export function createPolicyLedgerListHandler(
     const items = source.items.map((item) =>
       projectPolicyLedgerItem(res, item),
     );
+    const totals = projectAuthorizedFields(
+      res,
+      source.totals,
+      projectAdminPolicyLedgerTotals,
+    );
+    if (totals === null) {
+      throw new HttpError(403, apiErrorCodes.forbidden, "Forbidden");
+    }
     const response = policyLedgerListResponseSchema.parse({
       ...source,
       items,
+      totals,
     });
     dependencies.logger.info("Policy ledger loaded", {
       component: "policy_ledger",

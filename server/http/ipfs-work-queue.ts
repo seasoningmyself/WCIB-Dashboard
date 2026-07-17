@@ -21,7 +21,10 @@ import {
   type IpfsWorkQueueSourceItem,
 } from "../policies/ledger.js";
 import { POLICY_LEDGER_ADMIN_ACCESS } from "../policies/ledger-access.js";
-import { projectAdminPolicy } from "../policies/projection.js";
+import {
+  projectAdminPolicy,
+  projectAdminPolicyFinancialSplit,
+} from "../policies/projection.js";
 import { projectAuthorizedFields } from "../security/field-projection.js";
 import { asyncRoute, HttpError } from "./errors.js";
 import type { RouteRegistrar } from "./routes.js";
@@ -121,9 +124,18 @@ function projectWorkQueueRow(
   if (policy === null) {
     throw new HttpError(403, apiErrorCodes.forbidden, "Forbidden");
   }
+  const split = projectAuthorizedFields(
+    response,
+    source,
+    projectAdminPolicyFinancialSplit,
+  );
+  if (split === null) {
+    throw new HttpError(403, apiErrorCodes.forbidden, "Forbidden");
+  }
   return {
     labels: policyLedgerLabelsSchema.parse(source.labels),
     policy: adminLedgerPolicySchema.parse(policy),
+    ...split,
   };
 }
 

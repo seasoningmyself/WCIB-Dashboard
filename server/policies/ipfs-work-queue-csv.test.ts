@@ -18,17 +18,21 @@ test("IPFS work queue preserves v15 columns, exact money, and CSV safety", () =>
   const csv = renderIpfsWorkQueueCsv([{
     labels: labels(),
     policy: adminLedgerPolicySchema.parse(policy),
+    producerPayout: "52.50",
+    sophiaRetained: "122.50",
   }]);
 
   assert.equal(IPFS_WORK_QUEUE_HEADERS.length, 47);
   assert.equal(IPFS_WORK_QUEUE_HEADERS[0], "Record ID");
   assert.equal(IPFS_WORK_QUEUE_HEADERS[46], "Notes (WCIB internal)");
+  assert.equal(IPFS_WORK_QUEUE_HEADERS[36], "Producer share (WCIB internal)");
+  assert.equal(IPFS_WORK_QUEUE_HEADERS[37], "Sophia retained (WCIB internal)");
   assert.equal(csv.startsWith("\ufeffRecord ID,"), true);
   assert.equal(csv.split("\r\n").length, 2);
   assert.match(csv, /IPFS Fees \(Broker \+ MGA combined\)/);
   assert.match(csv, /,75\.00,/);
   assert.match(csv, /,775\.00,/);
-  assert.match(csv, /,125\.00,12\.50,175\.00,43\.75,131\.25,/);
+  assert.match(csv, /,125\.00,12\.50,175\.00,52\.50,122\.50,/);
   assert.match(csv, /'=FORMULA LLC/);
   assert.match(csv, /'\+Unsafe Carrier/);
   assert.match(csv, /"Line one, ""quoted""\nLine two"/);
@@ -44,6 +48,8 @@ test("house work-queue rows retain all agency revenue and no producer payout", (
   const csv = renderIpfsWorkQueueCsv([{
     labels: { ...labels(), producerDisplayName: null },
     policy: adminLedgerPolicySchema.parse(projected),
+    producerPayout: "0.00",
+    sophiaRetained: "175.00",
   }]);
   assert.match(csv, /,175\.00,0\.00,175\.00,House account,/);
 });

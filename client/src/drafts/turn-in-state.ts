@@ -9,6 +9,7 @@ import {
   calculateDraftProposalTotal,
   compareMoney,
   moneyDifferenceInCents,
+  proposalTotalsMatch,
 } from "../../../shared/draft-calculations.js";
 import type {
   CreateDraftRequest,
@@ -152,7 +153,7 @@ export function applyIpfsReturningDetection(
     : { ...state, ipfsReturning };
 }
 
-export const TURN_IN_PROPOSAL_TOLERANCE_CENTS = 2n;
+export { proposalTotalsMatch };
 
 export interface TurnInPaymentGuidance {
   text: string;
@@ -537,14 +538,6 @@ export function validateTurnInForSubmit(
     }
   }
   return errors;
-}
-
-export function proposalTotalsMatch(
-  entered: string,
-  calculated: string,
-): boolean {
-  const difference = moneyDifferenceInCents(entered, calculated);
-  return difference !== null && difference <= TURN_IN_PROPOSAL_TOLERANCE_CENTS;
 }
 
 export function buildAssignmentChoices(

@@ -2,10 +2,10 @@ import {
   type PolicyLedgerLabels,
   type PolicyLedgerPolicy,
 } from "../../shared/policy-ledger.js";
-import { KAYLEE_PRODUCER_SHARE_PERCENT } from "../../shared/policy-fields.js";
 import { safeSpreadsheetText } from "../pay-sheets/export-document.js";
+import type { PolicyFinancialSplit } from "./ledger.js";
 
-export interface ProjectedIpfsWorkQueueRow {
+export interface ProjectedIpfsWorkQueueRow extends PolicyFinancialSplit {
   labels: PolicyLedgerLabels;
   policy: PolicyLedgerPolicy;
 }
@@ -49,8 +49,8 @@ const COLUMNS: readonly (readonly [string, CsvValue])[] = [
   ["Commission (WCIB internal)", ({ policy }) => commissionValue(policy)],
   ["Commission rate % (WCIB internal)", ({ policy }) => commissionRateValue(policy)],
   ["Net due to MGA (WCIB internal)", ({ policy }) => policy.netDue],
-  ["Producer 25% (WCIB internal)", ({ policy }) => producerPayout(policy)],
-  ["Sophia 75% (WCIB internal)", ({ policy }) => sophiaRetained(policy)],
+  ["Producer share (WCIB internal)", ({ producerPayout }) => producerPayout],
+  ["Sophia retained (WCIB internal)", ({ sophiaRetained }) => sophiaRetained],
   ["Account (WCIB internal)", accountLabel],
   ["Office (WCIB internal)", ({ labels }) => labels.officeName],
   ["Transaction (WCIB internal)", ({ policy }) => policy.transactionType],
@@ -116,23 +116,6 @@ function commissionValue(policy: PolicyLedgerPolicy): string {
 function commissionRateValue(policy: PolicyLedgerPolicy): string {
   if (policy.commissionMode !== "pct" || policy.commissionRate === null) return "";
   return Number(policy.commissionRate).toFixed(2);
-}
-
-function agencyRevenueCents(policy: PolicyLedgerPolicy): bigint {
-  const commission = policy.commissionMode === "tbd"
-    ? 0n
-    : moneyToCents(policy.commissionAmount);
-  return commission + moneyToCents(policy.brokerFee);
-}
-
-function producerPayout(policy: PolicyLedgerPolicy): string {
-  if (policy.kayleeSplit === "none") return "0.00";
-  const numerator = agencyRevenueCents(policy) * BigInt(KAYLEE_PRODUCER_SHARE_PERCENT);
-  return centsToMoney((numerator + 50n) / 100n);
-}
-
-function sophiaRetained(policy: PolicyLedgerPolicy): string {
-  return centsToMoney(agencyRevenueCents(policy) - moneyToCents(producerPayout(policy)));
 }
 
 function accountLabel(row: ProjectedIpfsWorkQueueRow): string {

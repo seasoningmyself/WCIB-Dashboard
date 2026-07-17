@@ -3,7 +3,6 @@ import { test } from "node:test";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
-import { KAYLEE_PRODUCER_SHARE_PERCENT } from "../../shared/policy-fields.js";
 import { readDatabaseErrorCode } from "./error-code.js";
 import { createPolicyReferenceFixture } from "./policy-test-fixture.js";
 import { policies } from "./schema.js";
@@ -132,7 +131,6 @@ test("policies persist exact v15 ledger, split, and financing facts", async () =
       .returning();
     assert.ok(rewrite);
 
-    assert.equal(KAYLEE_PRODUCER_SHARE_PERCENT, 25);
     assert.equal(wonBack.kayleeSplit, "book");
     assert.equal(wonBack.producerUserId, producerUserId);
     assert.equal(wonBack.transactionType, "Won Back");

@@ -1,7 +1,83 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 14, 2026 (recorded Start Fresh compatibility hardening.)
+**Last updated:** July 17, 2026 (recorded production supersessions for v15 pay-sheet maintenance tools.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
+
+---
+
+## July 17, 2026 — Server and browser share one proposal-tolerance rule
+
+**Recorded correctness fix:** The browser already applied the final-v15
+proposal cross-check recorded below: an absolute difference of $0.00, $0.01,
+or $0.02 passes, while $0.03 or more fails. The server submission validator
+still required exact equality, so a turn-in shown as ready could be rejected at
+submit. Browser and server now use one shared integer-cent constant and
+comparison function. This changes no stored calculation; it makes the trusted
+submission boundary enforce the same approved rounding tolerance as the form.
+
+---
+
+## July 17, 2026 — Producer shares use dated rates on every financial surface
+
+**Recorded correctness decision:** Final v15 is internally inconsistent about
+producer compensation. Its ledger and IPFS CSV hard-code `Producer 25%` and
+`Sophia 75%` (`wcib_dashboard_v15.html`, lines 4390–4391), while the same file
+stores dated commission and broker-rate pairs, selects the latest entry
+effective on the relevant date (lines 2096–2117), and freezes that active rate
+when a producer pay sheet closes (lines 6328–6339). A producer whose configured
+rate differs from 25% could therefore see one payout on their pay sheet while
+the ledger and export reported another.
+
+Production treats the dated Pay Sheet / My Commissions calculation as the
+authoritative amount actually paid. Ledger totals and the IPFS work-queue CSV
+now use that same calculation: open work uses the producer rate effective on
+the read date; settled work uses the payout frozen at pay-sheet close. Agency
+commission and broker-fee totals do not change. Sophia's retained amount on
+these surfaces is agency revenue less the actual producer payout. This is a
+deliberate correctness improvement over contradictory v15 behavior, ensuring
+Ledger, IPFS export, Pay Sheets, and My Commissions report one producer payout.
+
+---
+
+## July 17, 2026 — Pay-sheet restore point is superseded by generation recovery
+
+**Deliberate supersession of a final-v15 feature:** Final v15 exposes an
+admin-only named Pay Sheet restore point with Save and Revert actions
+(`wcib_dashboard_v15.html`, lines 1780–1783). Its implementation deep-copies
+the browser's `paySheets` and `ledger` arrays into one localStorage checkpoint
+and restores both on revert (lines 5184–5234).
+
+Production does not add a separate pay-sheet-specific restore point. Parent
+M3's business-state generation model already provides recoverable snapshots of
+the complete transactional state, including pay sheets, frozen snapshots,
+policies, adjustments, approvals, and drafts, through Start Fresh and Restore.
+DigitalOcean managed Postgres also provides point-in-time recovery for broader
+operational recovery. A second pay-sheet-only checkpoint would duplicate a
+narrow subset of the same recoverability while creating another restore path
+to maintain and verify. The final-v15 maintenance feature is therefore
+intentionally superseded by generation restore plus managed-database recovery,
+not omitted as an unresolved parity gap.
+
+---
+
+## July 17, 2026 — June 2026 prior-Excel importer is superseded by clean-slate launch
+
+**Deliberate supersession of a final-v15 feature:** Final v15 exposes an
+admin-only **Import June 2026 Excel items** action in Pay Sheet maintenance
+(`wcib_dashboard_v15.html`, lines 1785–1789). It carries a hard-coded set of 59
+already-paid pre-system rows and imports them onto the June 2026 sheet, where
+they feed pay-sheet totals and KPIs without entering Ledger, MGA Payables, or
+Approvals (lines 6094–6210); it also provides re-import and removal actions
+(lines 6212–6234).
+
+Production follows the approved clean-slate direction: it starts with no legacy
+Excel pay-sheet data, so this one-time June 2026 importer has no source data or
+ongoing user workflow to serve. It is intentionally not ported as a standing
+feature. If historical pay-sheet data is ever approved for loading, it will be
+handled as a separately reviewed, one-time migration with explicit source-data
+validation rather than as an always-available UI action. This final-v15 feature
+is deliberately superseded by the clean-slate launch decision and must not be
+reported as an unresolved parity gap.
 
 ---
 

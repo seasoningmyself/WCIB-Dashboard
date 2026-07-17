@@ -127,13 +127,18 @@ test("ledger totals use exact cents and keep Sophia and producer shares distinct
     kayleeSplit: "book",
   });
 
-  assert.deepEqual(calculateLedgerTotals([house, producer]), {
+  const payoutByPolicyId = new Map([
+    [house.policy.id, "0.00"],
+    [producer.policy.id, "9.01"],
+  ]);
+
+  assert.deepEqual(calculateLedgerTotals([house, producer], payoutByPolicyId), {
     agencyRevenue: "60.05",
     amountPaid: "300.03",
     brokerFee: "20.02",
     commissionAmount: "40.03",
-    producerPayout: "7.51",
-    sophiaRetained: "52.54",
+    producerPayout: "9.01",
+    sophiaRetained: "51.04",
   });
 });
 

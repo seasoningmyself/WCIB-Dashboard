@@ -1,5 +1,7 @@
 import type { CommissionMode, PaymentMode } from "./policy-fields.js";
 
+export const TURN_IN_PROPOSAL_TOLERANCE_CENTS = 2n;
+
 export interface AgencyCommissionInput {
   basePremium: string | null | undefined;
   commissionMode: CommissionMode | null | undefined;
@@ -116,6 +118,14 @@ export function moneyDifferenceInCents(
   }
   const difference = leftCents - rightCents;
   return difference < 0n ? -difference : difference;
+}
+
+export function proposalTotalsMatch(
+  entered: string,
+  calculated: string,
+): boolean {
+  const difference = moneyDifferenceInCents(entered, calculated);
+  return difference !== null && difference <= TURN_IN_PROPOSAL_TOLERANCE_CENTS;
 }
 
 function parseFixed(value: string, scale: number): bigint | null {

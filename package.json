@@ -59,6 +59,7 @@
     "test:db:approval-override": "node --import tsx --test server/approval-queue/approve-with-override.db-test.ts",
     "test:db:approval-send-back": "node --import tsx --test server/approval-queue/send-back.db-test.ts",
     "test:db:policy-ledger": "node --import tsx --test server/http/policies.db-test.ts",
+    "test:db:producer-share-reconciliation": "node --import tsx --test server/policies/producer-share-reconciliation.db-test.ts",
     "test:db:ipfs-history": "node --import tsx --test server/policies/ipfs-history.db-test.ts",
     "test:db:ipfs-work-queue": "node --import tsx --test server/policies/ipfs-work-queue.db-test.ts",
     "test:db:ipfs-pushed-audit": "node --import tsx --test server/db/ipfs-pushed-audit-migration.db-test.ts",
