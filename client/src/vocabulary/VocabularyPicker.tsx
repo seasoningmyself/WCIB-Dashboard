@@ -196,7 +196,12 @@ export function VocabularyPicker<TOption extends PickerOption>({
           id={id}
           onBlur={(event) => {
             if (!rootRef.current?.contains(event.relatedTarget)) {
-              closeAndRestore();
+              const resolved = resolveVocabularyBlurOption(options, query);
+              if (resolved === null) {
+                closeAndRestore();
+              } else {
+                choose(resolved);
+              }
             }
           }}
           onChange={(event) => {
@@ -207,7 +212,10 @@ export function VocabularyPicker<TOption extends PickerOption>({
             setOpen(true);
           }}
           onClick={() => setOpen(true)}
-          onFocus={() => setOpen(true)}
+          onFocus={(event) => {
+            setOpen(true);
+            event.currentTarget.select();
+          }}
           onKeyDown={handleKeyDown}
           maxLength={VOCABULARY_NAME_MAX_LENGTH}
           placeholder={loadStatus === "loading" ? "Loading..." : placeholder}
@@ -344,6 +352,28 @@ export function shouldOfferInlineAction(
   );
 }
 
+export function resolveVocabularyBlurOption<TOption extends PickerOption>(
+  options: readonly TOption[],
+  query: string,
+): TOption | null {
+  const normalizedQuery = normalizeBlurValue(query);
+  if (normalizedQuery === "") {
+    return null;
+  }
+
+  const exact = options.find(
+    (option) => normalizeBlurValue(option.name) === normalizedQuery,
+  );
+  if (exact !== undefined) {
+    return exact;
+  }
+
+  const substringMatches = options.filter((option) =>
+    normalizeBlurValue(option.name).includes(normalizedQuery),
+  );
+  return substringMatches.length === 1 ? substringMatches[0]! : null;
+}
+
 export function resolvePickerKey({
   activeIndex,
   canCommit,
@@ -456,6 +486,16 @@ function matchRank(name: string, query: string): number | null {
 }
 
 function compareOptions(left: PickerOption, right: PickerOption): number {
+  const leftResidentialBondValue = residentialBondValue(left.name);
+  const rightResidentialBondValue = residentialBondValue(right.name);
+  if (
+    leftResidentialBondValue !== null &&
+    rightResidentialBondValue !== null &&
+    leftResidentialBondValue !== rightResidentialBondValue
+  ) {
+    return rightResidentialBondValue - leftResidentialBondValue;
+  }
+
   const leftName = normalize(left.name);
   const rightName = normalize(right.name);
   if (leftName < rightName) {
@@ -469,4 +509,16 @@ function compareOptions(left: PickerOption, right: PickerOption): number {
 
 function normalize(value: string): string {
   return value.toLowerCase();
+}
+
+function normalizeBlurValue(value: string): string {
+  return normalize(value.trim()).replace(/[.\s]+$/u, "");
+}
+
+function residentialBondValue(name: string): number | null {
+  if (!/^bond - residential/i.test(name)) {
+    return null;
+  }
+  const match = /\$(\d+)k/i.exec(name);
+  return match === null ? 0 : Number.parseInt(match[1]!, 10);
 }

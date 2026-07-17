@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   pickerMessage,
   rankVocabularyOptions,
+  resolveVocabularyBlurOption,
   resolvePickerKey,
   shouldOfferInlineAction,
   VocabularyPicker,
@@ -32,6 +33,39 @@ test("picker ranking is prefix, word-prefix, then contains and deterministic", (
     ["AmTrust", "Great American", "Program Market"],
   );
   assert.deepEqual(rankVocabularyOptions(options, "absent"), []);
+});
+
+test("residential bond values sort high-to-low within their v15 group", () => {
+  const bondOptions: PickerOption[] = [
+    { id: "10", name: "Bond - Residential - $10k" },
+    { id: "25", name: "Bond - Residential - $25k" },
+    { id: "15", name: "Bond - Residential - $15k" },
+    { id: "20", name: "Bond - Residential - $20k" },
+  ];
+
+  assert.deepEqual(
+    rankVocabularyOptions(bondOptions, "bond").map(({ name }) => name),
+    [
+      "Bond - Residential - $25k",
+      "Bond - Residential - $20k",
+      "Bond - Residential - $15k",
+      "Bond - Residential - $10k",
+    ],
+  );
+});
+
+test("picker blur resolves exact and unique substring values only", () => {
+  assert.equal(
+    resolveVocabularyBlurOption(options, "  AmTrust. ")?.name,
+    "AmTrust",
+  );
+  assert.equal(
+    resolveVocabularyBlurOption(options, "american")?.name,
+    "Great American",
+  );
+  assert.equal(resolveVocabularyBlurOption(options, "a"), null);
+  assert.equal(resolveVocabularyBlurOption(options, "missing"), null);
+  assert.equal(resolveVocabularyBlurOption(options, ""), null);
 });
 
 test("picker keyboard decisions navigate, commit, tab forward, and dismiss", () => {
