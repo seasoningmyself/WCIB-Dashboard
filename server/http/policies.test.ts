@@ -147,7 +147,7 @@ test("admin list and detail return only projected ledger policy fields", async (
         month: "2026-07",
         offset: 0,
         search: "Private",
-        sort: "date",
+        sort: "insured",
       },
       userId: ADMIN_ID,
     },
