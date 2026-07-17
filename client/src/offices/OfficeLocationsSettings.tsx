@@ -226,7 +226,7 @@ function OfficeModeSummary({ mode }: { mode: AdminOfficeManagementResponse["mode
     ? "Turn-ins are blocked until an office is active."
     : mode.kind === "single"
       ? "The active office is selected automatically and the picker stays hidden."
-      : "Staff must choose an office on each turn-in.";
+      : "The first active office is selected by default, and staff can choose another.";
   return (
     <section className={`office-mode is-${mode.kind}`} aria-label="Turn-in office behavior">
       <div>
