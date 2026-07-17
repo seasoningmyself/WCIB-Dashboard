@@ -1,6 +1,6 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 17, 2026 (aligned proposal validation and producer-share reporting with shared trusted calculations.)
+**Last updated:** July 17, 2026 (recorded production supersessions for v15 pay-sheet maintenance tools.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
 
 ---
@@ -36,6 +36,48 @@ commission and broker-fee totals do not change. Sophia's retained amount on
 these surfaces is agency revenue less the actual producer payout. This is a
 deliberate correctness improvement over contradictory v15 behavior, ensuring
 Ledger, IPFS export, Pay Sheets, and My Commissions report one producer payout.
+
+---
+
+## July 17, 2026 — Pay-sheet restore point is superseded by generation recovery
+
+**Deliberate supersession of a final-v15 feature:** Final v15 exposes an
+admin-only named Pay Sheet restore point with Save and Revert actions
+(`wcib_dashboard_v15.html`, lines 1780–1783). Its implementation deep-copies
+the browser's `paySheets` and `ledger` arrays into one localStorage checkpoint
+and restores both on revert (lines 5184–5234).
+
+Production does not add a separate pay-sheet-specific restore point. Parent
+M3's business-state generation model already provides recoverable snapshots of
+the complete transactional state, including pay sheets, frozen snapshots,
+policies, adjustments, approvals, and drafts, through Start Fresh and Restore.
+DigitalOcean managed Postgres also provides point-in-time recovery for broader
+operational recovery. A second pay-sheet-only checkpoint would duplicate a
+narrow subset of the same recoverability while creating another restore path
+to maintain and verify. The final-v15 maintenance feature is therefore
+intentionally superseded by generation restore plus managed-database recovery,
+not omitted as an unresolved parity gap.
+
+---
+
+## July 17, 2026 — June 2026 prior-Excel importer is superseded by clean-slate launch
+
+**Deliberate supersession of a final-v15 feature:** Final v15 exposes an
+admin-only **Import June 2026 Excel items** action in Pay Sheet maintenance
+(`wcib_dashboard_v15.html`, lines 1785–1789). It carries a hard-coded set of 59
+already-paid pre-system rows and imports them onto the June 2026 sheet, where
+they feed pay-sheet totals and KPIs without entering Ledger, MGA Payables, or
+Approvals (lines 6094–6210); it also provides re-import and removal actions
+(lines 6212–6234).
+
+Production follows the approved clean-slate direction: it starts with no legacy
+Excel pay-sheet data, so this one-time June 2026 importer has no source data or
+ongoing user workflow to serve. It is intentionally not ported as a standing
+feature. If historical pay-sheet data is ever approved for loading, it will be
+handled as a separately reviewed, one-time migration with explicit source-data
+validation rather than as an always-available UI action. This final-v15 feature
+is deliberately superseded by the clean-slate launch decision and must not be
+reported as an unresolved parity gap.
 
 ---
 
