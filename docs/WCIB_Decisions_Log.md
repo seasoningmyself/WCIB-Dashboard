@@ -1,7 +1,19 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 14, 2026 (recorded Start Fresh compatibility hardening.)
+**Last updated:** July 17, 2026 (aligned server proposal validation with the recorded two-cent tolerance.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
+
+---
+
+## July 17, 2026 — Server and browser share one proposal-tolerance rule
+
+**Recorded correctness fix:** The browser already applied the final-v15
+proposal cross-check recorded below: an absolute difference of $0.00, $0.01,
+or $0.02 passes, while $0.03 or more fails. The server submission validator
+still required exact equality, so a turn-in shown as ready could be rejected at
+submit. Browser and server now use one shared integer-cent constant and
+comparison function. This changes no stored calculation; it makes the trusted
+submission boundary enforce the same approved rounding tolerance as the form.
 
 ---
 

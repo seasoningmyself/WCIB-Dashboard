@@ -99,6 +99,31 @@ test("audit and endorsement submissions require an invoice number", () => {
   }
 });
 
+test("server submission validation uses the shared two-cent proposal tolerance", () => {
+  for (const proposalTotal of [
+    "1080.00",
+    "1080.01",
+    "1079.99",
+    "1080.02",
+    "1079.98",
+  ]) {
+    assert.doesNotThrow(
+      () => buildDraftSubmissionSnapshot(validDraft({ proposalTotal })),
+      proposalTotal,
+    );
+  }
+
+  for (const proposalTotal of ["1080.03", "1079.97"]) {
+    assert.throws(
+      () => buildDraftSubmissionSnapshot(validDraft({ proposalTotal })),
+      (error: unknown) =>
+        error instanceof DraftSubmissionValidationError &&
+        error.details.some(({ field }) => field === "proposalTotal"),
+      proposalTotal,
+    );
+  }
+});
+
 function validDraft(input: Partial<DraftRecord> = {}): DraftRecord {
   return {
     accountAssignment: "none",

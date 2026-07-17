@@ -3,6 +3,7 @@ import {
   calculateAgencyCommissionAmount,
   calculateDraftProposalTotal,
   compareMoney,
+  proposalTotalsMatch,
 } from "../../shared/draft-calculations.js";
 import type { ApiErrorDetail } from "../../shared/api-errors.js";
 import type { CreateDraftRequest } from "../../shared/drafts.js";
@@ -346,7 +347,7 @@ function validateSubmissionFields(
     input.proposalTotal != null &&
     (compareMoney(input.proposalTotal, "0.00") !== 1 ||
       expectedProposalTotal === null ||
-      compareMoney(input.proposalTotal, expectedProposalTotal) !== 0)
+      !proposalTotalsMatch(input.proposalTotal, expectedProposalTotal))
   ) {
     details.push({
       field: "proposalTotal",
