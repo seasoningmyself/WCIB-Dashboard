@@ -4,7 +4,6 @@ import React, {
   useMemo,
   useRef,
   useState,
-  type FormEvent,
 } from "react";
 import type { CurrentUser } from "../../../shared/current-user.js";
 import {
@@ -128,11 +127,10 @@ function ProducerMyCommissions() {
     [api, load],
   );
 
-  const submitSearch = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (pendingRef.current !== null) return;
+  const updateSearch = (value: string) => {
     setNotice(null);
-    setQuery((current) => ({ ...current, search: search.trim() }));
+    setSearch(value);
+    setQuery((current) => ({ ...current, search: value.trim() }));
   };
 
   return (
@@ -140,8 +138,7 @@ function ProducerMyCommissions() {
       notice={notice}
       onReceipt={(item, received) => void setReceipt(item, received)}
       onRetry={() => void load()}
-      onSearch={submitSearch}
-      onSearchChange={setSearch}
+      onSearchChange={updateSearch}
       onSort={(sort) => {
         if (pendingRef.current !== null) return;
         setNotice(null);
@@ -159,7 +156,6 @@ export function MyCommissionsView({
   notice,
   onReceipt,
   onRetry,
-  onSearch,
   onSearchChange,
   onSort,
   pendingId,
@@ -170,7 +166,6 @@ export function MyCommissionsView({
   notice: string | null;
   onReceipt(item: MyCommissionItem, received: boolean): void;
   onRetry(): void;
-  onSearch(event: FormEvent<HTMLFormElement>): void;
   onSearchChange(value: string): void;
   onSort(sort: MyCommissionsListQuery["sort"]): void;
   pendingId: string | null;
@@ -236,19 +231,33 @@ export function MyCommissionsView({
         </div>
 
         <div className="my-commissions-toolbar">
-          <form onSubmit={onSearch} role="search">
+          <form onSubmit={(event) => event.preventDefault()} role="search">
             <label htmlFor="commission-search">Search insured</label>
-            <div>
+            <div className={search === "" ? undefined : "has-clear"}>
               <input
                 autoComplete="off"
                 id="commission-search"
                 maxLength={200}
                 onChange={(event) => onSearchChange(event.currentTarget.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    onSearchChange("");
+                  }
+                }}
                 placeholder="Insured name"
                 type="search"
                 value={search}
               />
-              <button disabled={pendingId !== null} type="submit">Search</button>
+              {search === "" ? null : (
+                <button
+                  aria-label="Clear commission search"
+                  onClick={() => onSearchChange("")}
+                  type="button"
+                >
+                  Clear
+                </button>
+              )}
             </div>
           </form>
           <div className="my-commissions-sort" aria-label="Commission sort order">
