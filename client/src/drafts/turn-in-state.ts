@@ -347,6 +347,32 @@ export function turnInFormToDraftInput(
   };
 }
 
+export function turnInFormHasContent(state: TurnInFormState): boolean {
+  const input = turnInFormToDraftInput(state);
+  return [
+    input.accountAssignment,
+    input.amountPaid,
+    input.basePremium,
+    input.brokerFee,
+    input.carrierId,
+    input.commissionRate,
+    input.companyName,
+    input.depositOption,
+    input.effectiveDate,
+    input.expirationDate,
+    input.financeReference,
+    input.insuredName,
+    input.invoiceNumber,
+    input.mgaId,
+    input.notes,
+    input.policyNumber,
+    input.policyTypeId,
+    input.proposalTotal,
+    input.transactionNotes,
+    input.transactionType,
+  ].some((value) => value !== null && value !== undefined);
+}
+
 export function turnInFormToNonfinancialDraftUpdate(
   state: TurnInFormState,
 ): UpdateDraftRequest {

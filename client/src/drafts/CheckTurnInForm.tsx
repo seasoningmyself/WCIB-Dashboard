@@ -19,6 +19,7 @@ import { useVocabulary } from "../vocabulary/context.js";
 import { OfficeLocationPicker } from "../vocabulary/pickers.js";
 import { normalizeTurnInOfficeSelection } from "../offices/turn-in-office.js";
 import { createDraftApi, DraftApiError } from "./api.js";
+import { createAutomaticSaveQueue } from "./autosave.js";
 import { canRequestDraftHelp, parseHelpReason } from "./help-request.js";
 import {
   assignmentKey,
@@ -35,6 +36,7 @@ import {
   TURN_IN_TRANSACTION_TYPE_KEY,
   TURN_IN_TRANSACTION_TYPES,
   turnInFormToDraftInput,
+  turnInFormHasContent,
   turnInFormToNonfinancialDraftUpdate,
   turnInStateFromDraft,
   updateTurnInField,
@@ -55,6 +57,9 @@ type AssignmentLoadState = "error" | "loading" | "ready";
 type IpfsHistoryState =
   | { status: "idle" | "loading" | "none" | "error" }
   | { lastFinancedAt: string; status: "matched" };
+
+const BLUR_AUTOSAVE_DELAY_MS = 150;
+const BACKUP_AUTOSAVE_INTERVAL_MS = 30_000;
 
 export function CheckTurnInForm({
   initialDraft = null,
@@ -93,6 +98,16 @@ export function CheckTurnInForm({
   const helpReasonRef = useRef<HTMLTextAreaElement>(null);
   const helpTriggerRef = useRef<HTMLButtonElement>(null);
   const completionRef = useRef<HTMLHeadingElement>(null);
+  const autosaveTimerRef = useRef<number | null>(null);
+  const automaticSaveQueueRef = useRef(createAutomaticSaveQueue());
+  const lastPersistedInputRef = useRef<string | null>(
+    initialDraft === null
+      ? null
+      : draftInputSignature(turnInStateFromDraft(initialDraft), initialDraft),
+  );
+  const latestSaveRef = useRef<
+    (options?: { automatic?: boolean }) => Promise<DraftResponse | null>
+  >(async () => null);
 
   useEffect(() => {
     setDraft(initialDraft);
@@ -114,6 +129,14 @@ export function CheckTurnInForm({
     ipfsReturningUserSetRef.current = initialDraft?.ipfsReturning != null;
     autoExpirationRef.current = null;
     expirationSuggestionKeyRef.current = "";
+    lastPersistedInputRef.current = initialDraft === null
+      ? null
+      : draftInputSignature(turnInStateFromDraft(initialDraft), initialDraft);
+    if (autosaveTimerRef.current !== null) {
+      window.clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+    automaticSaveQueueRef.current.clear();
   }, [initialDraft]);
 
   useEffect(() => {
@@ -257,6 +280,12 @@ export function CheckTurnInForm({
     ipfsReturningUserSetRef.current = false;
     autoExpirationRef.current = null;
     expirationSuggestionKeyRef.current = "";
+    lastPersistedInputRef.current = null;
+    if (autosaveTimerRef.current !== null) {
+      window.clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+    automaticSaveQueueRef.current.clear();
   }, []);
   useSensitiveSessionCleanup(clearSensitiveState);
 
@@ -322,13 +351,25 @@ export function CheckTurnInForm({
     [onDraftChange],
   );
 
-  const save = useCallback(async () => {
+  const save = useCallback(async (
+    { automatic = false }: { automatic?: boolean } = {},
+  ) => {
+    if (pendingRef.current) {
+      if (automatic) automaticSaveQueueRef.current.queue();
+      return null;
+    }
     if (
-      pendingRef.current ||
       officeConfigurationBlocked ||
       (draft !== null && !isEditableDraft(draft))
     ) {
       return null;
+    }
+    if (automatic && !turnInFormHasContent(form)) {
+      return null;
+    }
+    const inputSignature = draftInputSignature(form, draft);
+    if (automatic && inputSignature === lastPersistedInputRef.current) {
+      return draft;
     }
     pendingRef.current = true;
     setErrors({});
@@ -342,6 +383,7 @@ export function CheckTurnInForm({
         draft === null
           ? await api.create(input)
           : await api.edit(draft.id, input);
+      lastPersistedInputRef.current = inputSignature;
       acceptDraft(result.draft);
       setSaveState("saved");
       return result.draft;
@@ -351,8 +393,45 @@ export function CheckTurnInForm({
       return null;
     } finally {
       pendingRef.current = false;
+      if (automaticSaveQueueRef.current.take()) {
+        if (autosaveTimerRef.current !== null) {
+          window.clearTimeout(autosaveTimerRef.current);
+        }
+        autosaveTimerRef.current = window.setTimeout(() => {
+          autosaveTimerRef.current = null;
+          void latestSaveRef.current({ automatic: true });
+        }, 0);
+      }
     }
   }, [acceptDraft, api, draft, form, officeConfigurationBlocked]);
+
+  useEffect(() => {
+    latestSaveRef.current = save;
+  }, [save]);
+
+  const scheduleBlurAutosave = useCallback(() => {
+    if (autosaveTimerRef.current !== null) {
+      window.clearTimeout(autosaveTimerRef.current);
+    }
+    autosaveTimerRef.current = window.setTimeout(() => {
+      autosaveTimerRef.current = null;
+      void latestSaveRef.current({ automatic: true });
+    }, BLUR_AUTOSAVE_DELAY_MS);
+  }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      void latestSaveRef.current({ automatic: true });
+    }, BACKUP_AUTOSAVE_INTERVAL_MS);
+    return () => {
+      window.clearInterval(interval);
+      if (autosaveTimerRef.current !== null) {
+        window.clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+      automaticSaveQueueRef.current.clear();
+    };
+  }, []);
 
   const clearForm = useCallback(() => {
     if (!window.confirm("Clear all turn-in fields?")) {
@@ -375,6 +454,7 @@ export function CheckTurnInForm({
     }
     setDraft(null);
     setForm(freshForm());
+    lastPersistedInputRef.current = null;
     setErrors({});
     setSaveState("idle");
     setIpfsHistory({ status: "idle" });
@@ -496,6 +576,7 @@ export function CheckTurnInForm({
       }}
       ipfsHistory={ipfsHistory}
       onAssignmentChange={changeAssignment}
+      onBlurAutosave={scheduleBlurAutosave}
       onClear={clearForm}
       onFieldChange={changeField}
       onRetryAssignments={() => setAssignmentAttempt((value) => value + 1)}
@@ -518,6 +599,7 @@ interface CheckTurnInFormViewProps {
   help?: DraftHelpControl;
   ipfsHistory?: IpfsHistoryState;
   onAssignmentChange(choice: AssignmentChoice | null): void;
+  onBlurAutosave?(): void;
   onClear(): void;
   onFieldChange<Key extends keyof TurnInFormState>(
     field: Key,
@@ -555,6 +637,7 @@ export function CheckTurnInFormView({
   help,
   ipfsHistory = { status: "idle" },
   onAssignmentChange,
+  onBlurAutosave,
   onClear,
   onFieldChange,
   onRetryAssignments,
@@ -674,6 +757,11 @@ export function CheckTurnInFormView({
       <form
         className="turn-in-form"
         noValidate
+        onBlur={(event) => {
+          if (event.target instanceof HTMLElement && event.target.matches("input, select, textarea")) {
+            onBlurAutosave?.();
+          }
+        }}
         onSubmit={(event: FormEvent<HTMLFormElement>) => {
           event.preventDefault();
           if (!officeConfigurationBlocked) {
@@ -1568,6 +1656,17 @@ function maxLengthForField(field: keyof TurnInFormState): number {
 
 function isEditableDraft(draft: DraftResponse): boolean {
   return draft.status === "draft" || draft.status === "sent_back";
+}
+
+function draftInputSignature(
+  form: TurnInFormState,
+  draft: DraftResponse | null,
+): string {
+  return JSON.stringify(
+    draft?.status === "sent_back"
+      ? turnInFormToNonfinancialDraftUpdate(form)
+      : turnInFormToDraftInput(form),
+  );
 }
 
 function completionCopy(status: DraftResponse["status"]): {

@@ -14,6 +14,7 @@ import {
   proposalTotalsMatch,
   suggestAnnualExpiration,
   turnInDateToIso,
+  turnInFormHasContent,
   turnInFormToDraftInput,
   turnInFormToNonfinancialDraftUpdate,
   turnInStateFromSubmission,
@@ -75,6 +76,24 @@ test("turn-in state maps every active v15 input and excludes private producer sp
   ]) {
     assert.equal(forbidden in input, false, forbidden);
   }
+});
+
+test("blur autosave recognizes content without counting empty form defaults", () => {
+  const empty = createEmptyTurnInState();
+  assert.equal(turnInFormHasContent(empty), false);
+  assert.equal(
+    turnInFormHasContent({ ...empty, paymentMode: "direct" }),
+    false,
+    "default-only selections must preserve lazy draft creation",
+  );
+  assert.equal(
+    turnInFormHasContent({ ...empty, insuredName: "Acme LLC" }),
+    true,
+  );
+  assert.equal(
+    turnInFormHasContent({ ...empty, depositOption: "250.00" }),
+    true,
+  );
 });
 
 test("immutable submission snapshots populate the full correction form", () => {
