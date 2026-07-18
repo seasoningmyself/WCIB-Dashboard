@@ -407,24 +407,30 @@ export function ManageStaffView({
                     <span className={staff.isActive ? "is-active" : "is-inactive"}>
                       {staff.isActive ? "Active" : "Inactive"}
                     </span>
-                    <span className={`is-rate-${staff.rateState}`}>{staffRateStateLabel(staff.rateState)}</span>
+                    {staff.rateState === "not_applicable" ? null : (
+                      <span className={`is-rate-${staff.rateState}`}>
+                        {staffRateStateLabel(staff.rateState)}
+                      </span>
+                    )}
                   </div>
                   <div className="staff-row-actions">
                     <button disabled={pending} onClick={() => onEdit(staff)} type="button">Edit</button>
                     <button disabled={pending} onClick={() => onActive(staff, !staff.isActive)} type="button">
                       {staff.isActive ? "Deactivate" : "Reactivate"}
                     </button>
-                    <button
-                      aria-expanded={expanded}
-                      disabled={pending}
-                      onClick={() => onToggle(staff.userId)}
-                      type="button"
-                    >
-                      {expanded ? "Hide rates" : "Rate history"}
-                    </button>
+                    {staff.rateState === "not_applicable" ? null : (
+                      <button
+                        aria-expanded={expanded}
+                        disabled={pending}
+                        onClick={() => onToggle(staff.userId)}
+                        type="button"
+                      >
+                        {expanded ? "Hide rates" : "Rate history"}
+                      </button>
+                    )}
                   </div>
                 </div>
-                {expanded ? (
+                {expanded && staff.rateState !== "not_applicable" ? (
                   <RateHistory
                     onAdd={() => onAddRate(staff)}
                     onCorrect={(rate) => onCorrectRate(staff, rate)}

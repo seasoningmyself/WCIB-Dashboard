@@ -16,6 +16,13 @@ const noOp = () => {};
 
 test("Manage Staff renders active and inactive identities with immutable rate history", () => {
   const producer = staffFixture();
+  const producerWithoutRates = staffFixture({
+    displayName: "Producer Missing Rates",
+    rateState: "missing",
+    rates: [],
+    userId: uuid(3),
+  });
+  const neverProducer = employeeFixture();
   const inactive = employeeFixture({
     displayName: "Long Historical Employee Name That Must Remain Readable",
     email: "long.historical.employee.address@example.test",
@@ -23,7 +30,10 @@ test("Manage Staff renders active and inactive identities with immutable rate hi
     rateState: "dormant",
     rates: [producer.rates[0]!],
   });
-  const markup = renderView([producer, inactive], producer.userId);
+  const markup = renderView(
+    [producer, producerWithoutRates, neverProducer, inactive],
+    producer.userId,
+  );
 
   for (const visible of [
     "Manage Staff",
@@ -32,6 +42,7 @@ test("Manage Staff renders active and inactive identities with immutable rate hi
     "Kaylee Producer",
     "Long Historical Employee Name That Must Remain Readable",
     "Rate configured",
+    "⚠ No rates set, Pay Sheet will not calculate",
     "Rate history dormant",
     "New commission",
     "26.00%",
@@ -46,6 +57,19 @@ test("Manage Staff renders active and inactive identities with immutable rate hi
     assert.match(markup, new RegExp(escapeRegExp(visible)));
   }
   assert.equal((markup.match(/>Correct</g) ?? []).length, 1);
+  const neverProducerRow = staffRowMarkup(markup, "Mercedes Employee");
+  assert.doesNotMatch(
+    neverProducerRow,
+    /No producer rate|Rate history|Hide rates|Producer rate history/,
+  );
+  assert.match(
+    staffRowMarkup(markup, "Producer Missing Rates"),
+    /⚠ No rates set, Pay Sheet will not calculate/,
+  );
+  assert.match(
+    staffRowMarkup(markup, "Long Historical Employee Name That Must Remain Readable"),
+    /Rate history dormant|Hide rates/,
+  );
   assert.doesNotMatch(markup, />Delete<|hard delete|localStorage/i);
 });
 
@@ -163,6 +187,16 @@ function renderState(state: Parameters<typeof ManageStaffView>[0]["state"]): str
       state={state}
     />,
   );
+}
+
+function staffRowMarkup(markup: string, displayName: string): string {
+  const nameIndex = markup.indexOf(displayName);
+  assert.notEqual(nameIndex, -1);
+  const start = markup.lastIndexOf("<article", nameIndex);
+  const end = markup.indexOf("</article>", nameIndex);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  return markup.slice(start, end + "</article>".length);
 }
 
 function escapeRegExp(value: string): string {
