@@ -797,9 +797,7 @@ export function CheckTurnInFormView({
           <div className="turn-in-grid turn-in-grid-four">
             <MoneyField error={errors.proposalTotal} field="proposalTotal" label={wording.proposalInputLabel} onChange={(value) => onFieldChange("proposalTotal", value)} placeholder={wording.proposalInputPlaceholder} required value={form.proposalTotal} />
             <ReadOnlyAmount label={wording.calculatedTotalLabel} value={summary.proposalTotal} />
-            {form.paymentMode === "deposit" ? (
-              <MoneyField field="depositOption" hint={wording.depositHint} label={wording.depositLabel} onChange={(value) => onFieldChange("depositOption", value)} value={form.depositOption} />
-            ) : null}
+            <MoneyField field="depositOption" hint={wording.depositHint} label={wording.depositLabel} onChange={(value) => onFieldChange("depositOption", value)} value={form.depositOption} />
           </div>
           </FormSection>
         ) : null}
