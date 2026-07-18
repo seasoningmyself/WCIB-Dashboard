@@ -31,6 +31,7 @@ import {
   applyIpfsReturningDetection,
   buildAssignmentChoices,
   calculateTurnInSummary,
+  confirmBrokerFeeOnlySubmission,
   createEmptyTurnInState,
   getTurnInWording,
   getTurnInPaymentGuidance,
@@ -568,6 +569,9 @@ export function CheckTurnInForm({
       setErrors(validation);
       setSaveState("error");
       focusFirstError(validation);
+      return;
+    }
+    if (!confirmBrokerFeeOnlySubmission(form.basePremium, window.confirm)) {
       return;
     }
     pendingRef.current = true;

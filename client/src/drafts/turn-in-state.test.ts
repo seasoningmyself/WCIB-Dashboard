@@ -4,14 +4,17 @@ import type { CurrentUser } from "../../../shared/current-user.js";
 import {
   applyIpfsReturningDetection,
   assignmentKey,
+  BROKER_FEE_ONLY_CONFIRMATION,
   buildAssignmentChoices,
   calculateTurnInSummary,
+  confirmBrokerFeeOnlySubmission,
   createEmptyTurnInState,
   getTurnInWording,
   getTurnInPaymentGuidance,
   isStandardTurnInTransactionType,
   normalizeTurnInDate,
   proposalTotalsMatch,
+  requiresBrokerFeeOnlyConfirmation,
   suggestAnnualExpiration,
   turnInDateToIso,
   turnInFormHasContent,
@@ -144,6 +147,27 @@ test("turn-in validation enforces conditional invoice, commission, and IPFS fiel
   assert.deepEqual(
     validateTurnInForSubmit({ ...valid, ipfsManual: true }),
     {},
+  );
+});
+
+test("broker-fee-only submissions require confirmation only without positive base premium", () => {
+  assert.equal(requiresBrokerFeeOnlyConfirmation("1000.00"), false);
+  assert.equal(requiresBrokerFeeOnlyConfirmation("0.00"), true);
+  assert.equal(requiresBrokerFeeOnlyConfirmation(""), true);
+  let message = "";
+  assert.equal(
+    confirmBrokerFeeOnlySubmission("0.00", (value) => {
+      message = value;
+      return false;
+    }),
+    false,
+  );
+  assert.equal(message, BROKER_FEE_ONLY_CONFIRMATION);
+  assert.equal(
+    confirmBrokerFeeOnlySubmission("1000.00", () => {
+      throw new Error("positive premium must not ask for confirmation");
+    }),
+    true,
   );
 });
 

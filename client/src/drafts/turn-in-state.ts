@@ -97,6 +97,21 @@ export function getTurnInWording(transactionType: string): TurnInWording {
   };
 }
 
+export const BROKER_FEE_ONLY_CONFIRMATION =
+  "No base premium entered — confirm this is a broker-fee-only policy (no premium assigned).";
+
+export function requiresBrokerFeeOnlyConfirmation(basePremium: string): boolean {
+  return compareMoney(basePremium, "0.00") !== 1;
+}
+
+export function confirmBrokerFeeOnlySubmission(
+  basePremium: string,
+  confirm: (message: string) => boolean,
+): boolean {
+  return !requiresBrokerFeeOnlyConfirmation(basePremium) ||
+    confirm(BROKER_FEE_ONLY_CONFIRMATION);
+}
+
 export interface TurnInFormState {
   accountAssignment: AccountAssignment | "";
   amountPaid: string;
