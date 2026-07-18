@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   pickerMessage,
   rankVocabularyOptions,
+  resolveVocabularyBlurDecision,
   resolveVocabularyBlurOption,
   resolvePickerKey,
   shouldOfferInlineAction,
@@ -66,6 +67,27 @@ test("picker blur resolves exact and unique substring values only", () => {
   assert.equal(resolveVocabularyBlurOption(options, "a"), null);
   assert.equal(resolveVocabularyBlurOption(options, "missing"), null);
   assert.equal(resolveVocabularyBlurOption(options, ""), null);
+});
+
+test("picker blur decisions commit exact and unique matches and restore prior values", () => {
+  const previous = options[2]!;
+
+  assert.deepEqual(
+    resolveVocabularyBlurDecision(options, "  Great American. ", previous),
+    { action: "commit", option: options[1]! },
+  );
+  assert.deepEqual(resolveVocabularyBlurDecision(options, "market", previous), {
+    action: "commit",
+    option: options[0]!,
+  });
+  assert.deepEqual(resolveVocabularyBlurDecision(options, "am", previous), {
+    action: "restore",
+    option: previous,
+  });
+  assert.deepEqual(resolveVocabularyBlurDecision(options, "missing", previous), {
+    action: "restore",
+    option: previous,
+  });
 });
 
 test("picker keyboard decisions navigate, commit, tab forward, and dismiss", () => {

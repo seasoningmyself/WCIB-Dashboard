@@ -42,6 +42,10 @@ export interface PickerKeyDecision {
   preventDefault: boolean;
 }
 
+export type PickerBlurDecision<TOption extends PickerOption> =
+  | { action: "commit"; option: TOption }
+  | { action: "restore"; option: TOption | null };
+
 export function VocabularyPicker<TOption extends PickerOption>({
   disabled = false,
   focusRequestKey = 0,
@@ -67,6 +71,7 @@ export function VocabularyPicker<TOption extends PickerOption>({
   const inputRef = useRef<HTMLInputElement>(null);
   const lastHandledFocusRequest = useRef(focusRequestKey);
   const selected = options.find((option) => option.id === value) ?? null;
+  const lastCommittedOption = useRef<TOption | null>(selected);
   const [query, setQuery] = useState(selected?.name ?? "");
   const [open, setOpen] = useState(false);
   const matches = useMemo(
@@ -91,6 +96,14 @@ export function VocabularyPicker<TOption extends PickerOption>({
     shouldOfferInlineAction(options, query)
       ? renderInlineAction?.(query.trim())
       : null;
+
+  useEffect(() => {
+    if (selected !== null) {
+      lastCommittedOption.current = selected;
+    } else if (value !== null || !open) {
+      lastCommittedOption.current = null;
+    }
+  }, [open, selected, value]);
 
   useEffect(() => {
     if (selected !== null) {
@@ -122,16 +135,23 @@ export function VocabularyPicker<TOption extends PickerOption>({
   }, [focusRequestKey, loadStatus]);
 
   const choose = (option: TOption) => {
+    lastCommittedOption.current = option;
     setQuery(option.name);
     setOpen(false);
     setActiveIndex(-1);
     onChange(option);
   };
 
-  const closeAndRestore = () => {
+  const closeAndRestore = (
+    option: TOption | null = selected ?? lastCommittedOption.current,
+  ) => {
+    lastCommittedOption.current = option;
     setOpen(false);
     setActiveIndex(-1);
-    setQuery(selected?.name ?? "");
+    setQuery(option?.name ?? "");
+    if (option !== null && selected?.id !== option.id) {
+      onChange(option);
+    }
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -196,16 +216,21 @@ export function VocabularyPicker<TOption extends PickerOption>({
           id={id}
           onBlur={(event) => {
             if (!rootRef.current?.contains(event.relatedTarget)) {
-              const resolved = resolveVocabularyBlurOption(options, query);
-              if (resolved === null) {
-                closeAndRestore();
+              const decision = resolveVocabularyBlurDecision(
+                options,
+                query,
+                selected ?? lastCommittedOption.current,
+              );
+              if (decision.action === "restore") {
+                closeAndRestore(decision.option);
               } else {
-                choose(resolved);
+                choose(decision.option);
               }
             }
           }}
           onChange={(event) => {
             if (selected !== null) {
+              lastCommittedOption.current = selected;
               onChange(null);
             }
             setQuery(event.currentTarget.value);
@@ -231,6 +256,7 @@ export function VocabularyPicker<TOption extends PickerOption>({
             className="vocabulary-clear"
             disabled={unavailable}
             onClick={() => {
+              lastCommittedOption.current = null;
               setQuery("");
               setOpen(true);
               setActiveIndex(-1);
@@ -372,6 +398,18 @@ export function resolveVocabularyBlurOption<TOption extends PickerOption>(
     normalizeBlurValue(option.name).includes(normalizedQuery),
   );
   return substringMatches.length === 1 ? substringMatches[0]! : null;
+}
+
+export function resolveVocabularyBlurDecision<TOption extends PickerOption>(
+  options: readonly TOption[],
+  query: string,
+  restoreOption: TOption | null,
+): PickerBlurDecision<TOption> {
+  const resolved = resolveVocabularyBlurOption(options, query);
+  if (resolved !== null) {
+    return { action: "commit", option: resolved };
+  }
+  return { action: "restore", option: restoreOption };
 }
 
 export function resolvePickerKey({
