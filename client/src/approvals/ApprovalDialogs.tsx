@@ -21,6 +21,28 @@ import { buildApprovalOverrideInput } from "./review-state.js";
 type Submission = ApprovalWorkListResponse["submissions"][number];
 type HelpRequest = ApprovalWorkListResponse["helpRequests"][number];
 
+export const SEND_BACK_REASON_CHIPS = [
+  {
+    label: "Broker fee mismatch",
+    reason: "Broker fee doesn't match the proposal total",
+  },
+  { label: "Policy # issue", reason: "Wrong or missing policy number" },
+  {
+    label: "Wrong carrier/MGA",
+    reason: "Wrong insurance company / MGA selected",
+  },
+  { label: "Commission off", reason: "Commission amount looks incorrect" },
+  {
+    label: "Missing document",
+    reason: "Attach or re-check the proposal/declarations",
+  },
+] as const;
+
+export function appendSendBackReason(current: string, reason: string): string {
+  const normalized = current.trim().replace(/[.\s]+$/, "");
+  return normalized === "" ? reason : `${normalized}. ${reason}`;
+}
+
 export type ApprovalDialog =
   | { item: Submission; kind: "approve" }
   | { items: Submission[]; kind: "bulk_approve" }
@@ -234,12 +256,29 @@ function SendBackDialog({
     }
     onSubmit(normalized);
   };
+  const addReason = (quickReason: string) => {
+    setReason((current) => appendSendBackReason(current, quickReason));
+    setError(false);
+    reasonRef.current?.focus();
+  };
   return (
     <DialogFrame
       onCancel={onCancel}
       pending={pending}
       title={`Send ${name} back`}
     >
+      <div aria-label="Quick send-back reasons" className="approval-send-back-quick">
+        {SEND_BACK_REASON_CHIPS.map((chip) => (
+          <button
+            disabled={pending}
+            key={chip.label}
+            onClick={() => addReason(chip.reason)}
+            type="button"
+          >
+            {chip.label}
+          </button>
+        ))}
+      </div>
       <label className="approval-dialog-field" htmlFor="approval-send-back-reason">
         <span>Reason</span>
         <textarea

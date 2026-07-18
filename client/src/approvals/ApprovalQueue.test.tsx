@@ -8,7 +8,10 @@ import type { DraftResponse } from "../../../shared/drafts.js";
 import { ApiClientProvider } from "../api/context.js";
 import { createSessionBoundary } from "../auth/session-boundary.js";
 import { VocabularyProvider } from "../vocabulary/context.js";
-import { ApprovalDialogs } from "./ApprovalDialogs.js";
+import {
+  ApprovalDialogs,
+  appendSendBackReason,
+} from "./ApprovalDialogs.js";
 import {
   ApprovalWorkDeletionDialogView,
   DeletedApprovalWorkPanel,
@@ -245,6 +248,15 @@ test("dialogs expose bounded confirmation, reason, override, and full fix forms"
   assert.match(override, /Reason/);
   assert.match(sendBack, /maxLength="500"/);
   for (const label of [
+    "Broker fee mismatch",
+    "Policy # issue",
+    "Wrong carrier/MGA",
+    "Commission off",
+    "Missing document",
+  ]) {
+    assert.match(sendBack, new RegExp(label.replace("/", "\\/")));
+  }
+  for (const label of [
     "Insured",
     "Policy number",
     "Carrier",
@@ -263,6 +275,20 @@ test("dialogs expose bounded confirmation, reason, override, and full fix forms"
   assert.match(editFix, /Open and fix Private Submitted LLC/);
   assert.match(editFix, /Kaylee account/);
   assert.match(editFix, /Kaylee First-year/);
+});
+
+test("quick send-back reasons append with v15 punctuation behavior", () => {
+  assert.equal(
+    appendSendBackReason("", "Wrong or missing policy number"),
+    "Wrong or missing policy number",
+  );
+  assert.equal(
+    appendSendBackReason(
+      "Check the invoice...  ",
+      "Commission amount looks incorrect",
+    ),
+    "Check the invoice. Commission amount looks incorrect",
+  );
 });
 
 test("approved-policy change dialogs expose only the three safe admin resolutions", () => {

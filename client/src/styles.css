@@ -5267,6 +5267,31 @@ h1 {
   line-height: 1.5;
 }
 
+.approval-send-back-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 18px;
+}
+
+.approval-send-back-quick button {
+  min-height: 32px;
+  border: 1px solid #b7c2c7;
+  border-radius: 16px;
+  background: #ffffff;
+  padding: 5px 11px;
+  color: #52626a;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.approval-send-back-quick button:hover:not(:disabled) {
+  border-color: #b76060;
+  background: #fff6f6;
+  color: #8b3030;
+}
+
 .approval-dialog-field {
   display: grid;
   min-width: 0;
