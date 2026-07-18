@@ -123,6 +123,10 @@ const apiTimestampSchema = z.preprocess(
   z.string().datetime(),
 );
 
+export const discardDraftRequestSchema = z
+  .object({ expectedLastEditedAt: apiTimestampSchema })
+  .strict();
+
 const draftNonfinancialApiFields = {
   accountAssignment: z.enum(ACCOUNT_ASSIGNMENTS).nullable(),
   carrierId: z.string().uuid().nullable(),
@@ -193,6 +197,8 @@ export const createDraftResponseSchema = z
 
 export const editDraftResponseSchema = createDraftResponseSchema;
 
+export const discardDraftResponseSchema = createDraftResponseSchema;
+
 export const submitDraftResponseSchema = z
   .object({
     destination: z.enum(["approval", "ledger"]),
@@ -219,6 +225,8 @@ export type DraftResponse = z.output<typeof draftResponseSchema>;
 export type CreateDraftResponse = z.output<typeof createDraftResponseSchema>;
 export type UpdateDraftRequest = z.output<typeof updateDraftRequestSchema>;
 export type SubmitDraftResponse = z.output<typeof submitDraftResponseSchema>;
+export type DiscardDraftRequest = z.output<typeof discardDraftRequestSchema>;
+export type DiscardDraftResponse = z.output<typeof discardDraftResponseSchema>;
 export type FlagDraftRequest = z.output<typeof flagDraftRequestSchema>;
 export type WithdrawFlaggedDraftResponse = z.output<
   typeof withdrawFlaggedDraftResponseSchema

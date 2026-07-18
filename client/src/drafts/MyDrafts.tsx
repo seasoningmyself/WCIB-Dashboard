@@ -17,7 +17,7 @@ import {
   DialogFrame,
 } from "../approvals/ApprovalDialogs.js";
 import { CheckTurnInForm } from "./CheckTurnInForm.js";
-import { createDraftApi } from "./api.js";
+import { createDraftApi, type DraftApi } from "./api.js";
 import {
   draftActionLabel,
   draftStatusLabel,
@@ -69,23 +69,16 @@ export function MyDrafts({
     requestVersion.current = version;
     setState({ status: "loading" });
     try {
-      const [draftResponse, requestResponse] = await Promise.all([
-        api.list(),
-        api.listChangeRequests(),
-      ]);
+      const next = await loadMyDraftsState(api, user.role);
       if (requestVersion.current === version) {
-        setState({
-          drafts: sortOwnDrafts(draftResponse.drafts),
-          requests: requestResponse.requests,
-          status: "ready",
-        });
+        setState(next);
       }
     } catch {
       if (requestVersion.current === version) {
         setState({ status: "error" });
       }
     }
-  }, [api]);
+  }, [api, user.role]);
 
   useEffect(() => {
     void load();
@@ -109,6 +102,17 @@ export function MyDrafts({
             drafts: replaceProjectedDraft(current.drafts, draft),
             requests: current.requests,
             status: "ready",
+          }
+        : current,
+    );
+  }, []);
+
+  const removeProjection = useCallback((draftId: string) => {
+    setState((current) =>
+      current.status === "ready"
+        ? {
+            ...current,
+            drafts: current.drafts.filter(({ id }) => id !== draftId),
           }
         : current,
     );
@@ -180,6 +184,7 @@ export function MyDrafts({
         )
       }
       onDraftChange={acceptProjection}
+      onDraftDiscard={removeProjection}
       onOpenChangeRequest={(policyId) =>
         setChangeRequestDialog({
           error: false,
@@ -198,12 +203,30 @@ export function MyDrafts({
   );
 }
 
+export async function loadMyDraftsState(
+  api: Pick<DraftApi, "list" | "listChangeRequests">,
+  role: CurrentUser["role"],
+): Promise<Extract<MyDraftsState, { status: "ready" }>> {
+  const [draftResponse, requestResponse] = await Promise.all([
+    api.list(),
+    role === "admin"
+      ? Promise.resolve({ requests: [] })
+      : api.listChangeRequests(),
+  ]);
+  return {
+    drafts: sortOwnDrafts(draftResponse.drafts),
+    requests: requestResponse.requests,
+    status: "ready",
+  };
+}
+
 export function MyDraftsView({
   changeRequestDialog = null,
   currentPath,
   onCancelChangeRequest = () => {},
   onChangeRequestReason = () => {},
   onDraftChange,
+  onDraftDiscard,
   onOpenChangeRequest = () => {},
   onRetry,
   onSubmitChangeRequest = () => {},
@@ -217,6 +240,7 @@ export function MyDraftsView({
   onCancelChangeRequest?(): void;
   onChangeRequestReason?(reason: string): void;
   onDraftChange(draft: DraftResponse): void;
+  onDraftDiscard?(draftId: string): void;
   onOpenChangeRequest?(policyId: string): void;
   onRetry(): void;
   onSubmitChangeRequest?(): void;
@@ -260,6 +284,7 @@ export function MyDraftsView({
           <CheckTurnInForm
             initialDraft={selected}
             onDraftChange={onDraftChange}
+            onDraftDiscard={onDraftDiscard}
             user={user}
           />
         </div>

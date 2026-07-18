@@ -5,6 +5,20 @@
 
 ---
 
+## July 17, 2026 — Owner draft discard is recoverable
+
+**Recorded production adaptation:** Final v15 permanently removes an owner's
+active draft after a destructive confirmation. Production preserves the
+owner-only, own-draft-only action but records an audited soft-delete instead.
+Discarded drafts leave My Drafts, My Items, and the unfinished-draft cap while
+their content and ownership remain stored in the active business generation.
+An admin can restore them from the existing Deleted approval work panel. The
+trusted discard function rejects non-owners, submitted or linked work, stale
+versions, inactive actors, and drafts outside the active generation. This is a
+deliberate recoverability improvement over v15's irreversible hard discard.
+
+---
+
 ## July 17, 2026 — Server and browser share one proposal-tolerance rule
 
 **Recorded correctness fix:** The browser already applied the final-v15
@@ -925,6 +939,8 @@ On the "Sophia" employee login, the account-assignment row showed only House + e
 
 ## Insurance-company → MGA auto-rules (June 24, 2026, v14)
 Sophia: selecting OR typing/dictating certain carriers should always set the MGA. `applyInscoMgaRule()` matches the chosen insurance company (substring, case-insensitive) and auto-sets the MGA: Western Surety → CNA, Progressive → Progressive, GEICO → GEICO, Travelers → Travelers (adds to `mgaList` if missing). Fires from ALL carrier-commit paths: `selectInsco` (dropdown pick / Tab / blur best-match) AND `inscoSearch` exact-match branch (typing/dictating the full name — this was the gap). Applies on every login. Verified.: **Western Surety → CNA, Progressive → Progressive, GEICO → GEICO, Travelers → Travelers**. Adds the MGA to `mgaList` if missing (so it's a valid payable) and calls `selectMGA`. Other carriers leave the MGA untouched. Re-applies if the carrier is changed. Verified all four + a non-rule carrier (no change); no console errors.
+
+**Recorded production authorization adaptation (Parent T / T7):** The substring rules and existing-active-MGA selection apply to every approved role. When the canonical MGA is missing, automatic creation uses the normal audited MGA mutation path and therefore remains admin-only; an employee or producer is told to ask an administrator instead of receiving an MGA-write bypass. This preserves the later authoritative rule that only Admin may add an MGA. Vocabulary records remain part of the retained Start Fresh reference set under the existing production generation model.
 
 ## Renamed Oregon Residential bond types (June 24, 2026, v14)
 Sophia: rename the four "Bond - Oregon R - $Xk" (Oregon Residential) types to "Bond - Residential - $Xk", keeping each value amount. Updated the default `polTypeList` and added `renameOldPolTypes()` (runs every load in hydrate, after the poltypes load) that maps the four old names → new in the controlled-vocab list AND every place stored: ledger, queue, drafts (`formData.poltype`), and pay-sheet snapshots — then re-sorts the list. No-ops once migrated. Verified: no "Oregon R" left, four "Bond - Residential - $Xk" present, ledger clean.

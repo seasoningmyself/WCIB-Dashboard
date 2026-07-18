@@ -25,6 +25,7 @@ const reviewedReadModules = [
   "server/commissions/read.ts",
   "server/commissions/receipts.ts",
   "server/drafts/create.ts",
+  "server/drafts/discard.ts",
   "server/drafts/edit.ts",
   "server/drafts/flag.ts",
   "server/drafts/list.ts",

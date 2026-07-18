@@ -18,6 +18,11 @@ import {
   DraftNotFoundError,
 } from "../drafts/edit.js";
 import {
+  DraftDiscardNotFoundError,
+  DraftDiscardStaleError,
+  DraftDiscardStateError,
+} from "../drafts/discard.js";
+import {
   DraftNotSubmittableError,
   DraftSubmissionNotFoundError,
   DraftSubmissionValidationError,
@@ -43,12 +48,14 @@ import {
 import { toErrorResponse } from "./errors.js";
 import {
   DRAFTS_PATH,
+  DRAFT_DISCARD_PATH,
   DRAFT_PATH,
   DRAFT_FLAG_PATH,
   DRAFT_SUBMIT_PATH,
   DRAFT_WITHDRAW_HELP_PATH,
   DRAFT_WITHDRAW_SUBMISSION_PATH,
   createDraftCreateHandler,
+  createDraftDiscardHandler,
   createDraftEditHandler,
   createDraftFlagHandler,
   createDraftListHandler,
@@ -56,6 +63,7 @@ import {
   createDraftWithdrawHelpHandler,
   createDraftWithdrawSubmissionHandler,
   registerDraftCreateRoute,
+  registerDraftDiscardRoute,
   registerDraftEditRoute,
   registerDraftFlagRoute,
   registerDraftListRoute,
@@ -63,6 +71,7 @@ import {
   registerDraftWithdrawHelpRoute,
   registerDraftWithdrawSubmissionRoute,
   type RegisterDraftCreateRouteOptions,
+  type RegisterDraftDiscardRouteOptions,
   type RegisterDraftEditRouteOptions,
   type RegisterDraftFlagRouteOptions,
   type RegisterDraftListRouteOptions,
@@ -123,6 +132,7 @@ function createFixture(options: { emptyList?: boolean } = {}) {
   const calls: Array<{ input: unknown; userId: string }> = [];
   const listCalls: Array<{ query: unknown; userId: string }> = [];
   const editCalls: Array<{ draftId: string; input: unknown; userId: string }> = [];
+  const discardCalls: Array<{ draftId: string; input: unknown; userId: string }> = [];
   const submitCalls: Array<{ draftId: string; userId: string }> = [];
   const flagCalls: Array<{
     draftId: string;
@@ -194,6 +204,21 @@ function createFixture(options: { emptyList?: boolean } = {}) {
             ? "sent_back"
             : "draft",
       };
+    },
+    logger,
+  };
+  const discardOptions: RegisterDraftDiscardRouteOptions = {
+    authorization,
+    async discard(context, draftId, input) {
+      discardCalls.push({ draftId, input, userId: context.principal.userId });
+      if (draftId === OTHER_DRAFT_ID) throw new DraftDiscardNotFoundError();
+      if (draftId === LOCKED_DRAFT_ID) throw new DraftDiscardStateError();
+      if (draftId === INCOMPLETE_DRAFT_ID) throw new DraftDiscardStaleError();
+      const record = draft(context.principal.userId);
+      record.deletedAt = new Date("2026-07-17T13:00:00.000Z");
+      record.deletedByUserId = context.principal.userId;
+      record.deleteReason = "Discarded by draft owner";
+      return record;
     },
     logger,
   };
@@ -314,6 +339,7 @@ function createFixture(options: { emptyList?: boolean } = {}) {
   registerDraftCreateRoute(routes, createOptions);
   registerDraftListRoute(routes, listOptions);
   registerDraftEditRoute(routes, editOptions);
+  registerDraftDiscardRoute(routes, discardOptions);
   registerDraftSubmitRoute(routes, submitOptions);
   registerDraftFlagRoute(routes, flagOptions);
   registerDraftWithdrawHelpRoute(routes, withdrawOptions);
@@ -322,6 +348,8 @@ function createFixture(options: { emptyList?: boolean } = {}) {
     authorization,
     calls,
     createOptions,
+    discardCalls,
+    discardOptions,
     editCalls,
     editOptions,
     flagCalls,
@@ -649,6 +677,118 @@ test("draft edit route is explicitly authorized and fails closed without its gua
   handler(
     {
       body: { insuredName: "No guard" },
+      params: { draftId: DRAFT_ID },
+    } as unknown as Request,
+    response.res,
+    response.next,
+  );
+  const error = await response.completed;
+  assert.ok(error);
+  assert.equal(errorResult(error).status, 500);
+  assert.equal(calls, 0);
+});
+
+test("all three draft owners can discard through a projected soft-delete response", async () => {
+  for (const [identity, userId] of [
+    ["admin", ADMIN_ID],
+    ["employee", EMPLOYEE_ID],
+    ["producer", PRODUCER_ID],
+  ] as const) {
+    const fixture = createFixture();
+    const response = await invokeDiscardRoute(
+      fixture,
+      DRAFT_ID,
+      { expectedLastEditedAt: "2026-07-10T12:00:00.000Z" },
+      identity,
+    );
+    assert.equal(response.status, 200);
+    assert.equal(response.headers["cache-control"], "no-store");
+    const body = response.body as { draft: Record<string, unknown> };
+    assert.equal(body.draft.ownerUserId, userId);
+    assert.equal(body.draft.status, "draft");
+    for (const field of ["deletedAt", "deletedByUserId", "deleteReason"]) {
+      assert.equal(field in body.draft, false, field);
+    }
+    assert.deepEqual(fixture.discardCalls, [
+      {
+        draftId: DRAFT_ID,
+        input: { expectedLastEditedAt: "2026-07-10T12:00:00.000Z" },
+        userId,
+      },
+    ]);
+  }
+});
+
+test("draft discard hides non-ownership and rejects stale, closed, or unauthorized calls", async () => {
+  const missing = await invokeDiscardRoute(
+    createFixture(),
+    OTHER_DRAFT_ID,
+    { expectedLastEditedAt: "2026-07-10T12:00:00.000Z" },
+    "employee",
+  );
+  assert.equal(missing.status, 404);
+  assert.equal(JSON.stringify(missing.body).includes(OTHER_DRAFT_ID), false);
+
+  for (const [draftId, status] of [
+    [LOCKED_DRAFT_ID, 409],
+    [INCOMPLETE_DRAFT_ID, 409],
+  ] as const) {
+    const response = await invokeDiscardRoute(
+      createFixture(),
+      draftId,
+      { expectedLastEditedAt: "2026-07-10T12:00:00.000Z" },
+      "producer",
+    );
+    assert.equal(response.status, status);
+  }
+
+  for (const [identity, status] of [
+    [undefined, 401],
+    ["inactive", 401],
+    ["unassigned", 403],
+  ] as const) {
+    const fixture = createFixture();
+    const response = await invokeDiscardRoute(
+      fixture,
+      DRAFT_ID,
+      { expectedLastEditedAt: "2026-07-10T12:00:00.000Z" },
+      identity,
+    );
+    assert.equal(response.status, status);
+    assert.deepEqual(fixture.discardCalls, []);
+  }
+});
+
+test("draft discard route is explicitly authorized and fails closed without its guard", async () => {
+  const fixture = createFixture();
+  const app = createApp({
+    registerRoutes(routes) {
+      registerDraftDiscardRoute(routes, fixture.discardOptions);
+    },
+  });
+  assert.deepEqual(
+    auditRouteAccessDeclarations(app).find(
+      ({ method, path }) => method === "POST" && path === DRAFT_DISCARD_PATH,
+    ),
+    {
+      access: { type: "authorized" },
+      method: "POST",
+      path: DRAFT_DISCARD_PATH,
+    },
+  );
+
+  let calls = 0;
+  const handler = createDraftDiscardHandler({
+    async discard() {
+      calls += 1;
+      return draft(EMPLOYEE_ID);
+    },
+    logger,
+  });
+  const response = createTestResponse();
+  handler(
+    {
+      body: { expectedLastEditedAt: "2026-07-10T12:00:00.000Z" },
       params: { draftId: DRAFT_ID },
     } as unknown as Request,
     response.res,
@@ -1511,6 +1651,49 @@ async function invokeEditRoute(
     originalUrl: `/api/drafts/${draftId}`,
     params: { draftId },
     route: { path: DRAFT_PATH },
+    session: fakeSession(userId),
+  } as unknown as Request;
+  const response = createTestResponse();
+  const guardError = await invokeNextMiddleware(guard, req, response.res);
+  if (guardError !== null) {
+    return errorResult(guardError);
+  }
+  registration.handler(req, response.res, response.next);
+  const handlerError = await response.completed;
+  return handlerError === null ? response.result() : errorResult(handlerError);
+}
+
+async function invokeDiscardRoute(
+  fixture: ReturnType<typeof createFixture>,
+  draftId: string,
+  body: unknown,
+  identity?: "admin" | "employee" | "inactive" | "producer" | "unassigned",
+): Promise<TestResult> {
+  const registration = fixture.registrations.find(
+    ({ method, path }) => method === "POST" && path === DRAFT_DISCARD_PATH,
+  );
+  assert.ok(registration);
+  const guard = registration.access.authorization;
+  assert.ok(guard);
+  const userId =
+    identity === "admin"
+      ? ADMIN_ID
+      : identity === "producer"
+        ? PRODUCER_ID
+        : identity === "employee"
+          ? EMPLOYEE_ID
+          : identity === "inactive"
+            ? INACTIVE_ID
+            : identity === "unassigned"
+              ? UNASSIGNED_ID
+              : undefined;
+  const req = {
+    body,
+    headers: {},
+    method: "POST",
+    originalUrl: `/api/drafts/${draftId}/discard`,
+    params: { draftId },
+    route: { path: DRAFT_DISCARD_PATH },
     session: fakeSession(userId),
   } as unknown as Request;
   const response = createTestResponse();

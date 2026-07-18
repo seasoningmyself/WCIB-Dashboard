@@ -8,6 +8,7 @@ import {
   isMyItemsStaff,
   myItemAgeLabel,
   myItemFilterLabel,
+  myItemFilterFromPath,
   myItemOpenLabel,
 } from "./view-state.js";
 
@@ -38,6 +39,8 @@ test("My Items filtering and counts cover every workflow status", () => {
   });
   assert.deepEqual(filterMyItems(items, "flagged"), [items[2]]);
   assert.equal(myItemFilterLabel("flagged"), "Waiting on Sophia");
+  assert.equal(myItemFilterFromPath("/my-drafts?filter=flagged"), "flagged");
+  assert.equal(myItemFilterFromPath("/my-drafts?filter=unknown"), "all");
 });
 
 test("My Items access and status actions stay explicit", () => {

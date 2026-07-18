@@ -2,7 +2,8 @@ import { z } from "zod";
 import { adminApprovalQueueEntrySchema } from "./approval-queue.js";
 import { draftResponseSchema } from "./drafts.js";
 
-export const APPROVAL_WORK_DELETION_KINDS = ["submission", "help"] as const;
+export const APPROVAL_WORK_DELETION_KINDS = ["submission", "help", "draft"] as const;
+export const APPROVAL_WORK_SOFT_DELETE_KINDS = ["submission", "help"] as const;
 export const MAX_APPROVAL_WORK_DELETE_REASON_LENGTH = 500;
 export const MAX_DELETED_APPROVAL_WORK_ITEMS = 200;
 
@@ -59,9 +60,18 @@ const activeHelpSchema = z
   })
   .strict();
 
+const activeDraftSchema = z
+  .object({
+    draft: draftResponseSchema,
+    kind: z.literal("draft"),
+    submitterDisplayName: submitterDisplayNameSchema,
+  })
+  .strict();
+
 export const activeApprovalWorkItemSchema = z.discriminatedUnion("kind", [
   activeSubmissionSchema,
   activeHelpSchema,
+  activeDraftSchema,
 ]);
 
 export const deletedApprovalWorkItemSchema = z.discriminatedUnion("kind", [
@@ -69,6 +79,7 @@ export const deletedApprovalWorkItemSchema = z.discriminatedUnion("kind", [
     deletion: approvalWorkDeletionMetadataSchema,
   }),
   activeHelpSchema.extend({ deletion: approvalWorkDeletionMetadataSchema }),
+  activeDraftSchema.extend({ deletion: approvalWorkDeletionMetadataSchema }),
 ]);
 
 export const deletedApprovalWorkListResponseSchema = z
@@ -89,6 +100,8 @@ export const approvalWorkRestoreResponseSchema = z
 
 export type ApprovalWorkDeletionKind =
   (typeof APPROVAL_WORK_DELETION_KINDS)[number];
+export type ApprovalWorkSoftDeleteKind =
+  (typeof APPROVAL_WORK_SOFT_DELETE_KINDS)[number];
 export type ApprovalWorkSoftDeleteRequest = z.output<
   typeof approvalWorkSoftDeleteRequestSchema
 >;

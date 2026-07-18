@@ -4,6 +4,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import * as inlinePickers from "./InlineVocabularyPickers.js";
 import {
+  createMissingConvenienceMga,
   InlineVocabularyAction,
   safeMutationErrorMessage,
 } from "./InlineVocabularyPickers.js";
@@ -119,6 +120,31 @@ test("inline errors are bounded and office creation remains absent", () => {
     "Could not add this carrier. Try again.",
   );
   assert.equal("InlineOfficeLocationPicker" in inlinePickers, false);
+});
+
+test("missing convenience MGA uses the normal creation path and confirms a near match", async () => {
+  const requests: Array<{ confirmNearDuplicate: boolean; name: string }> = [];
+  const item = { id: CANDIDATE_ID, name: "CNA" };
+  const created = await createMissingConvenienceMga(
+    {
+      async createMga(request) {
+        requests.push(request);
+        return request.confirmNearDuplicate
+          ? { item, outcome: "created" }
+          : {
+              candidates: [{ id: CANDIDATE_ID, name: "CNA Programs" }],
+              outcome: "confirmation_required",
+            };
+      },
+    },
+    "CNA",
+  );
+
+  assert.deepEqual(created, item);
+  assert.deepEqual(requests, [
+    { confirmNearDuplicate: false, name: "CNA" },
+    { confirmNearDuplicate: true, name: "CNA" },
+  ]);
 });
 
 function renderAction(

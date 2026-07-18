@@ -32,6 +32,7 @@ import {
 } from "./vocabulary/manage.js";
 import {
   registerDraftCreateRoute,
+  registerDraftDiscardRoute,
   registerDraftEditRoute,
   registerDraftFlagRoute,
   registerDraftListRoute,
@@ -40,6 +41,7 @@ import {
   registerDraftWithdrawSubmissionRoute,
 } from "./http/drafts.js";
 import { createOwnDraft } from "./drafts/create.js";
+import { discardOwnDraft } from "./drafts/discard.js";
 import { listOwnDrafts } from "./drafts/list.js";
 import { editOwnDraft } from "./drafts/edit.js";
 import { submitOwnDraft } from "./drafts/submit.js";
@@ -222,6 +224,12 @@ const app = createApp({
       authorization,
       edit: (context, draftId, input) =>
         editOwnDraft(database, context, draftId, input),
+      logger,
+    });
+    registerDraftDiscardRoute(routes, {
+      authorization,
+      discard: (context, draftId, input) =>
+        discardOwnDraft(database, context, draftId, input),
       logger,
     });
     registerDraftSubmitRoute(routes, {

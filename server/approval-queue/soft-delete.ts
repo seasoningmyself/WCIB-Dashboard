@@ -15,6 +15,7 @@ import {
   approvalWorkRestoreRequestSchema,
   approvalWorkSoftDeleteRequestSchema,
   type ApprovalWorkDeletionKind,
+  type ApprovalWorkSoftDeleteKind,
 } from "../../shared/approval-work-deletions.js";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AuthDatabase } from "../auth/users.js";
@@ -34,7 +35,7 @@ const databaseMutationResultSchema = z
   .object({
     changed: z.boolean(),
     draftId: z.string().uuid(),
-    kind: z.enum(["submission", "help"]),
+    kind: z.enum(["submission", "help", "draft"]),
     targetId: z.string().uuid(),
   })
   .strict();
@@ -51,9 +52,16 @@ interface HelpDeletionSource {
   submitterDisplayName: string | null;
 }
 
+interface DraftDeletionSource {
+  draft: DraftRecord;
+  kind: "draft";
+  submitterDisplayName: string | null;
+}
+
 export type ApprovalWorkDeletionSource =
   | SubmissionDeletionSource
-  | HelpDeletionSource;
+  | HelpDeletionSource
+  | DraftDeletionSource;
 
 export interface ApprovalWorkDeletionResult {
   changed: boolean;
@@ -86,7 +94,7 @@ export async function listDeletedApprovalWork(
   context: AuthorizedRequestContext,
 ): Promise<readonly ApprovalWorkDeletionSource[]> {
   requireApprovalAdmin(context);
-  const [submissions, helpRequests] = await Promise.all([
+  const [submissions, helpRequests, discardedDrafts] = await Promise.all([
     database
       .select({
         ...getTableColumns(approvalQueueEntries),
@@ -128,6 +136,23 @@ export async function listDeletedApprovalWork(
       )
       .orderBy(desc(drafts.deletedAt), asc(drafts.id))
       .limit(MAX_DELETED_APPROVAL_WORK_ITEMS),
+    database
+      .select({
+        ...getTableColumns(drafts),
+        submitterDisplayName: staffProfiles.displayName,
+      })
+      .from(drafts)
+      .leftJoin(staffProfiles, eq(staffProfiles.userId, drafts.ownerUserId))
+      .where(
+        and(
+          eq(drafts.status, "draft"),
+          isNull(drafts.linkedQueueEntryId),
+          isNotNull(drafts.deletedAt),
+          inActiveBusinessGeneration(drafts.businessGenerationId),
+        ),
+      )
+      .orderBy(desc(drafts.deletedAt), asc(drafts.id))
+      .limit(MAX_DELETED_APPROVAL_WORK_ITEMS),
   ]);
 
   return [
@@ -139,6 +164,11 @@ export async function listDeletedApprovalWork(
     ...helpRequests.map(({ submitterDisplayName, ...draft }) => ({
       draft,
       kind: "help" as const,
+      submitterDisplayName,
+    })),
+    ...discardedDrafts.map(({ submitterDisplayName, ...draft }) => ({
+      draft,
+      kind: "draft" as const,
       submitterDisplayName,
     })),
   ]
@@ -155,7 +185,7 @@ export async function listDeletedApprovalWork(
 export async function softDeleteApprovalWork(
   database: AuthDatabase,
   context: AuthorizedRequestContext,
-  kind: ApprovalWorkDeletionKind,
+  kind: ApprovalWorkSoftDeleteKind,
   targetId: string,
   rawInput: unknown,
   logger: AppLogger,
@@ -220,15 +250,27 @@ export async function restoreApprovalWork(
   const input = approvalWorkRestoreRequestSchema.parse(rawInput);
   requireTimestamp(changedAt);
   try {
-    const mutation = await executeMutation(database, sql`
-      select restore_approval_work(
-        ${kind}::text,
-        ${targetId}::uuid,
-        ${actorUserId}::uuid,
-        ${input.expectedUpdatedAt}::timestamp with time zone,
-        ${changedAt}::timestamp with time zone
-      ) as mutation
-    `);
+    const mutation = await executeMutation(
+      database,
+      kind === "draft"
+        ? sql`
+            select restore_discarded_draft(
+              ${targetId}::uuid,
+              ${actorUserId}::uuid,
+              ${input.expectedUpdatedAt}::timestamp with time zone,
+              ${changedAt}::timestamp with time zone
+            ) as mutation
+          `
+        : sql`
+            select restore_approval_work(
+              ${kind}::text,
+              ${targetId}::uuid,
+              ${actorUserId}::uuid,
+              ${input.expectedUpdatedAt}::timestamp with time zone,
+              ${changedAt}::timestamp with time zone
+            ) as mutation
+          `,
+    );
     validateMutationIdentity(mutation, kind, targetId);
     const source = await getApprovalWorkDeletionSource(
       database,
@@ -313,6 +355,8 @@ async function getApprovalWorkDeletionSource(
     .where(
       and(
         eq(drafts.id, targetId),
+        eq(drafts.status, kind === "help" ? "flagged" : "draft"),
+        isNull(drafts.linkedQueueEntryId),
         deleted ? isNotNull(drafts.deletedAt) : isNull(drafts.deletedAt),
         inActiveBusinessGeneration(drafts.businessGenerationId),
       ),

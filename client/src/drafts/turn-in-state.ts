@@ -97,6 +97,21 @@ export function getTurnInWording(transactionType: string): TurnInWording {
   };
 }
 
+export const BROKER_FEE_ONLY_CONFIRMATION =
+  "No base premium entered — confirm this is a broker-fee-only policy (no premium assigned).";
+
+export function requiresBrokerFeeOnlyConfirmation(basePremium: string): boolean {
+  return compareMoney(basePremium, "0.00") !== 1;
+}
+
+export function confirmBrokerFeeOnlySubmission(
+  basePremium: string,
+  confirm: (message: string) => boolean,
+): boolean {
+  return !requiresBrokerFeeOnlyConfirmation(basePremium) ||
+    confirm(BROKER_FEE_ONLY_CONFIRMATION);
+}
+
 export interface TurnInFormState {
   accountAssignment: AccountAssignment | "";
   amountPaid: string;
@@ -345,6 +360,32 @@ export function turnInFormToDraftInput(
     transactionNotes: textOrNull(state.transactionNotes),
     transactionType: textOrNull(state.transactionType),
   };
+}
+
+export function turnInFormHasContent(state: TurnInFormState): boolean {
+  const input = turnInFormToDraftInput(state);
+  return [
+    input.accountAssignment,
+    input.amountPaid,
+    input.basePremium,
+    input.brokerFee,
+    input.carrierId,
+    input.commissionRate,
+    input.companyName,
+    input.depositOption,
+    input.effectiveDate,
+    input.expirationDate,
+    input.financeReference,
+    input.insuredName,
+    input.invoiceNumber,
+    input.mgaId,
+    input.notes,
+    input.policyNumber,
+    input.policyTypeId,
+    input.proposalTotal,
+    input.transactionNotes,
+    input.transactionType,
+  ].some((value) => value !== null && value !== undefined);
 }
 
 export function turnInFormToNonfinancialDraftUpdate(

@@ -4,16 +4,20 @@ import type { CurrentUser } from "../../../shared/current-user.js";
 import {
   applyIpfsReturningDetection,
   assignmentKey,
+  BROKER_FEE_ONLY_CONFIRMATION,
   buildAssignmentChoices,
   calculateTurnInSummary,
+  confirmBrokerFeeOnlySubmission,
   createEmptyTurnInState,
   getTurnInWording,
   getTurnInPaymentGuidance,
   isStandardTurnInTransactionType,
   normalizeTurnInDate,
   proposalTotalsMatch,
+  requiresBrokerFeeOnlyConfirmation,
   suggestAnnualExpiration,
   turnInDateToIso,
+  turnInFormHasContent,
   turnInFormToDraftInput,
   turnInFormToNonfinancialDraftUpdate,
   turnInStateFromSubmission,
@@ -77,6 +81,24 @@ test("turn-in state maps every active v15 input and excludes private producer sp
   }
 });
 
+test("blur autosave recognizes content without counting empty form defaults", () => {
+  const empty = createEmptyTurnInState();
+  assert.equal(turnInFormHasContent(empty), false);
+  assert.equal(
+    turnInFormHasContent({ ...empty, paymentMode: "direct" }),
+    false,
+    "default-only selections must preserve lazy draft creation",
+  );
+  assert.equal(
+    turnInFormHasContent({ ...empty, insuredName: "Acme LLC" }),
+    true,
+  );
+  assert.equal(
+    turnInFormHasContent({ ...empty, depositOption: "250.00" }),
+    true,
+  );
+});
+
 test("immutable submission snapshots populate the full correction form", () => {
   const state = completeState();
   const restored = turnInStateFromSubmission({
@@ -125,6 +147,27 @@ test("turn-in validation enforces conditional invoice, commission, and IPFS fiel
   assert.deepEqual(
     validateTurnInForSubmit({ ...valid, ipfsManual: true }),
     {},
+  );
+});
+
+test("broker-fee-only submissions require confirmation only without positive base premium", () => {
+  assert.equal(requiresBrokerFeeOnlyConfirmation("1000.00"), false);
+  assert.equal(requiresBrokerFeeOnlyConfirmation("0.00"), true);
+  assert.equal(requiresBrokerFeeOnlyConfirmation(""), true);
+  let message = "";
+  assert.equal(
+    confirmBrokerFeeOnlySubmission("0.00", (value) => {
+      message = value;
+      return false;
+    }),
+    false,
+  );
+  assert.equal(message, BROKER_FEE_ONLY_CONFIRMATION);
+  assert.equal(
+    confirmBrokerFeeOnlySubmission("1000.00", () => {
+      throw new Error("positive premium must not ask for confirmation");
+    }),
+    true,
   );
 });
 

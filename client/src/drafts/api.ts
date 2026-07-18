@@ -2,6 +2,8 @@ import { z } from "zod";
 import {
   createDraftRequestSchema,
   createDraftResponseSchema,
+  discardDraftRequestSchema,
+  discardDraftResponseSchema,
   editDraftResponseSchema,
   flagDraftRequestSchema,
   flagDraftResponseSchema,
@@ -15,6 +17,8 @@ import {
   withdrawSubmittedDraftResponseSchema,
   type CreateDraftRequest,
   type CreateDraftResponse,
+  type DiscardDraftRequest,
+  type DiscardDraftResponse,
   type FlagDraftRequest,
   type ListDraftsQuery,
   type ListDraftsResponse,
@@ -74,6 +78,10 @@ export interface DraftApi {
     input: CreatePolicyChangeRequest,
   ): Promise<CreatePolicyChangeRequestResponse>;
   create(input: CreateDraftRequest): Promise<CreateDraftResponse>;
+  discard(
+    draftId: string,
+    input: DiscardDraftRequest,
+  ): Promise<DiscardDraftResponse>;
   edit(draftId: string, input: UpdateDraftRequest): Promise<CreateDraftResponse>;
   flag(draftId: string, input: FlagDraftRequest): Promise<CreateDraftResponse>;
   list(query?: ListDraftsQuery): Promise<ListDraftsResponse>;
@@ -105,6 +113,16 @@ export function createDraftApi(client: ApiClient): DraftApi {
         parseRequest(createDraftRequestSchema, input),
         201,
         createDraftResponseSchema,
+      );
+    },
+    async discard(draftId, input) {
+      return mutate(
+        client,
+        `/drafts/${encodeURIComponent(draftId)}/discard`,
+        "POST",
+        parseRequest(discardDraftRequestSchema, input),
+        200,
+        discardDraftResponseSchema,
       );
     },
     async edit(draftId, input) {

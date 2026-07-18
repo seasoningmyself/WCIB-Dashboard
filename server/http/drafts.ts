@@ -3,6 +3,8 @@ import { apiErrorCodes } from "../../shared/api-errors.js";
 import {
   createDraftRequestSchema,
   createDraftResponseSchema,
+  discardDraftRequestSchema,
+  discardDraftResponseSchema,
   draftIdParamsSchema,
   editDraftResponseSchema,
   flagDraftRequestSchema,
@@ -39,6 +41,11 @@ import {
   type DraftEditResult,
 } from "../drafts/edit.js";
 import {
+  DraftDiscardNotFoundError,
+  DraftDiscardStaleError,
+  DraftDiscardStateError,
+} from "../drafts/discard.js";
+import {
   DraftNotSubmittableError,
   DraftSubmissionNotFoundError,
   DraftSubmissionValidationError,
@@ -64,6 +71,7 @@ import type { RouteRegistrar } from "./routes.js";
 
 export const DRAFTS_PATH = "/api/drafts";
 export const DRAFT_PATH = "/api/drafts/:draftId";
+export const DRAFT_DISCARD_PATH = "/api/drafts/:draftId/discard";
 export const DRAFT_SUBMIT_PATH = "/api/drafts/:draftId/submit";
 export const DRAFT_FLAG_PATH = "/api/drafts/:draftId/flag";
 export const DRAFT_WITHDRAW_HELP_PATH = "/api/drafts/:draftId/withdraw-help";
@@ -107,6 +115,20 @@ export interface DraftEditHandlerDependencies {
 
 export interface RegisterDraftEditRouteOptions
   extends DraftEditHandlerDependencies {
+  authorization: AuthorizationGuards;
+}
+
+export interface DraftDiscardHandlerDependencies {
+  discard(
+    context: AuthorizedRequestContext,
+    draftId: string,
+    input: unknown,
+  ): Promise<DraftRecord>;
+  logger: AppLogger;
+}
+
+export interface RegisterDraftDiscardRouteOptions
+  extends DraftDiscardHandlerDependencies {
   authorization: AuthorizationGuards;
 }
 
@@ -315,6 +337,69 @@ export function registerDraftEditRoute(
       authorization: options.authorization.require(DRAFT_SELF_SERVICE_ACCESS),
     },
     createDraftEditHandler(options),
+  );
+}
+
+export function createDraftDiscardHandler(
+  dependencies: DraftDiscardHandlerDependencies,
+): RequestHandler {
+  return asyncRoute(async (req, res) => {
+    const context = getAuthorizedRequestContext(res);
+    const { draftId } = draftIdParamsSchema.parse(req.params);
+    const input = discardDraftRequestSchema.parse(req.body);
+    let record: DraftRecord;
+    try {
+      record = await dependencies.discard(context, draftId, input);
+    } catch (error) {
+      if (error instanceof DraftDiscardNotFoundError) {
+        throw new HttpError(404, apiErrorCodes.notFound, "Draft not found");
+      }
+      if (error instanceof DraftDiscardStaleError) {
+        throw new HttpError(
+          409,
+          apiErrorCodes.badRequest,
+          "Draft changed; reload and try again",
+        );
+      }
+      if (error instanceof DraftDiscardStateError) {
+        throw new HttpError(
+          409,
+          apiErrorCodes.badRequest,
+          "Draft cannot be discarded",
+        );
+      }
+      throw error;
+    }
+
+    const draft = projectAuthorizedFields(
+      res,
+      record,
+      projectDraftForAuthorizedContext,
+    );
+    if (draft === null) {
+      throw new HttpError(403, apiErrorCodes.forbidden, "Forbidden");
+    }
+    const response = discardDraftResponseSchema.parse({ draft });
+    dependencies.logger.info("Own draft discarded", {
+      component: "drafts",
+      draftId: response.draft.id,
+      event: "own_draft_discarded",
+      userId: context.principal.userId,
+    });
+    res.set("Cache-Control", "no-store").json(response);
+  });
+}
+
+export function registerDraftDiscardRoute(
+  routes: RouteRegistrar,
+  options: RegisterDraftDiscardRouteOptions,
+): void {
+  routes.post(
+    DRAFT_DISCARD_PATH,
+    {
+      authorization: options.authorization.require(DRAFT_SELF_SERVICE_ACCESS),
+    },
+    createDraftDiscardHandler(options),
   );
 }
 

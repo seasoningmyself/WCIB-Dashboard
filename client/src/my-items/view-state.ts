@@ -7,6 +7,14 @@ import {
 export const MY_ITEM_FILTERS = ["all", ...MY_ITEM_STATUSES] as const;
 export type MyItemFilter = (typeof MY_ITEM_FILTERS)[number];
 
+export function myItemFilterFromPath(path: string): MyItemFilter {
+  const query = path.split("?", 2)[1]?.split("#", 1)[0] ?? "";
+  const filter = new URLSearchParams(query).get("filter");
+  return MY_ITEM_FILTERS.includes(filter as MyItemFilter)
+    ? filter as MyItemFilter
+    : "all";
+}
+
 export function isMyItemsStaff(user: CurrentUser): boolean {
   return (
     (user.role === "employee" || user.role === "producer") &&

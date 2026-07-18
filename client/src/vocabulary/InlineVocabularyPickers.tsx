@@ -15,6 +15,7 @@ import {
   createSingleFlightRunner,
   createVocabularyMutationApi,
   VocabularyMutationApiError,
+  type VocabularyMutationApi,
   type VocabularyMutationErrorKind,
 } from "./mutation-api.js";
 import {
@@ -32,7 +33,10 @@ interface InlineRoleProps {
   role: AddableRole;
 }
 
-export type InlineCarrierPickerProps = CarrierPickerProps & InlineRoleProps;
+export type InlineCarrierPickerProps = CarrierPickerProps &
+  InlineRoleProps & {
+    onConvenienceMgaChange?(mgaId: string): void;
+  };
 export type InlinePolicyTypePickerProps = CommonPickerProps & InlineRoleProps;
 export type InlineMgaPickerProps = CommonPickerProps & InlineRoleProps;
 
@@ -62,6 +66,53 @@ export function InlineCarrierPicker({
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [focusRequestKey, setFocusRequestKey] = useState(0);
 
+  const applyConvenienceMga = async (carrierName: string) => {
+    if (
+      onConvenienceMgaChange === undefined ||
+      vocabulary.state.status !== "ready"
+    ) {
+      return;
+    }
+    const target = resolveCarrierConvenienceMga(
+      carrierName,
+      vocabulary.state.data.mgas,
+    );
+    if (target === null) {
+      return;
+    }
+    if (target.item !== null) {
+      onConvenienceMgaChange(target.item.id);
+      return;
+    }
+    if (role !== "admin") {
+      setFeedback({
+        message: `${target.name} is not active. Ask an administrator to add this MGA.`,
+        type: "status",
+      });
+      return;
+    }
+    setFeedback(null);
+    try {
+      const execution = await mutation.run(() =>
+        createMissingConvenienceMga(api, target.name),
+      );
+      if (!execution.started || execution.result === undefined) {
+        return;
+      }
+      onConvenienceMgaChange(execution.result.id);
+      setFeedback({
+        message: `${target.name} added and selected automatically.`,
+        type: "status",
+      });
+      vocabulary.retry();
+    } catch (error) {
+      setFeedback({
+        message: safeMutationErrorMessage(mutationErrorKind(error), "MGA"),
+        type: "status",
+      });
+    }
+  };
+
   const submit = async (name: string) => {
     setFeedback(null);
     try {
@@ -71,18 +122,6 @@ export function InlineCarrierPicker({
       }
       const result = execution.result;
       onChange(result.item.id);
-      if (
-        onConvenienceMgaChange !== undefined &&
-        vocabulary.state.status === "ready"
-      ) {
-        const target = resolveCarrierConvenienceMga(
-          result.item.name,
-          vocabulary.state.data.mgas,
-        );
-        if (target !== null) {
-          onConvenienceMgaChange(target.id);
-        }
-      }
       setFeedback({
         message:
           result.outcome === "created"
@@ -92,6 +131,7 @@ export function InlineCarrierPicker({
       });
       setFocusRequestKey((value) => value + 1);
       vocabulary.retry();
+      await applyConvenienceMga(result.item.name);
     } catch (error) {
       setFeedback({
         errorKind: mutationErrorKind(error),
@@ -110,8 +150,15 @@ export function InlineCarrierPicker({
         onChange={(value) => {
           setFeedback(null);
           onChange(value);
+          if (value !== null && vocabulary.state.status === "ready") {
+            const carrier = vocabulary.state.data.carriers.find(
+              ({ id }) => id === value,
+            );
+            if (carrier !== undefined) {
+              void applyConvenienceMga(carrier.name);
+            }
+          }
         }}
-        onConvenienceMgaChange={onConvenienceMgaChange}
         renderInlineAction={(query) => (
           <InlineVocabularyAction
             errorMessage={feedbackError(feedback, query, "carrier")}
@@ -126,6 +173,26 @@ export function InlineCarrierPicker({
       <MutationStatus feedback={feedback} />
     </div>
   );
+}
+
+export async function createMissingConvenienceMga(
+  api: Pick<VocabularyMutationApi, "createMga">,
+  name: string,
+): Promise<VocabularyOption> {
+  let result = await api.createMga({
+    confirmNearDuplicate: false,
+    name,
+  });
+  if (result.outcome === "confirmation_required") {
+    result = await api.createMga({
+      confirmNearDuplicate: true,
+      name,
+    });
+  }
+  if (result.outcome === "confirmation_required") {
+    throw new VocabularyMutationApiError("rejected");
+  }
+  return result.item;
 }
 
 export function InlinePolicyTypePicker({

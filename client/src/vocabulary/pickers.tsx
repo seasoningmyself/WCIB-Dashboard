@@ -19,9 +19,7 @@ export interface CommonPickerProps {
   value: string | null;
 }
 
-export interface CarrierPickerProps extends CommonPickerProps {
-  onConvenienceMgaChange?(mgaId: string): void;
-}
+export interface CarrierPickerProps extends CommonPickerProps {}
 
 const CARRIER_MGA_CONVENIENCES = new Map<string, string>([
   ["western surety", "CNA"],
@@ -33,7 +31,6 @@ const CARRIER_MGA_CONVENIENCES = new Map<string, string>([
 export function CarrierPicker({
   label = "Insurance company",
   onChange,
-  onConvenienceMgaChange,
   ...props
 }: CarrierPickerProps) {
   const vocabulary = useVocabulary();
@@ -44,18 +41,7 @@ export function CarrierPicker({
       helpText="Select an active insurance company."
       label={label}
       loadStatus={vocabulary.state.status}
-      onChange={(option) => {
-        onChange(option?.id ?? null);
-        if (option !== null && onConvenienceMgaChange !== undefined) {
-          const target = resolveCarrierConvenienceMga(
-            option.name,
-            readyOptions(vocabulary.state, "mgas"),
-          );
-          if (target !== null) {
-            onConvenienceMgaChange(target.id);
-          }
-        }
-      }}
+      onChange={(option) => onChange(option?.id ?? null)}
       onRetry={vocabulary.retry}
       options={options}
     />
@@ -123,16 +109,20 @@ export function PolicyTypePicker({
 export function resolveCarrierConvenienceMga(
   carrierName: string,
   activeMgas: readonly VocabularyOption[],
-): VocabularyOption | null {
-  const targetName = CARRIER_MGA_CONVENIENCES.get(carrierName.toLowerCase());
+): { item: VocabularyOption | null; name: string } | null {
+  const normalizedCarrier = carrierName.toLowerCase();
+  const targetName = [...CARRIER_MGA_CONVENIENCES].find(([fragment]) =>
+    normalizedCarrier.includes(fragment)
+  )?.[1];
   if (targetName === undefined) {
     return null;
   }
-  return (
-    activeMgas.find(
+  return {
+    item: activeMgas.find(
       ({ name }) => name.toLowerCase() === targetName.toLowerCase(),
-    ) ?? null
-  );
+    ) ?? null,
+    name: targetName,
+  };
 }
 
 function readyOptions(

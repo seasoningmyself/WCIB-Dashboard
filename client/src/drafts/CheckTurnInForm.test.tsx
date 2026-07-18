@@ -119,22 +119,19 @@ test("custom transaction values expose explicit add and remove controls", () => 
   assert.doesNotMatch(standard, /aria-label="Remove custom transaction type"/);
 });
 
-test("Deposit option remains conditional while the v15 field order stays fixed", () => {
-  const depositMarkup = renderView({
-    form: { ...createEmptyTurnInState(), paymentMode: "deposit" },
-    user: producer(),
-  });
-  const fullMarkup = renderView({
-    form: { ...createEmptyTurnInState(), paymentMode: "full" },
-    user: producer(),
-  });
+test("Deposit option is visible for every payment mode in v15 field order", () => {
+  for (const paymentMode of ["full", "deposit", "direct"] as const) {
+    const markup = renderView({
+      form: { ...createEmptyTurnInState(), paymentMode },
+      user: producer(),
+    });
 
-  assert.match(depositMarkup, /Deposit option from quote/);
-  assert.doesNotMatch(fullMarkup, /Deposit option from quote/);
-  assert.ok(
-    depositMarkup.indexOf("Deposit option from quote")
-      < depositMarkup.indexOf("Amount collected — from ePayPolicy receipt"),
-  );
+    assert.match(markup, /Deposit option from quote/);
+    assert.ok(
+      markup.indexOf("Deposit option from quote")
+        < markup.indexOf("Amount collected — from ePayPolicy receipt"),
+    );
+  }
 });
 
 test("Audit and Endorsement use invoice wording while quote transactions revert", () => {
@@ -284,6 +281,10 @@ test("v15 header and footer expose complete status and duplicate action surfaces
   assert.match(markup, /Draft saved/);
   assert.match(markup, /Save &amp; start new/);
   assert.match(markup, /Clear form/);
+  assert.match(markup, /Discard draft/);
+  assert.match(markup, /Download PDF/);
+  assert.match(markup, /Approvals waiting/);
+  assert.match(markup, /href="#\/approvals"/);
   assert.match(markup, />Clear</);
   assert.equal((markup.match(/>Request help</g) ?? []).length, 2);
 });
@@ -426,9 +427,12 @@ function renderView({
           form={form}
           help={help}
           ipfsHistory={ipfsHistory}
+          metrics={[{ href: "#/approvals", label: "Approvals waiting", value: 3 }]}
           onAssignmentChange={() => {}}
           onClear={() => {}}
+          onDiscard={() => {}}
           onFieldChange={() => {}}
+          onPrint={() => {}}
           onRetryAssignments={() => {}}
           onSave={() => {}}
           onSaveAndStartNew={() => {}}
