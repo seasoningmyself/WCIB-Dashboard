@@ -142,7 +142,7 @@ test("producer view renders payout and rate context without Sophia controls", ()
     "Renewals / existing",
     "Total policies",
     "Account &amp; policy mix",
-    "Their book",
+    "Kaylee&#x27;s book",
     "General Liability",
     "Broker fees",
     "Commissions",
@@ -322,7 +322,7 @@ test("adjustment dialogs render only owner-valid financial controls", () => {
   assert.match(direct, /Check income/);
   assert.doesNotMatch(direct, /Payout amount|Broker fee amount|Commission amount|Policy type/);
   assert.match(producerCorrection, /Payout amount \(subtracted\)/);
-  assert.match(producerCorrection, /Producer account/);
+  assert.match(producerCorrection, /Kaylee&#x27;s book/);
   assert.doesNotMatch(producerCorrection, /Broker fee amount|Commission amount|Add direct income/);
   assert.match(deletion, /Delete adjustment/);
   assert.match(deletion, /Direct-pay client/);

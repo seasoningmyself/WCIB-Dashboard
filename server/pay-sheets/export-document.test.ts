@@ -58,6 +58,7 @@ test("streamed workbook is valid, exact, formula-safe, and separates Sophia tota
   assert.equal(hasValue(owner, `'${sophia.policies[0]!.insuredName}`), true);
   assert.equal(hasValue(owner, `'${sophia.policies[0]!.policyNumber}`), true);
   assert.equal(hasValue(owner, "'@malicious-note"), true);
+  assert.equal(hasValue(owner, "Kaylee's book"), true);
   for (const worksheet of workbook.worksheets) {
     worksheet.eachRow((row) => row.eachCell((cell) => {
       assert.equal(
@@ -84,6 +85,7 @@ test("print HTML is self-contained, scoped, and escapes all user content", () =>
   assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
   assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
   assert.match(html, /A &amp; B &lt; C/);
+  assert.match(html, /Kaylee&#39;s book/);
   assert.doesNotMatch(html, /<script|<img/i);
   assert.doesNotMatch(html, /https?:\/\//i);
 });

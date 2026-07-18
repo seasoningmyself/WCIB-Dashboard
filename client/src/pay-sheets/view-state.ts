@@ -1,3 +1,4 @@
+import { accountAssignmentLabel } from "../../../shared/account-assignment-labels.js";
 import type { CurrentUser } from "../../../shared/current-user.js";
 import type { PaySheetExportQuery } from "../../../shared/pay-sheet-export.js";
 import type {
@@ -187,23 +188,24 @@ export function paySheetAccountLabel(
   value: PaySheetAdjustmentView["accountBasis"],
   producerDisplayName: string | null,
 ): string {
-  if (value === "own") return "Sophia own account";
-  const producer = producerDisplayName ?? "Producer";
-  return value === "house" ? `${producer} first year` : `${producer} account`;
+  return accountAssignmentLabel(
+    value === "own" ? "none" : value,
+    producerDisplayName,
+  );
 }
 
 export function groupPaySheetPolicies(
-  sheet: Pick<PaySheetDetail, "ownerType" | "policies">,
+  sheet: Pick<PaySheetDetail, "ownerDisplayName" | "ownerType" | "policies">,
 ): readonly PaySheetPolicySection[] {
   const definitions = sheet.ownerType === "sophia"
     ? [
-        ["none", "House"],
-        ["book", "Producers' book"],
+        ["none", "Sophia's account"],
+        ["book", "Producers' books"],
         ["house", "1st-yr house"],
       ] as const
     : [
-        ["book", "Their book"],
-        ["house", "1st-yr house"],
+        ["book", accountAssignmentLabel("book", sheet.ownerDisplayName)],
+        ["house", accountAssignmentLabel("house", sheet.ownerDisplayName)],
       ] as const;
 
   return definitions.flatMap(([key, label]) => {

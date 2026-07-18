@@ -73,7 +73,11 @@ test("Check Turn-In renders every active v15 input and exact producer assignment
   ]) {
     assert.match(markup, new RegExp(escapeRegExp(label)), label);
   }
-  for (const assignment of ["First-year", "House account", "Kaylee account"]) {
+  for (const assignment of [
+    "1st-yr house - Kaylee",
+    "Sophia&#x27;s account",
+    "Kaylee&#x27;s account",
+  ]) {
     assert.match(markup, new RegExp(`>${escapeRegExp(assignment)}<`));
   }
   assertInOrder(markup, [
@@ -276,7 +280,7 @@ test("v15 header and footer expose complete status and duplicate action surfaces
     assert.match(markup, new RegExp(`>${label}<`));
   }
   assert.match(markup, /Kaylee/);
-  assert.match(markup, /Kaylee account/);
+  assert.match(markup, /Kaylee&#x27;s account/);
   assert.match(markup, />draft</);
   assert.match(markup, /Draft saved/);
   assert.match(markup, /Save &amp; start new/);

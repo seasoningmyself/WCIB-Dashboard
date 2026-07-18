@@ -891,7 +891,7 @@ function LedgerDetail({
               {group.fields.map((field) => (
                 <div key={field.key}>
                   <dt>{field.label}</dt>
-                  <dd>{ledgerDetailValue(currentItem.policy, field)}</dd>
+                  <dd>{ledgerDetailValue(currentItem, field)}</dd>
                 </div>
               ))}
             </dl>

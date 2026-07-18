@@ -96,6 +96,9 @@ function AdminApprovalQueue({ user }: { user: CurrentUser }) {
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [bulkResults, setBulkResults] = useState<BulkApprovalResult[]>([]);
+  const [producerOptions, setProducerOptions] = useState<
+    readonly DraftAssignmentOption[]
+  >([]);
   const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -109,12 +112,15 @@ function AdminApprovalQueue({ user }: { user: CurrentUser }) {
     const version = requestVersion.current + 1;
     requestVersion.current = version;
     setState({ status: "loading" });
+    setProducerOptions([]);
     try {
-      const [work, deleted] = await Promise.all([
+      const [work, deleted, assignmentOptions] = await Promise.all([
         api.list({ status: filter }),
         api.listDeleted(),
+        ledgerApi.listAssignmentOptions(),
       ]);
       if (requestVersion.current === version) {
+        setProducerOptions(assignmentOptions.producers);
         setState({ deleted, status: "ready", work });
         const liveIds = new Set(work.submissions.map(({ entry }) => entry.id));
         setSelectedSubmissionIds((current) =>
@@ -135,7 +141,7 @@ function AdminApprovalQueue({ user }: { user: CurrentUser }) {
             : "error",
       });
     }
-  }, [api, filter]);
+  }, [api, filter, ledgerApi]);
 
   useEffect(() => {
     void load();
@@ -152,6 +158,7 @@ function AdminApprovalQueue({ user }: { user: CurrentUser }) {
     setShowDeleted(false);
     setNotice(null);
     setBulkResults([]);
+    setProducerOptions([]);
     setSelectedSubmissionIds(new Set());
     setExpandedSubmissionIds(new Set());
     pendingRef.current = false;
@@ -213,16 +220,20 @@ function AdminApprovalQueue({ user }: { user: CurrentUser }) {
   );
 
   const lookups = useMemo<ApprovalValueLookups>(() => {
+    const producers = new Map(
+      producerOptions.map(({ displayName, userId }) => [userId, displayName]),
+    );
     if (vocabulary.state.status !== "ready") {
-      return {};
+      return { producers };
     }
     return {
       carriers: toNameMap(vocabulary.state.data.carriers),
       mgas: toNameMap(vocabulary.state.data.mgas),
       offices: toNameMap(vocabulary.state.data.officeLocations),
       policyTypes: toNameMap(vocabulary.state.data.policyTypes),
+      producers,
     };
-  }, [vocabulary.state]);
+  }, [producerOptions, vocabulary.state]);
 
   const changeDeletion = useCallback(
     async (action: () => Promise<unknown>, successMessage: string) => {

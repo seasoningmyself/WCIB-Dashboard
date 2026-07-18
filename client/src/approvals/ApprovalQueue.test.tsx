@@ -271,10 +271,10 @@ test("dialogs expose bounded confirmation, reason, override, and full fix forms"
   }
   assert.match(openFix, /role="dialog"/);
   assert.match(openFix, /aria-modal="true"/);
-  assert.match(openFix, /Kaylee First-year/);
+  assert.match(openFix, /1st-yr house - Kaylee/);
   assert.match(editFix, /Open and fix Private Submitted LLC/);
-  assert.match(editFix, /Kaylee account/);
-  assert.match(editFix, /Kaylee First-year/);
+  assert.match(editFix, /Kaylee&#x27;s account/);
+  assert.match(editFix, /1st-yr house - Kaylee/);
 });
 
 test("quick send-back reasons append with v15 punctuation behavior", () => {

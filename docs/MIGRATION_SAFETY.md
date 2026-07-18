@@ -150,11 +150,12 @@ owners, not every transitive predecessor.
 | `0048_ipfs_pushed_audit_actions` | Audited IPFS pushed/unpushed state plus v15-compatible completion tracking for manual IPFS agreements | `0015`, `0017`, `0018`, `0044`, `0047` | Refuses audit-vocabulary or constraint backout after pushed-state audit history exists; preserve history and forward-fix |
 | `0049_vocabulary_management_audit_actions` | Audited recoverable deactivation/reactivation for carrier, MGA, and policy-type vocabulary | `0017`, `0018`, `0035`, `0047`, `0048` | Refuses audit-vocabulary backout after vocabulary state history exists; preserve history and forward-fix |
 | `0050_owner_draft_soft_discard` | Owner-only audited soft-discard plus admin recovery for active drafts | `0012`, `0018`, `0046`, `0047` | Refuses function removal after an owner draft is discarded or its audit history exists; preserve history and forward-fix |
+| `0051_remove_staff_pronoun` | Removes the unused staff pronoun column and enum; advances the generation schema contract | `0002`, `0047`, `0050` | Recreates the enum and column with the neutral default; removed pronoun values are intentionally not recoverable |
 
 ## Dependency-safe full reverse order
 
 For a disposable or confirmed-empty database only, execute backouts from
-`0050` down through `0000`, deleting the matching Drizzle history row in the
+`0051` down through `0000`, deleting the matching Drizzle history row in the
 same transaction as each backout. The automated verifier is the reference
 implementation. There is intentionally no production `db:rollback` command:
 an operator must make and document the recovery decision rather than invoke a

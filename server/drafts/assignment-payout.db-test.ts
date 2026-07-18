@@ -80,17 +80,17 @@ test("v15 assignment choices persist through approval and produce the correct pa
           [
             {
               accountAssignment: "none",
-              label: "House account",
+              label: "Sophia's account",
               producerUserId: null,
             },
             {
               accountAssignment: "book",
-              label: "Kaylee account",
+              label: "Kaylee's account",
               producerUserId: references.producerUserId,
             },
             {
               accountAssignment: "house",
-              label: "First-year",
+              label: "1st-yr house - Kaylee",
               producerUserId: references.producerUserId,
             },
           ],
@@ -194,9 +194,9 @@ test("v15 assignment choices persist through approval and produce the correct pa
             producerPayout: producerPayouts.get(label) ?? "0.00",
           })),
           [
-            { classification: "House account", producerPayout: "0.00" },
-            { classification: "Kaylee account", producerPayout: "250.00" },
-            { classification: "First-year", producerPayout: "250.00" },
+            { classification: "Sophia's account", producerPayout: "0.00" },
+            { classification: "Kaylee's account", producerPayout: "250.00" },
+            { classification: "1st-yr house - Kaylee", producerPayout: "250.00" },
           ],
         );
         assert.deepEqual(
@@ -207,9 +207,9 @@ test("v15 assignment choices persist through approval and produce the correct pa
             ]),
           ),
           {
-            "First-year": "750.00",
-            "House account": "1000.00",
-            "Kaylee account": "750.00",
+            "1st-yr house - Kaylee": "750.00",
+            "Sophia's account": "1000.00",
+            "Kaylee's account": "750.00",
           },
         );
         const producerAssociations = await database
@@ -241,21 +241,21 @@ test("v15 assignment choices persist through approval and produce the correct pa
           [
             {
               accountAssignment: "house",
-              insuredName: "First-year",
+              insuredName: "1st-yr house - Kaylee",
               kayleeSplit: "house",
               producerUserId: references.producerUserId,
             },
             {
-              accountAssignment: "none",
-              insuredName: "House account",
-              kayleeSplit: "none",
-              producerUserId: null,
-            },
-            {
               accountAssignment: "book",
-              insuredName: "Kaylee account",
+              insuredName: "Kaylee's account",
               kayleeSplit: "book",
               producerUserId: references.producerUserId,
+            },
+            {
+              accountAssignment: "none",
+              insuredName: "Sophia's account",
+              kayleeSplit: "none",
+              producerUserId: null,
             },
           ],
         );

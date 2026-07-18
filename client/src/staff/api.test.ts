@@ -36,7 +36,6 @@ test("Manage Staff API uses only the guarded staff and append-only rate routes",
     displayName: "New Producer",
     email: "new.producer@example.test",
     initialRate: RATE,
-    pronoun: "their",
     role: "producer",
     temporaryPassword: "ValidPassword1!",
   });
@@ -62,7 +61,6 @@ test("Manage Staff API uses only the guarded staff and append-only rate routes",
     displayName: "New Producer",
     email: "new.producer@example.test",
     initialRate: RATE,
-    pronoun: "their",
     role: "producer",
     temporaryPassword: "ValidPassword1!",
   });
@@ -81,7 +79,6 @@ test("Manage Staff API rejects unsafe input before issuing a request", async () 
     api.create({
       displayName: "Unsafe",
       email: "unsafe@example.test",
-      pronoun: "their",
       role: "employee",
       temporaryPassword: "short",
     }),

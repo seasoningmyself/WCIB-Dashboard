@@ -10,6 +10,7 @@ import {
   generalEditorFields,
   ledgerAccountLabel,
   ledgerBadges,
+  ledgerDetailValue,
   policyCorrectionValues,
 } from "./view-state.js";
 
@@ -17,11 +18,23 @@ test("ledger money and account labels preserve exact stored strings", () => {
   assert.equal(formatMoneyExact("1234567890.05"), "$1,234,567,890.05");
   assert.equal(addMoneyExact("0.01", "999999999999.99"), "1000000000000.00");
   const value = ledgerItemFixture();
-  assert.equal(ledgerAccountLabel(value), "Kaylee account");
+  assert.equal(ledgerAccountLabel(value), "Kaylee's book");
   value.policy.kayleeSplit = "house";
-  assert.equal(ledgerAccountLabel(value), "Kaylee first year");
+  assert.equal(ledgerAccountLabel(value), "1st-yr house - Kaylee");
   value.policy.kayleeSplit = "none";
-  assert.equal(ledgerAccountLabel(value), "Sophia house");
+  assert.equal(ledgerAccountLabel(value), "Sophia's account");
+  value.policy.kayleeSplit = "book";
+  assert.equal(
+    ledgerDetailValue(value, {
+      key: "kayleeSplit",
+      label: "Assignment classification",
+    }),
+    "Kaylee's book",
+  );
+  assert.equal(
+    ledgerDetailValue(value, { key: "producerUserId", label: "Producer" }),
+    "Kaylee",
+  );
 });
 
 test("ledger badges distinguish override, duplicate, financing, and MGA state by text", () => {

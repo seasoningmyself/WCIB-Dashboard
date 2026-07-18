@@ -1,4 +1,5 @@
 import React, { useMemo, useState, type FormEvent } from "react";
+import { accountAssignmentLabel } from "../../../shared/account-assignment-labels.js";
 import type { DraftAssignmentOption } from "../../../shared/draft-assignment-options.js";
 import {
   parsePaySheetAdjustmentForOwner,
@@ -212,6 +213,9 @@ function AdjustmentFormDialog({
   const [validationError, setValidationError] = useState<string | null>(null);
   const directIncome = isDirectIncomeAdjustment(form.adjustmentType);
   const producerSheet = dialog.sheet.ownerType === "producer";
+  const selectedProducerName =
+    producers.find(({ userId }) => userId === form.producerUserId)?.displayName ??
+    (producerSheet ? dialog.sheet.ownerDisplayName : null);
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -376,9 +380,17 @@ function AdjustmentFormDialog({
                       }}
                       value={form.accountBasis}
                     >
-                      {producerSheet ? null : <option value="own">Sophia own account</option>}
-                      <option value="book">Producer account</option>
-                      <option value="house">Producer first year</option>
+                      {producerSheet ? null : (
+                        <option value="own">
+                          {accountAssignmentLabel("none", null)}
+                        </option>
+                      )}
+                      <option value="book">
+                        {accountAssignmentLabel("book", selectedProducerName)}
+                      </option>
+                      <option value="house">
+                        {accountAssignmentLabel("house", selectedProducerName)}
+                      </option>
                     </select>
                   </label>
                   {form.accountBasis === "own" ? null : (

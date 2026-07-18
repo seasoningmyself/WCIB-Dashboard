@@ -20,27 +20,27 @@ export const INITIAL_ROSTER = [
   {
     displayName: "Kaylee",
     key: "kaylee",
-    staff: { pronoun: "her", role: "producer" },
+    staff: { role: "producer" },
   },
   {
     displayName: "Mercedes",
     key: "mercedes",
-    staff: { pronoun: "their", role: "employee" },
+    staff: { role: "employee" },
   },
   {
     displayName: "Daniela",
     key: "daniela",
-    staff: { pronoun: "their", role: "employee" },
+    staff: { role: "employee" },
   },
   {
     displayName: "Joseph",
     key: "joseph",
-    staff: { pronoun: "their", role: "employee" },
+    staff: { role: "employee" },
   },
   {
     displayName: "Ellyscia",
     key: "ellyscia",
-    staff: { pronoun: "their", role: "employee" },
+    staff: { role: "employee" },
   },
   { capability: "admin", displayName: "Sophia", key: "sophia" },
 ] as const;
@@ -207,7 +207,6 @@ export async function seedInitialRoster(
         .insert(staffProfiles)
         .values({
           displayName: member.displayName,
-          pronoun: member.staff.pronoun,
           role: member.staff.role,
           userId: account.id,
         })
@@ -366,7 +365,6 @@ function matchesStaffMember(
   return (
     profile.displayName === member.displayName &&
     profile.role === member.staff.role &&
-    profile.pronoun === member.staff.pronoun &&
     profile.isActive
   );
 }

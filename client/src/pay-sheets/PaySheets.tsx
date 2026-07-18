@@ -5,6 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { accountAssignmentLabel } from "../../../shared/account-assignment-labels.js";
 import type { CurrentUser } from "../../../shared/current-user.js";
 import type { DraftAssignmentOption } from "../../../shared/draft-assignment-options.js";
 import type { PaySheetAdjustmentInput } from "../../../shared/pay-sheet-adjustment-api.js";
@@ -1174,7 +1175,10 @@ function PaySheetLiveKpiWidget({
           <details>
             <summary>Account &amp; policy mix</summary>
             <div className="pay-sheet-live-kpi-detail">
-              <LiveKpiMetric label="Their book" value={String(kpi.accountMix.producerBook)} />
+              <LiveKpiMetric
+                label={accountAssignmentLabel("book", kpi.ownerDisplayName)}
+                value={String(kpi.accountMix.producerBook)}
+              />
               <LiveKpiMetric label="1st-yr house" value={String(kpi.accountMix.firstYearHouse)} />
               {kpi.policyTypes.map(({ label, policyCount }) => (
                 <LiveKpiMetric key={label} label={label} value={String(policyCount)} />

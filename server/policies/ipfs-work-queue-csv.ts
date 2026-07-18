@@ -2,6 +2,7 @@ import {
   type PolicyLedgerLabels,
   type PolicyLedgerPolicy,
 } from "../../shared/policy-ledger.js";
+import { accountAssignmentLabel } from "../../shared/account-assignment-labels.js";
 import { safeSpreadsheetText } from "../pay-sheets/export-document.js";
 import type { PolicyFinancialSplit } from "./ledger.js";
 
@@ -120,12 +121,10 @@ function commissionRateValue(policy: PolicyLedgerPolicy): string {
 
 function accountLabel(row: ProjectedIpfsWorkQueueRow): string {
   const { policy, labels } = row;
-  if (policy.kayleeSplit === "none" || labels.producerDisplayName === null) {
-    return "House account";
-  }
-  return policy.kayleeSplit === "house"
-    ? `${labels.producerDisplayName} - 1st-year house`
-    : `${labels.producerDisplayName}'s book`;
+  return accountAssignmentLabel(
+    policy.kayleeSplit,
+    labels.producerDisplayName,
+  );
 }
 
 function ipfsCustomerStatus(value: PolicyLedgerPolicy["ipfsReturning"]): string {

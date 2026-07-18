@@ -107,7 +107,6 @@ test("initial roster seed is idempotent and matches WCIB access", async () => {
     const staff = await database
       .select({
         displayName: staffProfiles.displayName,
-        pronoun: staffProfiles.pronoun,
         role: staffProfiles.role,
         userId: staffProfiles.userId,
       })
@@ -115,18 +114,17 @@ test("initial roster seed is idempotent and matches WCIB access", async () => {
       .where(inArray(staffProfiles.userId, staffUserIds as string[]));
     assert.deepEqual(
       staff
-        .map(({ displayName, pronoun, role }) => ({
+        .map(({ displayName, role }) => ({
           displayName,
-          pronoun,
           role,
         }))
         .sort((left, right) => left.displayName.localeCompare(right.displayName)),
       [
-        { displayName: "Daniela", pronoun: "their", role: "employee" },
-        { displayName: "Ellyscia", pronoun: "their", role: "employee" },
-        { displayName: "Joseph", pronoun: "their", role: "employee" },
-        { displayName: "Kaylee", pronoun: "her", role: "producer" },
-        { displayName: "Mercedes", pronoun: "their", role: "employee" },
+        { displayName: "Daniela", role: "employee" },
+        { displayName: "Ellyscia", role: "employee" },
+        { displayName: "Joseph", role: "employee" },
+        { displayName: "Kaylee", role: "producer" },
+        { displayName: "Mercedes", role: "employee" },
       ],
     );
 

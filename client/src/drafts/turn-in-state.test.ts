@@ -227,19 +227,19 @@ test("assignment choices match the v15 role boundaries", () => {
     {
       accountAssignment: "none",
       key: assignmentKey("none", null),
-      label: "House account",
+      label: "Sophia's account",
       producerUserId: null,
     },
     {
       accountAssignment: "book",
       key: assignmentKey("book", USER_ID),
-      label: "Kaylee account",
+      label: "Kaylee's account",
       producerUserId: USER_ID,
     },
     {
       accountAssignment: "house",
       key: assignmentKey("house", USER_ID),
-      label: "First-year",
+      label: "1st-yr house - Kaylee",
       producerUserId: USER_ID,
     },
   ]);
@@ -248,14 +248,14 @@ test("assignment choices match the v15 role boundaries", () => {
     buildAssignmentChoices(user("employee", "Mercedes"), [
       { displayName: "Kaylee", userId: OTHER_ID },
     ]).map(({ label }) => label),
-    ["House account", "Kaylee account"],
+    ["Sophia's account", "Kaylee's account"],
   );
 
   assert.deepEqual(
     buildAssignmentChoices(user("admin", "Sophia"), [
       { displayName: "Kaylee", userId: OTHER_ID },
     ]).map(({ label }) => label),
-    ["House account", "Kaylee account", "Kaylee First-year"],
+    ["Sophia's account", "Kaylee's account", "1st-yr house - Kaylee"],
   );
 });
 

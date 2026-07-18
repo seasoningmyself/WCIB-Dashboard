@@ -265,6 +265,7 @@ function source(): PaySheetSource {
         value: {
           addedAt: new Date("2026-07-02T00:00:00.000Z"),
           associationId: uuid(12),
+          producerDisplayName: "Kaylee",
           frozenPolicySnapshot: {
             agencyRevenue: "150.00",
             approvedAt: "2026-06-30T12:00:00.000Z",

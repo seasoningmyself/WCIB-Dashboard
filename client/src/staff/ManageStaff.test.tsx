@@ -119,7 +119,9 @@ test("staff editor keeps temporary credentials masked and creation-only", () => 
   assert.match(creation, /autoComplete="new-password"/i);
   assert.match(creation, /At least 12 characters/);
   assert.doesNotMatch(creation, /ValidPassword|passwordHash/);
+  assert.doesNotMatch(creation, /Pronoun|Her|His|Their/);
   assert.doesNotMatch(editing, /Temporary password|type="password"|passwordHash/);
+  assert.doesNotMatch(editing, /Pronoun|Her|His|Their/);
 });
 
 test("role and active dialogs explain dormant history and session invalidation", () => {

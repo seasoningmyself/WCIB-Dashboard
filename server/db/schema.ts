@@ -132,11 +132,6 @@ export const policyChangeRequestResolutionEnum = pgEnum(
   "policy_change_request_resolution",
   POLICY_CHANGE_REQUEST_RESOLUTIONS,
 );
-export const staffPronounEnum = pgEnum("staff_pronoun", [
-  "her",
-  "his",
-  "their",
-]);
 export const businessStateGenerationStatusEnum = pgEnum(
   "business_state_generation_status",
   BUSINESS_STATE_GENERATION_STATUSES,
@@ -455,7 +450,6 @@ export const staffProfiles = pgTable(
       .references(() => users.id, { onDelete: "restrict" }),
     displayName: text("display_name").notNull(),
     role: staffRoleEnum("role").notNull(),
-    pronoun: staffPronounEnum("pronoun").notNull().default("their"),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

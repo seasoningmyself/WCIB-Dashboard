@@ -45,27 +45,27 @@ test("initial roster is fixed to the approved account shapes", () => {
     {
       displayName: "Kaylee",
       key: "kaylee",
-      staff: { pronoun: "her", role: "producer" },
+      staff: { role: "producer" },
     },
     {
       displayName: "Mercedes",
       key: "mercedes",
-      staff: { pronoun: "their", role: "employee" },
+      staff: { role: "employee" },
     },
     {
       displayName: "Daniela",
       key: "daniela",
-      staff: { pronoun: "their", role: "employee" },
+      staff: { role: "employee" },
     },
     {
       displayName: "Joseph",
       key: "joseph",
-      staff: { pronoun: "their", role: "employee" },
+      staff: { role: "employee" },
     },
     {
       displayName: "Ellyscia",
       key: "ellyscia",
-      staff: { pronoun: "their", role: "employee" },
+      staff: { role: "employee" },
     },
     { capability: "admin", displayName: "Sophia", key: "sophia" },
   ]);

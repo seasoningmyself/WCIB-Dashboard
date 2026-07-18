@@ -4,6 +4,7 @@ import type { CurrentUser } from "../../../shared/current-user.js";
 import type { DraftAssignmentOption } from "../../../shared/draft-assignment-options.js";
 import type { UpdateDraftRequest } from "../../../shared/drafts.js";
 import type { ApproveWithOverrideRequest } from "../../../shared/policy-overrides.js";
+import { accountAssignmentLabel } from "../../../shared/account-assignment-labels.js";
 import { useVocabulary } from "../vocabulary/context.js";
 import {
   assignmentKey,
@@ -640,6 +641,5 @@ function helpName(item: HelpRequest): string {
 }
 
 function assignmentText(form: TurnInFormState): string {
-  if (form.accountAssignment === "none") return "Sophia house account";
-  return `${form.accountAssignment === "house" ? "First-year" : "Producer account"} · ${form.producerUserId ?? "No producer"}`;
+  return accountAssignmentLabel(form.accountAssignment || "none", null);
 }

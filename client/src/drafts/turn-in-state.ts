@@ -2,6 +2,7 @@ import type { CurrentUser } from "../../../shared/current-user.js";
 import type {
   DraftAssignmentOption,
 } from "../../../shared/draft-assignment-options.js";
+import { accountAssignmentLabel } from "../../../shared/account-assignment-labels.js";
 import {
   calculateAgencyCommissionAmount,
   calculateDraftFinanceBalance,
@@ -603,24 +604,36 @@ export function buildAssignmentChoices(
   if (user.role === "producer") {
     const name = user.displayName ?? user.email;
     return [
-      assignmentChoice("none", null, "House account"),
-      assignmentChoice("book", user.id, `${name} account`),
-      assignmentChoice("house", user.id, "First-year"),
+      assignmentChoice("none", null, accountAssignmentLabel("none", null, "account")),
+      assignmentChoice("book", user.id, accountAssignmentLabel("book", name, "account")),
+      assignmentChoice("house", user.id, accountAssignmentLabel("house", name, "account")),
     ];
   }
   if (user.role === "employee") {
     return [
-      assignmentChoice("none", null, "House account"),
+      assignmentChoice("none", null, accountAssignmentLabel("none", null, "account")),
       ...producers.map(({ displayName, userId }) =>
-        assignmentChoice("book", userId, `${displayName} account`),
+        assignmentChoice(
+          "book",
+          userId,
+          accountAssignmentLabel("book", displayName, "account"),
+        ),
       ),
     ];
   }
   return [
-    assignmentChoice("none", null, "House account"),
+    assignmentChoice("none", null, accountAssignmentLabel("none", null, "account")),
     ...producers.flatMap(({ displayName, userId }) => [
-      assignmentChoice("book", userId, `${displayName} account`),
-      assignmentChoice("house", userId, `${displayName} First-year`),
+      assignmentChoice(
+        "book",
+        userId,
+        accountAssignmentLabel("book", displayName, "account"),
+      ),
+      assignmentChoice(
+        "house",
+        userId,
+        accountAssignmentLabel("house", displayName, "account"),
+      ),
     ]),
   ];
 }
