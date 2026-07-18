@@ -149,7 +149,24 @@ test("view exposes loading, denied, failure, blank, and searched-empty states", 
     paidLast30DaysCount: 0,
   };
   assert.match(renderReady(blank), /No commission items yet/);
-  assert.match(renderReady(blank, "Acme"), /No matching commission items/);
+  const searched = renderReady(blank, "Acme");
+  assert.match(searched, /No matching commission items/);
+  assert.match(searched, /aria-label="Clear commission search"/);
+  assert.doesNotMatch(searched, /type="submit"/);
+});
+
+test("My Commissions search updates live and Escape clears it", () => {
+  const source = readFileSync(
+    new URL("./MyCommissions.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    source,
+    /onChange=\{\(event\) => onSearchChange\(event\.currentTarget\.value\)\}/,
+  );
+  assert.match(source, /event\.key === "Escape"[\s\S]*onSearchChange\(""\)/);
+  assert.doesNotMatch(source, /submitSearch/);
 });
 
 test("print CSS suppresses commission rows and exposes only the confidentiality notice", () => {
@@ -215,7 +232,6 @@ function renderState(state: MyCommissionsState, search = ""): string {
       notice={null}
       onReceipt={() => {}}
       onRetry={() => {}}
-      onSearch={(event) => event.preventDefault()}
       onSearchChange={() => {}}
       onSort={() => {}}
       pendingId={null}

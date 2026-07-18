@@ -376,10 +376,27 @@ function projectPolicy(
 }
 
 function projectAdjustment(source: AdjustmentSource): PaySheetAdjustmentView {
+  const { adjustment } = source;
   return paySheetAdjustmentViewSchema.parse({
-    ...source.adjustment,
+    accountBasis: adjustment.accountBasis,
+    adjustmentType: adjustment.adjustmentType,
+    brokerFeeDelta: adjustment.brokerFeeDelta,
+    commissionDelta: adjustment.commissionDelta,
+    createdAt: adjustment.createdAt,
+    createdByUserId: adjustment.createdByUserId,
+    effectiveDate: adjustment.effectiveDate,
+    id: adjustment.id,
+    incomeAmount: adjustment.incomeAmount,
+    insuredOrClientLabel: adjustment.insuredOrClientLabel,
+    paySheetId: adjustment.paySheetId,
+    payoutDelta: adjustment.payoutDelta,
+    policyTypeId: adjustment.policyTypeId,
     policyTypeName: source.policyTypeName,
     producerDisplayName: source.producerDisplayName,
+    producerUserId: adjustment.producerUserId,
+    reasonOrNote: adjustment.reasonOrNote,
+    sourceAdjustmentId: adjustment.sourceAdjustmentId,
+    updatedAt: adjustment.updatedAt,
   });
 }
 

@@ -14,14 +14,14 @@ import {
 import { ledgerItemFixture, ledgerListFixture, uuid } from "./test-fixture.js";
 
 const query: PolicyLedgerListQuery = {
-  direction: "desc",
+  direction: "asc",
   duplicates: "all",
   finance: "all",
   limit: 100,
   month: "2026-07",
   offset: 0,
   search: "",
-  sort: "date",
+  sort: "insured",
 };
 
 test("admin ledger renders financial totals, filters, badges, detail, and separate corrections", () => {
@@ -164,6 +164,18 @@ test("ledger renders loading, denied, failure, empty, and filtered-empty states"
   );
 });
 
+test("ledger search exposes the broad live-search contract and explicit clear", () => {
+  const markup = ledgerMarkup({
+    searchInput: "Acme",
+    state: { data: ledgerListFixture(), status: "ready" },
+  });
+
+  assert.match(markup, /placeholder="Insured, policy, carrier, MGA"/);
+  assert.match(markup, /aria-label="Clear ledger search"/);
+  assert.match(markup, />Clear</);
+  assert.doesNotMatch(markup, /type="submit"/);
+});
+
 test("non-admin ledger entry fails closed before mounting the data controller", () => {
   const user: CurrentUser = {
     allowedNavigation: ["turn_in", "my_items"],
@@ -230,10 +242,12 @@ test("expanded detail has an explicit retry state without exposing stale policy 
 function ledgerMarkup({
   detail = { status: "closed" },
   expandedPolicyId = null,
+  searchInput = "",
   state,
 }: {
   detail?: Parameters<typeof PolicyLedgerView>[0]["detail"];
   expandedPolicyId?: string | null;
+  searchInput?: string;
   state: Parameters<typeof PolicyLedgerView>[0]["state"];
 }): string {
   return renderToStaticMarkup(
@@ -250,13 +264,12 @@ function ledgerMarkup({
       onRetry={() => {}}
       onRetryDetail={() => {}}
       onSearch={() => {}}
-      onSearchInput={() => {}}
       onSetIpfsPushed={() => {}}
       onToggleDetail={() => {}}
       pending={false}
       exportingIpfs={false}
       query={query}
-      searchInput=""
+      searchInput={searchInput}
       state={state}
     />,
   );

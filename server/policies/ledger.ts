@@ -345,10 +345,7 @@ function filterLedgerRows(
   query: NormalizedPolicyLedgerQuery,
 ): PolicyLedgerSourceItem[] {
   return rows.filter((row) => {
-    if (
-      query.search !== "" &&
-      !normalizeLedgerSearch(row.policy.insuredName).includes(query.search)
-    ) {
+    if (!matchesLedgerSearch(row, query.search)) {
       return false;
     }
     if (query.duplicates === "only" && row.duplicate === null) {
@@ -373,6 +370,20 @@ function filterLedgerRows(
     }
     return true;
   });
+}
+
+export function matchesLedgerSearch(
+  row: PolicyLedgerSourceItem,
+  search: string,
+): boolean {
+  const normalized = normalizeLedgerSearch(search);
+  if (normalized === "") return true;
+  return [
+    row.policy.insuredName,
+    row.policy.policyNumber,
+    row.labels.carrierName,
+    row.labels.mgaName,
+  ].some((value) => normalizeLedgerSearch(value).includes(normalized));
 }
 
 function comparePrimary(

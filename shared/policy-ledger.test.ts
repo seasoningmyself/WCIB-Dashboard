@@ -12,7 +12,7 @@ test("policy ledger query accepts only bounded explicit controls", () => {
     limit: 100,
     offset: 0,
     search: "",
-    sort: "date",
+    sort: "insured",
   });
   assert.deepEqual(
     policyLedgerListQuerySchema.parse({

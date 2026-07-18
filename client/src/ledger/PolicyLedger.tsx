@@ -4,7 +4,6 @@ import React, {
   useMemo,
   useRef,
   useState,
-  type FormEvent,
 } from "react";
 import type { CurrentUser } from "../../../shared/current-user.js";
 import type { DraftAssignmentOption } from "../../../shared/draft-assignment-options.js";
@@ -77,14 +76,14 @@ function AdminPolicyLedger() {
   const client = useApiClient();
   const api = useMemo(() => createPolicyLedgerApi(client), [client]);
   const [query, setQuery] = useState<PolicyLedgerListQuery>(() => ({
-    direction: "desc",
+    direction: "asc",
     duplicates: "all",
     finance: "all",
     limit: INITIAL_LIMIT,
     month: currentLedgerMonth(),
     offset: 0,
     search: "",
-    sort: "date",
+    sort: "insured",
   }));
   const [searchInput, setSearchInput] = useState("");
   const [state, setState] = useState<PolicyLedgerState>({ status: "loading" });
@@ -356,6 +355,14 @@ function AdminPolicyLedger() {
     [],
   );
 
+  const updateSearch = useCallback(
+    (value: string) => {
+      setSearchInput(value);
+      updateQuery({ search: value });
+    },
+    [updateQuery],
+  );
+
   const exportIpfsWorkQueue = useCallback(async () => {
     if (exportingIpfsRef.current) return;
     exportingIpfsRef.current = true;
@@ -454,11 +461,7 @@ function AdminPolicyLedger() {
           setDetail({ status: "loading" });
           setExpandedPolicyId(policyId);
         }}
-        onSearch={(event) => {
-          event.preventDefault();
-          updateQuery({ search: searchInput.trim() });
-        }}
-        onSearchInput={setSearchInput}
+        onSearch={updateSearch}
         onToggleDetail={toggleDetail}
         pending={pending}
         exportingIpfs={exportingIpfs}
@@ -522,7 +525,6 @@ export function PolicyLedgerView({
   onRetry,
   onRetryDetail,
   onSearch,
-  onSearchInput,
   onSetIpfsPushed,
   onToggleDetail,
   pending,
@@ -542,8 +544,7 @@ export function PolicyLedgerView({
   onQuery(query: Partial<PolicyLedgerListQuery>): void;
   onRetry(): void;
   onRetryDetail(policyId: string): void;
-  onSearch(event: FormEvent<HTMLFormElement>): void;
-  onSearchInput(value: string): void;
+  onSearch(value: string): void;
   onSetIpfsPushed(item: PolicyLedgerItem, pushed: boolean): void;
   onToggleDetail(policyId: string): void;
   pending: boolean;
@@ -608,20 +609,35 @@ export function PolicyLedgerView({
       <LedgerMetrics totals={state.data.totals} />
 
       <div className="ledger-toolbar">
-        <form className="ledger-search" onSubmit={onSearch} role="search">
+        <div className="ledger-search" role="search">
           <label htmlFor="ledger-search">Search policies</label>
           <div>
             <input
+              autoComplete="off"
               id="ledger-search"
               maxLength={200}
-              onChange={(event) => onSearchInput(event.currentTarget.value)}
+              onChange={(event) => onSearch(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key !== "Escape") return;
+                event.preventDefault();
+                onSearch("");
+              }}
               placeholder="Insured, policy, carrier, MGA"
               type="search"
               value={searchInput}
             />
-            <button disabled={pending} type="submit">Search</button>
+            {searchInput === "" ? null : (
+              <button
+                aria-label="Clear ledger search"
+                disabled={pending}
+                onClick={() => onSearch("")}
+                type="button"
+              >
+                Clear
+              </button>
+            )}
           </div>
-        </form>
+        </div>
         <label className="ledger-filter-field">
           <span>Month</span>
           <input
@@ -645,7 +661,7 @@ export function PolicyLedgerView({
           <span>Direction</span>
           <select
             onChange={(event) => onQuery({ direction: event.currentTarget.value as "asc" | "desc" })}
-            value={query.direction ?? "desc"}
+            value={query.direction ?? (query.sort === "date" ? "desc" : "asc")}
           >
             <option value="desc">{directionLabel(query.sort, "desc")}</option>
             <option value="asc">{directionLabel(query.sort, "asc")}</option>
