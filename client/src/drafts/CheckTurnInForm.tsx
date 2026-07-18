@@ -23,6 +23,10 @@ import { createAutomaticSaveQueue } from "./autosave.js";
 import { canRequestDraftHelp, parseHelpReason } from "./help-request.js";
 import { buildTurnInPrintModel, printTurnInModel } from "./turn-in-print.js";
 import {
+  loadTurnInMetrics,
+  type TurnInMetric,
+} from "./turn-in-metrics.js";
+import {
   assignmentKey,
   applyIpfsReturningDetection,
   buildAssignmentChoices,
@@ -93,6 +97,7 @@ export function CheckTurnInForm({
   const [helpError, setHelpError] = useState<string | null>(null);
   const [helpPending, setHelpPending] = useState(false);
   const [ipfsHistory, setIpfsHistory] = useState<IpfsHistoryState>({ status: "idle" });
+  const [metrics, setMetrics] = useState<readonly TurnInMetric[]>([]);
   const pendingRef = useRef(false);
   const ipfsHistoryVersionRef = useRef(0);
   const ipfsReturningUserSetRef = useRef(initialDraft?.ipfsReturning != null);
@@ -101,6 +106,7 @@ export function CheckTurnInForm({
   const helpReasonRef = useRef<HTMLTextAreaElement>(null);
   const helpTriggerRef = useRef<HTMLButtonElement>(null);
   const completionRef = useRef<HTMLHeadingElement>(null);
+  const metricsRequestVersionRef = useRef(0);
   const autosaveTimerRef = useRef<number | null>(null);
   const automaticSaveQueueRef = useRef(createAutomaticSaveQueue());
   const lastPersistedInputRef = useRef<string | null>(
@@ -226,6 +232,21 @@ export function CheckTurnInForm({
   }, [api, assignmentAttempt]);
 
   useEffect(() => {
+    const version = metricsRequestVersionRef.current + 1;
+    metricsRequestVersionRef.current = version;
+    void loadTurnInMetrics(client, user)
+      .then((next) => {
+        if (metricsRequestVersionRef.current === version) setMetrics(next);
+      })
+      .catch(() => {
+        if (metricsRequestVersionRef.current === version) setMetrics([]);
+      });
+    return () => {
+      metricsRequestVersionRef.current += 1;
+    };
+  }, [client, user]);
+
+  useEffect(() => {
     if (vocabulary.state.status === "ready") {
       const data = vocabulary.state.data;
       setForm((current) => {
@@ -279,6 +300,8 @@ export function CheckTurnInForm({
     setHelpError(null);
     setHelpPending(false);
     setIpfsHistory({ status: "idle" });
+    setMetrics([]);
+    metricsRequestVersionRef.current += 1;
     ipfsHistoryVersionRef.current += 1;
     ipfsReturningUserSetRef.current = false;
     autoExpirationRef.current = null;
@@ -640,6 +663,7 @@ export function CheckTurnInForm({
         triggerRef: helpTriggerRef,
       }}
       ipfsHistory={ipfsHistory}
+      metrics={metrics}
       onAssignmentChange={changeAssignment}
       onBlurAutosave={scheduleBlurAutosave}
       onClear={clearForm}
@@ -665,6 +689,7 @@ interface CheckTurnInFormViewProps {
   form: TurnInFormState;
   help?: DraftHelpControl;
   ipfsHistory?: IpfsHistoryState;
+  metrics?: readonly TurnInMetric[];
   onAssignmentChange(choice: AssignmentChoice | null): void;
   onBlurAutosave?(): void;
   onClear(): void;
@@ -705,6 +730,7 @@ export function CheckTurnInFormView({
   form,
   help,
   ipfsHistory = { status: "idle" },
+  metrics = [],
   onAssignmentChange,
   onBlurAutosave,
   onClear,
@@ -769,6 +795,18 @@ export function CheckTurnInFormView({
           <h1 id="turn-in-title">Check Turn-In</h1>
         </div>
       </header>
+
+      {metrics.length === 0 ? null : (
+        <nav className="turn-in-metrics" aria-label="Turn-in shortcuts">
+          {metrics.map((metric) => (
+            <a href={metric.href} key={metric.label}>
+              <span>{metric.label}</span>
+              <strong>{metric.value}</strong>
+              {metric.detail === undefined ? null : <small>{metric.detail}</small>}
+            </a>
+          ))}
+        </nav>
+      )}
 
       <div className="turn-in-status-strip" aria-label="Turn-in status">
         <StatusValue label="Date" value={formatHeaderDate(new Date())} />

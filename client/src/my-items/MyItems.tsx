@@ -16,6 +16,7 @@ import {
   isMyItemsStaff,
   myItemAgeLabel,
   myItemFilterLabel,
+  myItemFilterFromPath,
   myItemOpenLabel,
   myItemStatusLabel,
   type MyItemFilter,
@@ -27,9 +28,9 @@ export type MyItemsState =
   | { status: "loading" }
   | { data: MyItemsResponse; status: "ready" };
 
-export function MyItems({ user }: { user: CurrentUser }) {
+export function MyItems({ currentPath = "/my-drafts", user }: { currentPath?: string; user: CurrentUser }) {
   return isMyItemsStaff(user) ? (
-    <StaffMyItems />
+    <StaffMyItems currentPath={currentPath} />
   ) : (
     <MyItemsMessage
       body="This page is not available for your account."
@@ -38,10 +39,12 @@ export function MyItems({ user }: { user: CurrentUser }) {
   );
 }
 
-function StaffMyItems() {
+function StaffMyItems({ currentPath }: { currentPath: string }) {
   const client = useApiClient();
   const api = useMemo(() => createMyItemsApi(client), [client]);
-  const [filter, setFilter] = useState<MyItemFilter>("all");
+  const [filter, setFilter] = useState<MyItemFilter>(() =>
+    myItemFilterFromPath(currentPath)
+  );
   const [state, setState] = useState<MyItemsState>({ status: "loading" });
   const requestVersion = useRef(0);
 
@@ -71,6 +74,10 @@ function StaffMyItems() {
       requestVersion.current += 1;
     };
   }, [load]);
+
+  useEffect(() => {
+    setFilter(myItemFilterFromPath(currentPath));
+  }, [currentPath]);
 
   const clearSensitiveState = useCallback(() => {
     requestVersion.current += 1;

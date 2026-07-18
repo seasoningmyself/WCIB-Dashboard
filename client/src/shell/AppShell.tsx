@@ -250,7 +250,7 @@ function ShellContent({
     if (route.item.id === "my_items") {
       const draftSelection = resolveDraftSelection(currentPath);
       if (user.role !== "admin" && draftSelection.status === "list") {
-        return <MyItems user={user} />;
+        return <MyItems currentPath={currentPath} user={user} />;
       }
       return (
         <VocabularyProvider>
