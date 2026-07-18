@@ -6,6 +6,7 @@ import React, {
   useState,
 } from "react";
 import type { CurrentUser } from "../../../shared/current-user.js";
+import type { DraftAssignmentOption } from "../../../shared/draft-assignment-options.js";
 import type {
   ApprovalWorkListResponse,
   ListApprovalWorkQuery,
@@ -72,7 +73,7 @@ export type ApprovalQueueState =
 
 export function ApprovalQueue({ user }: { user: CurrentUser }) {
   return isApprovalAdmin(user) ? (
-    <AdminApprovalQueue />
+    <AdminApprovalQueue user={user} />
   ) : (
     <ApprovalMessage
       body="This page is not available for your account."
@@ -81,7 +82,7 @@ export function ApprovalQueue({ user }: { user: CurrentUser }) {
   );
 }
 
-function AdminApprovalQueue() {
+function AdminApprovalQueue({ user }: { user: CurrentUser }) {
   const client = useApiClient();
   const api = useMemo(() => createApprovalApi(client), [client]);
   const ledgerApi = useMemo(() => createPolicyLedgerApi(client), [client]);
@@ -300,6 +301,34 @@ function AdminApprovalQueue() {
     [ledgerApi],
   );
 
+  const openFixDialog = useCallback(
+    async (
+      buildDialog: (
+        assignmentOptions: readonly DraftAssignmentOption[],
+      ) => ApprovalDialog,
+    ) => {
+      if (pendingRef.current) return;
+      pendingRef.current = true;
+      setPending(true);
+      setNotice(null);
+      try {
+        const assignmentOptions = await ledgerApi.listAssignmentOptions();
+        setDialog(buildDialog(assignmentOptions.producers));
+      } catch (error) {
+        if (error instanceof PolicyLedgerApiError && error.kind === "denied") {
+          requestVersion.current += 1;
+          setState({ status: "denied" });
+        } else {
+          setNotice("Assignment options could not be loaded. Refresh and try again.");
+        }
+      } finally {
+        pendingRef.current = false;
+        setPending(false);
+      }
+    },
+    [ledgerApi],
+  );
+
   const bulkApprove = useCallback(
     async (queueEntryIds: string[]) => {
       if (pendingRef.current || state.status !== "ready") return;
@@ -419,6 +448,13 @@ function AdminApprovalQueue() {
             () => api.approve(item.entry.id),
           )
         }
+        onOpenHelpFix={(item) =>
+          void openFixDialog((assignmentOptions) => ({
+            assignmentOptions,
+            item,
+            kind: "open_fix",
+          }))
+        }
         onOpenChangeFix={(item) => void openPolicyChangeRequest(item)}
         onDeleteHelp={(item) =>
           setDeletionDialog({ item, kind: "delete_help" })
@@ -428,6 +464,13 @@ function AdminApprovalQueue() {
         }
         onOpenDeleted={() => setShowDeleted(true)}
         onOpen={setDialog}
+        onOpenSubmissionFix={(item) =>
+          void openFixDialog((assignmentOptions) => ({
+            assignmentOptions,
+            item,
+            kind: "edit_fix_submission",
+          }))
+        }
         onRetry={() => void load()}
         onSelectSubmission={(id, selected) =>
           setSelectedSubmissionIds((current) => {
@@ -509,6 +552,12 @@ function AdminApprovalQueue() {
         }
         onBulkApprove={(queueEntryIds) => void bulkApprove(queueEntryIds)}
         onCancel={cancelDialog}
+        onEditFix={(queueEntryId, input: UpdateDraftRequest) =>
+          void resolve(
+            { id: queueEntryId, kind: "submission" },
+            () => api.editFixSubmission(queueEntryId, input),
+          )
+        }
         onOpenFix={(draftId, input: UpdateDraftRequest) =>
           void resolve(
             { id: draftId, kind: "help" },
@@ -537,6 +586,7 @@ function AdminApprovalQueue() {
           )
         }
         pending={pending}
+        user={user}
       />
       <PolicyChangeRequestDialogs
         dialog={policyChangeDialog}
@@ -602,9 +652,11 @@ export function ApprovalQueueView({
   onExpandSubmissions,
   onFilter,
   onInlineApprove,
+  onOpenHelpFix,
   onOpenChangeFix,
   onOpenDeleted,
   onOpen,
+  onOpenSubmissionFix,
   onRetry,
   onSelectSubmission,
   onSelectSubmissions,
@@ -624,7 +676,9 @@ export function ApprovalQueueView({
   onExpandSubmissions(expanded: boolean): void;
   onFilter(filter: ApprovalFilter): void;
   onInlineApprove(item: Submission): void;
+  onOpenHelpFix(item: HelpRequest): void;
   onOpen(dialog: QueueDialog): void;
+  onOpenSubmissionFix(item: Submission): void;
   onOpenChangeFix(item: ChangeRequest): void;
   onOpenDeleted(): void;
   onRetry(): void;
@@ -790,6 +844,7 @@ export function ApprovalQueueView({
                         onExpandSubmission(item.entry.id, expanded)
                       }
                       onInlineApprove={onInlineApprove}
+                      onEditFix={onOpenSubmissionFix}
                       onOpen={onOpen}
                       onSelected={(selected) =>
                         onSelectSubmission(item.entry.id, selected)
@@ -815,6 +870,7 @@ export function ApprovalQueueView({
                   key={item.draft.id}
                   lookups={lookups}
                   onDelete={onDeleteHelp}
+                  onOpenFix={onOpenHelpFix}
                   onOpen={onOpen}
                   pending={pending}
                 />
@@ -850,6 +906,7 @@ function SubmissionReview({
   item,
   lookups,
   onDelete,
+  onEditFix,
   onExpanded,
   onInlineApprove,
   onOpen,
@@ -861,6 +918,7 @@ function SubmissionReview({
   item: Submission;
   lookups: ApprovalValueLookups;
   onDelete(item: Submission): void;
+  onEditFix(item: Submission): void;
   onExpanded(expanded: boolean): void;
   onInlineApprove(item: Submission): void;
   onOpen(dialog: ApprovalDialog): void;
@@ -923,6 +981,7 @@ function SubmissionReview({
       <div className="approval-review-body">
         <ReviewFields lookups={lookups} source={source} />
         <div className="approval-row-actions">
+          <button disabled={pending} onClick={() => onEditFix(item)} type="button">Edit &amp; fix</button>
           <button disabled={pending} onClick={() => onOpen({ item, kind: "approve" })} type="button">Approve</button>
           <button className="is-override" disabled={pending} onClick={() => onOpen({ item, kind: "override" })} type="button">Approve with override</button>
           <button className="is-danger" disabled={pending} onClick={() => onOpen({ item, kind: "send_back_submission" })} type="button">Send back</button>
@@ -937,12 +996,14 @@ function HelpReview({
   item,
   lookups,
   onDelete,
+  onOpenFix,
   onOpen,
   pending,
 }: {
   item: HelpRequest;
   lookups: ApprovalValueLookups;
   onDelete(item: HelpRequest): void;
+  onOpenFix(item: HelpRequest): void;
   onOpen(dialog: ApprovalDialog): void;
   pending: boolean;
 }) {
@@ -971,7 +1032,7 @@ function HelpReview({
         </div>
         <ReviewFields lookups={lookups} source={source} />
         <div className="approval-row-actions">
-          <button disabled={pending} onClick={() => onOpen({ item, kind: "open_fix" })} type="button">Open &amp; fix</button>
+          <button disabled={pending} onClick={() => onOpenFix(item)} type="button">Open &amp; fix</button>
           <button className="is-primary" disabled={pending} onClick={() => onOpen({ item, kind: "push_through" })} type="button">Push through as-is</button>
           <button className="is-danger" disabled={pending} onClick={() => onOpen({ item, kind: "send_back_help" })} type="button">Send back</button>
           <button className="is-danger" disabled={pending} onClick={() => onDelete(item)} type="button">Delete</button>

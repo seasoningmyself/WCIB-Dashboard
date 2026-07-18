@@ -1,6 +1,7 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import {
   createDraftRequestSchema,
+  draftWritableInputFromSource,
   updateDraftRequestSchema,
 } from "../../shared/drafts.js";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
@@ -62,6 +63,7 @@ export async function approvePendingSubmission(
       .where(
         and(
           eq(approvalQueueEntries.id, queueEntryId),
+          isNull(approvalQueueEntries.deletedAt),
           inActiveBusinessGeneration(approvalQueueEntries.businessGenerationId),
         ),
       )
@@ -85,6 +87,87 @@ export async function approvePendingSubmission(
       context,
       queueEntryId,
       input,
+      approvedAt,
+    );
+  });
+}
+
+export async function approveCorrectedPendingSubmission(
+  database: AuthDatabase,
+  context: AuthorizedRequestContext,
+  queueEntryId: string,
+  rawPatch: unknown,
+  approvedAt = new Date(),
+): Promise<PolicyRecord> {
+  const patch = updateDraftRequestSchema.parse(rawPatch);
+  requireApprovalAdmin(context);
+  requireApprovalTimestamp(approvedAt);
+
+  return database.transaction(async (transaction) => {
+    const [entry] = await transaction
+      .select()
+      .from(approvalQueueEntries)
+      .where(
+        and(
+          eq(approvalQueueEntries.id, queueEntryId),
+          isNull(approvalQueueEntries.deletedAt),
+          inActiveBusinessGeneration(approvalQueueEntries.businessGenerationId),
+        ),
+      )
+      .limit(1)
+      .for("update");
+    if (entry === undefined) {
+      throw new ApprovalItemNotFoundError();
+    }
+    if (entry.status !== "pending" || approvedAt < entry.submittedAt) {
+      throw new ApprovalItemStateError();
+    }
+
+    const [record] = await transaction
+      .select()
+      .from(drafts)
+      .where(
+        and(
+          eq(drafts.id, entry.draftId),
+          isNull(drafts.deletedAt),
+          inActiveBusinessGeneration(drafts.businessGenerationId),
+        ),
+      )
+      .limit(1)
+      .for("update");
+    if (record === undefined) {
+      throw new ApprovalItemNotFoundError();
+    }
+    if (
+      record.status !== "submitted" ||
+      record.linkedQueueEntryId !== queueEntryId
+    ) {
+      throw new ApprovalItemStateError();
+    }
+
+    let sourceInput;
+    try {
+      sourceInput = draftWritableInputFromSource(
+        parseDraftSubmissionSnapshot(entry.submittedPayload),
+      );
+    } catch {
+      throw new ApprovalSnapshotError();
+    }
+    const input = createDraftRequestSchema.parse({ ...sourceInput, ...patch });
+    await validateActiveDraftReferences(transaction, input);
+    const correctedSource: DraftRecord = {
+      ...record,
+      ...buildDraftContentValues(input),
+    };
+    const correctedSnapshot = buildDraftSubmissionSnapshot(
+      correctedSource,
+      input,
+    );
+    return approveQueuedPolicyInTransaction(
+      transaction,
+      context,
+      queueEntryId,
+      correctedSnapshot,
       approvedAt,
     );
   });
@@ -127,6 +210,7 @@ async function approveFlaggedHelp(
       .where(
         and(
           eq(drafts.id, draftId),
+          isNull(drafts.deletedAt),
           inActiveBusinessGeneration(drafts.businessGenerationId),
         ),
       )

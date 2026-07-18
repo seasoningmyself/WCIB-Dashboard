@@ -187,12 +187,17 @@ test("dialogs expose bounded confirmation, reason, override, and full fix forms"
     onApprove() {},
     onBulkApprove() {},
     onCancel() {},
+    onEditFix() {},
     onOpenFix() {},
     onOverride() {},
     onPushThrough() {},
     onSendBack() {},
     pending: false,
+    user: admin(),
   };
+  const assignmentOptions = [
+    { displayName: "Kaylee", userId: PRODUCER_ID },
+  ];
 
   const approve = renderToStaticMarkup(
     <ApprovalDialogs dialog={{ item: submission, kind: "approve" }} {...common} />,
@@ -214,7 +219,22 @@ test("dialogs expose bounded confirmation, reason, override, and full fix forms"
   );
   const openFix = renderToStaticMarkup(
     withProviders(
-      <ApprovalDialogs dialog={{ item: help, kind: "open_fix" }} {...common} />,
+      <ApprovalDialogs
+        dialog={{ assignmentOptions, item: help, kind: "open_fix" }}
+        {...common}
+      />,
+    ),
+  );
+  const editFix = renderToStaticMarkup(
+    withProviders(
+      <ApprovalDialogs
+        dialog={{
+          assignmentOptions,
+          item: submission,
+          kind: "edit_fix_submission",
+        }}
+        {...common}
+      />,
     ),
   );
 
@@ -239,6 +259,10 @@ test("dialogs expose bounded confirmation, reason, override, and full fix forms"
   }
   assert.match(openFix, /role="dialog"/);
   assert.match(openFix, /aria-modal="true"/);
+  assert.match(openFix, /Kaylee First-year/);
+  assert.match(editFix, /Open and fix Private Submitted LLC/);
+  assert.match(editFix, /Kaylee account/);
+  assert.match(editFix, /Kaylee First-year/);
 });
 
 test("approved-policy change dialogs expose only the three safe admin resolutions", () => {
@@ -299,9 +323,11 @@ function renderView(state: ApprovalQueueState): string {
       onExpandSubmissions={() => {}}
       onFilter={() => {}}
       onInlineApprove={() => {}}
+      onOpenHelpFix={() => {}}
       onOpen={() => {}}
       onOpenChangeFix={() => {}}
       onOpenDeleted={() => {}}
+      onOpenSubmissionFix={() => {}}
       onRetry={() => {}}
       onSelectSubmission={() => {}}
       onSelectSubmissions={() => {}}
@@ -515,6 +541,18 @@ function producer(): CurrentUser {
     email: "kaylee@example.test",
     id: PRODUCER_ID,
     role: "producer",
+  };
+}
+
+function admin(): CurrentUser {
+  return {
+    ...producer(),
+    allowedNavigation: ["approvals", "help_requests"],
+    capabilities: ["admin"],
+    displayName: "Sophia",
+    email: "sophia@example.test",
+    id: ADMIN_ID,
+    role: "admin",
   };
 }
 

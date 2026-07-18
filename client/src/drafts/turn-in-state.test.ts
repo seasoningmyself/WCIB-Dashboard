@@ -16,6 +16,7 @@ import {
   turnInDateToIso,
   turnInFormToDraftInput,
   turnInFormToNonfinancialDraftUpdate,
+  turnInStateFromSubmission,
   updateTurnInField,
   validateTurnInForSubmit,
   type TurnInFormState,
@@ -74,6 +75,25 @@ test("turn-in state maps every active v15 input and excludes private producer sp
   ]) {
     assert.equal(forbidden in input, false, forbidden);
   }
+});
+
+test("immutable submission snapshots populate the full correction form", () => {
+  const state = completeState();
+  const restored = turnInStateFromSubmission({
+    ...turnInFormToDraftInput(state),
+    commissionAmount: "100.00",
+    financeBalance: "635.00",
+    kayleeSplit: "book",
+    netDue: "375.00",
+    schemaVersion: 1,
+  });
+
+  assert.equal(restored.insuredName, state.insuredName);
+  assert.equal(restored.accountAssignment, "book");
+  assert.equal(restored.producerUserId, USER_ID);
+  assert.equal(restored.basePremium, "1000.00");
+  assert.equal(restored.financeEmail, "insured@example.test");
+  assert.equal(restored.effectiveDate, "07/10/2026");
 });
 
 test("turn-in validation enforces conditional invoice, commission, and IPFS fields", () => {

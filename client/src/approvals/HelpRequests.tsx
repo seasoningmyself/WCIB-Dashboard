@@ -3,6 +3,10 @@ import type { ApprovalWorkListResponse } from "../../../shared/approval-queue.js
 import type { CurrentUser } from "../../../shared/current-user.js";
 import type { UpdateDraftRequest } from "../../../shared/drafts.js";
 import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
+import {
+  PolicyLedgerApiError,
+  createPolicyLedgerApi,
+} from "../ledger/api.js";
 import { useVocabulary } from "../vocabulary/context.js";
 import { ApprovalDialogs, type ApprovalDialog } from "./ApprovalDialogs.js";
 import { ApprovalApiError, createApprovalApi } from "./api.js";
@@ -19,7 +23,7 @@ export type HelpRequestsState =
 
 export function HelpRequests({ user }: { user: CurrentUser }) {
   return isApprovalAdmin(user) ? (
-    <AdminHelpRequests />
+    <AdminHelpRequests user={user} />
   ) : (
     <HelpRequestsMessage
       body="This page is not available for your account."
@@ -28,9 +32,10 @@ export function HelpRequests({ user }: { user: CurrentUser }) {
   );
 }
 
-function AdminHelpRequests() {
+function AdminHelpRequests({ user }: { user: CurrentUser }) {
   const client = useApiClient();
   const api = useMemo(() => createApprovalApi(client), [client]);
+  const ledgerApi = useMemo(() => createPolicyLedgerApi(client), [client]);
   const vocabulary = useVocabulary();
   const [state, setState] = useState<HelpRequestsState>({ status: "loading" });
   const [dialog, setDialog] = useState<HelpDialog | null>(null);
@@ -129,12 +134,41 @@ function AdminHelpRequests() {
     [vocabulary.state],
   );
 
+  const openFix = useCallback(
+    async (item: HelpRequest) => {
+      if (pendingRef.current) return;
+      pendingRef.current = true;
+      setPending(true);
+      setNotice(null);
+      try {
+        const assignmentOptions = await ledgerApi.listAssignmentOptions();
+        setDialog({
+          assignmentOptions: assignmentOptions.producers,
+          item,
+          kind: "open_fix",
+        });
+      } catch (error) {
+        if (error instanceof PolicyLedgerApiError && error.kind === "denied") {
+          requestVersion.current += 1;
+          setState({ status: "denied" });
+        } else {
+          setNotice("Assignment options could not be loaded. Refresh and try again.");
+        }
+      } finally {
+        pendingRef.current = false;
+        setPending(false);
+      }
+    },
+    [ledgerApi],
+  );
+
   return (
     <>
       <HelpRequestsView
         mgaNames={mgaNames}
         notice={notice}
         onOpen={setDialog}
+        onOpenFix={(item) => void openFix(item)}
         onRetry={() => void load()}
         pending={pending}
         state={state}
@@ -147,6 +181,7 @@ function AdminHelpRequests() {
         onCancel={() => {
           if (!pending) setDialog(null);
         }}
+        onEditFix={() => {}}
         onOpenFix={(draftId, input: UpdateDraftRequest) =>
           void resolve(draftId, () => api.openFixHelp(draftId, input))
         }
@@ -158,6 +193,7 @@ function AdminHelpRequests() {
           void resolve(draftId, () => api.sendBackHelp(draftId, { reason }))
         }
         pending={pending}
+        user={user}
       />
     </>
   );
@@ -168,6 +204,7 @@ export function HelpRequestsView({
   notice,
   now = new Date(),
   onOpen,
+  onOpenFix,
   onRetry,
   pending,
   state,
@@ -176,6 +213,7 @@ export function HelpRequestsView({
   notice: string | null;
   now?: Date;
   onOpen(dialog: HelpDialog): void;
+  onOpenFix(item: HelpRequest): void;
   onRetry(): void;
   pending: boolean;
   state: HelpRequestsState;
@@ -229,6 +267,7 @@ export function HelpRequestsView({
               mgaNames={mgaNames}
               now={now}
               onOpen={onOpen}
+              onOpenFix={onOpenFix}
               pending={pending}
             />
           ))}
@@ -243,12 +282,14 @@ function HelpRequestCard({
   mgaNames,
   now,
   onOpen,
+  onOpenFix,
   pending,
 }: {
   item: HelpRequest;
   mgaNames: ReadonlyMap<string, string>;
   now: Date;
   onOpen(dialog: HelpDialog): void;
+  onOpenFix(item: HelpRequest): void;
   pending: boolean;
 }) {
   const draft = item.draft;
@@ -278,7 +319,7 @@ function HelpRequestCard({
         <div><dt>Net due</dt><dd>{reviewSourceValue(source, { key: "netDue", label: "Net due", money: true })}</dd></div>
       </dl>
       <div className="approval-row-actions">
-        <button disabled={pending} onClick={() => onOpen({ item, kind: "open_fix" })} type="button">Open &amp; fix</button>
+        <button disabled={pending} onClick={() => onOpenFix(item)} type="button">Open &amp; fix</button>
         <button className="is-primary" disabled={pending} onClick={() => onOpen({ item, kind: "push_through" })} type="button">Push through</button>
         <button className="is-danger" disabled={pending} onClick={() => onOpen({ item, kind: "send_back_help" })} type="button">Send back</button>
       </div>

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   createDraftRequestSchema,
+  draftWritableInputFromSource,
   flagDraftRequestSchema,
   listDraftsQuerySchema,
   submitDraftRequestSchema,
@@ -24,6 +25,27 @@ test("draft input normalizes exact decimal and text values", () => {
       basePremium: "1000.00",
       commissionRate: "12.5000",
       companyName: "Example LLC",
+      producerUserId: PRODUCER_ID,
+    },
+  );
+});
+
+test("submitted snapshots project back to only writable draft fields", () => {
+  assert.deepEqual(
+    draftWritableInputFromSource({
+      accountAssignment: "book",
+      basePremium: "1000",
+      commissionAmount: "125.00",
+      insuredName: "  Correctable LLC  ",
+      netDue: "100.00",
+      producerUserId: PRODUCER_ID,
+      schemaVersion: 1,
+      submittedByUserId: PRODUCER_ID,
+    }),
+    {
+      accountAssignment: "book",
+      basePremium: "1000.00",
+      insuredName: "Correctable LLC",
       producerUserId: PRODUCER_ID,
     },
   );

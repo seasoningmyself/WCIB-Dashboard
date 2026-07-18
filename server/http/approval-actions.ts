@@ -43,6 +43,8 @@ export const APPROVE_SUBMISSION_PATH =
   "/api/approvals/:queueEntryId/approve";
 export const APPROVE_WITH_OVERRIDE_PATH =
   "/api/approvals/:queueEntryId/approve-with-override";
+export const OPEN_FIX_SUBMISSION_PATH =
+  "/api/approvals/:queueEntryId/open-fix";
 export const PUSH_THROUGH_HELP_PATH =
   "/api/approvals/help/:draftId/push-through";
 export const OPEN_FIX_HELP_PATH = "/api/approvals/help/:draftId/open-fix";
@@ -63,6 +65,11 @@ export interface ApprovalActionHandlerDependencies {
   approveFixedHelp(
     context: AuthorizedRequestContext,
     draftId: string,
+    patch: unknown,
+  ): Promise<PolicyRecord>;
+  approveFixedSubmission(
+    context: AuthorizedRequestContext,
+    queueEntryId: string,
     patch: unknown,
   ): Promise<PolicyRecord>;
   approveWithOverride(
@@ -148,6 +155,27 @@ export function createApproveWithOverrideHandler(
       policy,
     });
   });
+}
+
+export function createOpenFixSubmissionHandler(
+  dependencies: ApprovalActionHandlerDependencies,
+): RequestHandler {
+  return createPolicyActionHandler(
+    dependencies,
+    "queue_submission_fixed",
+    async (req, context) => {
+      const patch = updateDraftRequestSchema.parse(req.body);
+      const { queueEntryId } = queueEntryParamsSchema.parse(req.params);
+      return {
+        sourceId: queueEntryId,
+        policy: await dependencies.approveFixedSubmission(
+          context,
+          queueEntryId,
+          patch,
+        ),
+      };
+    },
+  );
 }
 
 export function createPushThroughHelpHandler(
@@ -240,6 +268,11 @@ export function registerApprovalActionRoutes(
     APPROVE_WITH_OVERRIDE_PATH,
     access,
     createApproveWithOverrideHandler(options),
+  );
+  routes.post(
+    OPEN_FIX_SUBMISSION_PATH,
+    access,
+    createOpenFixSubmissionHandler(options),
   );
   routes.post(
     PUSH_THROUGH_HELP_PATH,

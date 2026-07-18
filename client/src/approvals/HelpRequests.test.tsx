@@ -16,6 +16,7 @@ test("dedicated Help Requests renders v15 context and the shared resolution acti
       notice={null}
       now={new Date("2026-07-17T15:00:00.000Z")}
       onOpen={() => {}}
+      onOpenFix={() => {}}
       onRetry={() => {}}
       pending={false}
       state={{ items: [{ draft: flaggedDraft(), submitterDisplayName: "Mercedes" }], status: "ready" }}
@@ -67,6 +68,7 @@ function renderView(state: React.ComponentProps<typeof HelpRequestsView>["state"
       mgaNames={new Map()}
       notice={null}
       onOpen={() => {}}
+      onOpenFix={() => {}}
       onRetry={() => {}}
       pending={false}
       state={state}

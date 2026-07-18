@@ -22,6 +22,7 @@ import {
   APPROVE_SUBMISSION_PATH,
   APPROVE_WITH_OVERRIDE_PATH,
   OPEN_FIX_HELP_PATH,
+  OPEN_FIX_SUBMISSION_PATH,
   PUSH_THROUGH_HELP_PATH,
   SEND_BACK_HELP_PATH,
   SEND_BACK_SUBMISSION_PATH,
@@ -85,6 +86,10 @@ function createFixture(
     },
     async approveFixedHelp(_context, draftId, body) {
       calls.push({ body, id: draftId, kind: "fix" });
+      return policy();
+    },
+    async approveFixedSubmission(_context, queueEntryId, body) {
+      calls.push({ body, id: queueEntryId, kind: "fix-submission" });
       return policy();
     },
     async approveWithOverride(_context, queueEntryId, body) {
@@ -284,6 +289,45 @@ test("flagged push-through and open-fix are distinct allowlisted admin actions",
   assert.deepEqual(rejected.calls, []);
 });
 
+test("pending Edit and fix is allowlisted and returns the projected policy", async () => {
+  const fixture = createFixture();
+  const fixed = await invoke(
+    fixture,
+    OPEN_FIX_SUBMISSION_PATH,
+    { queueEntryId: QUEUE_ID },
+    {
+      accountAssignment: "none",
+      insuredName: "Corrected Pending",
+      producerUserId: null,
+    },
+    "admin",
+  );
+  assert.equal(fixed.status, 201);
+  assert.equal((fixed.body as any).policy.id, POLICY_ID);
+  assert.deepEqual(fixture.calls, [
+    {
+      body: {
+        accountAssignment: "none",
+        insuredName: "Corrected Pending",
+        producerUserId: null,
+      },
+      id: QUEUE_ID,
+      kind: "fix-submission",
+    },
+  ]);
+
+  const unsafe = createFixture();
+  const rejected = await invoke(
+    unsafe,
+    OPEN_FIX_SUBMISSION_PATH,
+    { queueEntryId: QUEUE_ID },
+    { submittedPayload: { insuredName: "Forged" } },
+    "admin",
+  );
+  assert.equal(rejected.status, 400);
+  assert.deepEqual(unsafe.calls, []);
+});
+
 test("pending and flagged send-back routes require reasons and exact projections", async () => {
   const fixture = createFixture();
   const pending = await invoke(
@@ -359,6 +403,11 @@ test("employee and producer are denied on every approval action before service a
       ],
       [PUSH_THROUGH_HELP_PATH, { draftId: DRAFT_ID }, {}],
       [OPEN_FIX_HELP_PATH, { draftId: DRAFT_ID }, { insuredName: "No" }],
+      [
+        OPEN_FIX_SUBMISSION_PATH,
+        { queueEntryId: QUEUE_ID },
+        { insuredName: "No" },
+      ],
       [
         SEND_BACK_SUBMISSION_PATH,
         { queueEntryId: QUEUE_ID },
