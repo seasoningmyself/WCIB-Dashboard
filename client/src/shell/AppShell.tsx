@@ -11,6 +11,7 @@ import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
 import { CheckTurnInForm } from "../drafts/CheckTurnInForm.js";
 import { MyDrafts } from "../drafts/MyDrafts.js";
 import { ApprovalQueue } from "../approvals/ApprovalQueue.js";
+import { HelpRequests } from "../approvals/HelpRequests.js";
 import { PolicyLedger } from "../ledger/PolicyLedger.js";
 import { MgaPayables } from "../mga-payables/MgaPayables.js";
 import { PaySheets } from "../pay-sheets/PaySheets.js";
@@ -229,6 +230,13 @@ function ShellContent({
       return (
         <VocabularyProvider>
           <ApprovalQueue user={user} />
+        </VocabularyProvider>
+      );
+    }
+    if (route.item.id === "help_requests") {
+      return (
+        <VocabularyProvider>
+          <HelpRequests user={user} />
         </VocabularyProvider>
       );
     }

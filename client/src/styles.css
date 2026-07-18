@@ -4539,10 +4539,90 @@ h1 {
 }
 
 .approval-page,
+.help-requests-page,
 .approval-message {
   width: min(100% - 48px, 1320px);
   margin: 0 auto;
   padding: 38px 0 64px;
+}
+
+.help-request-list {
+  display: grid;
+  gap: 12px;
+}
+
+.help-request-card {
+  min-width: 0;
+  border: 1px solid #c9d2d5;
+  border-left: 4px solid #7e458d;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 16px 18px;
+}
+
+.help-request-card > header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.help-request-card > header > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.help-request-card > header strong,
+.help-request-card > header span {
+  overflow-wrap: anywhere;
+}
+
+.help-request-card > header strong {
+  color: #263640;
+  font-size: 14px;
+}
+
+.help-request-card > header span {
+  color: #68777f;
+  font-size: 11px;
+}
+
+.help-request-owner {
+  text-align: right;
+}
+
+.help-request-card .approval-help-reason {
+  margin: 14px 0;
+}
+
+.help-request-context {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  background: #dce2e4;
+}
+
+.help-request-context > div {
+  min-width: 0;
+  background: #f8faf9;
+  padding: 10px 11px;
+}
+
+.help-request-context dt {
+  color: #718087;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.help-request-context dd {
+  margin: 4px 0 0;
+  color: #263640;
+  font-size: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .approval-page-header {
@@ -5230,9 +5310,28 @@ h1 {
 
 @media (max-width: 680px) {
   .approval-page,
+  .help-requests-page,
   .approval-message {
     width: min(100% - 24px, 1320px);
     padding-top: 22px;
+  }
+
+  .help-request-card {
+    padding: 14px;
+  }
+
+  .help-request-card > header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .help-request-owner {
+    text-align: left;
+  }
+
+  .help-request-context {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .approval-toolbar {
