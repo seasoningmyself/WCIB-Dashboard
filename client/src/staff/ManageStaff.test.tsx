@@ -37,8 +37,6 @@ test("Manage Staff renders active and inactive identities with immutable rate hi
 
   for (const visible of [
     "Manage Staff",
-    "Active accounts",
-    "Inactive accounts",
     "Kaylee Producer",
     "Long Historical Employee Name That Must Remain Readable",
     "Rate configured",
@@ -56,6 +54,10 @@ test("Manage Staff renders active and inactive identities with immutable rate hi
   ]) {
     assert.match(markup, new RegExp(escapeRegExp(visible)));
   }
+  assert.doesNotMatch(
+    markup,
+    /Staff account summary|Active accounts|Inactive accounts/,
+  );
   assert.equal((markup.match(/>Correct</g) ?? []).length, 1);
   const neverProducerRow = staffRowMarkup(markup, "Mercedes Employee");
   assert.doesNotMatch(

@@ -5,6 +5,15 @@
 
 ---
 
+## July 18, 2026 — Manage Staff omits the unsourced count strip
+
+The production build briefly added Active, Inactive, and Producer totals above
+the Manage Staff roster. Final v15 has no count strip, and no source document
+requested one. The strip is removed so the small roster follows v15's direct
+staff-grid presentation without redundant summary metrics.
+
+---
+
 ## July 18, 2026 — Account assignments identify the producer by name
 
 **Deliberate simplification over final v15:** Final v15 stores a staff gender

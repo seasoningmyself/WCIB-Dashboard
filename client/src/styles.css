@@ -107,38 +107,6 @@
   background: #843535;
 }
 
-.staff-summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  border-bottom: 1px solid #cbd5d7;
-  background: #edf2f1;
-}
-
-.staff-summary > div {
-  display: flex;
-  min-width: 0;
-  align-items: baseline;
-  gap: 9px;
-  border-right: 1px solid #cbd5d7;
-  padding: 13px 16px;
-}
-
-.staff-summary > div:last-child {
-  border-right: 0;
-}
-
-.staff-summary strong {
-  color: #273d37;
-  font-size: 18px;
-}
-
-.staff-summary span {
-  overflow-wrap: anywhere;
-  color: #66767a;
-  font-size: 10px;
-  font-weight: 700;
-}
-
 .staff-notice {
   margin: 14px 0 0;
   border-left: 3px solid #3f785f;
@@ -759,19 +727,6 @@
   .staff-primary-action,
   .staff-rates > header button {
     align-self: flex-start;
-  }
-
-  .staff-summary {
-    grid-template-columns: 1fr;
-  }
-
-  .staff-summary > div {
-    border-right: 0;
-    border-bottom: 1px solid #cbd5d7;
-  }
-
-  .staff-summary > div:last-child {
-    border-bottom: 0;
   }
 
   .staff-row-main {

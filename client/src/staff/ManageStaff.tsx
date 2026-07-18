@@ -361,8 +361,6 @@ export function ManageStaffView({
     );
   }
 
-  const activeCount = state.items.filter(({ isActive }) => isActive).length;
-  const producerCount = state.items.filter(({ role }) => role === "producer").length;
   return (
     <section className="staff-page" aria-labelledby="staff-page-title">
       <header className="staff-page-header">
@@ -374,12 +372,6 @@ export function ManageStaffView({
           Add staff
         </button>
       </header>
-
-      <div className="staff-summary" aria-label="Staff account summary">
-        <Summary label="Active accounts" value={String(activeCount)} />
-        <Summary label="Producers" value={String(producerCount)} />
-        <Summary label="Inactive accounts" value={String(state.items.length - activeCount)} />
-      </div>
 
       {notice !== null ? <p className="staff-notice" role="status">{notice}</p> : null}
 
@@ -527,10 +519,6 @@ function RateHistory({
       )}
     </section>
   );
-}
-
-function Summary({ label, value }: { label: string; value: string }) {
-  return <div><strong>{value}</strong><span>{label}</span></div>;
 }
 
 function StaffMessage({
