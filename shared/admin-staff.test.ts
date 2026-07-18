@@ -20,7 +20,6 @@ test("admin staff creation requires explicit producer rates and write-only secre
     createAdminStaffRequestSchema.safeParse({
       displayName: "Producer",
       email: "producer@example.test",
-      pronoun: "their",
       role: "producer",
       temporaryPassword: "StrongPass123!",
     }).success,
@@ -31,7 +30,6 @@ test("admin staff creation requires explicit producer rates and write-only secre
       displayName: "Employee",
       email: "employee@example.test",
       initialRate: rate,
-      pronoun: "their",
       role: "employee",
       temporaryPassword: "StrongPass123!",
     }).success,
@@ -41,12 +39,21 @@ test("admin staff creation requires explicit producer rates and write-only secre
     displayName: "Producer",
     email: "PRODUCER@EXAMPLE.TEST",
     initialRate: rate,
-    pronoun: "their",
     role: "producer",
     temporaryPassword: "StrongPass123!",
   });
   assert.equal(producer.email, "producer@example.test");
   assert.equal("temporaryPassword" in adminStaffRecordSchema.shape, false);
+  assert.equal(
+    createAdminStaffRequestSchema.safeParse({
+      displayName: "Legacy Pronoun",
+      email: "legacy@example.test",
+      pronoun: "their",
+      role: "employee",
+      temporaryPassword: "StrongPass123!",
+    }).success,
+    false,
+  );
 });
 
 test("rate and staff update allowlists reject malformed or empty input", () => {

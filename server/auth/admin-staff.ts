@@ -41,7 +41,6 @@ const STAFF_AUDIT_FIELDS = [
   "active",
   "changeKind",
   "identityChanged",
-  "pronoun",
   "role",
 ] as const;
 const RATE_AUDIT_FIELDS = ["changeKind", "fieldsChanged", "locked"] as const;
@@ -57,7 +56,6 @@ interface AdminStaffSource {
   profile: {
     displayName: string;
     isActive: boolean;
-    pronoun: "her" | "his" | "their";
     role: "employee" | "producer";
   };
   rates: ProducerRateHistoryRecord[];
@@ -110,7 +108,6 @@ export async function listAdminStaffSources(
       email: users.email,
       isAccountActive: users.isActive,
       isProfileActive: staffProfiles.isActive,
-      pronoun: staffProfiles.pronoun,
       role: staffProfiles.role,
       sessionVersion: users.sessionVersion,
       userId: users.id,
@@ -176,7 +173,6 @@ export async function createAdminStaff(
       });
       await transaction.insert(staffProfiles).values({
         displayName: request.displayName,
-        pronoun: request.pronoun,
         role: request.role,
         userId: account.id,
       });
@@ -185,7 +181,7 @@ export async function createAdminStaff(
         context,
         account.id,
         null,
-        staffAuditSource("created", request.role, request.pronoun, true, true),
+        staffAuditSource("created", request.role, true, true),
         logger,
       );
       if (request.initialRate !== undefined) {
@@ -273,7 +269,6 @@ export async function updateAdminStaff(
           ...(request.displayName === undefined
             ? {}
             : { displayName: request.displayName }),
-          ...(request.pronoun === undefined ? {} : { pronoun: request.pronoun }),
           ...(request.role === undefined ? {} : { role: request.role }),
         })
         .where(eq(staffProfiles.userId, userId));
@@ -282,21 +277,17 @@ export async function updateAdminStaff(
       const before = staffAuditSource(
         "updated",
         current.profile.role,
-        current.profile.pronoun,
         current.account.isActive && current.profile.isActive,
         identityChanged,
       );
       const after = staffAuditSource(
         "updated",
         nextRole,
-        request.pronoun ?? current.profile.pronoun,
         current.account.isActive && current.profile.isActive,
         identityChanged,
       );
       if (
-        identityChanged ||
-        roleChanged ||
-        request.pronoun !== undefined
+        identityChanged || roleChanged
       ) {
         await writeStaffAudit(
           transaction,
@@ -366,14 +357,12 @@ export async function setAdminStaffActive(
         staffAuditSource(
           active ? "reactivated" : "deactivated",
           current.profile.role,
-          current.profile.pronoun,
           currentlyActive,
           false,
         ),
         staffAuditSource(
           active ? "reactivated" : "deactivated",
           current.profile.role,
-          current.profile.pronoun,
           active,
           false,
         ),
@@ -525,7 +514,6 @@ export function projectAdminStaffSource(
     displayName: source.profile.displayName,
     email: source.account.email,
     isActive: active,
-    pronoun: source.profile.pronoun,
     rateState:
       source.profile.role === "producer"
         ? source.rates.length === 0
@@ -570,7 +558,6 @@ async function loadAdminStaffSource(
       email: users.email,
       isAccountActive: users.isActive,
       isProfileActive: staffProfiles.isActive,
-      pronoun: staffProfiles.pronoun,
       role: staffProfiles.role,
       sessionVersion: users.sessionVersion,
       userId: users.id,
@@ -610,7 +597,6 @@ function sourceFromRow(
     email: string;
     isAccountActive: boolean;
     isProfileActive: boolean;
-    pronoun: "her" | "his" | "their";
     role: "employee" | "producer";
     sessionVersion: number;
     userId: string;
@@ -628,7 +614,6 @@ function sourceFromRow(
     profile: {
       displayName: row.displayName,
       isActive: row.isProfileActive,
-      pronoun: row.pronoun,
       role: row.role,
     },
     rates,
@@ -735,11 +720,10 @@ async function writeStaffAudit(
 function staffAuditSource(
   changeKind: string,
   role: "employee" | "producer",
-  pronoun: "her" | "his" | "their",
   active: boolean,
   identityChanged: boolean,
 ): Record<string, unknown> {
-  return { active, changeKind, identityChanged, pronoun, role };
+  return { active, changeKind, identityChanged, role };
 }
 
 function producerRateChangedFields(

@@ -3,7 +3,6 @@ import { STAFF_ROLES } from "./access.js";
 import { passwordSchema } from "./password-policy.js";
 import { userEmailSchema } from "./user-credentials.js";
 
-export const STAFF_PRONOUNS = ["her", "his", "their"] as const;
 export const ADMIN_STAFF_MAX_RESULTS = 500;
 
 const uuidSchema = z.string().uuid();
@@ -32,7 +31,6 @@ export const createAdminStaffRequestSchema = z
     displayName: displayNameSchema,
     email: userEmailSchema,
     initialRate: producerRateInputSchema.optional(),
-    pronoun: z.enum(STAFF_PRONOUNS),
     role: z.enum(STAFF_ROLES),
     temporaryPassword: passwordSchema,
   })
@@ -59,7 +57,6 @@ export const updateAdminStaffRequestSchema = z
     displayName: displayNameSchema.optional(),
     email: userEmailSchema.optional(),
     initialRate: producerRateInputSchema.optional(),
-    pronoun: z.enum(STAFF_PRONOUNS).optional(),
     role: z.enum(STAFF_ROLES).optional(),
   })
   .strict()
@@ -90,7 +87,6 @@ export const adminStaffRecordSchema = z
     displayName: z.string().min(1),
     email: userEmailSchema,
     isActive: z.boolean(),
-    pronoun: z.enum(STAFF_PRONOUNS),
     rateState: z.enum(["configured", "dormant", "missing", "not_applicable"]),
     rates: z.array(adminStaffRateSchema),
     role: z.enum(STAFF_ROLES),

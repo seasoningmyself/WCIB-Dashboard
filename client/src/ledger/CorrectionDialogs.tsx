@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { accountAssignmentLabel } from "../../../shared/account-assignment-labels.js";
 import type { DraftAssignmentOption } from "../../../shared/draft-assignment-options.js";
 import type { PolicyLedgerCorrectionRequest } from "../../../shared/policy-corrections.js";
 import type { PolicyLedgerItem } from "../../../shared/policy-ledger.js";
@@ -100,6 +101,11 @@ function GeneralCorrectionDialog({
                     field={field}
                     key={field.field}
                     onChange={(value) => change(field.field, value)}
+                    producerDisplayName={
+                      assignmentOptions.find(
+                        ({ userId }) => userId === values.producerUserId,
+                      )?.displayName ?? item.labels.producerDisplayName
+                    }
                     value={values[field.field]}
                     vocabulary={
                       vocabulary.state.status === "ready"
@@ -229,12 +235,14 @@ function GeneralField({
   assignmentOptions,
   field,
   onChange,
+  producerDisplayName,
   value,
   vocabulary,
 }: {
   assignmentOptions: readonly DraftAssignmentOption[];
   field: GeneralEditorField;
   onChange(value: unknown): void;
+  producerDisplayName: string | null;
   value: unknown;
   vocabulary: {
     carriers: readonly { id: string; name: string }[];
@@ -303,7 +311,24 @@ function GeneralField({
     );
   }
   if (field.kind === "assignment") {
-    return <SelectField label={field.label} onChange={onChange} options={[{ label: "Sophia house", value: "none" }, { label: "Producer account", value: "book" }, { label: "First year", value: "house" }]} value={stringValue(value)} />;
+    return (
+      <SelectField
+        label={field.label}
+        onChange={onChange}
+        options={[
+          { label: accountAssignmentLabel("none", null), value: "none" },
+          {
+            label: accountAssignmentLabel("book", producerDisplayName),
+            value: "book",
+          },
+          {
+            label: accountAssignmentLabel("house", producerDisplayName),
+            value: "house",
+          },
+        ]}
+        value={stringValue(value)}
+      />
+    );
   }
   if (field.kind === "payment_mode") {
     return <SelectField label={field.label} onChange={onChange} options={[{ label: "Paid in full", value: "full" }, { label: "Deposit / financed", value: "deposit" }, { label: "Direct bill", value: "direct" }]} value={stringValue(value)} />;

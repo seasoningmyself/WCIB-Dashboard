@@ -13,11 +13,11 @@ import {
 import { createUser } from "./users.js";
 
 const roster = [
-  { displayName: "Kaylee", pronoun: "her", role: "producer" },
-  { displayName: "Mercedes", pronoun: "their", role: "employee" },
-  { displayName: "Daniela", pronoun: "their", role: "employee" },
-  { displayName: "Joseph", pronoun: "their", role: "employee" },
-  { displayName: "Ellyscia", pronoun: "their", role: "employee" },
+  { displayName: "Kaylee", role: "producer" },
+  { displayName: "Mercedes", role: "employee" },
+  { displayName: "Daniela", role: "employee" },
+  { displayName: "Joseph", role: "employee" },
+  { displayName: "Ellyscia", role: "employee" },
 ] as const;
 
 test("staff and capabilities represent the approved account shapes", async () => {

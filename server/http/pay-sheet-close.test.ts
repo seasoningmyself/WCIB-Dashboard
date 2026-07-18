@@ -340,6 +340,7 @@ function closedSource(): PaySheetSource {
         value: {
           addedAt: new Date("2026-07-02T00:00:00.000Z"),
           associationId: uuid(13),
+          producerDisplayName: "Kaylee",
           frozenPolicySnapshot: {
             agencyRevenue: "150.00",
             approvedAt: "2026-07-01T12:00:00.000Z",

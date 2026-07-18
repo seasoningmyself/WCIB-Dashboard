@@ -73,8 +73,8 @@ test("policy sections preserve v15 account order, A-Z rows, and exact totals", (
       sectionAmountLabel,
     ]),
     [
-      ["none", "House", "300.00", "Section total"],
-      ["book", "Producers' book", "150.00", "Section total"],
+      ["none", "Sophia's account", "300.00", "Section total"],
+      ["book", "Producers' books", "150.00", "Section total"],
       ["house", "1st-yr house", "150.00", "Section total"],
     ],
   );
@@ -92,7 +92,7 @@ test("policy sections preserve v15 account order, A-Z rows, and exact totals", (
       sectionAmount,
       sectionAmountLabel,
     ]),
-    [["Their book", "50.00", "Section payout"]],
+    [["Kaylee's book", "50.00", "Section payout"]],
   );
 });
 
@@ -228,9 +228,12 @@ test("export periods are unique, newest-first, and owner-scoped by UUID", () => 
 test("pay-sheet labels preserve exact period, rate, account, and source meaning", () => {
   assert.equal(formatPaySheetPeriod(7, 2026), "July 2026");
   assert.equal(formatPaySheetRate("25.00"), "25.00%");
-  assert.equal(paySheetAccountLabel("own", null), "Sophia own account");
-  assert.equal(paySheetAccountLabel("book", "Kaylee"), "Kaylee account");
-  assert.equal(paySheetAccountLabel("house", "Kaylee"), "Kaylee first year");
+  assert.equal(paySheetAccountLabel("own", null), "Sophia's account");
+  assert.equal(paySheetAccountLabel("book", "Kaylee"), "Kaylee's book");
+  assert.equal(
+    paySheetAccountLabel("house", "Kaylee"),
+    "1st-yr house - Kaylee",
+  );
   assert.equal(adjustmentTypeLabel("direct_deposit"), "Direct deposit");
   assert.equal(detailSourceLabel(paySheetDetailFixture()), "Current values");
   assert.equal(

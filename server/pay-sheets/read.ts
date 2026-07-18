@@ -6,6 +6,7 @@ import {
   inArray,
   isNull,
   lte,
+  sql,
   type SQL,
 } from "drizzle-orm";
 import {
@@ -77,6 +78,7 @@ interface LivePolicySource {
   policyNumber: string;
   policyTypeClass: "Commercial" | "Life-Health" | "Personal";
   policyTypeName: string;
+  producerDisplayName: string | null;
   producerUserId: string | null;
   transactionType: string;
 }
@@ -86,6 +88,7 @@ interface FrozenPolicySource {
   associationId: string;
   frozenPolicySnapshot: unknown;
   frozenRateSnapshot: unknown;
+  producerDisplayName: string | null;
 }
 
 type PaySheetPolicySource =
@@ -340,6 +343,7 @@ function projectPolicy(
       ...snapshot,
       addedAt: source.value.addedAt,
       associationId: source.value.associationId,
+      producerDisplayName: source.value.producerDisplayName,
       rate,
       source: "frozen",
     });
@@ -366,6 +370,7 @@ function projectPolicy(
     ...snapshot,
     addedAt: live.addedAt,
     associationId: live.associationId,
+    producerDisplayName: live.producerDisplayName,
     producerPayout:
       ownerType === "producer" && currentRate === null
         ? null
@@ -651,12 +656,14 @@ async function loadLivePolicies(
       policyNumber: policies.policyNumber,
       policyTypeClass: policyTypes.classTag,
       policyTypeName: policyTypes.name,
+      producerDisplayName: staffProfiles.displayName,
       producerUserId: policies.producerUserId,
       transactionType: policies.transactionType,
     })
     .from(paySheetPolicies)
     .innerJoin(policies, eq(policies.id, paySheetPolicies.policyId))
     .innerJoin(policyTypes, eq(policyTypes.id, policies.policyTypeId))
+    .leftJoin(staffProfiles, eq(staffProfiles.userId, policies.producerUserId))
     .where(
       and(
         eq(paySheetPolicies.paySheetId, paySheetId),
@@ -678,8 +685,16 @@ async function loadFrozenPolicies(
       associationId: paySheetPolicies.id,
       frozenPolicySnapshot: paySheetPolicies.frozenPolicySnapshot,
       frozenRateSnapshot: paySheetPolicies.frozenRateSnapshot,
+      producerDisplayName: staffProfiles.displayName,
     })
     .from(paySheetPolicies)
+    .leftJoin(
+      staffProfiles,
+      eq(
+        staffProfiles.userId,
+        sql`(${paySheetPolicies.frozenPolicySnapshot}->>'producerUserId')::uuid`,
+      ),
+    )
     .where(
       and(
         eq(paySheetPolicies.paySheetId, paySheetId),

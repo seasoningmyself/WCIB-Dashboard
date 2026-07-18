@@ -1,4 +1,5 @@
 import type { CurrentUser } from "../../../shared/current-user.js";
+import { accountAssignmentLabel } from "../../../shared/account-assignment-labels.js";
 import type { ApprovalWorkListResponse } from "../../../shared/approval-queue.js";
 import {
   approveWithOverrideRequestSchema,
@@ -86,6 +87,7 @@ export interface ApprovalValueLookups {
   mgas?: ReadonlyMap<string, string>;
   offices?: ReadonlyMap<string, string>;
   policyTypes?: ReadonlyMap<string, string>;
+  producers?: ReadonlyMap<string, string>;
 }
 
 export interface SequentialApprovalResult {
@@ -237,6 +239,9 @@ export function reviewSourceValue(
   if (field.key === "policyTypeId" && typeof raw === "string") {
     return lookups.policyTypes?.get(raw) ?? raw;
   }
+  if (field.key === "producerUserId" && typeof raw === "string") {
+    return lookups.producers?.get(raw) ?? raw;
+  }
   if (typeof raw === "boolean") {
     return raw ? "Yes" : "No";
   }
@@ -250,7 +255,16 @@ export function reviewSourceValue(
     return `${Number(raw).toFixed(2)}%`;
   }
   if (field.key === "accountAssignment" || field.key === "kayleeSplit") {
-    return assignmentLabel(String(raw));
+    const producerUserId = source.producerUserId;
+    const producerDisplayName =
+      typeof producerUserId === "string"
+        ? lookups.producers?.get(producerUserId) ?? null
+        : null;
+    const assignment = raw === "book" || raw === "house" ? raw : "none";
+    return accountAssignmentLabel(
+      assignment,
+      producerDisplayName,
+    );
   }
   if (field.key === "paymentMode") {
     return paymentModeLabel(String(raw));
@@ -273,14 +287,6 @@ export function reviewSourceValue(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function assignmentLabel(value: string): string {
-  return value === "house"
-    ? "First-year house"
-    : value === "book"
-      ? "Producer account"
-      : "Sophia house account";
 }
 
 function paymentModeLabel(value: string): string {

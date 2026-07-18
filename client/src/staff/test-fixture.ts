@@ -12,7 +12,6 @@ export function staffFixture(
     displayName: "Kaylee Producer",
     email: "kaylee@example.test",
     isActive: true,
-    pronoun: "her",
     rateState: "configured",
     rates: [
       {

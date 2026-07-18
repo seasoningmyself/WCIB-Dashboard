@@ -24,6 +24,7 @@ export function exportPolicyFixture(
     policyNumber: "GL-100",
     policyTypeClass: "Commercial",
     policyTypeName: "General Liability",
+    producerDisplayName: "Kaylee",
     producerPayout: "50.00",
     producerUserId: uuid(2),
     rate: {
@@ -204,6 +205,7 @@ export function exportSourceFixture(
         policyNumber: policy.policyNumber,
         policyTypeClass: policy.policyTypeClass,
         policyTypeName: policy.policyTypeName,
+        producerDisplayName: policy.producerDisplayName,
         producerUserId: policy.producerUserId,
         transactionType: policy.transactionType,
       },

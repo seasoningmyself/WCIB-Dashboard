@@ -12,10 +12,10 @@ import {
 import { payableItemFixture, payablesFixture, uuid } from "./test-fixture.js";
 
 test("MGA payable account labels preserve the approved assignment display", () => {
-  assert.equal(payableAccountLabel(payableItemFixture()), "Kaylee account");
+  assert.equal(payableAccountLabel(payableItemFixture()), "Kaylee's book");
   assert.equal(
     payableAccountLabel(payableItemFixture({ kayleeSplit: "house" })),
-    "Kaylee first year",
+    "1st-yr house - Kaylee",
   );
   assert.equal(
     payableAccountLabel(
@@ -26,7 +26,7 @@ test("MGA payable account labels preserve the approved assignment display", () =
         producerUserId: null,
       }),
     ),
-    "Sophia house",
+    "Sophia's account",
   );
 });
 

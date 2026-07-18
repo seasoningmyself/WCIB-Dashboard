@@ -361,8 +361,6 @@ export function ManageStaffView({
     );
   }
 
-  const activeCount = state.items.filter(({ isActive }) => isActive).length;
-  const producerCount = state.items.filter(({ role }) => role === "producer").length;
   return (
     <section className="staff-page" aria-labelledby="staff-page-title">
       <header className="staff-page-header">
@@ -374,12 +372,6 @@ export function ManageStaffView({
           Add staff
         </button>
       </header>
-
-      <div className="staff-summary" aria-label="Staff account summary">
-        <Summary label="Active accounts" value={String(activeCount)} />
-        <Summary label="Producers" value={String(producerCount)} />
-        <Summary label="Inactive accounts" value={String(state.items.length - activeCount)} />
-      </div>
 
       {notice !== null ? <p className="staff-notice" role="status">{notice}</p> : null}
 
@@ -407,24 +399,30 @@ export function ManageStaffView({
                     <span className={staff.isActive ? "is-active" : "is-inactive"}>
                       {staff.isActive ? "Active" : "Inactive"}
                     </span>
-                    <span className={`is-rate-${staff.rateState}`}>{staffRateStateLabel(staff.rateState)}</span>
+                    {staff.rateState === "not_applicable" ? null : (
+                      <span className={`is-rate-${staff.rateState}`}>
+                        {staffRateStateLabel(staff.rateState)}
+                      </span>
+                    )}
                   </div>
                   <div className="staff-row-actions">
                     <button disabled={pending} onClick={() => onEdit(staff)} type="button">Edit</button>
                     <button disabled={pending} onClick={() => onActive(staff, !staff.isActive)} type="button">
                       {staff.isActive ? "Deactivate" : "Reactivate"}
                     </button>
-                    <button
-                      aria-expanded={expanded}
-                      disabled={pending}
-                      onClick={() => onToggle(staff.userId)}
-                      type="button"
-                    >
-                      {expanded ? "Hide rates" : "Rate history"}
-                    </button>
+                    {staff.rateState === "not_applicable" ? null : (
+                      <button
+                        aria-expanded={expanded}
+                        disabled={pending}
+                        onClick={() => onToggle(staff.userId)}
+                        type="button"
+                      >
+                        {expanded ? "Hide rates" : "Rate history"}
+                      </button>
+                    )}
                   </div>
                 </div>
-                {expanded ? (
+                {expanded && staff.rateState !== "not_applicable" ? (
                   <RateHistory
                     onAdd={() => onAddRate(staff)}
                     onCorrect={(rate) => onCorrectRate(staff, rate)}
@@ -521,10 +519,6 @@ function RateHistory({
       )}
     </section>
   );
-}
-
-function Summary({ label, value }: { label: string; value: string }) {
-  return <div><strong>{value}</strong><span>{label}</span></div>;
 }
 
 function StaffMessage({

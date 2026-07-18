@@ -1,3 +1,4 @@
+import { accountAssignmentLabel } from "../../../shared/account-assignment-labels.js";
 import type { CurrentUser } from "../../../shared/current-user.js";
 import {
   POLICY_CORRECTION_FIELDS,
@@ -187,11 +188,10 @@ export function addMoneyExact(left: string, right: string): string {
 }
 
 export function ledgerAccountLabel(item: PolicyLedgerItem): string {
-  if (item.policy.kayleeSplit === "none") return "Sophia house";
-  const producer = item.labels.producerDisplayName ?? "Producer";
-  return item.policy.kayleeSplit === "house"
-    ? `${producer} first year`
-    : `${producer} account`;
+  return accountAssignmentLabel(
+    item.policy.kayleeSplit,
+    item.labels.producerDisplayName,
+  );
 }
 
 export function ledgerBadges(item: PolicyLedgerItem): readonly LedgerBadge[] {
@@ -233,10 +233,20 @@ export function ledgerBadges(item: PolicyLedgerItem): readonly LedgerBadge[] {
 }
 
 export function ledgerDetailValue(
-  policy: PolicyLedgerPolicy,
+  item: PolicyLedgerItem,
   field: LedgerDetailField,
 ): string {
+  const { policy } = item;
   const value = policy[field.key];
+  if (field.key === "accountAssignment" || field.key === "kayleeSplit") {
+    return accountAssignmentLabel(
+      policy[field.key],
+      item.labels.producerDisplayName,
+    );
+  }
+  if (field.key === "producerUserId") {
+    return item.labels.producerDisplayName ?? "Not set";
+  }
   if (value === null || value === "") return "Not set";
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (field.kind === "money" && typeof value === "string") {

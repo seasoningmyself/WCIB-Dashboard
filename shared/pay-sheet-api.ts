@@ -107,6 +107,7 @@ export const paySheetPolicyViewSchema = z
     policyNumber: z.string().min(1).max(100),
     policyTypeClass: z.enum(POLICY_TYPE_CLASSES),
     policyTypeName: z.string().min(1).max(200),
+    producerDisplayName: z.string().min(1).nullable(),
     producerPayout: nonnegativeMoneySchema.nullable(),
     producerUserId: uuidSchema.nullable(),
     rate: paySheetRateSchema.nullable(),

@@ -21,7 +21,7 @@ export function staffRateStateLabel(
     case "dormant":
       return "Rate history dormant";
     case "missing":
-      return "Rate setup required";
+      return "⚠ No rates set, Pay Sheet will not calculate";
     case "not_applicable":
       return "No producer rate";
   }

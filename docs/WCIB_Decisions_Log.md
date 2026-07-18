@@ -1,7 +1,33 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 17, 2026 (corrected parity records for navigation badges, help-request roles, and production vocabulary.)
+**Last updated:** July 18, 2026 (Manage Staff corrections and name-based account-assignment labels.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
+
+---
+
+## July 18, 2026 — Manage Staff omits the unsourced count strip
+
+The production build briefly added Active, Inactive, and Producer totals above
+the Manage Staff roster. Final v15 has no count strip, and no source document
+requested one. The strip is removed so the small roster follows v15's direct
+staff-grid presentation without redundant summary metrics.
+
+---
+
+## July 18, 2026 — Account assignments identify the producer by name
+
+**Deliberate simplification over final v15:** Final v15 stores a staff gender
+value solely to derive the possessive sub-label “Her book,” “His book,” or
+“Their book” on producer account choices. Production instead identifies the
+owner directly: turn-in choices use “[Name]’s account,” while ledger,
+approval, MGA, pay-sheet, and export classifications use “[Name]’s book” and
+name the producer on first-year-house classifications. These labels are
+clearer for a small agency because they state whose account is being assigned.
+
+With no remaining business use, the pronoun field is removed from Manage
+Staff, API contracts and projections, initial-roster data, and the database.
+Migration 0051 drops `staff_profiles.pronoun` and the `staff_pronoun` enum.
+This is an intentional production decision, not an omitted final-v15 field.
 
 ---
 

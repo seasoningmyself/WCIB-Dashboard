@@ -51,7 +51,7 @@ test("house work-queue rows retain all agency revenue and no producer payout", (
     producerPayout: "0.00",
     sophiaRetained: "175.00",
   }]);
-  assert.match(csv, /,175\.00,0\.00,175\.00,House account,/);
+  assert.match(csv, /,175\.00,0\.00,175\.00,Sophia's account,/);
 });
 
 function labels(): PolicyLedgerLabels {

@@ -134,6 +134,23 @@ test("review formatting is deterministic and role display fails closed", () => {
     ),
     "Acme Carrier",
   );
+  const producers = new Map([["producer-id", "Kaylee"]]);
+  assert.equal(
+    reviewSourceValue(
+      { accountAssignment: "book", producerUserId: "producer-id" },
+      { key: "accountAssignment", label: "Account assignment" },
+      { producers },
+    ),
+    "Kaylee's book",
+  );
+  assert.equal(
+    reviewSourceValue(
+      { kayleeSplit: "house", producerUserId: "producer-id" },
+      { key: "kayleeSplit", label: "Assignment classification" },
+      { producers },
+    ),
+    "1st-yr house - Kaylee",
+  );
   assert.equal(isApprovalAdmin(user("admin", ["admin"])), true);
   assert.equal(isApprovalAdmin(user("producer", [])), false);
   assert.equal(isApprovalAdmin(user("admin", [])), false);

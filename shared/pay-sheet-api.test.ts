@@ -249,6 +249,7 @@ function policy() {
     policyNumber: "POL-FROZEN",
     policyTypeClass: "Commercial",
     policyTypeName: "General Liability",
+    producerDisplayName: "Kaylee",
     producerPayout: "0.00",
     producerUserId: uuid(2),
     rate: null,

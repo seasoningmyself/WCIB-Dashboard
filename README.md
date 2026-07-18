@@ -412,9 +412,9 @@ DATABASE_URL=postgresql://wcib:wcib_local_password@127.0.0.1:54322/wcib \
 ## Staff accounts and capabilities
 
 `staff_profiles` is a one-to-one extension of an auth-owned user UUID. Staff
-profiles contain the editable display name, employee/producer role, the
-her/his/their label used by v15, active state, and creation time. Deactivation
-preserves the profile and its UUID relationships.
+profiles contain the editable display name, employee/producer role, active
+state, and creation time. Deactivation preserves the profile and its UUID
+relationships.
 
 `user_capabilities` stores normalized explicit capability names by user UUID.
 Capabilities can be disabled without deleting the grant. Admin is a capability,

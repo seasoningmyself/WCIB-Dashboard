@@ -33,7 +33,6 @@ export interface ActiveDialogState {
 interface StaffFormValues {
   displayName: string;
   email: string;
-  pronoun: AdminStaffRecord["pronoun"];
   role: AdminStaffRecord["role"];
   temporaryPassword: string;
 }
@@ -97,7 +96,6 @@ export function StaffEditorDialog({
         displayName: values.displayName,
         email: values.email,
         ...(needsInitialRate ? { initialRate: normalizedRate } : {}),
-        pronoun: values.pronoun,
         role: values.role,
         temporaryPassword: values.temporaryPassword,
       });
@@ -117,7 +115,6 @@ export function StaffEditorDialog({
     if (values.email.trim().toLowerCase() !== dialog.staff.email) {
       input.email = values.email;
     }
-    if (values.pronoun !== dialog.staff.pronoun) input.pronoun = values.pronoun;
     if (values.role !== dialog.staff.role) input.role = values.role;
     if (needsInitialRate) input.initialRate = normalizedRate;
     const parsed = updateAdminStaffRequestSchema.safeParse(input);
@@ -207,24 +204,6 @@ export function StaffEditorDialog({
               >
                 <option value="employee">Employee</option>
                 <option value="producer">Producer</option>
-              </select>
-            </label>
-            <label className="staff-field">
-              <span>Pronoun</span>
-              <select
-                disabled={pending}
-                onChange={(event) => {
-                  const pronoun = event.currentTarget.value as AdminStaffRecord["pronoun"];
-                  setValues((current) => ({
-                    ...current,
-                    pronoun,
-                  }));
-                }}
-                value={values.pronoun}
-              >
-                <option value="her">Her</option>
-                <option value="his">His</option>
-                <option value="their">Their</option>
               </select>
             </label>
             {dialog.kind === "create" ? (
@@ -483,7 +462,6 @@ function initialStaffValues(staff: AdminStaffRecord | null): StaffFormValues {
   return {
     displayName: staff?.displayName ?? "",
     email: staff?.email ?? "",
-    pronoun: staff?.pronoun ?? "their",
     role: staff?.role ?? "employee",
     temporaryPassword: "",
   };

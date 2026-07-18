@@ -1,3 +1,4 @@
+import { accountAssignmentLabel } from "../../../shared/account-assignment-labels.js";
 import type { CurrentUser } from "../../../shared/current-user.js";
 import type {
   MgaPayableGroup,
@@ -16,11 +17,7 @@ export function isMgaPayablesAdmin(user: CurrentUser): boolean {
 }
 
 export function payableAccountLabel(item: MgaPayableItem): string {
-  if (item.kayleeSplit === "none") return "Sophia house";
-  const producer = item.producerDisplayName ?? "Producer";
-  return item.kayleeSplit === "house"
-    ? `${producer} first year`
-    : `${producer} account`;
+  return accountAssignmentLabel(item.kayleeSplit, item.producerDisplayName);
 }
 
 export function payableGroupAction(group: MgaPayableGroup): {

@@ -11,6 +11,7 @@ import type {
   PaySheetExportFormat,
   PaySheetExportQuery,
 } from "../../shared/pay-sheet-export.js";
+import { accountAssignmentLabel } from "../../shared/account-assignment-labels.js";
 
 const MONEY_FORMAT = "$#,##0.00;[Red]-$#,##0.00";
 const DANGEROUS_FORMULA_PREFIX = /^[\t\r\n ]*[=+\-@]/;
@@ -279,7 +280,7 @@ function writeOwnerWorksheet(
       safeSpreadsheetText(policy.policyNumber),
       safeSpreadsheetText(policy.policyTypeName),
       safeSpreadsheetText(policy.transactionType),
-      accountLabel(policy.kayleeSplit),
+      accountLabel(policy),
       moneyCell(policy.brokerFee),
       moneyCell(policy.commissionAmount),
       moneyCell(policy.agencyRevenue),
@@ -375,7 +376,7 @@ function renderPrintActivity(model: PaySheetExportModel): string {
 }
 
 function renderPrintOwner(sheet: PaySheetDetail): string {
-  const policyRows = sheet.policies.map((policy) => `<tr><td>${escapeHtml(policy.insuredName)}</td><td>${escapeHtml(policy.policyNumber)}</td><td>${escapeHtml(policy.policyTypeName)}</td><td>${escapeHtml(policy.transactionType)}</td><td>${escapeHtml(accountLabel(policy.kayleeSplit))}</td><td>${moneyHtml(policy.brokerFee)}</td><td>${moneyHtml(policy.commissionAmount)}</td><td>${moneyHtml(policy.agencyRevenue)}</td><td>${moneyHtml(sheet.ownerType === "sophia" ? policy.sophiaShare : policy.producerPayout)}</td></tr>`).join("");
+  const policyRows = sheet.policies.map((policy) => `<tr><td>${escapeHtml(policy.insuredName)}</td><td>${escapeHtml(policy.policyNumber)}</td><td>${escapeHtml(policy.policyTypeName)}</td><td>${escapeHtml(policy.transactionType)}</td><td>${escapeHtml(accountLabel(policy))}</td><td>${moneyHtml(policy.brokerFee)}</td><td>${moneyHtml(policy.commissionAmount)}</td><td>${moneyHtml(policy.agencyRevenue)}</td><td>${moneyHtml(sheet.ownerType === "sophia" ? policy.sophiaShare : policy.producerPayout)}</td></tr>`).join("");
   const adjustments = sheet.adjustments.length === 0 ? "" : `<h3>Adjustments and direct income</h3><table><thead><tr><th>Date</th><th>Insured / client</th><th>Type</th><th>Note</th><th>Broker</th><th>Commission</th><th>Payout</th><th>Income</th></tr></thead><tbody>${sheet.adjustments.map(renderPrintAdjustment).join("")}</tbody></table>`;
   return `<section class="owner-sheet"><header><h2>${escapeHtml(sheet.ownerDisplayName)}</h2><p>${escapeHtml(sheet.ownerType === "sophia" ? "House / agency" : "Producer")} - ${escapeHtml(sheet.status)}</p></header><table><thead><tr><th>Insured</th><th>Policy #</th><th>Type</th><th>Transaction</th><th>Account</th><th>Broker</th><th>Commission</th><th>Revenue</th><th>${sheet.ownerType === "sophia" ? "Sophia share" : "Producer payout"}</th></tr></thead><tbody>${policyRows}</tbody></table>${adjustments}${renderPrintTotals(sheet)}</section>`;
 }
@@ -520,10 +521,11 @@ function compareSheets(left: PaySheetDetail, right: PaySheetDetail): number {
   return left.ownerDisplayName.localeCompare(right.ownerDisplayName) || left.ownerUserId.localeCompare(right.ownerUserId);
 }
 
-function accountLabel(value: PaySheetPolicyView["kayleeSplit"]): string {
-  if (value === "house") return "First-year house";
-  if (value === "book") return "Producer book";
-  return "House (agency)";
+function accountLabel(policy: PaySheetPolicyView): string {
+  return accountAssignmentLabel(
+    policy.kayleeSplit,
+    policy.producerDisplayName,
+  );
 }
 
 function uniqueSheetName(rawName: string, used: Set<string>): string {
