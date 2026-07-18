@@ -11,10 +11,11 @@ import {
   moneyDifferenceInCents,
   proposalTotalsMatch,
 } from "../../../shared/draft-calculations.js";
-import type {
-  CreateDraftRequest,
-  DraftResponse,
-  UpdateDraftRequest,
+import {
+  draftWritableInputFromSource,
+  type CreateDraftRequest,
+  type DraftResponse,
+  type UpdateDraftRequest,
 } from "../../../shared/drafts.js";
 import type {
   AccountAssignment,
@@ -369,12 +370,26 @@ export function turnInFormToNonfinancialDraftUpdate(
 }
 
 export function turnInStateFromDraft(draft: DraftResponse): TurnInFormState {
+  return turnInStateFromWritableInput(draftWritableInputFromSource(draft));
+}
+
+export function turnInStateFromSubmission(
+  submittedPayload: unknown,
+): TurnInFormState {
+  return turnInStateFromWritableInput(
+    draftWritableInputFromSource(submittedPayload),
+  );
+}
+
+function turnInStateFromWritableInput(
+  draft: CreateDraftRequest,
+): TurnInFormState {
   return {
     accountAssignment: draft.accountAssignment ?? "",
     amountPaid: draft.amountPaid ?? "",
     basePremium: draft.basePremium ?? "",
     brokerFee: draft.brokerFee ?? "",
-    carrierId: draft.carrierId,
+    carrierId: draft.carrierId ?? null,
     commissionConfirmed: draft.commissionConfirmed ?? false,
     commissionMode: draft.commissionMode ?? "pct",
     commissionRate: draft.commissionRate ?? "",
@@ -392,13 +407,13 @@ export function turnInStateFromDraft(draft: DraftResponse): TurnInFormState {
     ipfsManual: draft.ipfsManual ?? false,
     ipfsReturning: draft.ipfsReturning ?? "",
     mgaFee: draft.mgaFee ?? "0.00",
-    mgaId: draft.mgaId,
+    mgaId: draft.mgaId ?? null,
     notes: draft.notes ?? "",
-    officeLocationId: draft.officeLocationId,
+    officeLocationId: draft.officeLocationId ?? null,
     paymentMode: draft.paymentMode ?? "full",
     policyNumber: draft.policyNumber ?? "",
-    policyTypeId: draft.policyTypeId,
-    producerUserId: draft.producerUserId,
+    policyTypeId: draft.policyTypeId ?? null,
+    producerUserId: draft.producerUserId ?? null,
     proposalTotal: draft.proposalTotal ?? "",
     taxes: draft.taxes ?? "0.00",
     transactionNotes: draft.transactionNotes ?? "",

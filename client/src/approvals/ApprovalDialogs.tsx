@@ -1,13 +1,19 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { ApprovalWorkListResponse } from "../../../shared/approval-queue.js";
-import type { DraftResponse, UpdateDraftRequest } from "../../../shared/drafts.js";
+import type { CurrentUser } from "../../../shared/current-user.js";
+import type { DraftAssignmentOption } from "../../../shared/draft-assignment-options.js";
+import type { UpdateDraftRequest } from "../../../shared/drafts.js";
 import type { ApproveWithOverrideRequest } from "../../../shared/policy-overrides.js";
 import { useVocabulary } from "../vocabulary/context.js";
 import {
+  assignmentKey,
+  buildAssignmentChoices,
   turnInFormToDraftInput,
   turnInStateFromDraft,
+  turnInStateFromSubmission,
   updateTurnInField,
   validateTurnInForSubmit,
+  type AssignmentChoice,
   type TurnInFormState,
 } from "../drafts/turn-in-state.js";
 import { buildApprovalOverrideInput } from "./review-state.js";
@@ -15,36 +21,86 @@ import { buildApprovalOverrideInput } from "./review-state.js";
 type Submission = ApprovalWorkListResponse["submissions"][number];
 type HelpRequest = ApprovalWorkListResponse["helpRequests"][number];
 
+export const SEND_BACK_REASON_CHIPS = [
+  {
+    label: "Broker fee mismatch",
+    reason: "Broker fee doesn't match the proposal total",
+  },
+  { label: "Policy # issue", reason: "Wrong or missing policy number" },
+  {
+    label: "Wrong carrier/MGA",
+    reason: "Wrong insurance company / MGA selected",
+  },
+  { label: "Commission off", reason: "Commission amount looks incorrect" },
+  {
+    label: "Missing document",
+    reason: "Attach or re-check the proposal/declarations",
+  },
+] as const;
+
+export function appendSendBackReason(current: string, reason: string): string {
+  const normalized = current.trim().replace(/[.\s]+$/, "");
+  return normalized === "" ? reason : `${normalized}. ${reason}`;
+}
+
 export type ApprovalDialog =
   | { item: Submission; kind: "approve" }
+  | { items: Submission[]; kind: "bulk_approve" }
+  | {
+      assignmentOptions: readonly DraftAssignmentOption[];
+      item: Submission;
+      kind: "edit_fix_submission";
+    }
   | { item: Submission; kind: "override" }
   | { item: Submission; kind: "send_back_submission" }
-  | { item: HelpRequest; kind: "open_fix" }
+  | {
+      assignmentOptions: readonly DraftAssignmentOption[];
+      item: HelpRequest;
+      kind: "open_fix";
+    }
   | { item: HelpRequest; kind: "push_through" }
   | { item: HelpRequest; kind: "send_back_help" };
 
 export function ApprovalDialogs({
   dialog,
   onApprove,
+  onBulkApprove,
   onCancel,
+  onEditFix,
   onOpenFix,
   onOverride,
   onPushThrough,
   onSendBack,
   pending,
+  user,
 }: {
   dialog: ApprovalDialog | null;
   onApprove(queueEntryId: string): void;
+  onBulkApprove(queueEntryIds: string[]): void;
   onCancel(): void;
+  onEditFix(queueEntryId: string, input: UpdateDraftRequest): void;
   onOpenFix(draftId: string, input: UpdateDraftRequest): void;
   onOverride(queueEntryId: string, input: ApproveWithOverrideRequest): void;
   onPushThrough(draftId: string): void;
   onSendBack(kind: "help" | "submission", id: string, reason: string): void;
   pending: boolean;
+  user: CurrentUser;
 }) {
   useDialogLifecycle(dialog !== null, pending, onCancel);
   if (dialog === null) {
     return null;
+  }
+  if (dialog.kind === "bulk_approve") {
+    return (
+      <ConfirmationDialog
+        confirmLabel={`Approve selected (${dialog.items.length})`}
+        description="Each submission will use its current assignment and the same guarded approval path as an individual approval. Items requiring an override must be reviewed separately."
+        onCancel={onCancel}
+        onConfirm={() => onBulkApprove(dialog.items.map(({ entry }) => entry.id))}
+        pending={pending}
+        title={`Approve ${dialog.items.length} selected submission${dialog.items.length === 1 ? "" : "s"}?`}
+      />
+    );
   }
   if (dialog.kind === "approve") {
     return (
@@ -83,9 +139,31 @@ export function ApprovalDialogs({
   if (dialog.kind === "open_fix") {
     return (
       <OpenFixDialog
-        draft={dialog.item.draft}
+        assignmentChoices={buildAssignmentChoices(
+          user,
+          dialog.assignmentOptions,
+        )}
+        initialForm={turnInStateFromDraft(dialog.item.draft)}
+        name={dialog.item.draft.insuredName ?? "flagged turn-in"}
         onCancel={onCancel}
         onSubmit={(input) => onOpenFix(dialog.item.draft.id, input)}
+        pending={pending}
+      />
+    );
+  }
+  if (dialog.kind === "edit_fix_submission") {
+    return (
+      <OpenFixDialog
+        assignmentChoices={buildAssignmentChoices(
+          user,
+          dialog.assignmentOptions,
+        )}
+        initialForm={turnInStateFromSubmission(
+          dialog.item.entry.submittedPayload,
+        )}
+        name={submissionName(dialog.item)}
+        onCancel={onCancel}
+        onSubmit={(input) => onEditFix(dialog.item.entry.id, input)}
         pending={pending}
       />
     );
@@ -178,12 +256,29 @@ function SendBackDialog({
     }
     onSubmit(normalized);
   };
+  const addReason = (quickReason: string) => {
+    setReason((current) => appendSendBackReason(current, quickReason));
+    setError(false);
+    reasonRef.current?.focus();
+  };
   return (
     <DialogFrame
       onCancel={onCancel}
       pending={pending}
       title={`Send ${name} back`}
     >
+      <div aria-label="Quick send-back reasons" className="approval-send-back-quick">
+        {SEND_BACK_REASON_CHIPS.map((chip) => (
+          <button
+            disabled={pending}
+            key={chip.label}
+            onClick={() => addReason(chip.reason)}
+            type="button"
+          >
+            {chip.label}
+          </button>
+        ))}
+      </div>
       <label className="approval-dialog-field" htmlFor="approval-send-back-reason">
         <span>Reason</span>
         <textarea
@@ -312,20 +407,22 @@ function OverrideDialog({
 }
 
 function OpenFixDialog({
-  draft,
+  assignmentChoices,
+  initialForm,
+  name,
   onCancel,
   onSubmit,
   pending,
 }: {
-  draft: DraftResponse;
+  assignmentChoices: readonly AssignmentChoice[];
+  initialForm: TurnInFormState;
+  name: string;
   onCancel(): void;
   onSubmit(input: UpdateDraftRequest): void;
   pending: boolean;
 }) {
   const vocabulary = useVocabulary();
-  const [form, setForm] = useState<TurnInFormState>(() =>
-    turnInStateFromDraft(draft),
-  );
+  const [form, setForm] = useState<TurnInFormState>(() => initialForm);
   const [error, setError] = useState<string | null>(null);
   const firstRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -349,12 +446,29 @@ function OpenFixDialog({
     }
     onSubmit(turnInFormToDraftInput(form));
   };
+  const currentAssignmentKey = assignmentKey(
+    form.accountAssignment,
+    form.producerUserId,
+  );
+  const hasCurrentAssignment = assignmentChoices.some(
+    ({ key }) => key === currentAssignmentKey,
+  );
+  const changeAssignment = (key: string) => {
+    const choice = assignmentChoices.find((item) => item.key === key);
+    if (choice === undefined) return;
+    setForm((current) => ({
+      ...current,
+      accountAssignment: choice.accountAssignment,
+      producerUserId: choice.producerUserId,
+    }));
+    setError(null);
+  };
 
   return (
     <DialogFrame
       onCancel={onCancel}
       pending={pending}
-      title={`Open and fix ${draft.insuredName ?? "flagged turn-in"}`}
+      title={`Open and fix ${name}`}
       wide
     >
       {error === null ? null : (
@@ -375,7 +489,7 @@ function OpenFixDialog({
             <SelectInput label="Carrier" onChange={(value) => change("carrierId", value || null)} options={options?.carriers ?? []} value={form.carrierId ?? ""} />
             <SelectInput label="MGA" onChange={(value) => change("mgaId", value || null)} options={options?.mgas ?? []} value={form.mgaId ?? ""} />
             <SelectInput label="Office" onChange={(value) => change("officeLocationId", value || null)} options={options?.officeLocations ?? []} value={form.officeLocationId ?? ""} />
-            <label className="approval-dialog-field"><span>Assignment</span><output>{assignmentText(form)}</output></label>
+            <label className="approval-dialog-field"><span>Assignment</span><select onChange={(event) => changeAssignment(event.currentTarget.value)} value={currentAssignmentKey}>{!hasCurrentAssignment && currentAssignmentKey !== "" ? <option value={currentAssignmentKey}>{assignmentText(form)}</option> : null}{assignmentChoices.map((choice) => <option key={choice.key} value={choice.key}>{choice.label}</option>)}</select></label>
           </div>
           <TextAreaInput label="Transaction notes" onChange={(value) => change("transactionNotes", value)} value={form.transactionNotes} />
           <TextAreaInput label="General notes" onChange={(value) => change("notes", value)} value={form.notes} />
@@ -460,7 +574,7 @@ function TextInput({ inputRef, label, onChange, value }: { inputRef?: React.RefO
 }
 
 function DateInput({ label, onChange, value }: { label: string; onChange(value: string): void; value: string }) {
-  return <label className="approval-dialog-field"><span>{label}</span><input onChange={(event) => onChange(event.currentTarget.value)} type="date" value={value} /></label>;
+  return <label className="approval-dialog-field"><span>{label}</span><input inputMode="numeric" onChange={(event) => onChange(event.currentTarget.value)} placeholder="MM/DD/YYYY" type="text" value={value} /></label>;
 }
 
 function TextAreaInput({ label, onChange, value }: { label: string; onChange(value: string): void; value: string }) {

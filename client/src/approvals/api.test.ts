@@ -18,6 +18,7 @@ test("approval API uses every live Parent D endpoint and safe request body", asy
     Response.json({ entry: queueEntry("sent_back") }),
     policyResponse(),
     policyResponse(),
+    policyResponse(),
     Response.json({ draft: draftResponse("sent_back") }),
     Response.json({
       policyId: POLICY_ID,
@@ -46,6 +47,7 @@ test("approval API uses every live Parent D endpoint and safe request body", asy
   await api.sendBackSubmission(QUEUE_ID, { reason: "Correct carrier" });
   await api.pushThroughHelp(DRAFT_ID);
   await api.openFixHelp(DRAFT_ID, { insuredName: "Corrected insured" });
+  await api.editFixSubmission(QUEUE_ID, { policyNumber: "Corrected policy" });
   await api.sendBackHelp(DRAFT_ID, { reason: "Complete finance fields" });
   await api.correctPolicyChangeRequest(CHANGE_REQUEST_ID, {
     change: {
@@ -70,6 +72,7 @@ test("approval API uses every live Parent D endpoint and safe request body", asy
       `/approvals/${QUEUE_ID}/send-back`,
       `/approvals/help/${DRAFT_ID}/push-through`,
       `/approvals/help/${DRAFT_ID}/open-fix`,
+      `/approvals/${QUEUE_ID}/open-fix`,
       `/approvals/help/${DRAFT_ID}/send-back`,
       `/policy-change-requests/${CHANGE_REQUEST_ID}/correction`,
       `/policy-change-requests/${CHANGE_REQUEST_ID}/resolve-as-is`,
@@ -89,9 +92,12 @@ test("approval API uses every live Parent D endpoint and safe request body", asy
   assert.deepEqual(JSON.parse(String(calls[5]?.options?.body)), {
     insuredName: "Corrected insured",
   });
-  assert.equal(calls[7]?.options?.method, "PATCH");
-  assert.deepEqual(JSON.parse(String(calls[8]?.options?.body)), {});
-  assert.deepEqual(JSON.parse(String(calls[9]?.options?.body)), {
+  assert.deepEqual(JSON.parse(String(calls[6]?.options?.body)), {
+    policyNumber: "Corrected policy",
+  });
+  assert.equal(calls[8]?.options?.method, "PATCH");
+  assert.deepEqual(JSON.parse(String(calls[9]?.options?.body)), {});
+  assert.deepEqual(JSON.parse(String(calls[10]?.options?.body)), {
     reason: "No ledger correction is required",
   });
 });

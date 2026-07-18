@@ -3,8 +3,11 @@ import { test } from "node:test";
 import type { CurrentUser } from "../../../shared/current-user.js";
 import {
   APPROVAL_REVIEW_GROUPS,
+  approvalReviewBadge,
+  approveSequentially,
   buildApprovalOverrideInput,
   isApprovalAdmin,
+  groupApprovalSubmissions,
   removeResolvedApprovalWork,
   reviewSourceValue,
 } from "./review-state.js";
@@ -135,6 +138,80 @@ test("review formatting is deterministic and role display fails closed", () => {
   assert.equal(isApprovalAdmin(user("producer", [])), false);
   assert.equal(isApprovalAdmin(user("admin", [])), false);
 });
+
+test("bulk approval runs sequentially and preserves mixed per-item results", async () => {
+  const calls: string[] = [];
+  const results = await approveSequentially(
+    ["first", "guarded", "last"],
+    async (id) => {
+      calls.push(id);
+      if (id === "guarded") throw new Error("single-approval guard rejected item");
+    },
+  );
+
+  assert.deepEqual(calls, ["first", "guarded", "last"]);
+  assert.deepEqual(
+    results.map(({ id, status }) => ({ id, status })),
+    [
+      { id: "first", status: "approved" },
+      { id: "guarded", status: "failed" },
+      { id: "last", status: "approved" },
+    ],
+  );
+  assert.ok(results[1]?.error instanceof Error);
+});
+
+test("approval priority is stable and badges are limited to complete-review cases", () => {
+  const standard = submission("standard", "none", null, "employee");
+  const employeeBook = submission("employee-book", "book", "producer", "employee");
+  const firstYear = submission("first-year", "house", "producer", "employee");
+  const selfAssigned = submission("self-assigned", "book", "producer", "producer");
+  const grouped = groupApprovalSubmissions([
+    standard,
+    employeeBook,
+    firstYear,
+    selfAssigned,
+  ]);
+
+  assert.equal(grouped.showHeadings, true);
+  assert.deepEqual(
+    grouped.groups.map(({ items, key }) => ({
+      ids: items.map(({ entry }) => entry.id),
+      key,
+    })),
+    [
+      {
+        ids: ["employee-book", "first-year", "self-assigned"],
+        key: "needs_verification",
+      },
+      { ids: ["standard"], key: "standard" },
+    ],
+  );
+  assert.equal(approvalReviewBadge(standard), null);
+  assert.equal(approvalReviewBadge(employeeBook), null);
+  assert.equal(approvalReviewBadge(firstYear), "1st-year - verify");
+  assert.equal(
+    approvalReviewBadge(selfAssigned),
+    "Producer self-assigned - verify",
+  );
+  assert.equal(groupApprovalSubmissions([standard]).showHeadings, false);
+});
+
+function submission(
+  id: string,
+  accountAssignment: "book" | "house" | "none",
+  producerUserId: string | null,
+  submittedByUserId: string,
+) {
+  return {
+    entry: {
+      id,
+      submittedByUserId,
+      submittedPayload: { accountAssignment, producerUserId },
+    },
+    submitterDisplayName: "Submitter",
+  } as never;
+}
 
 function user(
   role: CurrentUser["role"],

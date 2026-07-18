@@ -4539,10 +4539,90 @@ h1 {
 }
 
 .approval-page,
+.help-requests-page,
 .approval-message {
   width: min(100% - 48px, 1320px);
   margin: 0 auto;
   padding: 38px 0 64px;
+}
+
+.help-request-list {
+  display: grid;
+  gap: 12px;
+}
+
+.help-request-card {
+  min-width: 0;
+  border: 1px solid #c9d2d5;
+  border-left: 4px solid #7e458d;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 16px 18px;
+}
+
+.help-request-card > header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.help-request-card > header > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.help-request-card > header strong,
+.help-request-card > header span {
+  overflow-wrap: anywhere;
+}
+
+.help-request-card > header strong {
+  color: #263640;
+  font-size: 14px;
+}
+
+.help-request-card > header span {
+  color: #68777f;
+  font-size: 11px;
+}
+
+.help-request-owner {
+  text-align: right;
+}
+
+.help-request-card .approval-help-reason {
+  margin: 14px 0;
+}
+
+.help-request-context {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  background: #dce2e4;
+}
+
+.help-request-context > div {
+  min-width: 0;
+  background: #f8faf9;
+  padding: 10px 11px;
+}
+
+.help-request-context dt {
+  color: #718087;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.help-request-context dd {
+  margin: 4px 0 0;
+  color: #263640;
+  font-size: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .approval-page-header {
@@ -4733,6 +4813,103 @@ h1 {
   font-size: 13px;
 }
 
+.approval-bulk-results {
+  display: grid;
+  gap: 6px;
+  margin: -6px 0 18px;
+}
+
+.approval-bulk-results > div {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-left: 3px solid #9b6b10;
+  background: #fff8e7;
+  padding: 7px 10px;
+  color: #684708;
+  font-size: 12px;
+}
+
+.approval-bulk-results > div.is-approved {
+  border-left-color: #27634d;
+  background: #eff8f3;
+  color: #24543f;
+}
+
+.approval-bulk-toolbar {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid #cfd7da;
+  background: #f7f9f9;
+  padding: 7px 14px;
+}
+
+.approval-bulk-toolbar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: auto;
+  color: #384850;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.approval-bulk-toolbar input,
+.approval-row-select input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.approval-bulk-toolbar button,
+.approval-inline-approve {
+  min-height: 34px;
+  border: 1px solid #9eacb2;
+  border-radius: 5px;
+  background: #ffffff;
+  padding: 0 12px;
+  color: #344851;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.approval-bulk-toolbar button.is-primary,
+.approval-inline-approve {
+  border-color: #27634d;
+  color: #27634d;
+}
+
+.approval-bulk-toolbar button:disabled,
+.approval-inline-approve:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.approval-priority-heading {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #d3dcdf;
+  background: #f1f5f4;
+  padding: 7px 14px;
+  color: #40535d;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.approval-priority-heading.is-needs_verification {
+  border-left: 3px solid #9b6b10;
+  background: #fff8e7;
+  color: #684708;
+}
+
 .approval-work-list {
   display: grid;
   gap: 28px;
@@ -4771,6 +4948,16 @@ h1 {
   padding: 10px 14px;
   cursor: pointer;
   list-style: none;
+}
+
+.approval-review-row.is-submission > summary {
+  grid-template-columns: 20px 74px minmax(180px, 1.4fr) minmax(150px, 1fr) 110px 125px 82px;
+}
+
+.approval-row-select {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .approval-review-row > summary::-webkit-details-marker {
@@ -4824,6 +5011,18 @@ h1 {
 .approval-review-amount,
 .approval-review-time {
   overflow-wrap: anywhere;
+}
+
+.approval-review-primary .approval-review-badge {
+  width: fit-content;
+  border: 1px solid #d2b659;
+  border-radius: 4px;
+  background: #fff8dd;
+  padding: 3px 5px;
+  color: #75540b;
+  font-size: 9px;
+  font-weight: 850;
+  text-transform: uppercase;
 }
 
 .approval-review-primary strong,
@@ -5068,6 +5267,31 @@ h1 {
   line-height: 1.5;
 }
 
+.approval-send-back-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 18px;
+}
+
+.approval-send-back-quick button {
+  min-height: 32px;
+  border: 1px solid #b7c2c7;
+  border-radius: 16px;
+  background: #ffffff;
+  padding: 5px 11px;
+  color: #52626a;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.approval-send-back-quick button:hover:not(:disabled) {
+  border-color: #b76060;
+  background: #fff6f6;
+  color: #8b3030;
+}
+
 .approval-dialog-field {
   display: grid;
   min-width: 0;
@@ -5213,6 +5437,10 @@ h1 {
     grid-template-columns: 70px minmax(150px, 1.4fr) minmax(130px, 1fr) 110px;
   }
 
+  .approval-review-row.is-submission > summary {
+    grid-template-columns: 20px 70px minmax(150px, 1.4fr) minmax(130px, 1fr) 100px 78px;
+  }
+
   .approval-review-time {
     display: none;
   }
@@ -5230,9 +5458,28 @@ h1 {
 
 @media (max-width: 680px) {
   .approval-page,
+  .help-requests-page,
   .approval-message {
     width: min(100% - 24px, 1320px);
     padding-top: 22px;
+  }
+
+  .help-request-card {
+    padding: 14px;
+  }
+
+  .help-request-card > header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .help-request-owner {
+    text-align: left;
+  }
+
+  .help-request-context {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .approval-toolbar {
@@ -5264,6 +5511,21 @@ h1 {
     padding: 0 7px;
   }
 
+  .approval-bulk-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    padding: 10px;
+  }
+
+  .approval-bulk-toolbar label {
+    grid-column: 1 / -1;
+  }
+
+  .approval-bulk-toolbar button {
+    min-height: 44px;
+    padding: 0 7px;
+  }
+
   .approval-review-row {
     margin-bottom: 10px;
     border: 1px solid #cfd7da;
@@ -5276,6 +5538,10 @@ h1 {
     padding: 13px;
   }
 
+  .approval-review-row.is-submission > summary {
+    grid-template-columns: 20px 68px minmax(0, 1fr);
+  }
+
   .approval-review-policy {
     grid-column: 2;
   }
@@ -5283,6 +5549,17 @@ h1 {
   .approval-review-amount {
     grid-column: 2;
     text-align: left;
+  }
+
+  .approval-review-row.is-submission .approval-review-primary,
+  .approval-review-row.is-submission .approval-review-policy,
+  .approval-review-row.is-submission .approval-review-amount {
+    grid-column: 3;
+  }
+
+  .approval-inline-approve {
+    min-height: 40px;
+    grid-column: 2 / -1;
   }
 
   .approval-field-groups,

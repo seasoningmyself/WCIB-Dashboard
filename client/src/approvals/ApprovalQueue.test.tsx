@@ -8,7 +8,10 @@ import type { DraftResponse } from "../../../shared/drafts.js";
 import { ApiClientProvider } from "../api/context.js";
 import { createSessionBoundary } from "../auth/session-boundary.js";
 import { VocabularyProvider } from "../vocabulary/context.js";
-import { ApprovalDialogs } from "./ApprovalDialogs.js";
+import {
+  ApprovalDialogs,
+  appendSendBackReason,
+} from "./ApprovalDialogs.js";
 import {
   ApprovalWorkDeletionDialogView,
   DeletedApprovalWorkPanel,
@@ -50,6 +53,9 @@ test("admin queue renders every financial review group and live resolution actio
     assert.match(markup, new RegExp(label));
   }
   for (const action of [
+    "Select all",
+    "Approve selected \\(0\\)",
+    "Expand all",
     "Approve",
     "Approve with override",
     "Open &amp; fix",
@@ -78,6 +84,60 @@ test("approval queue has bounded loading, error, empty, and denied states", () =
     }),
     /Queue clear/,
   );
+});
+
+test("priority groups non-house work first and shows only complete-review badges", () => {
+  const work = approvalWork();
+  const source = work.submissions[0]!;
+  const standard = {
+    ...source,
+    entry: {
+      ...source.entry,
+      id: uuid(21),
+      submittedPayload: {
+        ...source.entry.submittedPayload,
+        accountAssignment: "none",
+        insuredName: "Standard House",
+        producerUserId: null,
+      },
+    },
+  };
+  const firstYear = {
+    ...source,
+    entry: {
+      ...source.entry,
+      id: uuid(22),
+      submittedPayload: {
+        ...source.entry.submittedPayload,
+        accountAssignment: "house",
+        insuredName: "First Year",
+      },
+    },
+  };
+  const selfAssigned = {
+    ...source,
+    entry: {
+      ...source.entry,
+      id: uuid(23),
+      submittedByUserId: PRODUCER_ID,
+      submittedPayload: {
+        ...source.entry.submittedPayload,
+        insuredName: "Self Assigned",
+      },
+    },
+  };
+  const markup = renderView({
+    deleted: { items: [] },
+    status: "ready",
+    work: { ...work, submissions: [standard, selfAssigned, firstYear] },
+  });
+
+  assert.ok(markup.indexOf("Self Assigned") < markup.indexOf("Standard House"));
+  assert.ok(markup.indexOf("First Year") < markup.indexOf("Standard House"));
+  assert.match(markup, /Needs verification - non-house assignments/);
+  assert.match(markup, /House account - standard/);
+  assert.match(markup, /1st-year - verify/);
+  assert.match(markup, /Producer self-assigned - verify/);
 });
 
 test("approval deletion UI requires a reason and exposes recoverable restore", () => {
@@ -128,16 +188,28 @@ test("dialogs expose bounded confirmation, reason, override, and full fix forms"
   const help = work.helpRequests[0]!;
   const common = {
     onApprove() {},
+    onBulkApprove() {},
     onCancel() {},
+    onEditFix() {},
     onOpenFix() {},
     onOverride() {},
     onPushThrough() {},
     onSendBack() {},
     pending: false,
+    user: admin(),
   };
+  const assignmentOptions = [
+    { displayName: "Kaylee", userId: PRODUCER_ID },
+  ];
 
   const approve = renderToStaticMarkup(
     <ApprovalDialogs dialog={{ item: submission, kind: "approve" }} {...common} />,
+  );
+  const bulkApprove = renderToStaticMarkup(
+    <ApprovalDialogs
+      dialog={{ items: [submission], kind: "bulk_approve" }}
+      {...common}
+    />,
   );
   const override = renderToStaticMarkup(
     <ApprovalDialogs dialog={{ item: submission, kind: "override" }} {...common} />,
@@ -150,14 +222,40 @@ test("dialogs expose bounded confirmation, reason, override, and full fix forms"
   );
   const openFix = renderToStaticMarkup(
     withProviders(
-      <ApprovalDialogs dialog={{ item: help, kind: "open_fix" }} {...common} />,
+      <ApprovalDialogs
+        dialog={{ assignmentOptions, item: help, kind: "open_fix" }}
+        {...common}
+      />,
+    ),
+  );
+  const editFix = renderToStaticMarkup(
+    withProviders(
+      <ApprovalDialogs
+        dialog={{
+          assignmentOptions,
+          item: submission,
+          kind: "edit_fix_submission",
+        }}
+        {...common}
+      />,
     ),
   );
 
   assert.match(approve, /Approve to ledger/);
+  assert.match(bulkApprove, /same guarded approval path/);
+  assert.match(bulkApprove, /Approve selected \(1\)/);
   assert.match(override, /Commission amount|Broker fee|Net due to MGA/);
   assert.match(override, /Reason/);
   assert.match(sendBack, /maxLength="500"/);
+  for (const label of [
+    "Broker fee mismatch",
+    "Policy # issue",
+    "Wrong carrier/MGA",
+    "Commission off",
+    "Missing document",
+  ]) {
+    assert.match(sendBack, new RegExp(label.replace("/", "\\/")));
+  }
   for (const label of [
     "Insured",
     "Policy number",
@@ -173,6 +271,24 @@ test("dialogs expose bounded confirmation, reason, override, and full fix forms"
   }
   assert.match(openFix, /role="dialog"/);
   assert.match(openFix, /aria-modal="true"/);
+  assert.match(openFix, /Kaylee First-year/);
+  assert.match(editFix, /Open and fix Private Submitted LLC/);
+  assert.match(editFix, /Kaylee account/);
+  assert.match(editFix, /Kaylee First-year/);
+});
+
+test("quick send-back reasons append with v15 punctuation behavior", () => {
+  assert.equal(
+    appendSendBackReason("", "Wrong or missing policy number"),
+    "Wrong or missing policy number",
+  );
+  assert.equal(
+    appendSendBackReason(
+      "Check the invoice...  ",
+      "Commission amount looks incorrect",
+    ),
+    "Check the invoice. Commission amount looks incorrect",
+  );
 });
 
 test("approved-policy change dialogs expose only the three safe admin resolutions", () => {
@@ -221,17 +337,28 @@ test("approved-policy change dialogs expose only the three safe admin resolution
 function renderView(state: ApprovalQueueState): string {
   return renderToStaticMarkup(
     <ApprovalQueueView
+      bulkResults={[]}
+      expandedSubmissionIds={new Set()}
       filter="all"
       lookups={{}}
       notice={null}
+      onApproveSelected={() => {}}
       onDeleteHelp={() => {}}
       onDeleteSubmission={() => {}}
+      onExpandSubmission={() => {}}
+      onExpandSubmissions={() => {}}
       onFilter={() => {}}
+      onInlineApprove={() => {}}
+      onOpenHelpFix={() => {}}
       onOpen={() => {}}
       onOpenChangeFix={() => {}}
       onOpenDeleted={() => {}}
+      onOpenSubmissionFix={() => {}}
       onRetry={() => {}}
+      onSelectSubmission={() => {}}
+      onSelectSubmissions={() => {}}
       pending={false}
+      selectedSubmissionIds={new Set()}
       state={state}
     />,
   );
@@ -440,6 +567,18 @@ function producer(): CurrentUser {
     email: "kaylee@example.test",
     id: PRODUCER_ID,
     role: "producer",
+  };
+}
+
+function admin(): CurrentUser {
+  return {
+    ...producer(),
+    allowedNavigation: ["approvals", "help_requests"],
+    capabilities: ["admin"],
+    displayName: "Sophia",
+    email: "sophia@example.test",
+    id: ADMIN_ID,
+    role: "admin",
   };
 }
 

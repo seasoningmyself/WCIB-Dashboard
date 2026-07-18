@@ -26,6 +26,7 @@ import {
   ApprovalItemStateError,
   ApprovalSnapshotError,
   approveCorrectedFlaggedHelp,
+  approveCorrectedPendingSubmission,
   approvePendingSubmission,
   pushThroughFlaggedHelp,
 } from "./approve.js";
@@ -86,6 +87,57 @@ test("approval actions preserve immutable sources and roll back atomically", asy
           .from(policies)
           .where(eq(policies.sourceDraftId, queued.draftId));
         assert.equal(approvedFromQueue.length, 1);
+
+        const correctedQueue = await createQueuedSubmission(
+          database,
+          employeeContext,
+          references,
+          "EDIT-FIX-ORIGINAL",
+          new Date("2026-07-11T02:10:00.000Z"),
+        );
+        const [beforeCorrection] = await database
+          .select()
+          .from(approvalQueueEntries)
+          .where(eq(approvalQueueEntries.id, correctedQueue.queueId));
+        assert.ok(beforeCorrection);
+        const originalSubmittedPayload = structuredClone(
+          beforeCorrection.submittedPayload,
+        );
+        const correctedPolicy = await approveCorrectedPendingSubmission(
+          database,
+          adminContext,
+          correctedQueue.queueId,
+          {
+            accountAssignment: "none",
+            insuredName: "EDIT-FIX-CORRECTED",
+            producerUserId: null,
+          },
+          new Date("2026-07-11T03:00:00.000Z"),
+        );
+        assert.equal(correctedPolicy.insuredName, "EDIT-FIX-CORRECTED");
+        assert.equal(correctedPolicy.accountAssignment, "none");
+        assert.equal(correctedPolicy.producerUserId, null);
+        assert.equal(
+          correctedPolicy.submittedByUserId,
+          references.submittedByUserId,
+        );
+        const [afterCorrection] = await database
+          .select()
+          .from(approvalQueueEntries)
+          .where(eq(approvalQueueEntries.id, correctedQueue.queueId));
+        const [correctedSourceDraft] = await database
+          .select()
+          .from(drafts)
+          .where(eq(drafts.id, correctedQueue.draftId));
+        assert.deepEqual(
+          afterCorrection?.submittedPayload,
+          originalSubmittedPayload,
+        );
+        assert.equal(afterCorrection?.status, "approved");
+        assert.equal(correctedSourceDraft?.insuredName, "Queued Insured");
+        assert.equal(correctedSourceDraft?.accountAssignment, "book");
+        assert.equal(correctedSourceDraft?.status, "approved");
+        assert.equal(correctedSourceDraft?.linkedPolicyId, correctedPolicy.id);
 
         const malformedDraft = await createOwnDraft(
           database,
@@ -253,7 +305,7 @@ test("approval actions preserve immutable sources and roll back atomically", asy
         assert.equal(
           lifecycleAudits.filter(({ action }) => action === "policy_approved")
             .length,
-          2,
+          3,
         );
         assert.equal(
           lifecycleAudits.filter(

@@ -191,6 +191,26 @@ test("server-authorized approvals route mounts the real admin queue", () => {
   assert.doesNotMatch(markup, /WCIB workspace/);
 });
 
+test("server-authorized Help Requests route mounts the dedicated admin screen", () => {
+  const markup = renderToStaticMarkup(
+    withApi(
+      <AppShellView
+        currentPath="/help-requests"
+        onLogout={() => {}}
+        user={{
+          ...baseUser,
+          allowedNavigation: ["help_requests"],
+          capabilities: ["admin"],
+          role: "admin",
+        }}
+      />,
+    ),
+  );
+
+  assert.match(markup, /Loading Help Requests/);
+  assert.doesNotMatch(markup, /WCIB workspace/);
+});
+
 test("server-authorized policy ledger route mounts the real admin ledger", () => {
   const markup = renderToStaticMarkup(
     withApi(

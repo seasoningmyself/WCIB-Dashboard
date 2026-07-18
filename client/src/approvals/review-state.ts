@@ -88,6 +88,78 @@ export interface ApprovalValueLookups {
   policyTypes?: ReadonlyMap<string, string>;
 }
 
+export interface SequentialApprovalResult {
+  error?: unknown;
+  id: string;
+  status: "approved" | "failed";
+}
+
+type Submission = ApprovalWorkListResponse["submissions"][number];
+
+export interface ApprovalSubmissionPriorityGroup {
+  items: Submission[];
+  key: "needs_verification" | "standard";
+  title: string;
+}
+
+export function groupApprovalSubmissions(
+  submissions: readonly Submission[],
+): {
+  groups: ApprovalSubmissionPriorityGroup[];
+  showHeadings: boolean;
+} {
+  const needsVerification = submissions.filter(isNonHouseSubmission);
+  const standard = submissions.filter((item) => !isNonHouseSubmission(item));
+  return {
+    groups: [
+      {
+        items: needsVerification,
+        key: "needs_verification",
+        title: "Needs verification - non-house assignments",
+      },
+      {
+        items: standard,
+        key: "standard",
+        title: "House account - standard",
+      },
+    ].filter(({ items }) => items.length > 0) as ApprovalSubmissionPriorityGroup[],
+    showHeadings: needsVerification.length > 0 && standard.length > 0,
+  };
+}
+
+export function approvalReviewBadge(item: Submission): string | null {
+  const source = item.entry.submittedPayload;
+  if (source.accountAssignment === "house") {
+    return "1st-year - verify";
+  }
+  return source.accountAssignment === "book" &&
+    typeof source.producerUserId === "string" &&
+    source.producerUserId === item.entry.submittedByUserId
+    ? "Producer self-assigned - verify"
+    : null;
+}
+
+export async function approveSequentially(
+  ids: readonly string[],
+  approve: (id: string) => Promise<unknown>,
+): Promise<SequentialApprovalResult[]> {
+  const results: SequentialApprovalResult[] = [];
+  for (const id of ids) {
+    try {
+      await approve(id);
+      results.push({ id, status: "approved" });
+    } catch (error) {
+      results.push({ error, id, status: "failed" });
+    }
+  }
+  return results;
+}
+
+function isNonHouseSubmission(item: Submission): boolean {
+  const assignment = item.entry.submittedPayload.accountAssignment;
+  return assignment === "book" || assignment === "house";
+}
+
 export function isApprovalAdmin(user: CurrentUser): boolean {
   return user.role === "admin" && user.capabilities.includes("admin");
 }

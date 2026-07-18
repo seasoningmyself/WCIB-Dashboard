@@ -85,6 +85,10 @@ export interface ApprovalApi {
     requestId: string,
     input: PolicyLedgerCorrectionRequest,
   ): Promise<z.output<typeof policyChangeRequestCorrectionResponseSchema>>;
+  editFixSubmission(
+    queueEntryId: string,
+    input: UpdateDraftRequest,
+  ): Promise<{ policyId: string }>;
   listDeleted(): Promise<DeletedApprovalWorkListResponse>;
   list(query?: Partial<ListApprovalWorkQuery>): Promise<ApprovalWorkListResponse>;
   openFixHelp(
@@ -143,6 +147,14 @@ export function createApprovalApi(client: ApiClient): ApprovalApi {
         200,
         "PATCH",
       ),
+    async editFixSubmission(queueEntryId, input) {
+      return mutate(
+        client,
+        `/approvals/${encodeURIComponent(queueEntryId)}/open-fix`,
+        parseRequest(updateDraftRequestSchema, input),
+        policyIdentityResponseSchema,
+      );
+    },
     async list(query = {}) {
       const normalized = parseRequest(listApprovalWorkQuerySchema, query);
       const params = new URLSearchParams();

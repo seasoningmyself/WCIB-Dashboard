@@ -64,6 +64,7 @@ import {
 import { registerApprovalActionRoutes } from "./http/approval-actions.js";
 import {
   approveCorrectedFlaggedHelp,
+  approveCorrectedPendingSubmission,
   approvePendingSubmission,
   pushThroughFlaggedHelp,
 } from "./approval-queue/approve.js";
@@ -307,6 +308,13 @@ const app = createApp({
         approvePendingSubmission(database, context, queueEntryId),
       approveFixedHelp: (context, draftId, patch) =>
         approveCorrectedFlaggedHelp(database, context, draftId, patch),
+      approveFixedSubmission: (context, queueEntryId, patch) =>
+        approveCorrectedPendingSubmission(
+          database,
+          context,
+          queueEntryId,
+          patch,
+        ),
       approveWithOverride: (context, queueEntryId, input) =>
         approvePendingSubmissionWithOverride(
           database,

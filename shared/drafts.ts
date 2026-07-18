@@ -84,6 +84,22 @@ export const updateDraftRequestSchema = z
     message: "At least one editable field is required",
   });
 
+export function draftWritableInputFromSource(
+  source: unknown,
+): CreateDraftRequest {
+  if (source === null || typeof source !== "object" || Array.isArray(source)) {
+    return createDraftRequestSchema.parse(source);
+  }
+  const record = source as Record<string, unknown>;
+  return createDraftRequestSchema.parse(
+    Object.fromEntries(
+      Object.keys(draftWritableFields)
+        .filter((field) => field in record)
+        .map((field) => [field, record[field]]),
+    ),
+  );
+}
+
 export const draftIdParamsSchema = z
   .object({ draftId: z.string().uuid() })
   .strict();
