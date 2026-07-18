@@ -17,6 +17,7 @@ type HelpRequest = ApprovalWorkListResponse["helpRequests"][number];
 
 export type ApprovalDialog =
   | { item: Submission; kind: "approve" }
+  | { items: Submission[]; kind: "bulk_approve" }
   | { item: Submission; kind: "override" }
   | { item: Submission; kind: "send_back_submission" }
   | { item: HelpRequest; kind: "open_fix" }
@@ -26,6 +27,7 @@ export type ApprovalDialog =
 export function ApprovalDialogs({
   dialog,
   onApprove,
+  onBulkApprove,
   onCancel,
   onOpenFix,
   onOverride,
@@ -35,6 +37,7 @@ export function ApprovalDialogs({
 }: {
   dialog: ApprovalDialog | null;
   onApprove(queueEntryId: string): void;
+  onBulkApprove(queueEntryIds: string[]): void;
   onCancel(): void;
   onOpenFix(draftId: string, input: UpdateDraftRequest): void;
   onOverride(queueEntryId: string, input: ApproveWithOverrideRequest): void;
@@ -45,6 +48,18 @@ export function ApprovalDialogs({
   useDialogLifecycle(dialog !== null, pending, onCancel);
   if (dialog === null) {
     return null;
+  }
+  if (dialog.kind === "bulk_approve") {
+    return (
+      <ConfirmationDialog
+        confirmLabel={`Approve selected (${dialog.items.length})`}
+        description="Each submission will use its current assignment and the same guarded approval path as an individual approval. Items requiring an override must be reviewed separately."
+        onCancel={onCancel}
+        onConfirm={() => onBulkApprove(dialog.items.map(({ entry }) => entry.id))}
+        pending={pending}
+        title={`Approve ${dialog.items.length} selected submission${dialog.items.length === 1 ? "" : "s"}?`}
+      />
+    );
   }
   if (dialog.kind === "approve") {
     return (

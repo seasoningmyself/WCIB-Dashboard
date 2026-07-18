@@ -38,6 +38,7 @@ import {
 } from "./PolicyChangeRequestDialogs.js";
 import {
   APPROVAL_REVIEW_GROUPS,
+  approveSequentially,
   isApprovalAdmin,
   removeResolvedApprovalWork,
   reviewSourceValue,
@@ -50,6 +51,12 @@ type Submission = ApprovalWorkListResponse["submissions"][number];
 type HelpRequest = ApprovalWorkListResponse["helpRequests"][number];
 type ChangeRequest = ApprovalWorkListResponse["changeRequests"][number];
 type QueueDialog = ApprovalDialog | PolicyChangeRequestDialog;
+
+interface BulkApprovalResult {
+  id: string;
+  name: string;
+  status: "approved" | "failed";
+}
 
 export type ApprovalQueueState =
   | { status: "denied" }
@@ -85,6 +92,13 @@ function AdminApprovalQueue() {
   const [showDeleted, setShowDeleted] = useState(false);
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [bulkResults, setBulkResults] = useState<BulkApprovalResult[]>([]);
+  const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [expandedSubmissionIds, setExpandedSubmissionIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const pendingRef = useRef(false);
   const requestVersion = useRef(0);
 
@@ -99,6 +113,13 @@ function AdminApprovalQueue() {
       ]);
       if (requestVersion.current === version) {
         setState({ deleted, status: "ready", work });
+        const liveIds = new Set(work.submissions.map(({ entry }) => entry.id));
+        setSelectedSubmissionIds((current) =>
+          new Set([...current].filter((id) => liveIds.has(id))),
+        );
+        setExpandedSubmissionIds((current) =>
+          new Set([...current].filter((id) => liveIds.has(id))),
+        );
       }
     } catch (error) {
       if (requestVersion.current !== version) {
@@ -127,6 +148,9 @@ function AdminApprovalQueue() {
     setDeletionDialog(null);
     setShowDeleted(false);
     setNotice(null);
+    setBulkResults([]);
+    setSelectedSubmissionIds(new Set());
+    setExpandedSubmissionIds(new Set());
     pendingRef.current = false;
     setPending(false);
   }, []);
@@ -143,6 +167,7 @@ function AdminApprovalQueue() {
       pendingRef.current = true;
       setPending(true);
       setNotice(null);
+      setBulkResults([]);
       try {
         await action();
         setState((current) =>
@@ -273,20 +298,125 @@ function AdminApprovalQueue() {
     [ledgerApi],
   );
 
+  const bulkApprove = useCallback(
+    async (queueEntryIds: string[]) => {
+      if (pendingRef.current || state.status !== "ready") return;
+      const selected = state.work.submissions.filter(({ entry }) =>
+        queueEntryIds.includes(entry.id),
+      );
+      if (selected.length === 0) return;
+      pendingRef.current = true;
+      setPending(true);
+      setNotice(null);
+      try {
+        const names = new Map(
+          selected.map(({ entry }) => [
+            entry.id,
+            String(entry.submittedPayload.insuredName ?? "Unnamed insured"),
+          ]),
+        );
+        const results = await approveSequentially(
+          selected.map(({ entry }) => entry.id),
+          (id) => api.approve(id),
+        );
+        const approvedIds = new Set(
+          results.filter(({ status }) => status === "approved").map(({ id }) => id),
+        );
+        const failedIds = new Set(
+          results.filter(({ status }) => status === "failed").map(({ id }) => id),
+        );
+        setBulkResults(
+          results.map(({ id, status }) => ({
+            id,
+            name: names.get(id) ?? "Unknown submission",
+            status,
+          })),
+        );
+        setSelectedSubmissionIds(failedIds);
+        setExpandedSubmissionIds((current) =>
+          new Set([...current].filter((id) => !approvedIds.has(id))),
+        );
+        setState((current) =>
+          current.status === "ready"
+            ? {
+                ...current,
+                work: {
+                  ...current.work,
+                  submissions: current.work.submissions.filter(
+                    ({ entry }) => !approvedIds.has(entry.id),
+                  ),
+                },
+              }
+            : current,
+        );
+        setDialog(null);
+        const approvedCount = approvedIds.size;
+        const failedCount = failedIds.size;
+        setNotice(
+          failedCount === 0
+            ? `${approvedCount} submission${approvedCount === 1 ? "" : "s"} approved.`
+            : `${approvedCount} approved; ${failedCount} not approved. Review the item results below.`,
+        );
+        const denied = results.some(
+          ({ error }) =>
+            error instanceof ApprovalApiError && error.kind === "denied",
+        );
+        if (denied) {
+          requestVersion.current += 1;
+          setState({ status: "denied" });
+          setBulkResults([]);
+          setNotice(null);
+        } else {
+          await load();
+        }
+      } finally {
+        pendingRef.current = false;
+        setPending(false);
+      }
+    },
+    [api, load, state],
+  );
+
   const approvalDialog = isApprovalDialog(dialog) ? dialog : null;
   const policyChangeDialog = isPolicyChangeRequestDialog(dialog) ? dialog : null;
 
   return (
     <>
       <ApprovalQueueView
+        bulkResults={bulkResults}
+        expandedSubmissionIds={expandedSubmissionIds}
         filter={filter}
         lookups={lookups}
         notice={notice}
         onFilter={(next) => {
           setDialog(null);
           setNotice(null);
+          setBulkResults([]);
+          setSelectedSubmissionIds(new Set());
+          setExpandedSubmissionIds(new Set());
           setFilter(next);
         }}
+        onApproveSelected={(items) => setDialog({ items, kind: "bulk_approve" })}
+        onExpandSubmission={(id, expanded) =>
+          setExpandedSubmissionIds((current) => {
+            const next = new Set(current);
+            expanded ? next.add(id) : next.delete(id);
+            return next;
+          })
+        }
+        onExpandSubmissions={(expanded) =>
+          setExpandedSubmissionIds(
+            expanded && state.status === "ready"
+              ? new Set(state.work.submissions.map(({ entry }) => entry.id))
+              : new Set(),
+          )
+        }
+        onInlineApprove={(item) =>
+          void resolve(
+            { id: item.entry.id, kind: "submission" },
+            () => api.approve(item.entry.id),
+          )
+        }
         onOpenChangeFix={(item) => void openPolicyChangeRequest(item)}
         onDeleteHelp={(item) =>
           setDeletionDialog({ item, kind: "delete_help" })
@@ -297,7 +427,22 @@ function AdminApprovalQueue() {
         onOpenDeleted={() => setShowDeleted(true)}
         onOpen={setDialog}
         onRetry={() => void load()}
+        onSelectSubmission={(id, selected) =>
+          setSelectedSubmissionIds((current) => {
+            const next = new Set(current);
+            selected ? next.add(id) : next.delete(id);
+            return next;
+          })
+        }
+        onSelectSubmissions={(selected) =>
+          setSelectedSubmissionIds(
+            selected && state.status === "ready"
+              ? new Set(state.work.submissions.map(({ entry }) => entry.id))
+              : new Set(),
+          )
+        }
         pending={pending}
+        selectedSubmissionIds={selectedSubmissionIds}
         state={state}
       />
       <DeletedApprovalWorkPanel
@@ -360,6 +505,7 @@ function AdminApprovalQueue() {
             () => api.approve(queueEntryId),
           )
         }
+        onBulkApprove={(queueEntryIds) => void bulkApprove(queueEntryIds)}
         onCancel={cancelDialog}
         onOpenFix={(draftId, input: UpdateDraftRequest) =>
           void resolve(
@@ -442,30 +588,48 @@ function AdminApprovalQueue() {
 }
 
 export function ApprovalQueueView({
+  bulkResults,
+  expandedSubmissionIds,
   filter,
   lookups,
   notice,
+  onApproveSelected,
   onDeleteHelp,
   onDeleteSubmission,
+  onExpandSubmission,
+  onExpandSubmissions,
   onFilter,
+  onInlineApprove,
   onOpenChangeFix,
   onOpenDeleted,
   onOpen,
   onRetry,
+  onSelectSubmission,
+  onSelectSubmissions,
   pending,
+  selectedSubmissionIds,
   state,
 }: {
+  bulkResults: readonly BulkApprovalResult[];
+  expandedSubmissionIds: ReadonlySet<string>;
   filter: ApprovalFilter;
   lookups: ApprovalValueLookups;
   notice: string | null;
+  onApproveSelected(items: Submission[]): void;
   onDeleteHelp(item: HelpRequest): void;
   onDeleteSubmission(item: Submission): void;
+  onExpandSubmission(id: string, expanded: boolean): void;
+  onExpandSubmissions(expanded: boolean): void;
   onFilter(filter: ApprovalFilter): void;
+  onInlineApprove(item: Submission): void;
   onOpen(dialog: QueueDialog): void;
   onOpenChangeFix(item: ChangeRequest): void;
   onOpenDeleted(): void;
   onRetry(): void;
+  onSelectSubmission(id: string, selected: boolean): void;
+  onSelectSubmissions(selected: boolean): void;
   pending: boolean;
+  selectedSubmissionIds: ReadonlySet<string>;
   state: ApprovalQueueState;
 }) {
   if (state.status === "loading") {
@@ -499,6 +663,17 @@ export function ApprovalQueueView({
     state.work.submissions.length +
     state.work.helpRequests.length +
     state.work.changeRequests.length;
+  const selectedSubmissions = state.work.submissions.filter(({ entry }) =>
+    selectedSubmissionIds.has(entry.id),
+  );
+  const allSubmissionsSelected =
+    state.work.submissions.length > 0 &&
+    selectedSubmissions.length === state.work.submissions.length;
+  const allSubmissionsExpanded =
+    state.work.submissions.length > 0 &&
+    state.work.submissions.every(({ entry }) =>
+      expandedSubmissionIds.has(entry.id),
+    );
   return (
     <section className="approval-page" aria-labelledby="approval-page-title">
       <header className="approval-page-header">
@@ -538,6 +713,17 @@ export function ApprovalQueueView({
         <div className="approval-notice" role="status">{notice}</div>
       )}
 
+      {bulkResults.length === 0 ? null : (
+        <div className="approval-bulk-results" aria-label="Bulk approval results">
+          {bulkResults.map((result) => (
+            <div className={`is-${result.status}`} key={result.id}>
+              <strong>{result.name}</strong>
+              <span>{result.status === "approved" ? "Approved" : "Not approved"}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {total === 0 ? (
         <div className="approval-empty">
           <h2>Queue clear</h2>
@@ -551,14 +737,51 @@ export function ApprovalQueueView({
                 <h2 id="pending-approvals-title">Pending submissions</h2>
                 <span>{state.work.submissions.length}</span>
               </div>
+              <div className="approval-bulk-toolbar" aria-label="Pending submission controls">
+                <label>
+                  <input
+                    checked={allSubmissionsSelected}
+                    disabled={pending}
+                    onChange={(event) =>
+                      onSelectSubmissions(event.currentTarget.checked)
+                    }
+                    type="checkbox"
+                  />
+                  <span>Select all</span>
+                </label>
+                <button
+                  className="is-primary"
+                  disabled={pending || selectedSubmissions.length === 0}
+                  onClick={() => onApproveSelected(selectedSubmissions)}
+                  type="button"
+                >
+                  Approve selected ({selectedSubmissions.length})
+                </button>
+                <button
+                  disabled={pending}
+                  onClick={() => onExpandSubmissions(!allSubmissionsExpanded)}
+                  type="button"
+                >
+                  {allSubmissionsExpanded ? "Collapse all" : "Expand all"}
+                </button>
+              </div>
               {state.work.submissions.map((item) => (
                 <SubmissionReview
+                  expanded={expandedSubmissionIds.has(item.entry.id)}
                   item={item}
                   key={item.entry.id}
                   lookups={lookups}
                   onDelete={onDeleteSubmission}
+                  onExpanded={(expanded) =>
+                    onExpandSubmission(item.entry.id, expanded)
+                  }
+                  onInlineApprove={onInlineApprove}
                   onOpen={onOpen}
+                  onSelected={(selected) =>
+                    onSelectSubmission(item.entry.id, selected)
+                  }
                   pending={pending}
+                  selected={selectedSubmissionIds.has(item.entry.id)}
                 />
               ))}
             </section>
@@ -607,22 +830,48 @@ export function ApprovalQueueView({
 }
 
 function SubmissionReview({
+  expanded,
   item,
   lookups,
   onDelete,
+  onExpanded,
+  onInlineApprove,
   onOpen,
+  onSelected,
   pending,
+  selected,
 }: {
+  expanded: boolean;
   item: Submission;
   lookups: ApprovalValueLookups;
   onDelete(item: Submission): void;
+  onExpanded(expanded: boolean): void;
+  onInlineApprove(item: Submission): void;
   onOpen(dialog: ApprovalDialog): void;
+  onSelected(selected: boolean): void;
   pending: boolean;
+  selected: boolean;
 }) {
   const source = item.entry.submittedPayload;
   return (
-    <details className="approval-review-row">
+    <details
+      className="approval-review-row is-submission"
+      onToggle={(event) => onExpanded(event.currentTarget.open)}
+      open={expanded}
+    >
       <summary>
+        <span
+          className="approval-row-select"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <input
+            aria-label={`Select ${String(source.insuredName ?? "unnamed insured")}`}
+            checked={selected}
+            disabled={pending}
+            onChange={(event) => onSelected(event.currentTarget.checked)}
+            type="checkbox"
+          />
+        </span>
         <span className="approval-status is-pending">Pending</span>
         <span className="approval-review-primary">
           <strong>{String(source.insuredName ?? "Unnamed insured")}</strong>
@@ -636,6 +885,18 @@ function SubmissionReview({
           {reviewSourceValue(source, { key: "netDue", label: "Net due", money: true })}
         </span>
         <span className="approval-review-time">{formatTimestamp(item.entry.submittedAt)}</span>
+        <button
+          className="approval-inline-approve"
+          disabled={pending}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onInlineApprove(item);
+          }}
+          type="button"
+        >
+          Approve
+        </button>
       </summary>
       <div className="approval-review-body">
         <ReviewFields lookups={lookups} source={source} />
@@ -809,6 +1070,9 @@ function toNameMap(items: readonly { id: string; name: string }[]) {
 
 function dialogKey(dialog: ApprovalDialog | null): string {
   if (dialog === null) return "closed";
+  if (dialog.kind === "bulk_approve") {
+    return `bulk-approve:${dialog.items.map(({ entry }) => entry.id).join(",")}`;
+  }
   return `${dialog.kind}:${"entry" in dialog.item ? dialog.item.entry.id : dialog.item.draft.id}`;
 }
 

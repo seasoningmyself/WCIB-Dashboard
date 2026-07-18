@@ -3,6 +3,7 @@ import { test } from "node:test";
 import type { CurrentUser } from "../../../shared/current-user.js";
 import {
   APPROVAL_REVIEW_GROUPS,
+  approveSequentially,
   buildApprovalOverrideInput,
   isApprovalAdmin,
   removeResolvedApprovalWork,
@@ -134,6 +135,28 @@ test("review formatting is deterministic and role display fails closed", () => {
   assert.equal(isApprovalAdmin(user("admin", ["admin"])), true);
   assert.equal(isApprovalAdmin(user("producer", [])), false);
   assert.equal(isApprovalAdmin(user("admin", [])), false);
+});
+
+test("bulk approval runs sequentially and preserves mixed per-item results", async () => {
+  const calls: string[] = [];
+  const results = await approveSequentially(
+    ["first", "guarded", "last"],
+    async (id) => {
+      calls.push(id);
+      if (id === "guarded") throw new Error("single-approval guard rejected item");
+    },
+  );
+
+  assert.deepEqual(calls, ["first", "guarded", "last"]);
+  assert.deepEqual(
+    results.map(({ id, status }) => ({ id, status })),
+    [
+      { id: "first", status: "approved" },
+      { id: "guarded", status: "failed" },
+      { id: "last", status: "approved" },
+    ],
+  );
+  assert.ok(results[1]?.error instanceof Error);
 });
 
 function user(

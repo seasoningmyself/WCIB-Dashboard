@@ -88,6 +88,28 @@ export interface ApprovalValueLookups {
   policyTypes?: ReadonlyMap<string, string>;
 }
 
+export interface SequentialApprovalResult {
+  error?: unknown;
+  id: string;
+  status: "approved" | "failed";
+}
+
+export async function approveSequentially(
+  ids: readonly string[],
+  approve: (id: string) => Promise<unknown>,
+): Promise<SequentialApprovalResult[]> {
+  const results: SequentialApprovalResult[] = [];
+  for (const id of ids) {
+    try {
+      await approve(id);
+      results.push({ id, status: "approved" });
+    } catch (error) {
+      results.push({ error, id, status: "failed" });
+    }
+  }
+  return results;
+}
+
 export function isApprovalAdmin(user: CurrentUser): boolean {
   return user.role === "admin" && user.capabilities.includes("admin");
 }

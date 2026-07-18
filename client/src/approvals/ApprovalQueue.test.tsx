@@ -50,6 +50,9 @@ test("admin queue renders every financial review group and live resolution actio
     assert.match(markup, new RegExp(label));
   }
   for (const action of [
+    "Select all",
+    "Approve selected \\(0\\)",
+    "Expand all",
     "Approve",
     "Approve with override",
     "Open &amp; fix",
@@ -128,6 +131,7 @@ test("dialogs expose bounded confirmation, reason, override, and full fix forms"
   const help = work.helpRequests[0]!;
   const common = {
     onApprove() {},
+    onBulkApprove() {},
     onCancel() {},
     onOpenFix() {},
     onOverride() {},
@@ -138,6 +142,12 @@ test("dialogs expose bounded confirmation, reason, override, and full fix forms"
 
   const approve = renderToStaticMarkup(
     <ApprovalDialogs dialog={{ item: submission, kind: "approve" }} {...common} />,
+  );
+  const bulkApprove = renderToStaticMarkup(
+    <ApprovalDialogs
+      dialog={{ items: [submission], kind: "bulk_approve" }}
+      {...common}
+    />,
   );
   const override = renderToStaticMarkup(
     <ApprovalDialogs dialog={{ item: submission, kind: "override" }} {...common} />,
@@ -155,6 +165,8 @@ test("dialogs expose bounded confirmation, reason, override, and full fix forms"
   );
 
   assert.match(approve, /Approve to ledger/);
+  assert.match(bulkApprove, /same guarded approval path/);
+  assert.match(bulkApprove, /Approve selected \(1\)/);
   assert.match(override, /Commission amount|Broker fee|Net due to MGA/);
   assert.match(override, /Reason/);
   assert.match(sendBack, /maxLength="500"/);
@@ -221,17 +233,26 @@ test("approved-policy change dialogs expose only the three safe admin resolution
 function renderView(state: ApprovalQueueState): string {
   return renderToStaticMarkup(
     <ApprovalQueueView
+      bulkResults={[]}
+      expandedSubmissionIds={new Set()}
       filter="all"
       lookups={{}}
       notice={null}
+      onApproveSelected={() => {}}
       onDeleteHelp={() => {}}
       onDeleteSubmission={() => {}}
+      onExpandSubmission={() => {}}
+      onExpandSubmissions={() => {}}
       onFilter={() => {}}
+      onInlineApprove={() => {}}
       onOpen={() => {}}
       onOpenChangeFix={() => {}}
       onOpenDeleted={() => {}}
       onRetry={() => {}}
+      onSelectSubmission={() => {}}
+      onSelectSubmissions={() => {}}
       pending={false}
+      selectedSubmissionIds={new Set()}
       state={state}
     />,
   );

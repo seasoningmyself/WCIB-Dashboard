@@ -143,6 +143,7 @@ function AdminHelpRequests() {
         dialog={dialog}
         key={dialog === null ? "closed" : `${dialog.kind}:${dialog.item.draft.id}`}
         onApprove={() => {}}
+        onBulkApprove={() => {}}
         onCancel={() => {
           if (!pending) setDialog(null);
         }}
