@@ -142,14 +142,27 @@ test("picker keyboard decisions navigate, commit, tab forward, and dismiss", () 
   );
 });
 
-test("fixed carrier conveniences resolve only an existing active MGA", () => {
+test("carrier conveniences use v15 substring matching and identify missing targets", () => {
   const mgas = [
     { id: "00000000-0000-4000-8000-000000000010", name: "CNA" },
     { id: "00000000-0000-4000-8000-000000000011", name: "Travelers" },
   ];
-  assert.deepEqual(resolveCarrierConvenienceMga("Western Surety", mgas), mgas[0]);
-  assert.deepEqual(resolveCarrierConvenienceMga("TRAVELERS", mgas), mgas[1]);
-  assert.equal(resolveCarrierConvenienceMga("Progressive", mgas), null);
+  assert.deepEqual(
+    resolveCarrierConvenienceMga("Western Surety Company", mgas),
+    { item: mgas[0], name: "CNA" },
+  );
+  assert.deepEqual(resolveCarrierConvenienceMga("The TRAVELERS Indemnity", mgas), {
+    item: mgas[1],
+    name: "Travelers",
+  });
+  assert.deepEqual(resolveCarrierConvenienceMga("Progressive Casualty", mgas), {
+    item: null,
+    name: "Progressive",
+  });
+  assert.deepEqual(resolveCarrierConvenienceMga("GEICO Marine", mgas), {
+    item: null,
+    name: "GEICO",
+  });
   assert.equal(resolveCarrierConvenienceMga("Unmapped Carrier", mgas), null);
 });
 
