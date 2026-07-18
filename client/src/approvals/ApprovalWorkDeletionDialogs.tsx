@@ -78,7 +78,7 @@ export function ApprovalWorkDeletionDialogView({
         </header>
         <p className="approval-dialog-copy">
           {restoring
-            ? "Restore this record to its prior pending or help state."
+            ? "Restore this record to its prior active state."
             : "Move this non-approved item and its draft to recoverable deleted records."}
         </p>
         {restoring ? null : (
@@ -169,7 +169,11 @@ export function DeletedApprovalWorkPanel({
                 <div>
                   <strong>{itemName(item)}</strong>
                   <span>
-                    {item.kind === "submission" ? "Submission" : "Help request"}
+                    {item.kind === "submission"
+                      ? "Submission"
+                      : item.kind === "help"
+                        ? "Help request"
+                        : "Owner draft"}
                     {item.submitterDisplayName === null
                       ? ""
                       : ` · ${item.submitterDisplayName}`}

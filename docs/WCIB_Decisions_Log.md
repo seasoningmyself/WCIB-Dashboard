@@ -5,6 +5,20 @@
 
 ---
 
+## July 17, 2026 — Owner draft discard is recoverable
+
+**Recorded production adaptation:** Final v15 permanently removes an owner's
+active draft after a destructive confirmation. Production preserves the
+owner-only, own-draft-only action but records an audited soft-delete instead.
+Discarded drafts leave My Drafts, My Items, and the unfinished-draft cap while
+their content and ownership remain stored in the active business generation.
+An admin can restore them from the existing Deleted approval work panel. The
+trusted discard function rejects non-owners, submitted or linked work, stale
+versions, inactive actors, and drafts outside the active generation. This is a
+deliberate recoverability improvement over v15's irreversible hard discard.
+
+---
+
 ## July 17, 2026 — Server and browser share one proposal-tolerance rule
 
 **Recorded correctness fix:** The browser already applied the final-v15

@@ -7,7 +7,11 @@ import type { DraftResponse } from "../../../shared/drafts.js";
 import { ApiClientProvider } from "../api/context.js";
 import { createSessionBoundary } from "../auth/session-boundary.js";
 import { VocabularyProvider } from "../vocabulary/context.js";
-import { MyDraftsView, type MyDraftsState } from "./MyDrafts.js";
+import {
+  loadMyDraftsState,
+  MyDraftsView,
+  type MyDraftsState,
+} from "./MyDrafts.js";
 
 const DRAFT_ID = "00000000-0000-4000-8000-000000000301";
 const OTHER_ID = "00000000-0000-4000-8000-000000000302";
@@ -215,6 +219,29 @@ test("another-owner URL guess and list failures disclose no draft data", () => {
   assert.match(loading, /Loading drafts/);
   assert.match(error, /Drafts unavailable/);
   assert.match(empty, /No turn-ins yet/);
+});
+
+test("admin draft loading skips the staff-only change-request endpoint", async () => {
+  const calls: string[] = [];
+  const api = {
+    async list() {
+      calls.push("drafts");
+      return { drafts: [draft()] };
+    },
+    async listChangeRequests() {
+      calls.push("change-requests");
+      return { requests: [changeRequest()] };
+    },
+  };
+
+  const adminState = await loadMyDraftsState(api, "admin");
+  assert.deepEqual(calls, ["drafts"]);
+  assert.deepEqual(adminState.requests, []);
+
+  calls.length = 0;
+  const producerState = await loadMyDraftsState(api, "producer");
+  assert.deepEqual(calls, ["drafts", "change-requests"]);
+  assert.equal(producerState.requests.length, 1);
 });
 
 function renderView({

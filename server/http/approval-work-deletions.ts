@@ -8,6 +8,7 @@ import {
   approvalWorkSoftDeleteResponseSchema,
   deletedApprovalWorkListResponseSchema,
   type ApprovalWorkDeletionKind,
+  type ApprovalWorkSoftDeleteKind,
 } from "../../shared/approval-work-deletions.js";
 import { APPROVAL_ADMIN_ACCESS } from "../approval-queue/access.js";
 import {
@@ -40,6 +41,8 @@ export const APPROVAL_SUBMISSION_RESTORE_PATH =
   "/api/deleted-approval-work/submissions/:id/restore";
 export const APPROVAL_HELP_RESTORE_PATH =
   "/api/deleted-approval-work/help/:id/restore";
+export const APPROVAL_DRAFT_RESTORE_PATH =
+  "/api/deleted-approval-work/drafts/:id/restore";
 
 export interface ApprovalWorkDeletionHandlerDependencies {
   list(
@@ -54,7 +57,7 @@ export interface ApprovalWorkDeletionHandlerDependencies {
   ): Promise<ApprovalWorkDeletionResult>;
   softDelete(
     context: AuthorizedRequestContext,
-    kind: ApprovalWorkDeletionKind,
+    kind: ApprovalWorkSoftDeleteKind,
     targetId: string,
     input: unknown,
   ): Promise<ApprovalWorkDeletionResult>;
@@ -94,7 +97,7 @@ export function createDeletedApprovalWorkListHandler(
 
 export function createApprovalWorkSoftDeleteHandler(
   dependencies: ApprovalWorkDeletionHandlerDependencies,
-  kind: ApprovalWorkDeletionKind,
+  kind: ApprovalWorkSoftDeleteKind,
 ): RequestHandler {
   return asyncRoute(async (req, res) => {
     const context = getAuthorizedRequestContext(res);
@@ -179,6 +182,11 @@ export function registerApprovalWorkDeletionRoutes(
     APPROVAL_HELP_RESTORE_PATH,
     access,
     createApprovalWorkRestoreHandler(options, "help"),
+  );
+  routes.post(
+    APPROVAL_DRAFT_RESTORE_PATH,
+    access,
+    createApprovalWorkRestoreHandler(options, "draft"),
   );
 }
 

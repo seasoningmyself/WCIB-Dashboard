@@ -16,6 +16,7 @@ import {
   approvalWorkSoftDeleteResponseSchema,
   deletedApprovalWorkListResponseSchema,
   type ApprovalWorkDeletionKind,
+  type ApprovalWorkSoftDeleteKind,
   type ApprovalWorkRestoreRequest,
   type ApprovalWorkRestoreResponse,
   type ApprovalWorkSoftDeleteRequest,
@@ -114,7 +115,7 @@ export interface ApprovalApi {
     input: ApprovalSendBackRequest,
   ): Promise<z.output<typeof policyChangeRequestResolutionResponseSchema>>;
   softDelete(
-    kind: ApprovalWorkDeletionKind,
+    kind: ApprovalWorkSoftDeleteKind,
     targetId: string,
     input: ApprovalWorkSoftDeleteRequest,
   ): Promise<ApprovalWorkSoftDeleteResponse>;
@@ -197,9 +198,7 @@ export function createApprovalApi(client: ApiClient): ApprovalApi {
     restoreDeleted: (kind, targetId, input) =>
       mutate(
         client,
-        `/deleted-approval-work/${
-          kind === "submission" ? "submissions" : "help"
-        }/${encodeURIComponent(targetId)}/restore`,
+        `/deleted-approval-work/${restoreKindPath(kind)}/${encodeURIComponent(targetId)}/restore`,
         parseRequest(approvalWorkRestoreRequestSchema, input),
         approvalWorkRestoreResponseSchema,
         200,
@@ -241,6 +240,12 @@ export function createApprovalApi(client: ApiClient): ApprovalApi {
         200,
       ),
   };
+}
+
+function restoreKindPath(kind: ApprovalWorkDeletionKind): string {
+  if (kind === "submission") return "submissions";
+  if (kind === "help") return "help";
+  return "drafts";
 }
 
 async function read<Schema extends z.ZodTypeAny>(

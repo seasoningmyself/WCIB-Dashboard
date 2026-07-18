@@ -1,5 +1,5 @@
 export const approvedCoreSchemaFingerprint =
-  "57bc6941af31d880226836275bfa47ee66d849de269b0043bf00fd77c895aeb3";
+  "38587c7e033c1435be24e7914b0a167d29ee56c2176a20c79b3cd140671e64c1";
 
 export const coreSchemaTables = [
   "approval_queue_entries",

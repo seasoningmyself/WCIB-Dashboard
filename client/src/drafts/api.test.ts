@@ -9,7 +9,7 @@ const PRODUCER_ID = "00000000-0000-4000-8000-000000000103";
 const POLICY_ID = "00000000-0000-4000-8000-000000000104";
 const CHANGE_REQUEST_ID = "00000000-0000-4000-8000-000000000105";
 
-test("draft API uses documented create, edit, flag, withdrawal, list, submit, and assignment paths", async () => {
+test("draft API uses documented create, edit, discard, flag, withdrawal, list, submit, and assignment paths", async () => {
   const calls: Array<{
     options?: ApiRequestOptions;
     path: string;
@@ -36,6 +36,7 @@ test("draft API uses documented create, edit, flag, withdrawal, list, submit, an
     Response.json({
       priorFinancing: { lastFinancedAt: "2026-06-01T12:00:00.000Z" },
     }),
+    Response.json({ draft: draftResponse() }),
   ];
   const client: ApiClient = {
     async request(path, options) {
@@ -63,6 +64,9 @@ test("draft API uses documented create, edit, flag, withdrawal, list, submit, an
   assert.equal((await api.listChangeRequests()).requests.length, 1);
   assert.deepEqual(await api.lookupPriorIpfsFinancing("  Acme LLC  "), {
     priorFinancing: { lastFinancedAt: "2026-06-01T12:00:00.000Z" },
+  });
+  await api.discard(DRAFT_ID, {
+    expectedLastEditedAt: "2026-07-10T12:00:00.000Z",
   });
 
   assert.equal(calls[0]?.path, "/drafts");
@@ -100,6 +104,11 @@ test("draft API uses documented create, edit, flag, withdrawal, list, submit, an
   assert.equal(calls[9]?.options?.cache, "no-store");
   assert.equal(calls[10]?.path, "/ipfs/prior-financing?insuredName=Acme+LLC");
   assert.equal(calls[10]?.options?.cache, "no-store");
+  assert.equal(calls[11]?.path, `/drafts/${DRAFT_ID}/discard`);
+  assert.equal(calls[11]?.options?.method, "POST");
+  assert.deepEqual(JSON.parse(String(calls[11]?.options?.body)), {
+    expectedLastEditedAt: "2026-07-10T12:00:00.000Z",
+  });
 });
 
 test("draft API normalizes input, network, status, and response failures", async () => {

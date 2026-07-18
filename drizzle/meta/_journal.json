@@ -351,6 +351,13 @@
       "when": 1784085606454,
       "tag": "0049_vocabulary_management_audit_actions",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1784346035647,
+      "tag": "0050_owner_draft_soft_discard",
+      "breakpoints": true
     }
   ]
 }

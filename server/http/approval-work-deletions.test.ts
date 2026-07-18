@@ -17,6 +17,7 @@ import type { AppLogger } from "../logging/logger.js";
 import { toErrorResponse } from "./errors.js";
 import {
   APPROVAL_HELP_RESTORE_PATH,
+  APPROVAL_DRAFT_RESTORE_PATH,
   APPROVAL_HELP_SOFT_DELETE_PATH,
   APPROVAL_SUBMISSION_RESTORE_PATH,
   APPROVAL_SUBMISSION_SOFT_DELETE_PATH,
@@ -70,14 +71,18 @@ function createFixture() {
     authorization,
     async list() {
       calls.push("list");
-      return [submissionSource(true), helpSource(true)];
+      return [submissionSource(true), helpSource(true), ownerDraftSource(true)];
     },
     logger,
     async restore(_context, kind) {
       calls.push(`restore:${kind}`);
       return {
         changed: true,
-        source: kind === "submission" ? submissionSource(false) : helpSource(false),
+        source: kind === "submission"
+          ? submissionSource(false)
+          : kind === "help"
+            ? helpSource(false)
+            : ownerDraftSource(false),
       };
     },
     async softDelete(_context, kind) {
@@ -108,7 +113,7 @@ test("admin approval-work deletion routes return only projected records", async 
     identity: "admin",
   });
   assert.equal(listed.status, 200);
-  assert.equal((listed.body as any).items.length, 2);
+  assert.equal((listed.body as any).items.length, 3);
   assert.equal((listed.body as any).items[0].deletion.reason, "Duplicate work");
   assert.equal(JSON.stringify(listed.body).includes("passwordHash"), false);
 
@@ -132,6 +137,7 @@ test("admin approval-work deletion routes return only projected records", async 
   for (const [path, id] of [
     [APPROVAL_SUBMISSION_RESTORE_PATH, QUEUE_ID],
     [APPROVAL_HELP_RESTORE_PATH, HELP_ID],
+    [APPROVAL_DRAFT_RESTORE_PATH, DRAFT_ID],
   ] as const) {
     const response = await invoke(fixture, path, {
       body: { expectedUpdatedAt: "2026-07-15T12:00:00.000Z" },
@@ -148,6 +154,7 @@ test("admin approval-work deletion routes return only projected records", async 
     "soft-delete:help",
     "restore:submission",
     "restore:help",
+    "restore:draft",
   ]);
 });
 
@@ -159,6 +166,7 @@ test("employee, producer, and anonymous callers receive zero deletion payload", 
       APPROVAL_HELP_SOFT_DELETE_PATH,
       APPROVAL_SUBMISSION_RESTORE_PATH,
       APPROVAL_HELP_RESTORE_PATH,
+      APPROVAL_DRAFT_RESTORE_PATH,
     ]) {
       const fixture = createFixture();
       const response = await invoke(fixture, path, {
@@ -193,6 +201,7 @@ test("all approval-work deletion routes declare admin authorization and fail clo
       { authorized: true, method: "POST", path: APPROVAL_HELP_SOFT_DELETE_PATH, public: false },
       { authorized: true, method: "POST", path: APPROVAL_SUBMISSION_RESTORE_PATH, public: false },
       { authorized: true, method: "POST", path: APPROVAL_HELP_RESTORE_PATH, public: false },
+      { authorized: true, method: "POST", path: APPROVAL_DRAFT_RESTORE_PATH, public: false },
     ],
   );
   const registration = fixture.registrations[0]!;
@@ -221,6 +230,20 @@ function helpSource(deleted: boolean): ApprovalWorkDeletionSource {
     draft: draft(deleted),
     kind: "help",
     submitterDisplayName: "Kaylee",
+  };
+}
+
+function ownerDraftSource(deleted: boolean): ApprovalWorkDeletionSource {
+  return {
+    draft: {
+      ...draft(deleted),
+      flagReason: null,
+      id: DRAFT_ID,
+      insuredName: "Recoverable owner draft",
+      status: "draft",
+    },
+    kind: "draft",
+    submitterDisplayName: "Mercedes",
   };
 }
 

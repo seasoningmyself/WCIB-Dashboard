@@ -49,6 +49,7 @@ import {
 interface CheckTurnInFormProps {
   initialDraft?: DraftResponse | null;
   onDraftChange?(draft: DraftResponse): void;
+  onDraftDiscard?(draftId: string): void;
   user: CurrentUser;
 }
 
@@ -64,6 +65,7 @@ const BACKUP_AUTOSAVE_INTERVAL_MS = 30_000;
 export function CheckTurnInForm({
   initialDraft = null,
   onDraftChange,
+  onDraftDiscard,
   user,
 }: CheckTurnInFormProps) {
   const client = useApiClient();
@@ -447,6 +449,50 @@ export function CheckTurnInForm({
     expirationSuggestionKeyRef.current = "";
   }, [draft, freshForm]);
 
+  const discardDraft = useCallback(async () => {
+    if (
+      draft === null ||
+      draft.status !== "draft" ||
+      pendingRef.current ||
+      !window.confirm(
+        "Discard this draft? An administrator can restore it from deleted work.",
+      )
+    ) {
+      return;
+    }
+    pendingRef.current = true;
+    setErrors({});
+    setSaveState("saving");
+    if (autosaveTimerRef.current !== null) {
+      window.clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+    automaticSaveQueueRef.current.clear();
+    try {
+      await api.discard(draft.id, {
+        expectedLastEditedAt: draft.lastEditedAt,
+      });
+      onDraftDiscard?.(draft.id);
+      setDraft(null);
+      setForm(freshForm());
+      lastPersistedInputRef.current = null;
+      setSaveState("idle");
+      setIpfsHistory({ status: "idle" });
+      ipfsHistoryVersionRef.current += 1;
+      ipfsReturningUserSetRef.current = false;
+      autoExpirationRef.current = null;
+      expirationSuggestionKeyRef.current = "";
+      if (window.location.hash.startsWith("#/my-drafts")) {
+        window.location.hash = "#/turn-in";
+      }
+    } catch (error) {
+      setErrors(errorsFromApi(error));
+      setSaveState("error");
+    } finally {
+      pendingRef.current = false;
+    }
+  }, [api, draft, freshForm, onDraftDiscard]);
+
   const saveAndStartNew = useCallback(async () => {
     const saved = await save();
     if (saved === null) {
@@ -578,6 +624,7 @@ export function CheckTurnInForm({
       onAssignmentChange={changeAssignment}
       onBlurAutosave={scheduleBlurAutosave}
       onClear={clearForm}
+      onDiscard={() => void discardDraft()}
       onFieldChange={changeField}
       onRetryAssignments={() => setAssignmentAttempt((value) => value + 1)}
       onSave={() => void save()}
@@ -601,6 +648,7 @@ interface CheckTurnInFormViewProps {
   onAssignmentChange(choice: AssignmentChoice | null): void;
   onBlurAutosave?(): void;
   onClear(): void;
+  onDiscard?(): void;
   onFieldChange<Key extends keyof TurnInFormState>(
     field: Key,
     value: TurnInFormState[Key],
@@ -639,6 +687,7 @@ export function CheckTurnInFormView({
   onAssignmentChange,
   onBlurAutosave,
   onClear,
+  onDiscard,
   onFieldChange,
   onRetryAssignments,
   onSave,
@@ -717,6 +766,11 @@ export function CheckTurnInFormView({
         <button className="is-clear" disabled={pending} onClick={onClear} type="button">
           Clear form
         </button>
+        {draft?.status === "draft" && onDiscard !== undefined ? (
+          <button className="is-discard" disabled={pending} onClick={onDiscard} type="button">
+            Discard draft
+          </button>
+        ) : null}
         {help?.canRequest ? (
           <button className="turn-in-help" disabled={pending} onClick={help.onOpen} type="button">
             Request help
