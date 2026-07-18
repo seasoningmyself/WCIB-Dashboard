@@ -2178,6 +2178,75 @@ h1 {
   opacity: 0.58;
 }
 
+.turn-in-print-sheet {
+  display: none;
+}
+
+@media print {
+  body.print-turn-in #root {
+    display: none !important;
+  }
+
+  body.print-turn-in {
+    background: #ffffff;
+    color: #172126;
+  }
+
+  body.print-turn-in .turn-in-print-sheet {
+    display: block;
+    width: 100%;
+    padding: 0;
+    color: #172126;
+    font: 10pt/1.35 Arial, sans-serif;
+  }
+
+  .turn-in-print-sheet header {
+    margin-bottom: 18pt;
+    border-bottom: 1pt solid #172126;
+    padding-bottom: 9pt;
+  }
+
+  .turn-in-print-sheet h1 {
+    margin: 0 0 4pt;
+    font-size: 17pt;
+  }
+
+  .turn-in-print-sheet header p,
+  .turn-in-print-sheet h2 {
+    margin: 0;
+  }
+
+  .turn-in-print-sheet > section {
+    break-inside: avoid;
+    margin-bottom: 13pt;
+  }
+
+  .turn-in-print-sheet h2 {
+    margin-bottom: 5pt;
+    border-bottom: 0.5pt solid #9ca8ad;
+    padding-bottom: 3pt;
+    font-size: 11pt;
+  }
+
+  .turn-in-print-sheet dl {
+    display: grid;
+    grid-template-columns: 150pt minmax(0, 1fr);
+    margin: 0;
+  }
+
+  .turn-in-print-sheet dt,
+  .turn-in-print-sheet dd {
+    margin: 0;
+    border-bottom: 0.25pt solid #d7dddf;
+    padding: 3pt 0;
+  }
+
+  .turn-in-print-sheet dt {
+    padding-right: 12pt;
+    font-weight: 700;
+  }
+}
+
 .turn-in-kicker {
   margin: 0 0 5px;
   color: #27634d;

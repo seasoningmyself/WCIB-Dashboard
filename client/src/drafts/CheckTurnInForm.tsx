@@ -21,6 +21,7 @@ import { normalizeTurnInOfficeSelection } from "../offices/turn-in-office.js";
 import { createDraftApi, DraftApiError } from "./api.js";
 import { createAutomaticSaveQueue } from "./autosave.js";
 import { canRequestDraftHelp, parseHelpReason } from "./help-request.js";
+import { buildTurnInPrintModel, printTurnInModel } from "./turn-in-print.js";
 import {
   assignmentKey,
   applyIpfsReturningDetection,
@@ -493,6 +494,24 @@ export function CheckTurnInForm({
     }
   }, [api, draft, freshForm, onDraftDiscard]);
 
+  const printTurnIn = useCallback(() => {
+    if (!turnInFormHasContent(form)) return;
+    const selectedAssignment = assignmentKey(
+      form.accountAssignment,
+      form.producerUserId,
+    );
+    const assignmentLabel =
+      choices.find(({ key }) => key === selectedAssignment)?.label ??
+      roleLabel(user.role);
+    printTurnInModel(buildTurnInPrintModel({
+      assignmentLabel,
+      form,
+      user,
+      vocabulary:
+        vocabulary.state.status === "ready" ? vocabulary.state.data : null,
+    }));
+  }, [choices, form, user, vocabulary.state]);
+
   const saveAndStartNew = useCallback(async () => {
     const saved = await save();
     if (saved === null) {
@@ -626,6 +645,7 @@ export function CheckTurnInForm({
       onClear={clearForm}
       onDiscard={() => void discardDraft()}
       onFieldChange={changeField}
+      onPrint={printTurnIn}
       onRetryAssignments={() => setAssignmentAttempt((value) => value + 1)}
       onSave={() => void save()}
       onSaveAndStartNew={() => void saveAndStartNew()}
@@ -653,6 +673,7 @@ interface CheckTurnInFormViewProps {
     field: Key,
     value: TurnInFormState[Key],
   ): void;
+  onPrint?(): void;
   onRetryAssignments(): void;
   onSave(): void;
   onSaveAndStartNew(): void;
@@ -689,6 +710,7 @@ export function CheckTurnInFormView({
   onClear,
   onDiscard,
   onFieldChange,
+  onPrint,
   onRetryAssignments,
   onSave,
   onSaveAndStartNew,
@@ -769,6 +791,15 @@ export function CheckTurnInFormView({
         {draft?.status === "draft" && onDiscard !== undefined ? (
           <button className="is-discard" disabled={pending} onClick={onDiscard} type="button">
             Discard draft
+          </button>
+        ) : null}
+        {onPrint !== undefined ? (
+          <button
+            disabled={pending || !turnInFormHasContent(form)}
+            onClick={onPrint}
+            type="button"
+          >
+            Download PDF
           </button>
         ) : null}
         {help?.canRequest ? (

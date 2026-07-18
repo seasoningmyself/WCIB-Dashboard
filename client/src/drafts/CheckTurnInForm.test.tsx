@@ -282,6 +282,7 @@ test("v15 header and footer expose complete status and duplicate action surfaces
   assert.match(markup, /Save &amp; start new/);
   assert.match(markup, /Clear form/);
   assert.match(markup, /Discard draft/);
+  assert.match(markup, /Download PDF/);
   assert.match(markup, />Clear</);
   assert.equal((markup.match(/>Request help</g) ?? []).length, 2);
 });
@@ -428,6 +429,7 @@ function renderView({
           onClear={() => {}}
           onDiscard={() => {}}
           onFieldChange={() => {}}
+          onPrint={() => {}}
           onRetryAssignments={() => {}}
           onSave={() => {}}
           onSaveAndStartNew={() => {}}
