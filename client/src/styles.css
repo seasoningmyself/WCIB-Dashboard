@@ -4890,6 +4890,26 @@ h1 {
   opacity: 0.55;
 }
 
+.approval-priority-heading {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #d3dcdf;
+  background: #f1f5f4;
+  padding: 7px 14px;
+  color: #40535d;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.approval-priority-heading.is-needs_verification {
+  border-left: 3px solid #9b6b10;
+  background: #fff8e7;
+  color: #684708;
+}
+
 .approval-work-list {
   display: grid;
   gap: 28px;
@@ -4991,6 +5011,18 @@ h1 {
 .approval-review-amount,
 .approval-review-time {
   overflow-wrap: anywhere;
+}
+
+.approval-review-primary .approval-review-badge {
+  width: fit-content;
+  border: 1px solid #d2b659;
+  border-radius: 4px;
+  background: #fff8dd;
+  padding: 3px 5px;
+  color: #75540b;
+  font-size: 9px;
+  font-weight: 850;
+  text-transform: uppercase;
 }
 
 .approval-review-primary strong,

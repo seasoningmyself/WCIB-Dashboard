@@ -83,6 +83,60 @@ test("approval queue has bounded loading, error, empty, and denied states", () =
   );
 });
 
+test("priority groups non-house work first and shows only complete-review badges", () => {
+  const work = approvalWork();
+  const source = work.submissions[0]!;
+  const standard = {
+    ...source,
+    entry: {
+      ...source.entry,
+      id: uuid(21),
+      submittedPayload: {
+        ...source.entry.submittedPayload,
+        accountAssignment: "none",
+        insuredName: "Standard House",
+        producerUserId: null,
+      },
+    },
+  };
+  const firstYear = {
+    ...source,
+    entry: {
+      ...source.entry,
+      id: uuid(22),
+      submittedPayload: {
+        ...source.entry.submittedPayload,
+        accountAssignment: "house",
+        insuredName: "First Year",
+      },
+    },
+  };
+  const selfAssigned = {
+    ...source,
+    entry: {
+      ...source.entry,
+      id: uuid(23),
+      submittedByUserId: PRODUCER_ID,
+      submittedPayload: {
+        ...source.entry.submittedPayload,
+        insuredName: "Self Assigned",
+      },
+    },
+  };
+  const markup = renderView({
+    deleted: { items: [] },
+    status: "ready",
+    work: { ...work, submissions: [standard, selfAssigned, firstYear] },
+  });
+
+  assert.ok(markup.indexOf("Self Assigned") < markup.indexOf("Standard House"));
+  assert.ok(markup.indexOf("First Year") < markup.indexOf("Standard House"));
+  assert.match(markup, /Needs verification - non-house assignments/);
+  assert.match(markup, /House account - standard/);
+  assert.match(markup, /1st-year - verify/);
+  assert.match(markup, /Producer self-assigned - verify/);
+});
+
 test("approval deletion UI requires a reason and exposes recoverable restore", () => {
   const work = approvalWork();
   const deleteDialog = renderToStaticMarkup(

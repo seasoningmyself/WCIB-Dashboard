@@ -38,7 +38,9 @@ import {
 } from "./PolicyChangeRequestDialogs.js";
 import {
   APPROVAL_REVIEW_GROUPS,
+  approvalReviewBadge,
   approveSequentially,
+  groupApprovalSubmissions,
   isApprovalAdmin,
   removeResolvedApprovalWork,
   reviewSourceValue,
@@ -663,7 +665,11 @@ export function ApprovalQueueView({
     state.work.submissions.length +
     state.work.helpRequests.length +
     state.work.changeRequests.length;
-  const selectedSubmissions = state.work.submissions.filter(({ entry }) =>
+  const submissionPriority = groupApprovalSubmissions(state.work.submissions);
+  const orderedSubmissions = submissionPriority.groups.flatMap(
+    ({ items }) => items,
+  );
+  const selectedSubmissions = orderedSubmissions.filter(({ entry }) =>
     selectedSubmissionIds.has(entry.id),
   );
   const allSubmissionsSelected =
@@ -765,24 +771,34 @@ export function ApprovalQueueView({
                   {allSubmissionsExpanded ? "Collapse all" : "Expand all"}
                 </button>
               </div>
-              {state.work.submissions.map((item) => (
-                <SubmissionReview
-                  expanded={expandedSubmissionIds.has(item.entry.id)}
-                  item={item}
-                  key={item.entry.id}
-                  lookups={lookups}
-                  onDelete={onDeleteSubmission}
-                  onExpanded={(expanded) =>
-                    onExpandSubmission(item.entry.id, expanded)
-                  }
-                  onInlineApprove={onInlineApprove}
-                  onOpen={onOpen}
-                  onSelected={(selected) =>
-                    onSelectSubmission(item.entry.id, selected)
-                  }
-                  pending={pending}
-                  selected={selectedSubmissionIds.has(item.entry.id)}
-                />
+              {submissionPriority.groups.map((group) => (
+                <React.Fragment key={group.key}>
+                  {submissionPriority.showHeadings ? (
+                    <div className={`approval-priority-heading is-${group.key}`}>
+                      <strong>{group.title}</strong>
+                      <span>{group.items.length}</span>
+                    </div>
+                  ) : null}
+                  {group.items.map((item) => (
+                    <SubmissionReview
+                      expanded={expandedSubmissionIds.has(item.entry.id)}
+                      item={item}
+                      key={item.entry.id}
+                      lookups={lookups}
+                      onDelete={onDeleteSubmission}
+                      onExpanded={(expanded) =>
+                        onExpandSubmission(item.entry.id, expanded)
+                      }
+                      onInlineApprove={onInlineApprove}
+                      onOpen={onOpen}
+                      onSelected={(selected) =>
+                        onSelectSubmission(item.entry.id, selected)
+                      }
+                      pending={pending}
+                      selected={selectedSubmissionIds.has(item.entry.id)}
+                    />
+                  ))}
+                </React.Fragment>
               ))}
             </section>
           )}
@@ -853,6 +869,7 @@ function SubmissionReview({
   selected: boolean;
 }) {
   const source = item.entry.submittedPayload;
+  const reviewBadge = approvalReviewBadge(item);
   return (
     <details
       className="approval-review-row is-submission"
@@ -876,6 +893,11 @@ function SubmissionReview({
         <span className="approval-review-primary">
           <strong>{String(source.insuredName ?? "Unnamed insured")}</strong>
           <span>{item.submitterDisplayName ?? "Unknown submitter"}</span>
+          {reviewBadge === null ? null : (
+            <span className="approval-review-badge">
+              {reviewBadge}
+            </span>
+          )}
         </span>
         <span className="approval-review-policy">
           <strong>{String(source.policyNumber ?? "Policy pending")}</strong>
