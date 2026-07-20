@@ -516,9 +516,11 @@ function errorResult(error: unknown): TestResult {
 function account(id: string, isActive = true): UserAccount {
   return {
     createdAt: new Date(AT),
+    displayName: id,
     email: `${id}@example.test`,
     id,
     isActive,
+    passwordChangeRequiredAt: null,
     sessionVersion: 0,
   };
 }

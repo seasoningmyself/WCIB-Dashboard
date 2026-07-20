@@ -42,7 +42,14 @@ export type AuthorizationGuard = RequestHandler & {
 };
 
 export interface AuthorizationGuards {
-  require(requirement?: RouteAccessRequirement): AuthorizationGuard;
+  require(
+    requirement?: RouteAccessRequirement,
+    options?: AuthorizationGuardOptions,
+  ): AuthorizationGuard;
+}
+
+export interface AuthorizationGuardOptions {
+  allowPasswordChangeRequired?: boolean;
 }
 
 export class MissingAuthorizationContextError extends Error {
@@ -58,8 +65,8 @@ export function createAuthorizationGuards(
   dependencies: AuthorizationDependencies,
 ): AuthorizationGuards {
   return {
-    require(requirement) {
-      return createAuthorizationGuard(requirement, dependencies);
+    require(requirement, options) {
+      return createAuthorizationGuard(requirement, dependencies, options);
     },
   };
 }
@@ -97,6 +104,7 @@ export function isAuthorizationGuard(value: unknown): value is AuthorizationGuar
 function createAuthorizationGuard(
   requirement: RouteAccessRequirement | undefined,
   dependencies: AuthorizationDependencies,
+  options: AuthorizationGuardOptions = {},
 ): AuthorizationGuard {
   const guard = asyncRoute(async (req, res, next) => {
     const session = await resolveAuthenticatedSession(
@@ -112,6 +120,26 @@ function createAuthorizationGuard(
           401,
           apiErrorCodes.unauthorized,
           "Authentication required",
+        ),
+      );
+      return;
+    }
+
+    if (
+      session.user.passwordChangeRequiredAt !== null &&
+      options.allowPasswordChangeRequired !== true
+    ) {
+      logDenial(
+        dependencies.logger,
+        req,
+        "password_change_required",
+        session.user.id,
+      );
+      next(
+        new HttpError(
+          403,
+          apiErrorCodes.passwordChangeRequired,
+          "Password change required",
         ),
       );
       return;

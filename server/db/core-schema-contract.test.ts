@@ -8,7 +8,7 @@ import {
 } from "./core-schema-contract.js";
 
 test("approved Core Schema contract is explicit and excludes speculative scope", () => {
-  assert.equal(coreSchemaTables.length, 25);
+  assert.equal(coreSchemaTables.length, 26);
   assert.equal(new Set(coreSchemaTables).size, coreSchemaTables.length);
   assert.match(approvedCoreSchemaFingerprint, /^[a-f0-9]{64}$/);
   assert.deepEqual(forbiddenCoreSchemaTables, [

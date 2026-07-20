@@ -1,5 +1,5 @@
 export const approvedCoreSchemaFingerprint =
-  "0185cf8f1e925f2255f565e7b4e71e99e9db7eae3551518241af40f56cbc7553";
+  "2e9f37930b5a85aa44f6a77184ba013eda6eb246133e5c02dc2a4d1a91d5fd2b";
 
 export const coreSchemaTables = [
   "approval_queue_entries",
@@ -9,6 +9,7 @@ export const coreSchemaTables = [
   "carriers",
   "drafts",
   "kpi_targets",
+  "login_throttle_buckets",
   "mga_payments",
   "mgas",
   "office_locations",

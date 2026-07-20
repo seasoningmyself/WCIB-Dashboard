@@ -159,6 +159,7 @@ test("login endpoint creates WCIB sessions and returns scoped access summaries",
     await removeInterruptedLoginTestData(database, pool);
     const runId = randomUUID();
     const employee = await createUser(database, {
+      displayName: "Employee Login Test",
       email: `employee.${runId}@example.test`,
       password: PASSWORD,
     });
@@ -173,7 +174,6 @@ test("login endpoint creates WCIB sessions and returns scoped access summaries",
     userIds.push(employee.id, admin.id, disabled.id);
 
     await database.insert(staffProfiles).values({
-      displayName: "Employee Login Test",
       role: "employee",
       userId: employee.id,
     });

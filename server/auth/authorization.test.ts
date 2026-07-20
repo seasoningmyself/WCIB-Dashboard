@@ -84,12 +84,16 @@ async function request(
   };
 }
 
-function account(id: string): UserAccount {
+function account(id: string, passwordChangeRequired = false): UserAccount {
   return {
     createdAt: new Date("2026-07-09T00:00:00.000Z"),
+    displayName: id,
     email: `${id}@example.test`,
     id,
     isActive: true,
+    passwordChangeRequiredAt: passwordChangeRequired
+      ? new Date("2026-07-19T12:00:00.000Z")
+      : null,
     sessionVersion: 0,
   };
 }
@@ -152,23 +156,31 @@ function fakeSession(userId?: string): Request["session"] {
   return session;
 }
 
-function createFixture() {
+function createFixture(options: { forcedUserId?: string } = {}) {
   const { events, logger } = recordingLogger();
   const users = new Map([
-    [EMPLOYEE_ID, account(EMPLOYEE_ID)],
-    [PRODUCER_ID, account(PRODUCER_ID)],
-    [ADMIN_ID, account(ADMIN_ID)],
+    [
+      EMPLOYEE_ID,
+      account(EMPLOYEE_ID, options.forcedUserId === EMPLOYEE_ID),
+    ],
+    [
+      PRODUCER_ID,
+      account(PRODUCER_ID, options.forcedUserId === PRODUCER_ID),
+    ],
+    [ADMIN_ID, account(ADMIN_ID, options.forcedUserId === ADMIN_ID)],
   ]);
   const principals = new Map([
     [EMPLOYEE_ID, principal(EMPLOYEE_ID, { staffRole: "employee" })],
     [PRODUCER_ID, principal(PRODUCER_ID, { staffRole: "producer" })],
     [ADMIN_ID, principal(ADMIN_ID, { capabilities: ["admin"] })],
   ]);
+  let principalLoadCalls = 0;
   const authorization = createAuthorizationGuards({
     async findUser(userId) {
       return users.get(userId) ?? null;
     },
     async loadPrincipal(userId) {
+      principalLoadCalls += 1;
       return principals.get(userId) ?? null;
     },
     logger,
@@ -244,6 +256,17 @@ function createFixture() {
         },
       );
       routes.get(
+        "/api/password-change-allowed",
+        {
+          authorization: authorization.require(AUTHENTICATED_ACCESS, {
+            allowPasswordChangeRequired: true,
+          }),
+        },
+        (_req, res) => {
+          res.json({ status: "allowed" });
+        },
+      );
+      routes.get(
         "/api/default-deny",
         { authorization: authorization.require() },
         (_req, res) => {
@@ -299,9 +322,40 @@ function createFixture() {
     app,
     events,
     getFinancialHandlerCalls: () => financialHandlerCalls,
+    getPrincipalLoadCalls: () => principalLoadCalls,
     getProjectionCalls: () => projectionCalls,
   };
 }
+
+test("forced password state is denied before role evaluation except explicit exemptions", async () => {
+  const fixture = createFixture({ forcedUserId: ADMIN_ID });
+  const denied = await request(fixture.app, "/api/financial", {
+    headers: { "x-test-identity": "admin" },
+    method: "POST",
+  });
+
+  assert.deepEqual(denied, {
+    body: {
+      error: {
+        code: "password_change_required",
+        message: "Password change required",
+      },
+    },
+    statusCode: 403,
+  });
+  assert.equal(fixture.getPrincipalLoadCalls(), 0);
+  assert.equal(fixture.getFinancialHandlerCalls(), 0);
+  assert.equal(fixture.getProjectionCalls(), 0);
+
+  const allowed = await request(fixture.app, "/api/password-change-allowed", {
+    headers: { "x-test-identity": "admin" },
+  });
+  assert.deepEqual(allowed, {
+    body: { status: "allowed" },
+    statusCode: 200,
+  });
+  assert.equal(fixture.getPrincipalLoadCalls(), 1);
+});
 
 test("authorization middleware rejects missing, modified, and unknown access", async () => {
   const fixture = createFixture();

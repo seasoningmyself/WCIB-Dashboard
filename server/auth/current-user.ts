@@ -4,7 +4,7 @@ import type {
   CurrentUserResponse,
   CurrentUserRole,
 } from "../../shared/current-user.js";
-import { staffProfiles, users } from "../db/schema.js";
+import { users } from "../db/schema.js";
 import type { AuthorizedRequestContext } from "./authorization.js";
 import type { AccessPrincipal } from "./access.js";
 import type { AuthDatabase } from "./users.js";
@@ -22,16 +22,17 @@ const NAVIGATION_BY_ROLE = {
     "turn_in",
     "my_items",
   ],
-  employee: ["turn_in", "my_items"],
-  producer: ["turn_in", "my_items", "my_commissions"],
+  employee: ["turn_in", "my_items", "settings"],
+  producer: ["turn_in", "my_items", "my_commissions", "settings"],
 } as const satisfies Readonly<
   Record<CurrentUserRole, readonly AppNavigationId[]>
 >;
 
 export interface CurrentUserIdentity {
-  displayName: string | null;
+  displayName: string;
   email: string;
   id: string;
+  passwordChangeRequiredAt: Date | null;
 }
 
 export class CurrentUserProjectionError extends Error {
@@ -47,12 +48,12 @@ export async function loadCurrentUserIdentity(
 ): Promise<CurrentUserIdentity | null> {
   const [identity] = await database
     .select({
-      displayName: staffProfiles.displayName,
+      displayName: users.displayName,
       email: users.email,
       id: users.id,
+      passwordChangeRequiredAt: users.passwordChangeRequiredAt,
     })
     .from(users)
-    .leftJoin(staffProfiles, eq(users.id, staffProfiles.userId))
     .where(eq(users.id, userId))
     .limit(1);
 
@@ -77,6 +78,7 @@ export function projectCurrentUser(
       displayName: identity.displayName,
       email: identity.email,
       id: principal.userId,
+      passwordChangeRequired: identity.passwordChangeRequiredAt !== null,
       role,
     },
   };

@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   AuthApiError,
   createAuthApi,
+  PasswordChangeApiError,
   PasswordResetApiError,
   type AuthFetch,
 } from "./api.js";
@@ -26,6 +27,7 @@ const currentUserResponse = {
     displayName: "Kaylee",
     email: "producer@example.test",
     id: USER_ID,
+    passwordChangeRequired: false,
     role: "producer",
   },
 };
@@ -75,6 +77,82 @@ test("session restoration returns null only for an unauthenticated response", as
   assert.deepEqual(
     await authenticated.restoreCurrentUser(),
     currentUserResponse.user,
+  );
+});
+
+test("required password replacement posts only the new secret and reloads identity", async () => {
+  const requests: Array<{ init?: RequestInit; input: string }> = [];
+  const api = createAuthApi(
+    queuedFetch([
+      new Response(null, { status: 204 }),
+      jsonResponse(currentUserResponse),
+    ], requests),
+    "/api",
+  );
+
+  const user = await api.changeRequiredPassword({
+    confirmation: "Blue harbor lantern 73!",
+    newPassword: "Blue harbor lantern 73!",
+  });
+
+  assert.deepEqual(user, currentUserResponse.user);
+  assert.deepEqual(
+    requests.map(({ input }) => input),
+    ["/api/auth/required-password-change", "/api/me"],
+  );
+  assert.deepEqual(JSON.parse(String(requests[0]?.init?.body)), {
+    confirmation: "Blue harbor lantern 73!",
+    newPassword: "Blue harbor lantern 73!",
+  });
+  assert.equal(String(requests[0]?.init?.body).includes("temporary"), false);
+  assert.equal(String(requests[0]?.init?.body).includes("current"), false);
+});
+
+test("required password replacement maps reuse and enforces policy before fetch", async () => {
+  let calls = 0;
+  const reused = createAuthApi(async () => {
+    calls += 1;
+    return jsonResponse(
+      { error: { code: "password_reuse", message: "private detail" } },
+      409,
+    );
+  }, "/api");
+  await assert.rejects(
+    reused.changeRequiredPassword({
+      confirmation: "Blue harbor lantern 73!",
+      newPassword: "Blue harbor lantern 73!",
+    }),
+    (error: unknown) =>
+      error instanceof PasswordChangeApiError && error.kind === "reuse",
+  );
+  await assert.rejects(
+    reused.changeRequiredPassword({
+      confirmation: "password1234",
+      newPassword: "password1234",
+    }),
+    (error: unknown) =>
+      error instanceof PasswordChangeApiError && error.kind === "validation",
+  );
+  assert.equal(calls, 1);
+});
+
+test("login preserves temporary throttle duration for the countdown", async () => {
+  const api = createAuthApi(
+    async () =>
+      jsonResponse(
+        { error: { code: "too_many_attempts", message: "safe" } },
+        429,
+        { "Retry-After": "120" },
+      ),
+    "/api",
+  );
+
+  await assert.rejects(
+    api.login({ email: "user@example.test", password: "Wrong password" }),
+    (error: unknown) =>
+      error instanceof AuthApiError &&
+      error.kind === "throttled" &&
+      error.retryAfterSeconds === 120,
   );
 });
 
@@ -239,17 +317,25 @@ test("login separates credential, network, and invalid-contract failures", async
   );
 });
 
-function queuedFetch(responses: Response[]): AuthFetch {
-  return async () => {
+function queuedFetch(
+  responses: Response[],
+  requests?: Array<{ init?: RequestInit; input: string }>,
+): AuthFetch {
+  return async (input, init) => {
+    requests?.push({ init, input: String(input) });
     const response = responses.shift();
     assert.ok(response);
     return response;
   };
 }
 
-function jsonResponse(body: unknown, status = 200): Response {
+function jsonResponse(
+  body: unknown,
+  status = 200,
+  headers: Record<string, string> = {},
+): Response {
   return new Response(JSON.stringify(body), {
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...headers },
     status,
   });
 }

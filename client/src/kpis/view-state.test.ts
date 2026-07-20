@@ -111,6 +111,7 @@ function user(
     displayName: "Test User",
     email: "test@example.test",
     id: "00000000-0000-4000-8000-000000000001",
+    passwordChangeRequired: false,
     role,
   };
 }

@@ -41,10 +41,12 @@ test("draft submission atomically composes queue and ledger lifecycle paths", as
       const database = drizzle(pool, { schema: databaseSchema });
       try {
         const employee = await createUser(database, {
+          displayName: "Submit Employee",
           email: `submit-employee-${randomUUID()}@example.test`,
           password: "StrongPass123!",
         });
         const producer = await createUser(database, {
+          displayName: "Submit Producer",
           email: `submit-producer-${randomUUID()}@example.test`,
           password: "StrongPass123!",
         });
@@ -53,16 +55,8 @@ test("draft submission atomically composes queue and ledger lifecycle paths", as
           password: "StrongPass123!",
         });
         await database.insert(staffProfiles).values([
-          {
-            displayName: "Submit Employee",
-            role: "employee",
-            userId: employee.id,
-          },
-          {
-            displayName: "Submit Producer",
-            role: "producer",
-            userId: producer.id,
-          },
+          { role: "employee", userId: employee.id },
+          { role: "producer", userId: producer.id },
         ]);
         await database.insert(userCapabilities).values({
           capability: "admin",

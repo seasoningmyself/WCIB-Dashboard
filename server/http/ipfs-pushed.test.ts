@@ -267,9 +267,11 @@ function policy(): PolicyRecord {
 function account(id: string, isActive = true): UserAccount {
   return {
     createdAt: new Date(UPDATED_AT),
+    displayName: id,
     email: `${id}@example.test`,
     id,
     isActive,
+    passwordChangeRequiredAt: null,
     sessionVersion: 0,
   };
 }

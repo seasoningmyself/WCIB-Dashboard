@@ -660,9 +660,11 @@ function policy(): PolicyRecord & Record<string, unknown> {
 function account(id: string): UserAccount {
   return {
     createdAt: new Date("2026-07-11T12:00:00.000Z"),
+    displayName: id,
     email: `${id}@example.test`,
     id,
     isActive: true,
+    passwordChangeRequiredAt: null,
     sessionVersion: 0,
   };
 }

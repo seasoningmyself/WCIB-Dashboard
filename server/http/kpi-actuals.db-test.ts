@@ -77,11 +77,11 @@ test("KPI endpoint reads only closed snapshots across company and producer scope
           userId: admin.id,
         });
         const producerTwo = await createUser(database, {
+          displayName: "STONE 134 Producer Two",
           email: `stone134-producer-two-${randomUUID()}@example.test`,
           password: PASSWORD,
         });
         await database.insert(staffProfiles).values({
-          displayName: "STONE 134 Producer Two",
           role: "producer",
           userId: producerTwo.id,
         });

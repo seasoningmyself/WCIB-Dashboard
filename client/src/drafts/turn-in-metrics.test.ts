@@ -178,6 +178,7 @@ function user(
     displayName: "Metric User",
     email: "metric@example.test",
     id: uuid(9),
+    passwordChangeRequired: false,
     role,
   };
 }

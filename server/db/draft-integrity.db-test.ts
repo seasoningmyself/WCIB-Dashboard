@@ -83,16 +83,18 @@ test("draft integrity enforces ownership, transitions, and terminal state", asyn
     await client.query("BEGIN");
 
     const owner = await createUser(database, {
+      displayName: "Draft Owner",
       email: `draft-integrity-owner-${randomUUID()}@example.test`,
       password: "StrongPass123!",
     });
     const other = await createUser(database, {
+      displayName: "Other Employee",
       email: `draft-integrity-other-${randomUUID()}@example.test`,
       password: "StrongPass123!",
     });
     await database.insert(staffProfiles).values([
-      { displayName: "Draft Owner", role: "employee", userId: owner.id },
-      { displayName: "Other Employee", role: "employee", userId: other.id },
+      { role: "employee", userId: owner.id },
+      { role: "employee", userId: other.id },
     ]);
 
     const [draft] = await database

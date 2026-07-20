@@ -6,6 +6,7 @@ import { readDatabaseErrorCode } from "../db/error-code.js";
 import {
   staffProfiles,
   userCapabilities,
+  users,
   type StaffProfileRecord,
 } from "../db/schema.js";
 import {
@@ -156,10 +157,14 @@ export async function seedInitialRoster(
 ): Promise<InitialRosterSeedResult> {
   const existingAccounts = await loadExistingAccounts(database, credentials);
   const existingProfiles = await database.select().from(staffProfiles);
+  const existingIdentities = await database
+    .select({ displayName: users.displayName, userId: users.id })
+    .from(users);
   await assertExistingRecordsAreSafe(
     database,
     existingAccounts,
     existingProfiles,
+    existingIdentities,
   );
 
   const result: InitialRosterSeedResult = {
@@ -180,7 +185,11 @@ export async function seedInitialRoster(
     try {
       accounts[member.key] = await createUser(
         database,
-        credentials[member.key],
+        {
+          ...credentials[member.key],
+          displayName: member.displayName,
+          passwordChangeRequired: true,
+        },
       );
       result.users.created += 1;
     } catch (error) {
@@ -206,7 +215,6 @@ export async function seedInitialRoster(
       const [created] = await database
         .insert(staffProfiles)
         .values({
-          displayName: member.displayName,
           role: member.staff.role,
           userId: account.id,
         })
@@ -280,20 +288,23 @@ async function assertExistingRecordsAreSafe(
   database: AuthDatabase,
   accounts: Partial<Record<InitialRosterKey, UserAccount>>,
   profiles: readonly StaffProfileRecord[],
+  identities: readonly { displayName: string; userId: string }[],
 ): Promise<void> {
   for (const member of INITIAL_ROSTER) {
     const account = accounts[member.key];
     if (account !== undefined) {
       assertAccountIsActive(member, account);
     }
-    const namedProfiles = profiles.filter(
-      (profile) =>
-        profile.displayName.toLowerCase() === member.displayName.toLowerCase(),
+    const namedIdentities = identities.filter(
+      (identity) =>
+        identity.displayName.toLowerCase() === member.displayName.toLowerCase(),
     );
 
     if (!("staff" in member)) {
       if (
-        namedProfiles.length > 0 ||
+        namedIdentities.some(
+          (identity) => identity.userId !== account?.id,
+        ) ||
         (account !== undefined &&
           profiles.some((profile) => profile.userId === account.id))
       ) {
@@ -324,9 +335,9 @@ async function assertExistingRecordsAreSafe(
     }
 
     if (
-      namedProfiles.length > 1 ||
-      (namedProfiles[0] !== undefined &&
-        namedProfiles[0].userId !== account?.id)
+      namedIdentities.length > 1 ||
+      (namedIdentities[0] !== undefined &&
+        namedIdentities[0].userId !== account?.id)
     ) {
       throw new InitialRosterConflictError(
         member.displayName,
@@ -337,7 +348,11 @@ async function assertExistingRecordsAreSafe(
       continue;
     }
     const profile = profiles.find((entry) => entry.userId === account.id);
-    if (profile !== undefined && !matchesStaffMember(profile, member)) {
+    if (
+      profile !== undefined &&
+      account !== undefined &&
+      !matchesStaffMember(profile, account, member)
+    ) {
       throw new InitialRosterConflictError(
         member.displayName,
         "existing staff profile differs from the approved roster",
@@ -360,10 +375,11 @@ function assertAccountIsActive(
 
 function matchesStaffMember(
   profile: StaffProfileRecord,
+  account: UserAccount,
   member: Extract<InitialRosterMember, { staff: unknown }>,
 ): boolean {
   return (
-    profile.displayName === member.displayName &&
+    account.displayName === member.displayName &&
     profile.role === member.staff.role &&
     profile.isActive
   );
@@ -379,7 +395,10 @@ async function assertSeededRoster(
       (entry) => entry.userId === accounts[member.key].id,
     );
     if ("staff" in member) {
-      if (profile === undefined || !matchesStaffMember(profile, member)) {
+      if (
+        profile === undefined ||
+        !matchesStaffMember(profile, accounts[member.key], member)
+      ) {
         throw new InitialRosterConflictError(
           member.displayName,
           "staff profile was not seeded as approved",

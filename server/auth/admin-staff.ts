@@ -12,6 +12,7 @@ import {
   ADMIN_STAFF_MAX_RESULTS,
   adminStaffRateSchema,
   createAdminStaffRequestSchema,
+  issueTemporaryPasswordRequestSchema,
   producerRateInputSchema,
   updateAdminStaffRequestSchema,
   type AdminStaffRecord,
@@ -21,7 +22,9 @@ import { writeAuditEventInDrizzleTransaction } from "../audit/event.js";
 import type { AppLogger } from "../logging/logger.js";
 import { readDatabaseErrorCode } from "../db/error-code.js";
 import {
+  officeLocations,
   producerRateHistory,
+  sessions,
   staffProfiles,
   users,
   type ProducerRateHistoryRecord,
@@ -32,6 +35,7 @@ import {
   DuplicateUserEmailError,
   type AuthDatabase,
 } from "./users.js";
+import { hashPassword, verifyPassword } from "./password.js";
 
 export const ADMIN_STAFF_ACCESS = {
   capabilities: ["admin"],
@@ -41,6 +45,7 @@ const STAFF_AUDIT_FIELDS = [
   "active",
   "changeKind",
   "identityChanged",
+  "officeAssignmentChanged",
   "role",
 ] as const;
 const RATE_AUDIT_FIELDS = ["changeKind", "fieldsChanged", "locked"] as const;
@@ -48,14 +53,20 @@ const RATE_AUDIT_FIELDS = ["changeKind", "fieldsChanged", "locked"] as const;
 interface AdminStaffSource {
   account: {
     createdAt: Date;
+    displayName: string;
     email: string;
     id: string;
     isActive: boolean;
+    passwordChangeRequiredAt: Date | null;
     sessionVersion: number;
   };
   profile: {
-    displayName: string;
     isActive: boolean;
+    officeLocation: {
+      id: string;
+      isActive: boolean;
+      name: string;
+    } | null;
     role: "employee" | "producer";
   };
   rates: ProducerRateHistoryRecord[];
@@ -104,17 +115,25 @@ export async function listAdminStaffSources(
   const rows = await database
     .select({
       createdAt: users.createdAt,
-      displayName: staffProfiles.displayName,
+      displayName: users.displayName,
       email: users.email,
       isAccountActive: users.isActive,
       isProfileActive: staffProfiles.isActive,
+      officeId: officeLocations.id,
+      officeIsActive: officeLocations.isActive,
+      officeName: officeLocations.name,
+      passwordChangeRequiredAt: users.passwordChangeRequiredAt,
       role: staffProfiles.role,
       sessionVersion: users.sessionVersion,
       userId: users.id,
     })
     .from(staffProfiles)
     .innerJoin(users, eq(users.id, staffProfiles.userId))
-    .orderBy(asc(staffProfiles.displayName), asc(users.id))
+    .leftJoin(
+      officeLocations,
+      eq(officeLocations.id, staffProfiles.officeLocationId),
+    )
+    .orderBy(asc(users.displayName), asc(users.id))
     .limit(ADMIN_STAFF_MAX_RESULTS + 1);
   if (rows.length > ADMIN_STAFF_MAX_RESULTS) {
     throw new AdminStaffBoundsError();
@@ -167,12 +186,15 @@ export async function createAdminStaff(
     const userId = await database.transaction(async (transaction) => {
       await lockStaffNames(transaction);
       await requireUniqueDisplayName(transaction, request.displayName, null);
+      await requireAssignableOffice(transaction as AuthDatabase, request.officeLocationId);
       const account = await createUser(transaction as AuthDatabase, {
+        displayName: request.displayName,
         email: request.email,
         password: request.temporaryPassword,
+        passwordChangeRequired: true,
       });
       await transaction.insert(staffProfiles).values({
-        displayName: request.displayName,
+        officeLocationId: request.officeLocationId ?? null,
         role: request.role,
         userId: account.id,
       });
@@ -181,7 +203,21 @@ export async function createAdminStaff(
         context,
         account.id,
         null,
-        staffAuditSource("created", request.role, true, true),
+        staffAuditSource(
+          "created",
+          request.role,
+          true,
+          true,
+          request.officeLocationId !== undefined &&
+            request.officeLocationId !== null,
+        ),
+        logger,
+      );
+      await writeTemporaryPasswordAudit(
+        transaction,
+        context,
+        account.id,
+        "account_created",
         logger,
       );
       if (request.initialRate !== undefined) {
@@ -235,10 +271,18 @@ export async function updateAdminStaff(
           userId,
         );
       }
+      await requireAssignableOffice(
+        transaction as AuthDatabase,
+        request.officeLocationId,
+      );
       const nextRole = request.role ?? current.profile.role;
       const roleChanged = nextRole !== current.profile.role;
       const emailChanged =
         request.email !== undefined && request.email !== current.account.email;
+      const officeAssignmentChanged =
+        request.officeLocationId !== undefined &&
+        request.officeLocationId !==
+          (current.profile.officeLocation?.id ?? null);
       const needsInitialRate =
         current.profile.role === "employee" &&
         nextRole === "producer" &&
@@ -254,21 +298,26 @@ export async function updateAdminStaff(
         );
       }
 
-      if (emailChanged || roleChanged) {
+      if (emailChanged || roleChanged || request.displayName !== undefined) {
         await transaction
           .update(users)
           .set({
+            ...(request.displayName === undefined
+              ? {}
+              : { displayName: request.displayName }),
             ...(emailChanged ? { email: request.email } : {}),
-            sessionVersion: sql`${users.sessionVersion} + 1`,
+            ...(emailChanged || roleChanged
+              ? { sessionVersion: sql`${users.sessionVersion} + 1` }
+              : {}),
           })
           .where(eq(users.id, userId));
       }
       await transaction
         .update(staffProfiles)
         .set({
-          ...(request.displayName === undefined
+          ...(request.officeLocationId === undefined
             ? {}
-            : { displayName: request.displayName }),
+            : { officeLocationId: request.officeLocationId }),
           ...(request.role === undefined ? {} : { role: request.role }),
         })
         .where(eq(staffProfiles.userId, userId));
@@ -279,15 +328,17 @@ export async function updateAdminStaff(
         current.profile.role,
         current.account.isActive && current.profile.isActive,
         identityChanged,
+        officeAssignmentChanged,
       );
       const after = staffAuditSource(
         "updated",
         nextRole,
         current.account.isActive && current.profile.isActive,
         identityChanged,
+        officeAssignmentChanged,
       );
       if (
-        identityChanged || roleChanged
+        identityChanged || roleChanged || officeAssignmentChanged
       ) {
         await writeStaffAudit(
           transaction,
@@ -374,6 +425,81 @@ export async function setAdminStaffActive(
       actorUserId: context.principal.userId,
       component: "admin_staff",
       event: "admin_staff_mutation_completed",
+      targetUserId: userId,
+    });
+    return requireLoadedSource(database, userId);
+  } catch (error) {
+    throw mapAdminStaffWriteError(error);
+  }
+}
+
+export async function issueAdminTemporaryPassword(
+  database: AuthDatabase,
+  context: AuthorizedRequestContext,
+  userId: string,
+  input: unknown,
+  logger: AppLogger,
+): Promise<AdminStaffSource> {
+  requireAdminStaffAccess(context);
+  if (context.principal.userId === userId) {
+    throw new AdminStaffConflictError(
+      "Use Settings to change your own password",
+    );
+  }
+  const request = issueTemporaryPasswordRequestSchema.parse(input);
+  try {
+    await database.transaction(async (transaction) => {
+      const current = await loadAdminStaffSource(
+        transaction as AuthDatabase,
+        userId,
+        true,
+      );
+      if (current === null) {
+        throw new AdminStaffNotFoundError();
+      }
+      const [credentials] = await transaction
+        .select({ passwordHash: users.passwordHash })
+        .from(users)
+        .where(eq(users.id, userId))
+        .for("update")
+        .limit(1);
+      if (credentials === undefined) {
+        throw new AdminStaffNotFoundError();
+      }
+      if (
+        await verifyPassword(
+          request.temporaryPassword,
+          credentials.passwordHash,
+        )
+      ) {
+        throw new AdminStaffConflictError(
+          "Temporary password must differ from the current password",
+        );
+      }
+      const passwordHash = await hashPassword(request.temporaryPassword);
+      await transaction
+        .update(users)
+        .set({
+          passwordChangeRequiredAt: new Date(),
+          passwordHash,
+          sessionVersion: sql`${users.sessionVersion} + 1`,
+        })
+        .where(eq(users.id, userId));
+      await transaction
+        .delete(sessions)
+        .where(sql`${sessions.sess}->>'userId' = ${userId}`);
+      await writeTemporaryPasswordAudit(
+        transaction,
+        context,
+        userId,
+        "admin_recovery",
+        logger,
+      );
+    });
+    logger.info("Temporary password issued", {
+      actorUserId: context.principal.userId,
+      component: "admin_staff",
+      event: "temporary_password_issued",
       targetUserId: userId,
     });
     return requireLoadedSource(database, userId);
@@ -511,9 +637,12 @@ export function projectAdminStaffSource(
   const active = source.account.isActive && source.profile.isActive;
   return {
     createdAt: source.account.createdAt.toISOString(),
-    displayName: source.profile.displayName,
+    displayName: source.account.displayName,
     email: source.account.email,
     isActive: active,
+    officeLocation: source.profile.officeLocation,
+    passwordChangeRequired:
+      source.account.passwordChangeRequiredAt !== null,
     rateState:
       source.profile.role === "producer"
         ? source.rates.length === 0
@@ -554,19 +683,27 @@ async function loadAdminStaffSource(
   let query = database
     .select({
       createdAt: users.createdAt,
-      displayName: staffProfiles.displayName,
+      displayName: users.displayName,
       email: users.email,
       isAccountActive: users.isActive,
       isProfileActive: staffProfiles.isActive,
+      officeId: officeLocations.id,
+      officeIsActive: officeLocations.isActive,
+      officeName: officeLocations.name,
+      passwordChangeRequiredAt: users.passwordChangeRequiredAt,
       role: staffProfiles.role,
       sessionVersion: users.sessionVersion,
       userId: users.id,
     })
     .from(staffProfiles)
     .innerJoin(users, eq(users.id, staffProfiles.userId))
+    .leftJoin(
+      officeLocations,
+      eq(officeLocations.id, staffProfiles.officeLocationId),
+    )
     .where(eq(users.id, userId))
     .limit(1);
-  const rows = lock ? await query.for("update") : await query;
+  const rows = lock ? await query.for("update", { of: users }) : await query;
   const row = rows[0];
   if (row === undefined) {
     return null;
@@ -597,6 +734,10 @@ function sourceFromRow(
     email: string;
     isAccountActive: boolean;
     isProfileActive: boolean;
+    officeId: string | null;
+    officeIsActive: boolean | null;
+    officeName: string | null;
+    passwordChangeRequiredAt: Date | null;
     role: "employee" | "producer";
     sessionVersion: number;
     userId: string;
@@ -606,14 +747,25 @@ function sourceFromRow(
   return {
     account: {
       createdAt: row.createdAt,
+      displayName: row.displayName,
       email: row.email,
       id: row.userId,
       isActive: row.isAccountActive,
+      passwordChangeRequiredAt: row.passwordChangeRequiredAt,
       sessionVersion: row.sessionVersion,
     },
     profile: {
-      displayName: row.displayName,
       isActive: row.isProfileActive,
+      officeLocation:
+        row.officeId === null ||
+        row.officeIsActive === null ||
+        row.officeName === null
+          ? null
+          : {
+              id: row.officeId,
+              isActive: row.officeIsActive,
+              name: row.officeName,
+            },
       role: row.role,
     },
     rates,
@@ -637,14 +789,14 @@ async function requireUniqueDisplayName(
 ): Promise<void> {
   const condition =
     exceptUserId === null
-      ? sql`lower(${staffProfiles.displayName}) = lower(${displayName})`
+      ? sql`lower(${users.displayName}) = lower(${displayName})`
       : and(
-          sql`lower(${staffProfiles.displayName}) = lower(${displayName})`,
-          ne(staffProfiles.userId, exceptUserId),
+          sql`lower(${users.displayName}) = lower(${displayName})`,
+          ne(users.id, exceptUserId),
         );
   const [existing] = await database
-    .select({ userId: staffProfiles.userId })
-    .from(staffProfiles)
+    .select({ userId: users.id })
+    .from(users)
     .where(condition)
     .limit(1);
   if (existing !== undefined) {
@@ -722,8 +874,57 @@ function staffAuditSource(
   role: "employee" | "producer",
   active: boolean,
   identityChanged: boolean,
+  officeAssignmentChanged = false,
 ): Record<string, unknown> {
-  return { active, changeKind, identityChanged, role };
+  return {
+    active,
+    changeKind,
+    identityChanged,
+    officeAssignmentChanged,
+    role,
+  };
+}
+
+async function requireAssignableOffice(
+  database: Pick<AuthDatabase, "select">,
+  officeLocationId: string | null | undefined,
+): Promise<void> {
+  if (officeLocationId === undefined || officeLocationId === null) {
+    return;
+  }
+  const [office] = await database
+    .select({ isActive: officeLocations.isActive })
+    .from(officeLocations)
+    .where(eq(officeLocations.id, officeLocationId))
+    .limit(1);
+  if (office?.isActive !== true) {
+    throw new AdminStaffConflictError(
+      "Office assignment requires an active office location",
+    );
+  }
+}
+
+async function writeTemporaryPasswordAudit(
+  transaction: Parameters<Parameters<AuthDatabase["transaction"]>[0]>[0],
+  context: AuthorizedRequestContext,
+  userId: string,
+  changeKind: "account_created" | "admin_recovery",
+  logger: AppLogger,
+): Promise<void> {
+  await writeAuditEventInDrizzleTransaction(
+    transaction,
+    context,
+    {
+      action: "user_temporary_password_issued",
+      after: {
+        allowedFields: ["changeKind"],
+        source: { changeKind },
+      },
+      entityId: userId,
+      entityType: "user",
+    },
+    logger,
+  );
 }
 
 function producerRateChangedFields(

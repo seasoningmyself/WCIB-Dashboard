@@ -38,6 +38,9 @@ export const AUDIT_ACTIONS = [
   "policy_ipfs_unpushed",
   "vocabulary_deactivated",
   "vocabulary_reactivated",
+  "user_password_changed",
+  "user_profile_changed",
+  "user_temporary_password_issued",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -58,6 +61,7 @@ export const AUDIT_ENTITY_TYPES = [
   "mga",
   "policy_change_request",
   "business_state_generation",
+  "user",
 ] as const;
 
 export type AuditEntityType = (typeof AUDIT_ENTITY_TYPES)[number];

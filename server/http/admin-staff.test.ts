@@ -16,6 +16,7 @@ import {
   ADMIN_STAFF_RATE_PATH,
   ADMIN_STAFF_RATES_PATH,
   ADMIN_STAFF_REACTIVATE_PATH,
+  ADMIN_STAFF_TEMPORARY_PASSWORD_PATH,
   registerAdminStaffRoutes,
 } from "./admin-staff.js";
 import type { RouteAccessDeclaration, RouteRegistrar } from "./routes.js";
@@ -75,6 +76,7 @@ test("admin staff routes are explicitly admin-only and have no delete path", asy
     create: fail,
     createRate: fail,
     get: fail,
+    issueTemporaryPassword: fail,
     list: fail,
     logger,
     setActive: fail,
@@ -94,6 +96,7 @@ test("admin staff routes are explicitly admin-only and have no delete path", asy
       `POST ${ADMIN_STAFF_REACTIVATE_PATH}`,
       `POST ${ADMIN_STAFF_RATES_PATH}`,
       `PATCH ${ADMIN_STAFF_RATE_PATH}`,
+      `POST ${ADMIN_STAFF_TEMPORARY_PASSWORD_PATH}`,
     ],
   );
   assert.equal(registrations.some(({ method }) => method === "DELETE"), false);

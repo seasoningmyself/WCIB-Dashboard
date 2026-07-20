@@ -73,3 +73,22 @@ test("login panel renders pending and safe failure states", () => {
   assert.match(network, /Check your connection and try again/);
   assert.doesNotMatch(network, /incorrect/i);
 });
+
+test("login panel disables credential entry during a visible throttle countdown", () => {
+  const markup = renderToStaticMarkup(
+    <LoginPanel
+      email="user@example.test"
+      error="throttled"
+      onEmailChange={noChange}
+      onPasswordChange={noChange}
+      onSubmit={noSubmit}
+      password=""
+      pending={false}
+      retryAfterSeconds={120}
+    />,
+  );
+
+  assert.match(markup, /Too many attempts\. Try again in 2 minutes/);
+  assert.match(markup, /Try again in 120s/);
+  assert.equal((markup.match(/disabled=""/g) ?? []).length, 3);
+});

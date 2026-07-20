@@ -14,7 +14,9 @@ import {
   type ProducerRateInput,
   type UpdateAdminStaffRequest,
 } from "../../../shared/admin-staff.js";
-import { PASSWORD_REQUIREMENTS } from "../../../shared/password-policy.js";
+import type { AdminOfficeLocation } from "../../../shared/admin-office-locations.js";
+import { issueTemporaryPasswordRequestSchema } from "../../../shared/admin-staff.js";
+import { PasswordRequirements } from "../auth/PasswordRequirements.js";
 import { staffRoleLabel } from "./view-state.js";
 
 export type StaffDialogState =
@@ -33,6 +35,7 @@ export interface ActiveDialogState {
 interface StaffFormValues {
   displayName: string;
   email: string;
+  officeLocationId: string;
   role: AdminStaffRecord["role"];
   temporaryPassword: string;
 }
@@ -51,6 +54,7 @@ export function StaffEditorDialog({
   onCancel,
   onCreate,
   onUpdate,
+  officeOptions = [],
   pending,
 }: {
   dialog: StaffDialogState | null;
@@ -58,6 +62,7 @@ export function StaffEditorDialog({
   onCancel(): void;
   onCreate(input: CreateAdminStaffRequest): void;
   onUpdate(userId: string, input: UpdateAdminStaffRequest): void;
+  officeOptions?: readonly AdminOfficeLocation[];
   pending: boolean;
 }) {
   const staff = dialog?.kind === "edit" ? dialog.staff : null;
@@ -96,6 +101,7 @@ export function StaffEditorDialog({
         displayName: values.displayName,
         email: values.email,
         ...(needsInitialRate ? { initialRate: normalizedRate } : {}),
+        officeLocationId: values.officeLocationId || null,
         role: values.role,
         temporaryPassword: values.temporaryPassword,
       });
@@ -116,6 +122,11 @@ export function StaffEditorDialog({
       input.email = values.email;
     }
     if (values.role !== dialog.staff.role) input.role = values.role;
+    if (
+      values.officeLocationId !== (dialog.staff.officeLocation?.id ?? "")
+    ) {
+      input.officeLocationId = values.officeLocationId || null;
+    }
     if (needsInitialRate) input.initialRate = normalizedRate;
     const parsed = updateAdminStaffRequestSchema.safeParse(input);
     if (!parsed.success) {
@@ -173,6 +184,33 @@ export function StaffEditorDialog({
               />
             </label>
             <label className="staff-field">
+              <span>Office</span>
+              <select
+                disabled={pending}
+                onChange={(event) => {
+                  const officeLocationId = event.currentTarget.value;
+                  setValues((current) => ({
+                    ...current,
+                    officeLocationId,
+                  }));
+                }}
+                value={values.officeLocationId}
+              >
+                <option value="">Not assigned</option>
+                {officeOptions
+                  .filter(
+                    (office) =>
+                      office.isActive ||
+                      office.id === staff?.officeLocation?.id,
+                  )
+                  .map((office) => (
+                    <option key={office.id} value={office.id}>
+                      {office.name}{office.isActive ? "" : " (inactive)"}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label className="staff-field">
               <span>Email</span>
               <input
                 autoComplete="off"
@@ -212,6 +250,7 @@ export function StaffEditorDialog({
                 <input
                   autoComplete="new-password"
                   disabled={pending}
+                  maxLength={256}
                   onChange={(event) => {
                     const value = event.currentTarget.value;
                     secretRef.current = value;
@@ -224,7 +263,7 @@ export function StaffEditorDialog({
                   type="password"
                   value={values.temporaryPassword}
                 />
-                <small>{PASSWORD_REQUIREMENTS.map(({ label }) => label).join("; ")}.</small>
+                <PasswordRequirements password={values.temporaryPassword} />
               </label>
             ) : null}
           </div>
@@ -398,6 +437,84 @@ export function StaffActiveDialog({
   );
 }
 
+export function TemporaryPasswordDialog({
+  dialog,
+  error,
+  onCancel,
+  onConfirm,
+  pending,
+}: {
+  dialog: { staff: AdminStaffRecord } | null;
+  error: string | null;
+  onCancel(): void;
+  onConfirm(temporaryPassword: string): void;
+  pending: boolean;
+}) {
+  const [temporaryPassword, setTemporaryPassword] = useState("");
+  const parsed = issueTemporaryPasswordRequestSchema.safeParse({
+    temporaryPassword,
+  });
+  if (dialog === null) return null;
+  return (
+    <div className="staff-dialog-backdrop" role="presentation">
+      <section
+        aria-labelledby="staff-temporary-password-title"
+        aria-modal="true"
+        className="staff-dialog"
+        role="dialog"
+      >
+        <header>
+          <div>
+            <p>{dialog.staff.displayName}</p>
+            <h2 id="staff-temporary-password-title">Issue temporary password</h2>
+          </div>
+          <button disabled={pending} onClick={onCancel} type="button">Close</button>
+        </header>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (parsed.success) onConfirm(parsed.data.temporaryPassword);
+          }}
+        >
+          <p className="staff-dialog-note">
+            Existing sessions will end. The user must replace this password at
+            the next sign-in.
+          </p>
+          <label className="staff-field">
+            <span>Temporary password</span>
+            <input
+              autoComplete="new-password"
+              disabled={pending}
+              maxLength={256}
+              onChange={(event) => setTemporaryPassword(event.currentTarget.value)}
+              required
+              type="password"
+              value={temporaryPassword}
+            />
+          </label>
+          <PasswordRequirements
+            password={temporaryPassword}
+            priorPassword={null}
+          />
+          {error === null ? null : (
+            <p className="staff-dialog-error" role="alert">{error}</p>
+          )}
+          <footer>
+            <button disabled={pending} onClick={onCancel} type="button">Cancel</button>
+            <button
+              className="is-primary"
+              disabled={pending || !parsed.success}
+              type="submit"
+            >
+              {pending ? "Issuing..." : "Issue temporary password"}
+            </button>
+          </footer>
+        </form>
+      </section>
+    </div>
+  );
+}
+
 function RateFields({
   disabled,
   onChange,
@@ -462,6 +579,7 @@ function initialStaffValues(staff: AdminStaffRecord | null): StaffFormValues {
   return {
     displayName: staff?.displayName ?? "",
     email: staff?.email ?? "",
+    officeLocationId: staff?.officeLocation?.id ?? "",
     role: staff?.role ?? "employee",
     temporaryPassword: "",
   };

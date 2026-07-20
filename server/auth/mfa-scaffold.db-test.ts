@@ -155,6 +155,7 @@ test("admin MFA scaffold stays inert and does not alter password login", async (
       password: PASSWORD,
     });
     const employee = await createUser(database, {
+      displayName: "MFA Employee Test",
       email: `mfa-employee.${runId}@example.test`,
       password: PASSWORD,
     });
@@ -164,7 +165,6 @@ test("admin MFA scaffold stays inert and does not alter password login", async (
       userId: admin.id,
     });
     await database.insert(staffProfiles).values({
-      displayName: "MFA Employee Test",
       role: "employee",
       userId: employee.id,
     });

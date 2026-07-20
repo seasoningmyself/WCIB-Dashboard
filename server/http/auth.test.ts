@@ -32,11 +32,20 @@ interface HandlerResponse {
 function account(overrides: Partial<UserAccount> = {}): UserAccount {
   return {
     createdAt: new Date("2026-07-09T00:00:00.000Z"),
+    displayName: "Admin User",
     email: "admin@example.test",
     id: USER_ID,
     isActive: true,
+    passwordChangeRequiredAt: null,
     sessionVersion: 0,
     ...overrides,
+  };
+}
+
+function authenticated() {
+  return {
+    account: account(),
+    verifiedPasswordHash: "$2b$10$DA2BkeOLidNMTWnMvpyAj.I9tWFMwSTWG4LihsLTuEj.F/uK./VMq",
   };
 }
 
@@ -73,10 +82,15 @@ function recordingLogger() {
 async function invokeHandler(
   handler: RequestHandler,
   body: unknown,
+  responseHeaders: Record<string, string> = {},
 ): Promise<HandlerResponse> {
   return new Promise<HandlerResponse>((resolve, reject) => {
     let statusCode = 200;
-    const req = { body } as Request;
+    const req = {
+      body,
+      ip: "127.0.0.1",
+      socket: { remoteAddress: "127.0.0.1" },
+    } as Request;
     const res = {
       end() {
         resolve({ body: null, statusCode });
@@ -84,6 +98,10 @@ async function invokeHandler(
       },
       json(responseBody: unknown) {
         resolve({ body: responseBody, statusCode });
+        return res;
+      },
+      set(name: string, value: string) {
+        responseHeaders[name.toLowerCase()] = value;
         return res;
       },
       status(nextStatusCode: number) {
@@ -109,7 +127,7 @@ test("login returns only the safe WCIB identity and access summary", async () =>
   let establishedSessions = 0;
   const handler = createLoginHandler({
     async authenticate() {
-      return account();
+      return authenticated();
     },
     async establishSession(_req, user) {
       establishedSessions += 1;
@@ -179,7 +197,7 @@ test("invalid and unavailable identities share one non-enumerating response", as
   });
   const unavailableHandler = createLoginHandler({
     async authenticate() {
-      return account();
+      return authenticated();
     },
     async establishSession() {
       throw new Error("An unavailable identity must not establish a session");
@@ -211,13 +229,115 @@ test("invalid and unavailable identities share one non-enumerating response", as
   assert.equal(JSON.stringify(events).includes(body.password), false);
 });
 
+test("temporary login throttling is enumeration-safe and supplies Retry-After", async () => {
+  const { events, logger } = recordingLogger();
+  const headers: Record<string, string> = {};
+  let authenticationCalls = 0;
+  const handler = createLoginHandler({
+    async authenticate() {
+      authenticationCalls += 1;
+      return null;
+    },
+    async establishSession() {
+      throw new Error("A throttled login must not establish a session");
+    },
+    async loadPrincipal() {
+      throw new Error("A throttled login must not load access");
+    },
+    logger,
+    throttle: {
+      async check() {
+        return { kind: "account", retryAfterSeconds: 120 };
+      },
+      async clearAccount() {},
+      async recordFailure() {
+        throw new Error("An active cooldown must not record another failure");
+      },
+    },
+  });
+
+  const knownShape = await invokeHandler(
+    handler,
+    { email: "known@example.test", password: "wrong-password" },
+    headers,
+  );
+  const unknownShape = await invokeHandler(
+    handler,
+    { email: "unknown@example.test", password: "wrong-password" },
+  );
+
+  assert.deepEqual(knownShape, unknownShape);
+  assert.deepEqual(knownShape, {
+    body: {
+      error: {
+        code: "too_many_attempts",
+        message: "Too many attempts. Try again in 2 minutes.",
+      },
+    },
+    statusCode: 429,
+  });
+  assert.equal(headers["retry-after"], "120");
+  assert.equal(authenticationCalls, 0);
+  assert.equal(JSON.stringify(events).includes("known@example.test"), false);
+  assert.equal(JSON.stringify(events).includes("unknown@example.test"), false);
+});
+
+test("successful login clears account failures and deferred hash upgrades cannot lock out", async () => {
+  const { events, logger } = recordingLogger();
+  const clearedAccounts: string[] = [];
+  let establishedSessions = 0;
+  const handler = createLoginHandler({
+    async authenticate() {
+      return authenticated();
+    },
+    async establishSession() {
+      establishedSessions += 1;
+    },
+    async loadPrincipal() {
+      return principal();
+    },
+    logger,
+    throttle: {
+      async check() {
+        return null;
+      },
+      async clearAccount(accountEmail) {
+        clearedAccounts.push(accountEmail);
+      },
+      async recordFailure() {
+        return null;
+      },
+    },
+    async upgradePasswordHash() {
+      throw new Error("simulated rehash outage");
+    },
+  });
+
+  const response = await invokeHandler(handler, {
+    email: "  ADMIN@EXAMPLE.TEST ",
+    password: "StrongPass123!",
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(establishedSessions, 1);
+  assert.deepEqual(clearedAccounts, ["admin@example.test"]);
+  assert.ok(
+    events.some(
+      ({ context }) => context?.event === "password_hash_upgrade_deferred",
+    ),
+  );
+  assert.ok(
+    events.some(({ context }) => context?.event === "login_succeeded"),
+  );
+});
+
 test("malformed login requests use the shared validation error", async () => {
   const { logger } = recordingLogger();
   let attempts = 0;
   const handler = createLoginHandler({
     async authenticate() {
       attempts += 1;
-      return account();
+      return authenticated();
     },
     async establishSession() {},
     async loadPrincipal() {

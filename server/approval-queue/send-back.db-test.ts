@@ -44,10 +44,12 @@ test("pending and flagged send-back paths are separate, atomic, and audited", as
           password: "StrongPass123!",
         });
         const employee = await createUser(database, {
+          displayName: "Send Back Employee",
           email: `send-back-employee-${randomUUID()}@example.test`,
           password: "StrongPass123!",
         });
         const producer = await createUser(database, {
+          displayName: "Send Back Producer",
           email: `send-back-producer-${randomUUID()}@example.test`,
           password: "StrongPass123!",
         });
@@ -56,16 +58,8 @@ test("pending and flagged send-back paths are separate, atomic, and audited", as
           userId: admin.id,
         });
         await database.insert(staffProfiles).values([
-          {
-            displayName: "Send Back Employee",
-            role: "employee",
-            userId: employee.id,
-          },
-          {
-            displayName: "Send Back Producer",
-            role: "producer",
-            userId: producer.id,
-          },
+          { role: "employee", userId: employee.id },
+          { role: "producer", userId: producer.id },
         ]);
         const adminContext = context(admin.id, {
           capabilities: ["admin"],

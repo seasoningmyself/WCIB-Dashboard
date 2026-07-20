@@ -68,6 +68,7 @@ test("v15 assignment choices persist through approval and produce the correct pa
           displayName: "Kaylee",
           email: "kaylee-assignment@example.test",
           id: references.producerUserId,
+          passwordChangeRequired: false,
           role: "producer",
         };
         const choices = buildAssignmentChoices(producer, []);

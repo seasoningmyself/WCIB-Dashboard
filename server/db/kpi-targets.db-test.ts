@@ -34,11 +34,11 @@ test("KPI targets enforce annual company and producer scopes", async () => {
 
       try {
         const producer = await createUser(database, {
+          displayName: "KPI Producer",
           email: `kpi-producer-${randomUUID()}@example.test`,
           password: "StrongPass123!",
         });
         await database.insert(staffProfiles).values({
-          displayName: "KPI Producer",
           role: "producer",
           userId: producer.id,
         });

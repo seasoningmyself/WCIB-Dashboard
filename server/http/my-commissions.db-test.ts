@@ -135,10 +135,12 @@ test("My Commissions is producer-owned, frozen for closed items, and exact-field
           password: PASSWORD,
         });
         const otherProducer = await createUser(database, {
+          displayName: "Other Producer",
           email: `stone121-other-${randomUUID()}@example.test`,
           password: PASSWORD,
         });
         const producerWithoutRate = await createUser(database, {
+          displayName: "Producer Without Rate",
           email: `stone121-no-rate-${randomUUID()}@example.test`,
           password: PASSWORD,
         });
@@ -147,16 +149,8 @@ test("My Commissions is producer-owned, frozen for closed items, and exact-field
           userId: admin.id,
         });
         await database.insert(staffProfiles).values([
-          {
-            displayName: "Other Producer",
-            role: "producer",
-            userId: otherProducer.id,
-          },
-          {
-            displayName: "Producer Without Rate",
-            role: "producer",
-            userId: producerWithoutRate.id,
-          },
+          { role: "producer", userId: otherProducer.id },
+          { role: "producer", userId: producerWithoutRate.id },
         ]);
         const adminContext = context(admin.id, null, ["admin"]);
         const producerContext = context(

@@ -12,6 +12,7 @@ import {
   createAdminProducerRate,
   createAdminStaff,
   getAdminStaffSource,
+  issueAdminTemporaryPassword,
   listAdminStaffSources,
   setAdminStaffActive,
   updateAdminProducerRate,
@@ -45,6 +46,7 @@ import {
   ADMIN_STAFF_RATE_PATH,
   ADMIN_STAFF_RATES_PATH,
   ADMIN_STAFF_REACTIVATE_PATH,
+  ADMIN_STAFF_TEMPORARY_PASSWORD_PATH,
   registerAdminStaffRoutes,
 } from "./admin-staff.js";
 import { CURRENT_USER_PATH, registerCurrentUserRoute } from "./current-user.js";
@@ -126,6 +128,14 @@ test("admin staff endpoints preserve identity history and rate integrity", async
                 createAdminProducerRate(database, context, userId, input, logger),
               get: (context, userId) =>
                 getAdminStaffSource(database, context, userId),
+              issueTemporaryPassword: (context, userId, input) =>
+                issueAdminTemporaryPassword(
+                  database,
+                  context,
+                  userId,
+                  input,
+                  logger,
+                ),
               list: (context) => listAdminStaffSources(database, context),
               logger,
               setActive: (context, userId, active) =>
@@ -152,7 +162,7 @@ test("admin staff endpoints preserve identity history and rate integrity", async
         const adminRoutes = auditRouteAccessDeclarations(app).filter(({ path }) =>
           path.startsWith(ADMIN_STAFF_PATH),
         );
-        assert.equal(adminRoutes.length, 8);
+        assert.equal(adminRoutes.length, 9);
         assert.equal(
           adminRoutes.every(({ access }) => access.type === "authorized"),
           true,
@@ -176,6 +186,7 @@ test("admin staff endpoints preserve identity history and rate integrity", async
           body: {
             displayName: "New Employee",
             email: "new.employee@example.test",
+            officeLocationId: references.officeLocationId,
             role: "employee",
             temporaryPassword: employeeTemporaryPassword,
           },
@@ -190,13 +201,21 @@ test("admin staff endpoints preserve identity history and rate integrity", async
           "displayName",
           "email",
           "isActive",
+          "officeLocation",
+          "passwordChangeRequired",
           "rateState",
           "rates",
           "role",
           "userId",
         ]);
         assert.equal(employee.rateState, "not_applicable");
-        assert.equal(JSON.stringify(employeeCreate.body).includes("password"), false);
+        assert.equal(employee.officeLocation.id, references.officeLocationId);
+        assert.equal(employee.passwordChangeRequired, true);
+        assert.equal(
+          JSON.stringify(employeeCreate.body).includes("temporaryPassword"),
+          false,
+        );
+        assert.equal(JSON.stringify(employeeCreate.body).includes("passwordHash"), false);
         assert.equal(JSON.stringify(employeeCreate.body).includes("sessionVersion"), false);
         const newEmployeeCookie = await login(
           running.baseUrl,
@@ -210,6 +229,14 @@ test("admin staff endpoints preserve identity history and rate integrity", async
           })).statusCode,
           200,
         );
+        const unassignedOffice = await request(running.baseUrl, {
+          body: { officeLocationId: null },
+          cookie: adminCookie,
+          method: "PATCH",
+          path: ADMIN_STAFF_DETAIL_PATH.replace(":userId", employee.userId),
+        });
+        assert.equal(unassignedOffice.statusCode, 200);
+        assert.equal((unassignedOffice.body as any).staff.officeLocation, null);
 
         const producerTemporaryPassword = "ProducerPass123!";
         const producerCreate = await request(running.baseUrl, {
@@ -403,6 +430,70 @@ test("admin staff endpoints preserve identity history and rate integrity", async
           })).statusCode,
           401,
         );
+
+        const recoveryPassword = "Recovery harbor 2026!";
+        const beforeRecovery = await accountState(
+          database,
+          references.submittedByUserId,
+        );
+        const recovery = await request(running.baseUrl, {
+          body: { temporaryPassword: recoveryPassword },
+          cookie: adminCookie,
+          method: "POST",
+          path: ADMIN_STAFF_TEMPORARY_PASSWORD_PATH.replace(
+            ":userId",
+            references.submittedByUserId,
+          ),
+        });
+        assert.equal(recovery.statusCode, 200);
+        assert.equal((recovery.body as any).staff.passwordChangeRequired, true);
+        assert.equal(
+          (await request(running.baseUrl, {
+            cookie: employeeCookie,
+            path: CURRENT_USER_PATH,
+          })).statusCode,
+          401,
+        );
+        assert.equal(
+          (await request(running.baseUrl, {
+            body: { email: employeeEmail, password: PASSWORD },
+            method: "POST",
+            path: LOGIN_PATH,
+          })).statusCode,
+          401,
+        );
+        const recoveredCookie = await login(
+          running.baseUrl,
+          employeeEmail,
+          recoveryPassword,
+        );
+        const recoveredIdentity = await request(running.baseUrl, {
+          cookie: recoveredCookie,
+          path: CURRENT_USER_PATH,
+        });
+        assert.equal(recoveredIdentity.statusCode, 200);
+        assert.equal(
+          (recoveredIdentity.body as any).user.passwordChangeRequired,
+          true,
+        );
+        const afterRecovery = await accountState(
+          database,
+          references.submittedByUserId,
+        );
+        assert.equal(
+          afterRecovery?.sessionVersion,
+          (beforeRecovery?.sessionVersion ?? -1) + 1,
+        );
+        const selfRecovery = await request(running.baseUrl, {
+          body: { temporaryPassword: recoveryPassword },
+          cookie: adminCookie,
+          method: "POST",
+          path: ADMIN_STAFF_TEMPORARY_PASSWORD_PATH.replace(
+            ":userId",
+            admin.id,
+          ),
+        });
+        assert.equal(selfRecovery.statusCode, 409);
         const afterDeactivation = await accountState(database, producer.userId);
         assert.equal(afterDeactivation?.isActive, false);
         assert.equal(
@@ -448,9 +539,9 @@ test("admin staff endpoints preserve identity history and rate integrity", async
           await removeAuditFailure(pool);
         }
         const [nameAfterFailure] = await database
-          .select({ displayName: staffProfiles.displayName })
-          .from(staffProfiles)
-          .where(eq(staffProfiles.userId, producer.userId));
+          .select({ displayName: users.displayName })
+          .from(users)
+          .where(eq(users.id, producer.userId));
         assert.equal(nameAfterFailure?.displayName, "New Producer");
 
         await forceAuditFailure(pool, "producer_rate_changed");
@@ -501,14 +592,21 @@ test("admin staff endpoints preserve identity history and rate integrity", async
             inArray(auditEvents.action, [
               "staff_account_changed",
               "producer_rate_changed",
+              "user_temporary_password_issued",
             ]),
           );
         assert.ok(relevantAudits.some(({ action }) => action === "staff_account_changed"));
         assert.ok(relevantAudits.some(({ action }) => action === "producer_rate_changed"));
+        assert.ok(
+          relevantAudits.some(
+            ({ action }) => action === "user_temporary_password_issued",
+          ),
+        );
         const serializedAudits = JSON.stringify(relevantAudits);
         for (const secret of [
           employeeTemporaryPassword,
           producerTemporaryPassword,
+          recoveryPassword,
           "new.employee@example.test",
           "new.producer@example.test",
           "New Employee",
@@ -522,6 +620,7 @@ test("admin staff endpoints preserve identity history and rate integrity", async
         for (const secret of [
           employeeTemporaryPassword,
           producerTemporaryPassword,
+          recoveryPassword,
           "new.employee@example.test",
           "new.producer@example.test",
           "New Employee",
@@ -569,6 +668,11 @@ async function assertWrongRolesDenied(
       body: {},
       method: "POST",
       path: ADMIN_STAFF_RATES_PATH.replace(":userId", userId),
+    },
+    {
+      body: {},
+      method: "POST",
+      path: ADMIN_STAFF_TEMPORARY_PASSWORD_PATH.replace(":userId", userId),
     },
     {
       body: {},

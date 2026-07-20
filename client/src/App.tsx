@@ -10,6 +10,7 @@ import { createApiClient } from "./api/client.js";
 import { ApiClientProvider } from "./api/context.js";
 import { createAuthApi, type AuthApi } from "./auth/api.js";
 import { SignedOutExperience } from "./auth/SignedOutExperience.js";
+import { RequiredPasswordChangeDialog } from "./auth/RequiredPasswordChangeDialog.js";
 import {
   createLogoutAction,
   createSessionBoundary,
@@ -37,8 +38,10 @@ export function App({ authApi = defaultAuthApi }: AppProps) {
   const [auth, setAuth] = useState<AuthState>({ status: "loading" });
   const [restoreAttempt, setRestoreAttempt] = useState(0);
   const boundaryRef = useRef<SessionBoundary | null>(null);
+  const temporaryPasswordRef = useRef<string | null>(null);
   if (boundaryRef.current === null) {
     boundaryRef.current = createSessionBoundary((event) => {
+      temporaryPasswordRef.current = null;
       setAuth({ returnPath: event.returnPath, status: "signed_out" });
     });
   }
@@ -83,7 +86,7 @@ export function App({ authApi = defaultAuthApi }: AppProps) {
   }, [authApi, boundary, restoreAttempt]);
 
   const handleAuthenticated = useCallback(
-    (user: CurrentUser) => {
+    (user: CurrentUser, authenticatedPassword?: string) => {
       const returnPath =
         auth.status === "signed_out" ? auth.returnPath : null;
       if (returnPath !== null) {
@@ -96,6 +99,9 @@ export function App({ authApi = defaultAuthApi }: AppProps) {
             : "/";
       }
       boundary.beginSession();
+      temporaryPasswordRef.current = user.passwordChangeRequired
+        ? (authenticatedPassword ?? null)
+        : null;
       setAuth({ status: "authenticated", user });
     },
     [auth, boundary],
@@ -133,12 +139,32 @@ export function App({ authApi = defaultAuthApi }: AppProps) {
     );
   }
 
+  if (auth.user.passwordChangeRequired) {
+    return (
+      <RequiredPasswordChangeDialog
+        api={authApi}
+        onChanged={(user) => {
+          temporaryPasswordRef.current = null;
+          boundary.beginSession();
+          setAuth({ status: "authenticated", user });
+        }}
+        onLogout={() => {
+          temporaryPasswordRef.current = null;
+          logoutAction.run();
+        }}
+        temporaryPassword={temporaryPasswordRef.current}
+        user={auth.user}
+      />
+    );
+  }
+
   return (
     <ApiClientProvider boundary={boundary} client={protectedApi}>
       <AppShell
         onLogout={() => {
           logoutAction.run();
         }}
+        onUserChanged={(user) => setAuth({ status: "authenticated", user })}
         user={auth.user}
       />
     </ApiClientProvider>

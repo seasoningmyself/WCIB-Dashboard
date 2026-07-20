@@ -18,6 +18,7 @@ const employee: CurrentUser = {
   displayName: "Mercedes",
   email: "mercedes@example.test",
   id: uuid(9),
+  passwordChangeRequired: false,
   role: "employee",
 };
 

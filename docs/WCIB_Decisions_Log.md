@@ -1,7 +1,55 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 18, 2026 (Manage Staff corrections and name-based account-assignment labels.)
+**Last updated:** July 19, 2026 (First-login account security, Settings, and staged CSP rollout.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
+
+---
+
+## July 19, 2026 — First-login passwords use a usable blocklist-first policy
+
+All newly issued temporary passwords require replacement before an account can
+use any protected application function. The authenticated guard checks this
+state before role or capability evaluation; only current-user discovery,
+password replacement, and logout remain available. A successful replacement
+rejects the temporary/current password, writes no password material to audit,
+increments the session version, invalidates every existing session, and issues
+one fresh session for the replacing browser.
+
+Passwords accept spaces and Unicode and must contain 12–128 characters. There
+are no uppercase, lowercase, digit, or symbol composition rules and no periodic
+expiration. Instead, a version-controlled offline blocklist rejects common,
+compromised-pattern, and WCIB-predictable values, while the UI gives live
+feedback for length, blocklist, reuse, and confirmation. Twelve characters was
+chosen for the five non-technical staff receiving initial access; avoiding
+predictable composition substitutions and blocking weak organization-specific
+choices provides more practical value than raising the minimum to 15. MFA is
+planned as an additional factor and does not weaken this password boundary.
+
+New password writes use Argon2id. Existing bcrypt hashes remain verifiable and
+are opportunistically upgraded only after successful authentication. Upgrade
+failure never fails an otherwise valid login, so the transition cannot lock an
+account out. Migration 0052 also makes `users.display_name` canonical, adds the
+first-login state and optional staff office assignment, and stores login
+throttle state. It advances the generation schema contract from 52 to 53.
+
+Settings is an own-record-only surface for every authenticated role. A user may
+change only their own display name and password; email and office are view-only,
+and role, capability, identity, email, or office input is rejected. Admins keep
+office assignment and temporary-password recovery in Manage Staff.
+
+---
+
+## July 19, 2026 — Framing is blocked while CSP is observed before enforcement
+
+All application responses enforce `frame-ancestors 'none'` because WCIB has no
+supported embedding use case. The broader Content Security Policy is initially
+sent as `Content-Security-Policy-Report-Only`, with inline scripts prohibited
+and same-origin violation reports accepted by a bounded endpoint and written as
+sanitized structured server logs. This staging is deliberate: actual browser
+reports from every screen, dialog, print path, and export will define the final
+enforcing policy without risking a late production regression. HSTS remains an
+edge concern, while the application also sends nosniff and same-origin referrer
+protection.
 
 ---
 

@@ -46,12 +46,12 @@ test("producer rate history preserves dated exact rates and table constraints", 
   try {
     await client.query("BEGIN");
     const producer = await createUser(database, {
+      displayName: "Rate Test Producer",
       email: `rate-producer.${randomUUID()}@example.test`,
       password: "StrongPass123!",
     });
 
     await database.insert(staffProfiles).values({
-      displayName: "Rate Test Producer",
       role: "producer",
       userId: producer.id,
     });

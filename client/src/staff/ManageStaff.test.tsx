@@ -8,6 +8,7 @@ import {
   RateEditorDialog,
   StaffActiveDialog,
   StaffEditorDialog,
+  TemporaryPasswordDialog,
 } from "./StaffDialogs.js";
 import { ManageStaff, ManageStaffView } from "./ManageStaff.js";
 import { employeeFixture, staffFixture, uuid } from "./test-fixture.js";
@@ -88,6 +89,7 @@ test("screen exposes loading, empty, failure, denied, and safe non-admin states"
       displayName: "Private Staff",
       email: `${role}@example.test`,
       id: uuid(role === "employee" ? 91 : 92),
+      passwordChangeRequired: false,
       role,
     };
     const markup = renderToStaticMarkup(<ManageStaff user={user} />);
@@ -126,6 +128,47 @@ test("staff editor keeps temporary credentials masked and creation-only", () => 
   assert.doesNotMatch(editing, /Pronoun|Her|His|Their/);
 });
 
+test("staff editor manages office assignment and admin temporary-password recovery", () => {
+  const staff = staffFixture();
+  const editor = renderToStaticMarkup(
+    <StaffEditorDialog
+      dialog={{ kind: "edit", staff }}
+      error={null}
+      officeOptions={[
+        {
+          createdAt: "2026-07-19T12:00:00.000Z",
+          id: uuid(20),
+          isActive: true,
+          name: "West Coast",
+          updatedAt: "2026-07-19T12:00:00.000Z",
+        },
+      ]}
+      onCancel={noOp}
+      onCreate={noOp}
+      onUpdate={noOp}
+      pending={false}
+    />,
+  );
+  const recovery = renderToStaticMarkup(
+    <TemporaryPasswordDialog
+      dialog={{ staff }}
+      error={null}
+      onCancel={noOp}
+      onConfirm={noOp}
+      pending={false}
+    />,
+  );
+
+  assert.match(editor, />Office</);
+  assert.match(editor, />Not assigned</);
+  assert.match(editor, />West Coast</);
+  assert.match(recovery, /Issue temporary password/);
+  assert.match(recovery, /Existing sessions will end/);
+  assert.match(recovery, /must replace this password at the next sign-in/);
+  assert.match(recovery, /type="password"/);
+  assert.doesNotMatch(recovery, /passwordHash|sessionVersion/);
+});
+
 test("role and active dialogs explain dormant history and session invalidation", () => {
   const deactivation = renderToStaticMarkup(
     <StaffActiveDialog
@@ -160,6 +203,7 @@ function renderView(
 ): string {
   return renderToStaticMarkup(
     <ManageStaffView
+      currentUserId={uuid(99)}
       expandedUserId={expandedUserId}
       notice={null}
       onActive={noOp}
@@ -167,6 +211,7 @@ function renderView(
       onAddRate={noOp}
       onCorrectRate={noOp}
       onEdit={noOp}
+      onTemporaryPassword={noOp}
       onRetry={noOp}
       onToggle={noOp}
       pending={false}
@@ -178,6 +223,7 @@ function renderView(
 function renderState(state: Parameters<typeof ManageStaffView>[0]["state"]): string {
   return renderToStaticMarkup(
     <ManageStaffView
+      currentUserId={uuid(99)}
       expandedUserId={null}
       notice={null}
       onActive={noOp}
@@ -185,6 +231,7 @@ function renderState(state: Parameters<typeof ManageStaffView>[0]["state"]): str
       onAddRate={noOp}
       onCorrectRate={noOp}
       onEdit={noOp}
+      onTemporaryPassword={noOp}
       onRetry={noOp}
       onToggle={noOp}
       pending={false}

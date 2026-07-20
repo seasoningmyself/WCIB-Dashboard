@@ -9,6 +9,7 @@ import {
   sql,
   type SQL,
 } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import {
   paySheetCloseResultSchema,
   paySheetAdjustmentViewSchema,
@@ -38,7 +39,6 @@ import {
   policies,
   policyTypes,
   producerRateHistory,
-  staffProfiles,
   users,
   type PaySheetAdjustmentRecord,
   type PaySheetRecord,
@@ -55,6 +55,7 @@ import {
 } from "./snapshots.js";
 
 const MAX_PAY_SHEET_ROWS = 1_000;
+const producerUsers = alias(users, "pay_sheet_producer_users");
 
 type PaySheetReadDatabase = Pick<AuthDatabase, "select">;
 
@@ -592,12 +593,11 @@ function baseHeaderQuery(database: PaySheetReadDatabase) {
   return database
     .select({
       ...getTableColumns(paySheets),
-      ownerDisplayName: staffProfiles.displayName,
+      ownerDisplayName: users.displayName,
       ownerEmail: users.email,
     })
     .from(paySheets)
-    .innerJoin(users, eq(users.id, paySheets.ownerUserId))
-    .leftJoin(staffProfiles, eq(staffProfiles.userId, paySheets.ownerUserId));
+    .innerJoin(users, eq(users.id, paySheets.ownerUserId));
 }
 
 function mapHeader(
@@ -656,14 +656,14 @@ async function loadLivePolicies(
       policyNumber: policies.policyNumber,
       policyTypeClass: policyTypes.classTag,
       policyTypeName: policyTypes.name,
-      producerDisplayName: staffProfiles.displayName,
+      producerDisplayName: producerUsers.displayName,
       producerUserId: policies.producerUserId,
       transactionType: policies.transactionType,
     })
     .from(paySheetPolicies)
     .innerJoin(policies, eq(policies.id, paySheetPolicies.policyId))
     .innerJoin(policyTypes, eq(policyTypes.id, policies.policyTypeId))
-    .leftJoin(staffProfiles, eq(staffProfiles.userId, policies.producerUserId))
+    .leftJoin(producerUsers, eq(producerUsers.id, policies.producerUserId))
     .where(
       and(
         eq(paySheetPolicies.paySheetId, paySheetId),
@@ -685,13 +685,13 @@ async function loadFrozenPolicies(
       associationId: paySheetPolicies.id,
       frozenPolicySnapshot: paySheetPolicies.frozenPolicySnapshot,
       frozenRateSnapshot: paySheetPolicies.frozenRateSnapshot,
-      producerDisplayName: staffProfiles.displayName,
+      producerDisplayName: producerUsers.displayName,
     })
     .from(paySheetPolicies)
     .leftJoin(
-      staffProfiles,
+      producerUsers,
       eq(
-        staffProfiles.userId,
+        producerUsers.id,
         sql`(${paySheetPolicies.frozenPolicySnapshot}->>'producerUserId')::uuid`,
       ),
     )
@@ -712,13 +712,13 @@ async function loadAdjustments(
     .select({
       ...getTableColumns(paySheetAdjustments),
       policyTypeName: policyTypes.name,
-      producerDisplayName: staffProfiles.displayName,
+      producerDisplayName: producerUsers.displayName,
     })
     .from(paySheetAdjustments)
     .leftJoin(policyTypes, eq(policyTypes.id, paySheetAdjustments.policyTypeId))
     .leftJoin(
-      staffProfiles,
-      eq(staffProfiles.userId, paySheetAdjustments.producerUserId),
+      producerUsers,
+      eq(producerUsers.id, paySheetAdjustments.producerUserId),
     )
     .where(
       and(

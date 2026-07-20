@@ -378,11 +378,11 @@ async function createCascadeFixture(
   const producerIds = [references.producerUserId];
   for (let index = 1; index < (options.producerCount ?? 2); index += 1) {
     const producer = await createUser(database, {
+      displayName: `K2 Producer ${index}`,
       email: `k2-producer-${randomUUID()}@example.test`,
       password: "StrongPass123!",
     });
     await database.insert(staffProfiles).values({
-      displayName: `K2 Producer ${index}`,
       role: "producer",
       userId: producer.id,
     });

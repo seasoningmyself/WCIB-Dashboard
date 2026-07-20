@@ -92,6 +92,7 @@ test("producer receipt mark and unmark are owner-only, idempotent, and audit-ato
           password: PASSWORD,
         });
         const otherProducer = await createUser(database, {
+          displayName: "Receipt Other Producer",
           email: `stone122-other-${randomUUID()}@example.test`,
           password: PASSWORD,
         });
@@ -100,7 +101,6 @@ test("producer receipt mark and unmark are owner-only, idempotent, and audit-ato
           userId: admin.id,
         });
         await database.insert(staffProfiles).values({
-          displayName: "Receipt Other Producer",
           role: "producer",
           userId: otherProducer.id,
         });

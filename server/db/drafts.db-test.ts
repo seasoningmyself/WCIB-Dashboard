@@ -31,17 +31,24 @@ test("drafts persist UUID-owned v15 turn-in and financing fields", async () => {
     const passwordHash = await hashPassword("DraftTestPassword1!");
     const [owner] = await database
       .insert(users)
-      .values({ email: `draft-owner-${runId}@example.test`, passwordHash })
+      .values({
+        displayName: `Draft owner ${runId}`,
+        email: `draft-owner-${runId}@example.test`,
+        passwordHash,
+      })
       .returning({ id: users.id });
     const [producer] = await database
       .insert(users)
-      .values({ email: `draft-producer-${runId}@example.test`, passwordHash })
+      .values({
+        displayName: `Producer ${runId}`,
+        email: `draft-producer-${runId}@example.test`,
+        passwordHash,
+      })
       .returning({ id: users.id });
     assert.ok(owner && producer);
     userIds.push(owner.id, producer.id);
 
     await database.insert(staffProfiles).values({
-      displayName: `Producer ${runId}`,
       role: "producer",
       userId: producer.id,
     });

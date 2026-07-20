@@ -88,9 +88,11 @@ function readCookie(response: TestResponse): string {
 function account(overrides: Partial<UserAccount> = {}): UserAccount {
   return {
     createdAt: new Date("2026-07-09T00:00:00.000Z"),
+    displayName: "Session User",
     email: "session.user@example.test",
     id: USER_ID,
     isActive: true,
+    passwordChangeRequiredAt: null,
     sessionVersion: 0,
     ...overrides,
   };

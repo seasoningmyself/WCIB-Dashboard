@@ -5,6 +5,7 @@ import {
   adminStaffParamsSchema,
   adminStaffRateParamsSchema,
   createAdminStaffRequestSchema,
+  issueTemporaryPasswordRequestSchema,
   producerRateInputSchema,
   updateAdminStaffRequestSchema,
   type AdminStaffRecord,
@@ -31,6 +32,10 @@ export class AdminStaffApiError extends Error {
 export interface AdminStaffApi {
   create(input: CreateAdminStaffRequest): Promise<AdminStaffRecord>;
   createRate(userId: string, input: ProducerRateInput): Promise<AdminStaffRecord>;
+  issueTemporaryPassword(
+    userId: string,
+    temporaryPassword: string,
+  ): Promise<AdminStaffRecord>;
   list(): Promise<readonly AdminStaffRecord[]>;
   setActive(userId: string, active: boolean): Promise<AdminStaffRecord>;
   update(userId: string, input: UpdateAdminStaffRequest): Promise<AdminStaffRecord>;
@@ -62,6 +67,20 @@ export function createAdminStaffApi(client: ApiClient): AdminStaffApi {
     async list() {
       const response = await read(client, "/admin/staff");
       return response.items;
+    },
+    async issueTemporaryPassword(userId, temporaryPassword) {
+      const params = parseRequest(adminStaffParamsSchema, { userId });
+      const body = parseRequest(issueTemporaryPasswordRequestSchema, {
+        temporaryPassword,
+      });
+      return (
+        await mutate(
+          client,
+          `/admin/staff/${encodeURIComponent(params.userId)}/temporary-password`,
+          "POST",
+          body,
+        )
+      ).staff;
     },
     async setActive(userId, active) {
       const params = parseRequest(adminStaffParamsSchema, { userId });

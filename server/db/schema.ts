@@ -154,8 +154,12 @@ export const users = pgTable(
   "users",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    displayName: text("display_name").notNull(),
     email: text("email").notNull(),
     passwordHash: text("password_hash").notNull(),
+    passwordChangeRequiredAt: timestamp("password_change_required_at", {
+      withTimezone: true,
+    }),
     isActive: boolean("is_active").notNull().default(true),
     sessionVersion: integer("session_version").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -164,13 +168,20 @@ export const users = pgTable(
   },
   (table) => [
     uniqueIndex("users_email_unique_idx").on(sql`lower(${table.email})`),
+    uniqueIndex("users_display_name_unique_idx").on(
+      sql`lower(${table.displayName})`,
+    ),
+    check(
+      "users_display_name_normalized_check",
+      sql`${table.displayName} = btrim(${table.displayName}) AND char_length(${table.displayName}) > 0`,
+    ),
     check(
       "users_email_normalized_check",
       sql`${table.email} = lower(btrim(${table.email}))`,
     ),
     check(
       "users_password_hash_format_check",
-      sql`${table.passwordHash} ~ '^\\$2[aby]\\$[0-9]{2}\\$[./A-Za-z0-9]{53}$'`,
+      sql`${table.passwordHash} ~ '^(\\$2[aby]\\$[0-9]{2}\\$[./A-Za-z0-9]{53}|\\$argon2id\\$v=19\\$m=[0-9]+,t=[0-9]+,p=[0-9]+\\$[A-Za-z0-9+/]+\\$[A-Za-z0-9+/]+)$'`,
     ),
     check(
       "users_session_version_nonnegative_check",
@@ -181,6 +192,39 @@ export const users = pgTable(
 
 export type UserRecord = typeof users.$inferSelect;
 export type NewUserRecord = typeof users.$inferInsert;
+
+export const loginThrottleBuckets = pgTable(
+  "login_throttle_buckets",
+  {
+    kind: text("kind").notNull(),
+    bucketHash: text("bucket_hash").notNull(),
+    failureCount: integer("failure_count").notNull(),
+    blockedUntil: timestamp("blocked_until", { withTimezone: true }),
+    lastFailedAt: timestamp("last_failed_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.kind, table.bucketHash],
+      name: "login_throttle_buckets_kind_hash_pk",
+    }),
+    index("login_throttle_buckets_blocked_until_idx").on(table.blockedUntil),
+    check(
+      "login_throttle_buckets_kind_check",
+      sql`${table.kind} in ('account', 'ip')`,
+    ),
+    check(
+      "login_throttle_buckets_hash_check",
+      sql`${table.bucketHash} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      "login_throttle_buckets_failure_count_check",
+      sql`${table.failureCount} > 0`,
+    ),
+  ],
+);
 
 export const businessStateGenerations = pgTable(
   "business_state_generations",
@@ -448,8 +492,11 @@ export const staffProfiles = pgTable(
     userId: uuid("user_id")
       .primaryKey()
       .references(() => users.id, { onDelete: "restrict" }),
-    displayName: text("display_name").notNull(),
     role: staffRoleEnum("role").notNull(),
+    officeLocationId: uuid("office_location_id").references(
+      (): AnyPgColumn => officeLocations.id,
+      { onDelete: "restrict" },
+    ),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -457,10 +504,7 @@ export const staffProfiles = pgTable(
   },
   (table) => [
     index("staff_profiles_role_active_idx").on(table.role, table.isActive),
-    check(
-      "staff_profiles_display_name_normalized_check",
-      sql`${table.displayName} = btrim(${table.displayName}) AND char_length(${table.displayName}) > 0`,
-    ),
+    index("staff_profiles_office_location_idx").on(table.officeLocationId),
   ],
 );
 

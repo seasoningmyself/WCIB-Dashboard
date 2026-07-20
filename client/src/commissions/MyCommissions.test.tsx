@@ -18,6 +18,7 @@ const PRODUCER: CurrentUser = {
   displayName: "Kaylee",
   email: "kaylee@example.test",
   id: uuid(2),
+  passwordChangeRequired: false,
   role: "producer",
 };
 

@@ -431,9 +431,11 @@ function errorResult(error: unknown): TestResult {
 function account(userId: string, isActive = true): UserAccount {
   return {
     createdAt: new Date("2026-07-01T00:00:00.000Z"),
+    displayName: userId,
     email: `${userId}@example.test`,
     id: userId,
     isActive,
+    passwordChangeRequiredAt: null,
     sessionVersion: 0,
   };
 }

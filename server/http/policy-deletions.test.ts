@@ -229,7 +229,15 @@ function policy(): PolicyRecord {
 
 function account(id: string): UserAccount {
   const at = new Date("2026-07-14T12:00:00.000Z");
-  return { createdAt: at, email: `${id}@example.test`, id, isActive: true, sessionVersion: 0 };
+  return {
+    createdAt: at,
+    displayName: id,
+    email: `${id}@example.test`,
+    id,
+    isActive: true,
+    passwordChangeRequiredAt: null,
+    sessionVersion: 0,
+  };
 }
 
 function principal(id: string, access: Partial<AccessPrincipal> = {}): AccessPrincipal {

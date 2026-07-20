@@ -140,6 +140,7 @@ function user(role: "employee" | "producer"): CurrentUser {
     displayName: "Staff",
     email: "staff@example.test",
     id: "00000000-0000-4000-8000-000000000804",
+    passwordChangeRequired: false,
     role,
   };
 }

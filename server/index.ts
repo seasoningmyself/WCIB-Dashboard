@@ -13,6 +13,17 @@ import {
 import * as databaseSchema from "./db/schema.js";
 import { registerAuthRoutes } from "./http/auth.js";
 import { registerCurrentUserRoute } from "./http/current-user.js";
+import { registerRequiredPasswordChangeRoute } from "./http/required-password-change.js";
+import { registerSettingsRoutes } from "./http/settings.js";
+import {
+  changeOwnPassword,
+  replaceRequiredPassword,
+} from "./auth/password-changes.js";
+import {
+  loadOwnSettings,
+  updateOwnProfile,
+} from "./auth/settings.js";
+import { establishAuthenticatedSession } from "./auth/sessions.js";
 import {
   registerActiveVocabularyRoute,
   registerMgaMutationRoute,
@@ -127,6 +138,7 @@ import {
   createAdminProducerRate,
   createAdminStaff,
   getAdminStaffSource,
+  issueAdminTemporaryPassword,
   listAdminStaffSources,
   setAdminStaffActive,
   updateAdminProducerRate,
@@ -172,10 +184,31 @@ const app = createApp({
   logger,
   readinessCheck: () => checkDatabaseConnection(pool),
   registerRoutes: (routes) => {
-    registerAuthRoutes(routes, { database, logger });
+    registerAuthRoutes(routes, {
+      database,
+      logger,
+      loginThrottleSecret: config.sessionSecret,
+    });
     registerCurrentUserRoute(routes, {
       authorization,
       loadIdentity: (userId) => loadCurrentUserIdentity(database, userId),
+    });
+    registerRequiredPasswordChangeRoute(routes, {
+      authorization,
+      change: (context, input) =>
+        replaceRequiredPassword(database, context, input, logger),
+      establishSession: establishAuthenticatedSession,
+      logger,
+    });
+    registerSettingsRoutes(routes, {
+      authorization,
+      changePassword: (context, input) =>
+        changeOwnPassword(database, context, input, logger),
+      establishSession: establishAuthenticatedSession,
+      load: (context) => loadOwnSettings(database, context),
+      logger,
+      updateProfile: (context, input) =>
+        updateOwnProfile(database, context, input, logger),
     });
     registerActiveVocabularyRoute(routes, {
       authorization,
@@ -522,6 +555,14 @@ const app = createApp({
       get: (context, userId) =>
         getAdminStaffSource(database, context, userId),
       list: (context) => listAdminStaffSources(database, context),
+      issueTemporaryPassword: (context, userId, input) =>
+        issueAdminTemporaryPassword(
+          database,
+          context,
+          userId,
+          input,
+          logger,
+        ),
       logger,
       setActive: (context, userId, active) =>
         setAdminStaffActive(database, context, userId, active, logger),

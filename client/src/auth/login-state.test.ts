@@ -33,16 +33,25 @@ test("single-flight login suppresses duplicate pending submissions", async () =>
 test("login failures clear the password and retain only safe categories", () => {
   assert.deepEqual(
     loginFailureState(new AuthApiError("invalid_credentials")),
-    { error: "invalid_credentials", password: "" },
+    { error: "invalid_credentials", password: "", retryAfterSeconds: 0 },
   );
   assert.deepEqual(loginFailureState(new Error("private server body")), {
     error: "server",
     password: "",
+    retryAfterSeconds: 0,
   });
+  assert.deepEqual(
+    loginFailureState(new AuthApiError("throttled", 120)),
+    { error: "throttled", password: "", retryAfterSeconds: 120 },
+  );
   assert.equal(
     loginErrorText("invalid_credentials"),
     "Email or password is incorrect.",
   );
   assert.match(loginErrorText("network"), /connection/i);
   assert.doesNotMatch(loginErrorText("network"), /incorrect/i);
+  assert.equal(
+    loginErrorText("throttled", 120),
+    "Too many attempts. Try again in 2 minutes.",
+  );
 });

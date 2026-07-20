@@ -38,10 +38,11 @@ async function createActor(
 ): Promise<string> {
   const userId = randomUUID();
   await pool.query(
-    `INSERT INTO users (id, email, password_hash, is_active)
-     VALUES ($1, $2, $3, $4)`,
+    `INSERT INTO users (id, display_name, email, password_hash, is_active)
+     VALUES ($1, $2, $3, $4, $5)`,
     [
       userId,
+      `${label} user`,
       `${label}-${userId}@example.test`,
       validPasswordHash,
       options.active ?? true,
@@ -49,9 +50,9 @@ async function createActor(
   );
   if (options.role !== undefined) {
     await pool.query(
-      `INSERT INTO staff_profiles (user_id, display_name, role)
-       VALUES ($1, $2, $3)`,
-      [userId, `${label} user`, options.role],
+      `INSERT INTO staff_profiles (user_id, role)
+       VALUES ($1, $2)`,
+      [userId, options.role],
     );
   }
   if (options.admin === true) {

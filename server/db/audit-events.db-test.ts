@@ -41,7 +41,11 @@ test("audit events require a known actor and bounded object summaries", async ()
     await client.query("BEGIN");
     const [actor] = await database
       .insert(users)
-      .values({ email, passwordHash: VALID_PASSWORD_HASH })
+      .values({
+        displayName: `Audit actor ${randomUUID()}`,
+        email,
+        passwordHash: VALID_PASSWORD_HASH,
+      })
       .returning({ id: users.id });
     assert.ok(actor);
 

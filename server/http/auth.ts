@@ -8,6 +8,12 @@ import { apiErrorCodes } from "../../shared/api-errors.js";
 import { loadAccessPrincipal } from "../auth/access-repository.js";
 import type { AccessPrincipal } from "../auth/access.js";
 import { authenticateLoginCredentials } from "../auth/login.js";
+import type { AuthenticatedLogin } from "../auth/login.js";
+import {
+  createDatabaseLoginThrottle,
+  type LoginThrottle,
+  type LoginThrottleDecision,
+} from "../auth/login-throttle.js";
 import { verifyPassword } from "../auth/password.js";
 import {
   destroyAuthenticatedSession,
@@ -15,6 +21,7 @@ import {
 } from "../auth/sessions.js";
 import {
   findUserCredentialsByEmail,
+  opportunisticallyUpgradePasswordHash,
   type AuthDatabase,
   type UserAccount,
 } from "../auth/users.js";
@@ -28,15 +35,22 @@ export const LOGIN_PATH = "/api/auth/login";
 export const LOGOUT_PATH = "/api/auth/logout";
 
 export interface LoginHandlerDependencies {
-  authenticate(request: LoginRequest): Promise<UserAccount | null>;
+  authenticate(request: LoginRequest): Promise<AuthenticatedLogin | null>;
   establishSession(req: Request, user: UserAccount): Promise<void>;
   loadPrincipal(userId: string): Promise<AccessPrincipal | null>;
   logger: AppLogger;
+  throttle?: LoginThrottle;
+  upgradePasswordHash?(
+    userId: string,
+    password: string,
+    currentPasswordHash: string,
+  ): Promise<boolean>;
 }
 
 export interface RegisterAuthRoutesOptions {
   database: AuthDatabase;
   logger: AppLogger;
+  loginThrottleSecret?: string;
   loginMiddleware?: readonly RequestHandler[];
   passwordResetDelivery?: PasswordResetDelivery;
 }
@@ -51,16 +65,32 @@ export function createLoginHandler(
 ): RequestHandler {
   return asyncRoute(async (req, res) => {
     const request = loginRequestSchema.parse(req.body);
-    const user = await dependencies.authenticate(request);
+    const throttle = dependencies.throttle ?? noOpLoginThrottle;
+    const throttleKeys = {
+      account: request.email,
+      ip: req.ip || req.socket.remoteAddress || "unknown",
+    };
+    const activeCooldown = await throttle.check(throttleKeys);
+    if (activeCooldown !== null) {
+      throwTooManyAttempts(res, activeCooldown);
+    }
 
-    if (user === null) {
+    const authenticated = await dependencies.authenticate(request);
+
+    if (authenticated === null) {
       dependencies.logger.warn("Login failed", {
         component: "auth",
         event: "login_failed",
         reason: "invalid_credentials",
       });
+      const cooldown = await throttle.recordFailure(throttleKeys);
+      if (cooldown !== null) {
+        throwTooManyAttempts(res, cooldown);
+      }
       throw invalidCredentialsError();
     }
+
+    const user = authenticated.account;
 
     const principal = await dependencies.loadPrincipal(user.id);
     if (
@@ -74,9 +104,30 @@ export function createLoginHandler(
         reason: "identity_unavailable",
         userId: user.id,
       });
+      const cooldown = await throttle.recordFailure(throttleKeys);
+      if (cooldown !== null) {
+        throwTooManyAttempts(res, cooldown);
+      }
       throw invalidCredentialsError();
     }
 
+    if (dependencies.upgradePasswordHash !== undefined) {
+      try {
+        await dependencies.upgradePasswordHash(
+          user.id,
+          request.password,
+          authenticated.verifiedPasswordHash,
+        );
+      } catch (error) {
+        dependencies.logger.warn("Password hash upgrade deferred", {
+          component: "auth",
+          event: "password_hash_upgrade_deferred",
+          userId: user.id,
+        });
+      }
+    }
+
+    await throttle.clearAccount(throttleKeys.account);
     await dependencies.establishSession(req, user);
     const response: LoginResponse = {
       user: {
@@ -127,6 +178,14 @@ export function registerAuthRoutes(
   routes: RouteRegistrar,
   options: RegisterAuthRoutesOptions,
 ): void {
+  const throttle =
+    options.loginThrottleSecret === undefined
+      ? undefined
+      : createDatabaseLoginThrottle(
+          options.database,
+          options.loginThrottleSecret,
+          options.logger,
+        );
   const handler = createLoginHandler({
     authenticate: (request) =>
       authenticateLoginCredentials(request, {
@@ -137,6 +196,14 @@ export function registerAuthRoutes(
     establishSession: establishAuthenticatedSession,
     loadPrincipal: (userId) => loadAccessPrincipal(options.database, userId),
     logger: options.logger,
+    throttle,
+    upgradePasswordHash: (userId, password, currentPasswordHash) =>
+      opportunisticallyUpgradePasswordHash(
+        options.database,
+        userId,
+        password,
+        currentPasswordHash,
+      ),
   });
   const logoutHandler = createLogoutHandler({
     destroySession: destroyAuthenticatedSession,
@@ -172,5 +239,28 @@ function invalidCredentialsError(): HttpError {
     401,
     apiErrorCodes.invalidCredentials,
     "Invalid email or password",
+  );
+}
+
+const noOpLoginThrottle: LoginThrottle = {
+  async check() {
+    return null;
+  },
+  async clearAccount() {},
+  async recordFailure() {
+    return null;
+  },
+};
+
+function throwTooManyAttempts(
+  res: Response,
+  decision: LoginThrottleDecision,
+): never {
+  res.set("Retry-After", String(decision.retryAfterSeconds));
+  const minutes = Math.max(1, Math.ceil(decision.retryAfterSeconds / 60));
+  throw new HttpError(
+    429,
+    apiErrorCodes.tooManyAttempts,
+    `Too many attempts. Try again in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`,
   );
 }

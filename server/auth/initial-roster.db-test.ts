@@ -106,11 +106,12 @@ test("initial roster seed is idempotent and matches WCIB access", async () => {
     assert.equal(staffUserIds.every((userId) => userId !== undefined), true);
     const staff = await database
       .select({
-        displayName: staffProfiles.displayName,
+        displayName: users.displayName,
         role: staffProfiles.role,
         userId: staffProfiles.userId,
       })
       .from(staffProfiles)
+      .innerJoin(users, eq(users.id, staffProfiles.userId))
       .where(inArray(staffProfiles.userId, staffUserIds as string[]));
     assert.deepEqual(
       staff

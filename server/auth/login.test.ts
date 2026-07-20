@@ -15,9 +15,11 @@ const request: LoginRequest = {
 function account(overrides: Partial<UserAccount> = {}): UserAccount {
   return {
     createdAt: new Date("2026-07-09T00:00:00.000Z"),
+    displayName: "Login User",
     email: request.email,
     id: "00000000-0000-4000-8000-000000000001",
     isActive: true,
+    passwordChangeRequiredAt: null,
     sessionVersion: 0,
     ...overrides,
   };
@@ -99,5 +101,8 @@ test("active users with valid passwords authenticate", async () => {
     }),
   );
 
-  assert.deepEqual(result, activeAccount);
+  assert.deepEqual(result, {
+    account: activeAccount,
+    verifiedPasswordHash: "$2b$10$active",
+  });
 });

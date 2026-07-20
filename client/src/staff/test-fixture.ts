@@ -12,6 +12,8 @@ export function staffFixture(
     displayName: "Kaylee Producer",
     email: "kaylee@example.test",
     isActive: true,
+    officeLocation: null,
+    passwordChangeRequired: false,
     rateState: "configured",
     rates: [
       {

@@ -16,7 +16,7 @@ export function SignedOutExperience({
   onAuthenticated,
 }: {
   api: AuthApi;
-  onAuthenticated(user: CurrentUser): void;
+  onAuthenticated(user: CurrentUser, authenticatedPassword: string): void;
 }) {
   const [route, setRoute] = useState<SignedOutRoute>(consumeRoute);
 
