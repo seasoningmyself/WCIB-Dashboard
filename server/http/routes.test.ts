@@ -17,6 +17,7 @@ import {
   PASSWORD_RESET_CONFIRM_PATH,
   PASSWORD_RESET_REQUEST_PATH,
 } from "./password-reset.js";
+import { CSP_REPORT_PATH } from "../../shared/security-policy.js";
 import {
   auditRouteAccessDeclarations,
   createRouteRegistrar,
@@ -182,6 +183,7 @@ test("every Foundation route has an explicit audited declaration", () => {
     [
       { access: "public", method: "GET", path: "/health" },
       { access: "public", method: "GET", path: "/ready" },
+      { access: "public", method: "POST", path: CSP_REPORT_PATH },
       { access: "public", method: "GET", path: "/api" },
       { access: "public", method: "POST", path: LOGIN_PATH },
       { access: "public", method: "POST", path: LOGOUT_PATH },

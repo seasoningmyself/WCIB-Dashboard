@@ -2,6 +2,7 @@ import react from "@vitejs/plugin-react";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
+import { SECURITY_RESPONSE_HEADERS } from "./shared/security-policy.js";
 
 const projectRoot = fileURLToPath(new URL(".", import.meta.url));
 
@@ -13,6 +14,7 @@ export default defineConfig({
     outDir: resolve(projectRoot, "dist/client"),
   },
   server: {
+    headers: SECURITY_RESPONSE_HEADERS,
     host: "0.0.0.0",
     proxy: {
       "/api": {

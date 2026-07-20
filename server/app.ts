@@ -17,6 +17,8 @@ import {
   createRouteRegistrar,
   type RouteRegistrar,
 } from "./http/routes.js";
+import { registerCspReportRoute } from "./http/csp-reports.js";
+import { createSecurityHeadersMiddleware } from "./security/headers.js";
 
 export interface CreateAppOptions {
   clientAssetsDirectory?: string;
@@ -36,6 +38,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
   if (options.trustProxy === true) {
     app.set("trust proxy", 1);
   }
+  app.use(createSecurityHeadersMiddleware());
   if (options.logger !== undefined) {
     app.use(createRequestLoggingMiddleware(options.logger));
   }
@@ -44,6 +47,8 @@ export function createApp(options: CreateAppOptions = {}): Express {
     app.use(options.sessionMiddleware);
   }
   app.use(express.json());
+
+  registerCspReportRoute(routes, options.logger);
 
   routes.get(
     "/api",
