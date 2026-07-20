@@ -58,9 +58,11 @@ const logger: AppLogger = { error() {}, info() {}, warn() {} };
 function account(id: string): UserAccount {
   return {
     createdAt: new Date("2026-07-10T00:00:00.000Z"),
+    displayName: id,
     email: `${id}@example.test`,
     id,
     isActive: true,
+    passwordChangeRequiredAt: null,
     sessionVersion: 0,
   };
 }

@@ -13,7 +13,7 @@ import { readDatabaseErrorCode } from "../db/error-code.js";
 import {
   policies,
   policyChangeRequests,
-  staffProfiles,
+  users,
   type PolicyChangeRequestRecord,
 } from "../db/schema.js";
 import type { AppLogger } from "../logging/logger.js";
@@ -137,13 +137,13 @@ export async function listPendingPolicyChangeRequests(
       insuredName: policies.insuredName,
       policyNumber: policies.policyNumber,
       request: getTableColumns(policyChangeRequests),
-      requesterDisplayName: staffProfiles.displayName,
+      requesterDisplayName: users.displayName,
     })
     .from(policyChangeRequests)
     .innerJoin(policies, eq(policies.id, policyChangeRequests.policyId))
     .innerJoin(
-      staffProfiles,
-      eq(staffProfiles.userId, policyChangeRequests.requestedByUserId),
+      users,
+      eq(users.id, policyChangeRequests.requestedByUserId),
     )
     .where(
       and(
@@ -313,13 +313,13 @@ async function loadAdminSource(
       insuredName: policies.insuredName,
       policyNumber: policies.policyNumber,
       request: getTableColumns(policyChangeRequests),
-      requesterDisplayName: staffProfiles.displayName,
+      requesterDisplayName: users.displayName,
     })
     .from(policyChangeRequests)
     .innerJoin(policies, eq(policies.id, policyChangeRequests.policyId))
     .innerJoin(
-      staffProfiles,
-      eq(staffProfiles.userId, policyChangeRequests.requestedByUserId),
+      users,
+      eq(users.id, policyChangeRequests.requestedByUserId),
     )
     .where(
       and(

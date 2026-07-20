@@ -78,24 +78,18 @@ test("office management preserves history and canonical form mode", async () => 
           userId: admin.id,
         });
         const employee = await createUser(database, {
+          displayName: `STONE 129 Employee ${randomUUID()}`,
           email: `stone129-employee-${randomUUID()}@example.test`,
           password: PASSWORD,
         });
         const producer = await createUser(database, {
+          displayName: `STONE 129 Producer ${randomUUID()}`,
           email: `stone129-producer-${randomUUID()}@example.test`,
           password: PASSWORD,
         });
         await database.insert(staffProfiles).values([
-          {
-            displayName: `STONE 129 Employee ${randomUUID()}`,
-            role: "employee",
-            userId: employee.id,
-          },
-          {
-            displayName: `STONE 129 Producer ${randomUUID()}`,
-            role: "producer",
-            userId: producer.id,
-          },
+          { role: "employee", userId: employee.id },
+          { role: "producer", userId: producer.id },
         ]);
         const initialOfficeName = `STONE 129 Historical ${randomUUID()}`;
         const [initialOffice] = await database

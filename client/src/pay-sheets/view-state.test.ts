@@ -256,6 +256,7 @@ test("pay-sheet UI access requires the trusted admin role and capability", () =>
     displayName: "Sophia",
     email: "sophia@example.test",
     id: uuid(1),
+    passwordChangeRequired: false,
     role: "admin" as const,
   };
   assert.equal(isPaySheetsAdmin(base), true);

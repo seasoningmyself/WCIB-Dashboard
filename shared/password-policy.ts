@@ -1,37 +1,27 @@
 import { z } from "zod";
+import { isBlockedPassword } from "./password-blocklist.js";
 
 export const PASSWORD_MIN_LENGTH = 12;
+export const PASSWORD_MAX_LENGTH = 128;
 
 export const PASSWORD_REQUIREMENTS = [
   {
     id: "minLength",
     label: "At least 12 characters",
     message: "Password must be at least 12 characters",
-    test: (password: string) => password.length >= PASSWORD_MIN_LENGTH,
+    test: (password: string) => passwordLength(password) >= PASSWORD_MIN_LENGTH,
   },
   {
-    id: "uppercase",
-    label: "At least one uppercase letter",
-    message: "Password must contain at least one uppercase letter",
-    test: (password: string) => /[A-Z]/.test(password),
+    id: "maxLength",
+    label: "No more than 128 characters",
+    message: "Password must be 128 characters or fewer",
+    test: (password: string) => passwordLength(password) <= PASSWORD_MAX_LENGTH,
   },
   {
-    id: "lowercase",
-    label: "At least one lowercase letter",
-    message: "Password must contain at least one lowercase letter",
-    test: (password: string) => /[a-z]/.test(password),
-  },
-  {
-    id: "number",
-    label: "At least one number",
-    message: "Password must contain at least one number",
-    test: (password: string) => /[0-9]/.test(password),
-  },
-  {
-    id: "special",
-    label: "At least one special character",
-    message: "Password must contain at least one special character",
-    test: (password: string) => /[^A-Za-z0-9]/.test(password),
+    id: "blocklist",
+    label: "Not common, compromised, or WCIB-predictable",
+    message: "Password is too common or predictable",
+    test: (password: string) => !isBlockedPassword(password),
   },
 ] as const;
 
@@ -62,6 +52,10 @@ export function isPasswordPolicySatisfied(password: string): boolean {
   );
 }
 
+export function normalizePassword(password: string): string {
+  return password.normalize("NFC");
+}
+
 function addPasswordRequirementIssues(
   password: string,
   context: z.RefinementCtx,
@@ -78,7 +72,8 @@ function addPasswordRequirementIssues(
 
 export const passwordSchema = z
   .string()
-  .superRefine(addPasswordRequirementIssues);
+  .superRefine(addPasswordRequirementIssues)
+  .transform(normalizePassword);
 
 export const optionalPasswordSchema = z
   .string()
@@ -88,4 +83,11 @@ export const optionalPasswordSchema = z
       return;
     }
     addPasswordRequirementIssues(password, context);
-  });
+  })
+  .transform((password) =>
+    password === undefined ? undefined : normalizePassword(password),
+  );
+
+function passwordLength(password: string): number {
+  return Array.from(normalizePassword(password)).length;
+}

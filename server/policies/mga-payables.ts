@@ -15,7 +15,7 @@ import {
   mgas,
   policies,
   policyTypes,
-  staffProfiles,
+  users,
   type PolicyRecord,
 } from "../db/schema.js";
 import { requirePolicyLedgerAdmin } from "./ledger-access.js";
@@ -228,7 +228,7 @@ function baseMgaPayableQuery(database: Pick<AuthDatabase, "select">) {
       paymentReference: mgaPayments.reference,
       paymentStatus: mgaPayments.status,
       policyTypeName: policyTypes.name,
-      producerDisplayName: staffProfiles.displayName,
+      producerDisplayName: users.displayName,
     })
     .from(policies)
     .innerJoin(mgas, eq(mgas.id, policies.mgaId))
@@ -240,7 +240,7 @@ function baseMgaPayableQuery(database: Pick<AuthDatabase, "select">) {
         inActiveBusinessGeneration(mgaPayments.businessGenerationId),
       ),
     )
-    .leftJoin(staffProfiles, eq(staffProfiles.userId, policies.producerUserId));
+    .leftJoin(users, eq(users.id, policies.producerUserId));
 }
 
 function mapMgaPayableRow(

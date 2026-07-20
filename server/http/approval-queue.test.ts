@@ -314,9 +314,11 @@ function account(id: string, isActive = true): UserAccount {
   const at = new Date("2026-07-11T12:00:00.000Z");
   return {
     createdAt: at,
+    displayName: id,
     email: `${id}@example.test`,
     id,
     isActive,
+    passwordChangeRequiredAt: null,
     sessionVersion: 0,
   };
 }

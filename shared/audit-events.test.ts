@@ -43,6 +43,9 @@ test("audit vocabulary covers every named sensitive mutation contract", () => {
     "policy_ipfs_unpushed",
     "vocabulary_deactivated",
     "vocabulary_reactivated",
+    "user_password_changed",
+    "user_profile_changed",
+    "user_temporary_password_issued",
   ] as const;
 
   assert.deepEqual(AUDIT_ACTIONS, expectedActions);
@@ -64,6 +67,7 @@ test("audit vocabulary covers every named sensitive mutation contract", () => {
     "mga",
     "policy_change_request",
     "business_state_generation",
+    "user",
   ]) {
     assert.equal(
       AUDIT_ENTITY_TYPES.includes(entityType as never),

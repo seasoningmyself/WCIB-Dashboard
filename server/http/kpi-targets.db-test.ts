@@ -71,24 +71,18 @@ test("admin KPI targets preserve exact scopes, partial clears, and concurrency",
           userId: admin.id,
         });
         const producer = await createUser(database, {
+          displayName: "STONE 133 Producer",
           email: `stone133-producer-${randomUUID()}@example.test`,
           password: PASSWORD,
         });
         const employee = await createUser(database, {
+          displayName: "STONE 133 Employee",
           email: `stone133-employee-${randomUUID()}@example.test`,
           password: PASSWORD,
         });
         await database.insert(staffProfiles).values([
-          {
-            displayName: "STONE 133 Producer",
-            role: "producer",
-            userId: producer.id,
-          },
-          {
-            displayName: "STONE 133 Employee",
-            role: "employee",
-            userId: employee.id,
-          },
+          { role: "producer", userId: producer.id },
+          { role: "employee", userId: employee.id },
         ]);
         await database.insert(producerRateHistory).values({
           effectiveDate: "2026-01-01",

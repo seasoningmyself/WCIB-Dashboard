@@ -100,6 +100,7 @@ function user(role: CurrentUser["role"]): CurrentUser {
     displayName: "Private Staff",
     email: `${role}@example.test`,
     id: OFFICE_A,
+    passwordChangeRequired: false,
     role,
   };
 }

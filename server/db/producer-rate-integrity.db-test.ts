@@ -41,11 +41,11 @@ test("producer rate integrity permits fresh corrections and freezes locked rows"
     await client.query("BEGIN");
 
     const producer = await createUser(database, {
+      displayName: "Rate Integrity Producer",
       email: `rate-integrity.${randomUUID()}@example.test`,
       password: "StrongPass123!",
     });
     await database.insert(staffProfiles).values({
-      displayName: "Rate Integrity Producer",
       role: "producer",
       userId: producer.id,
     });

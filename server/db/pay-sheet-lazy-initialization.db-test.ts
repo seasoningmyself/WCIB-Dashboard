@@ -179,11 +179,11 @@ test("lazy producer initialization uses Sophia's current period and is atomic wi
         });
 
         const rollbackProducer = await createUser(database, {
+          displayName: `Lazy rollback ${randomUUID()}`,
           email: `sheet-lazy-rollback-${randomUUID()}@example.test`,
           password: "StrongPass123!",
         });
         await database.insert(staffProfiles).values({
-          displayName: `Lazy rollback ${randomUUID()}`,
           role: "producer",
           userId: rollbackProducer.id,
         });

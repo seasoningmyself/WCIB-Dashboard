@@ -183,6 +183,7 @@ test("non-admin ledger entry fails closed before mounting the data controller", 
     displayName: "Mercedes",
     email: "employee@example.test",
     id: uuid(90),
+    passwordChangeRequired: false,
     role: "employee",
   };
   const markup = renderToStaticMarkup(<PolicyLedger user={user} />);
@@ -209,6 +210,7 @@ test("admin ledger dialogs retain distinct keys while both are closed", () => {
             displayName: "Sophia",
             email: "admin@example.test",
             id: uuid(91),
+            passwordChangeRequired: false,
             role: "admin",
           }}
         />

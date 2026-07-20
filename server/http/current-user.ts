@@ -50,7 +50,9 @@ export function registerCurrentUserRoute(
   routes.get(
     CURRENT_USER_PATH,
     {
-      authorization: options.authorization.require(AUTHENTICATED_ACCESS),
+      authorization: options.authorization.require(AUTHENTICATED_ACCESS, {
+        allowPasswordChangeRequired: true,
+      }),
     },
     createCurrentUserHandler(options),
   );

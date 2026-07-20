@@ -365,6 +365,13 @@
       "when": 1784410522117,
       "tag": "0051_remove_staff_pronoun",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1784482053360,
+      "tag": "0052_security_first_login_settings",
+      "breakpoints": true
     }
   ]
 }

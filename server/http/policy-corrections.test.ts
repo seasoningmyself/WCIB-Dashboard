@@ -342,9 +342,11 @@ function account(id: string, isActive = true): UserAccount {
   const at = new Date(EXPECTED_UPDATED_AT);
   return {
     createdAt: at,
+    displayName: id,
     email: `${id}@example.test`,
     id,
     isActive,
+    passwordChangeRequiredAt: null,
     sessionVersion: 0,
   };
 }

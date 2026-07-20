@@ -295,6 +295,7 @@ function producer(): CurrentUser {
     displayName: "Kaylee",
     email: "kaylee@example.test",
     id: USER_ID,
+    passwordChangeRequired: false,
     role: "producer",
   };
 }

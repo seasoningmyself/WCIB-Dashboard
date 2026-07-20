@@ -41,11 +41,11 @@ test("current-user navigation is an exact server-owned role policy", () => {
   );
   assert.deepEqual(
     allowedNavigationForPrincipal(principal({ staffRole: "employee" })),
-    ["turn_in", "my_items"],
+    ["turn_in", "my_items", "settings"],
   );
   assert.deepEqual(
     allowedNavigationForPrincipal(principal({ staffRole: "producer" })),
-    ["turn_in", "my_items", "my_commissions"],
+    ["turn_in", "my_items", "my_commissions", "settings"],
   );
   assert.deepEqual(allowedNavigationForPrincipal(principal()), []);
   assert.deepEqual(
@@ -60,6 +60,7 @@ test("current-user projection exposes only the explicit account contract", () =>
       displayName: "Sophia",
       email: "sophia@example.test",
       id: USER_ID,
+      passwordChangeRequiredAt: null,
     },
     { principal: principal({ capabilities: ["admin"] }) },
   );
@@ -82,6 +83,7 @@ test("current-user projection exposes only the explicit account contract", () =>
       displayName: "Sophia",
       email: "sophia@example.test",
       id: USER_ID,
+      passwordChangeRequired: false,
       role: "admin",
     },
   });
@@ -110,9 +112,10 @@ test("current-user projection exposes only the explicit account contract", () =>
 
 test("current-user projection rejects mismatched or inactive identity", () => {
   const identity = {
-    displayName: null,
+    displayName: "User",
     email: "user@example.test",
     id: USER_ID,
+    passwordChangeRequiredAt: null,
   };
 
   assert.throws(

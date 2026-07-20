@@ -25,10 +25,12 @@ test("database access lookup composes roles and capabilities", async () => {
 
   try {
     const employee = await createUser(database, {
+      displayName: "Employee Test",
       email: `employee.${runId}@example.test`,
       password: "StrongPass123!",
     });
     const producer = await createUser(database, {
+      displayName: "Producer Test",
       email: `producer.${runId}@example.test`,
       password: "StrongPass123!",
     });
@@ -39,8 +41,8 @@ test("database access lookup composes roles and capabilities", async () => {
     userIds.push(employee.id, producer.id, admin.id);
 
     await database.insert(staffProfiles).values([
-      { displayName: "Employee Test", role: "employee", userId: employee.id },
-      { displayName: "Producer Test", role: "producer", userId: producer.id },
+      { role: "employee", userId: employee.id },
+      { role: "producer", userId: producer.id },
     ]);
     await database.insert(userCapabilities).values([
       { capability: "future_permission", userId: producer.id },

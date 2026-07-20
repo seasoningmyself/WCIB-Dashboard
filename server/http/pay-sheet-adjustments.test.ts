@@ -687,9 +687,11 @@ function errorResult(error: unknown): TestResult {
 function account(id: string, isActive = true): UserAccount {
   return {
     createdAt: new Date("2026-07-01T00:00:00.000Z"),
+    displayName: id,
     email: `${id}@example.test`,
     id,
     isActive,
+    passwordChangeRequiredAt: null,
     sessionVersion: 0,
   };
 }

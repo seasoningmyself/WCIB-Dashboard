@@ -30,24 +30,18 @@ test("owner withdrawal reopens flagged help through the audited transition", asy
       const database = drizzle(pool, { schema: databaseSchema });
       try {
         const employee = await createUser(database, {
+          displayName: "Withdrawal Employee",
           email: `withdraw-employee-${randomUUID()}@example.test`,
           password: "StrongPass123!",
         });
         const producer = await createUser(database, {
+          displayName: "Withdrawal Producer",
           email: `withdraw-producer-${randomUUID()}@example.test`,
           password: "StrongPass123!",
         });
         await database.insert(staffProfiles).values([
-          {
-            displayName: "Withdrawal Employee",
-            role: "employee",
-            userId: employee.id,
-          },
-          {
-            displayName: "Withdrawal Producer",
-            role: "producer",
-            userId: producer.id,
-          },
+          { role: "employee", userId: employee.id },
+          { role: "producer", userId: producer.id },
         ]);
         const ownerContext = staffContext(employee.id, "employee");
         const otherContext = staffContext(producer.id, "producer");

@@ -448,6 +448,7 @@ function user(role: CurrentUser["role"], displayName: string): CurrentUser {
     displayName,
     email: `${displayName.toLowerCase()}@example.test`,
     id: USER_ID,
+    passwordChangeRequired: false,
     role,
   };
 }

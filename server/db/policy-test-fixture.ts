@@ -26,24 +26,18 @@ export async function createPolicyReferenceFixture(
 ): Promise<PolicyReferenceFixture> {
   const suffix = randomUUID();
   const submitter = await createUser(database, {
+    displayName: `Policy Submitter ${suffix}`,
     email: `policy-submitter-${suffix}@example.test`,
     password: "StrongPass123!",
   });
   const producer = await createUser(database, {
+    displayName: `Policy Producer ${suffix}`,
     email: `policy-producer-${suffix}@example.test`,
     password: "StrongPass123!",
   });
   await database.insert(staffProfiles).values([
-    {
-      displayName: `Policy Submitter ${suffix}`,
-      role: "employee",
-      userId: submitter.id,
-    },
-    {
-      displayName: `Policy Producer ${suffix}`,
-      role: "producer",
-      userId: producer.id,
-    },
+    { role: "employee", userId: submitter.id },
+    { role: "producer", userId: producer.id },
   ]);
 
   const [office] = await database

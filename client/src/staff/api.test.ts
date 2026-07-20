@@ -21,6 +21,7 @@ test("Manage Staff API uses only the guarded staff and append-only rate routes",
     Response.json({ staff }),
     Response.json({ staff }),
     Response.json({ staff }),
+    Response.json({ staff }),
     Response.json({ staff }, { status: 201 }),
     Response.json({ staff }),
   ];
@@ -40,6 +41,7 @@ test("Manage Staff API uses only the guarded staff and append-only rate routes",
     temporaryPassword: "ValidPassword1!",
   });
   await api.update(staff.userId, { displayName: "Updated Producer" });
+  await api.issueTemporaryPassword(staff.userId, "Recovery harbor 2026!");
   await api.setActive(staff.userId, false);
   await api.setActive(staff.userId, true);
   await api.createRate(staff.userId, RATE);
@@ -51,6 +53,7 @@ test("Manage Staff API uses only the guarded staff and append-only rate routes",
       ["GET", "/admin/staff"],
       ["POST", "/admin/staff"],
       ["PATCH", `/admin/staff/${staff.userId}`],
+      ["POST", `/admin/staff/${staff.userId}/temporary-password`],
       ["POST", `/admin/staff/${staff.userId}/deactivate`],
       ["POST", `/admin/staff/${staff.userId}/reactivate`],
       ["POST", `/admin/staff/${staff.userId}/rates`],
@@ -63,6 +66,9 @@ test("Manage Staff API uses only the guarded staff and append-only rate routes",
     initialRate: RATE,
     role: "producer",
     temporaryPassword: "ValidPassword1!",
+  });
+  assert.deepEqual(JSON.parse(String(calls[3]?.options?.body)), {
+    temporaryPassword: "Recovery harbor 2026!",
   });
   assert.equal(calls.some(({ options }) => options?.method === "DELETE"), false);
 });

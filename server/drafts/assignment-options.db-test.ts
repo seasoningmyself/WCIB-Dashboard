@@ -30,6 +30,7 @@ test("draft assignments list only active producer identities in display order", 
       "Employee",
     ]) {
       const account = await createUser(database, {
+        displayName: `STONE-99 ${runId} ${name}`,
         email: `${name.toLowerCase().replaceAll(" ", ".")}.${runId}@example.test`,
         password: "StrongPass123!",
       });
@@ -44,28 +45,23 @@ test("draft assignments list only active producer identities in display order", 
 
     await database.insert(staffProfiles).values([
       {
-        displayName: `STONE-99 ${runId} Zeta Producer`,
         role: "producer",
         userId: idFor("Zeta Producer"),
       },
       {
-        displayName: `STONE-99 ${runId} alpha Producer`,
         role: "producer",
         userId: idFor("alpha Producer"),
       },
       {
-        displayName: `STONE-99 ${runId} Inactive Profile`,
         isActive: false,
         role: "producer",
         userId: idFor("Inactive Profile"),
       },
       {
-        displayName: `STONE-99 ${runId} Inactive Login`,
         role: "producer",
         userId: idFor("Inactive Login"),
       },
       {
-        displayName: `STONE-99 ${runId} Employee`,
         role: "employee",
         userId: idFor("Employee"),
       },

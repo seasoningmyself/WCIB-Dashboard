@@ -224,11 +224,11 @@ test("Sophia chargebacks normalize and mirror producer impact atomically", async
         );
 
         const rollbackProducer = await createUser(database, {
+          displayName: "Rollback Producer",
           email: `chargeback-producer-${randomUUID()}@example.test`,
           password: "StrongPass123!",
         });
         await database.insert(staffProfiles).values({
-          displayName: "Rollback Producer",
           role: "producer",
           userId: rollbackProducer.id,
         });

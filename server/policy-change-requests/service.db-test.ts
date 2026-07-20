@@ -55,6 +55,7 @@ test("approved-policy change requests preserve one canonical policy and audit ev
           password: "StrongPass123!",
         });
         const outsider = await createUser(database, {
+          displayName: `Change Request Outsider ${randomUUID()}`,
           email: `change-request-outsider-${randomUUID()}@example.test`,
           password: "StrongPass123!",
         });
@@ -63,7 +64,6 @@ test("approved-policy change requests preserve one canonical policy and audit ev
           userId: admin.id,
         });
         await database.insert(staffProfiles).values({
-          displayName: `Change Request Outsider ${randomUUID()}`,
           role: "employee",
           userId: outsider.id,
         });

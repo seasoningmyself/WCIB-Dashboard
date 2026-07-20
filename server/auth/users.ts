@@ -1,4 +1,5 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { z } from "zod";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import {
   createUserCredentialsSchema,
@@ -7,23 +8,31 @@ import {
 import { readDatabaseErrorCode } from "../db/error-code.js";
 import * as databaseSchema from "../db/schema.js";
 import { users } from "../db/schema.js";
-import { hashPassword } from "./password.js";
+import {
+  hashPassword,
+  hashAuthenticatedPasswordForUpgrade,
+  passwordHashNeedsUpgrade,
+} from "./password.js";
 
 export type AuthDatabase = NodePgDatabase<typeof databaseSchema>;
 
 const accountSelection = {
   createdAt: users.createdAt,
+  displayName: users.displayName,
   email: users.email,
   id: users.id,
   isActive: users.isActive,
+  passwordChangeRequiredAt: users.passwordChangeRequiredAt,
   sessionVersion: users.sessionVersion,
 };
 
 export interface UserAccount {
   createdAt: Date;
+  displayName: string;
   email: string;
   id: string;
   isActive: boolean;
+  passwordChangeRequiredAt: Date | null;
   sessionVersion: number;
 }
 
@@ -45,13 +54,21 @@ export async function createUser(
   database: AuthDatabase,
   input: unknown,
 ): Promise<UserAccount> {
-  const credentials = createUserCredentialsSchema.parse(input);
+  const credentials = createUserInputSchema.parse(input);
   const passwordHash = await hashPassword(credentials.password);
 
   try {
     const [account] = await database
       .insert(users)
-      .values({ email: credentials.email, passwordHash })
+      .values({
+        displayName:
+          credentials.displayName ?? defaultDisplayName(credentials.email),
+        email: credentials.email,
+        passwordChangeRequiredAt: credentials.passwordChangeRequired
+          ? new Date()
+          : null,
+        passwordHash,
+      })
       .returning(accountSelection);
 
     if (account === undefined) {
@@ -64,6 +81,32 @@ export async function createUser(
     }
     throw error;
   }
+}
+
+export async function opportunisticallyUpgradePasswordHash(
+  database: AuthDatabase,
+  userId: string,
+  password: string,
+  currentPasswordHash: string,
+): Promise<boolean> {
+  if (!passwordHashNeedsUpgrade(currentPasswordHash)) {
+    return false;
+  }
+  const replacement = await hashAuthenticatedPasswordForUpgrade(password);
+  if (replacement === null) {
+    return false;
+  }
+  const [updated] = await database
+    .update(users)
+    .set({ passwordHash: replacement })
+    .where(
+      and(
+        eq(users.id, userId),
+        eq(users.passwordHash, currentPasswordHash),
+      ),
+    )
+    .returning({ id: users.id });
+  return updated !== undefined;
 }
 
 export async function findUserById(
@@ -116,4 +159,13 @@ export async function findUserCredentialsByEmail(
 
   const { passwordHash, ...account } = record;
   return { account, passwordHash };
+}
+
+const createUserInputSchema = createUserCredentialsSchema.extend({
+  displayName: z.string().trim().min(1).max(200).optional(),
+  passwordChangeRequired: z.boolean().optional().default(false),
+});
+
+function defaultDisplayName(email: string): string {
+  return email.split("@", 1)[0] ?? email;
 }

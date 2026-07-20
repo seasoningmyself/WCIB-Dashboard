@@ -9,10 +9,15 @@ export interface LoginCredentialDependencies {
   verifyPassword(password: string, passwordHash: string): Promise<boolean>;
 }
 
+export interface AuthenticatedLogin {
+  account: UserAccount;
+  verifiedPasswordHash: string;
+}
+
 export async function authenticateLoginCredentials(
   request: LoginRequest,
   dependencies: LoginCredentialDependencies,
-): Promise<UserAccount | null> {
+): Promise<AuthenticatedLogin | null> {
   const credentials = await dependencies.findCredentialsByEmail(request.email);
   const passwordMatches = await dependencies.verifyPassword(
     request.password,
@@ -27,5 +32,8 @@ export async function authenticateLoginCredentials(
     return null;
   }
 
-  return credentials.account;
+  return {
+    account: credentials.account,
+    verifiedPasswordHash: credentials.passwordHash,
+  };
 }

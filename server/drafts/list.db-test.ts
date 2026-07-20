@@ -25,10 +25,12 @@ test("own-draft listing scopes SQL by authenticated UUID and deterministic statu
       const database = drizzle(pool, { schema: databaseSchema });
       try {
         const owner = await createUser(database, {
+          displayName: "List Owner",
           email: `list-owner-${randomUUID()}@example.test`,
           password: "StrongPass123!",
         });
         const other = await createUser(database, {
+          displayName: "List Other",
           email: `list-other-${randomUUID()}@example.test`,
           password: "StrongPass123!",
         });
@@ -37,8 +39,8 @@ test("own-draft listing scopes SQL by authenticated UUID and deterministic statu
           password: "StrongPass123!",
         });
         await database.insert(staffProfiles).values([
-          { displayName: "List Owner", role: "employee", userId: owner.id },
-          { displayName: "List Other", role: "employee", userId: other.id },
+          { role: "employee", userId: owner.id },
+          { role: "employee", userId: other.id },
         ]);
         const ownerContext = staffContext(owner.id);
         const first = await createOwnDraft(

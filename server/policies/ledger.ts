@@ -27,7 +27,6 @@ import {
   officeLocations,
   policies,
   policyTypes,
-  staffProfiles,
   users,
   type PolicyRecord,
 } from "../db/schema.js";
@@ -36,8 +35,7 @@ import { resolveProducerPayouts } from "../pay-sheets/read.js";
 
 export const MAX_POLICY_LEDGER_SOURCE_ROWS = 5_000;
 
-const producerProfiles = alias(staffProfiles, "ledger_producer_profiles");
-const submitterProfiles = alias(staffProfiles, "ledger_submitter_profiles");
+const producerUsers = alias(users, "ledger_producer_users");
 const submitterUsers = alias(users, "ledger_submitter_users");
 
 export interface PolicyLedgerSourceItem {
@@ -503,8 +501,8 @@ function basePolicyQuery(database: AuthDatabase) {
       officeName: officeLocations.name,
       policyTypeClass: policyTypes.classTag,
       policyTypeName: policyTypes.name,
-      producerDisplayName: producerProfiles.displayName,
-      submitterDisplayName: submitterProfiles.displayName,
+      producerDisplayName: producerUsers.displayName,
+      submitterDisplayName: submitterUsers.displayName,
       submitterEmail: submitterUsers.email,
     })
     .from(policies)
@@ -513,12 +511,8 @@ function basePolicyQuery(database: AuthDatabase) {
     .innerJoin(officeLocations, eq(officeLocations.id, policies.officeLocationId))
     .innerJoin(policyTypes, eq(policyTypes.id, policies.policyTypeId))
     .leftJoin(
-      producerProfiles,
-      eq(producerProfiles.userId, policies.producerUserId),
-    )
-    .leftJoin(
-      submitterProfiles,
-      eq(submitterProfiles.userId, policies.submittedByUserId),
+      producerUsers,
+      eq(producerUsers.id, policies.producerUserId),
     )
     .innerJoin(submitterUsers, eq(submitterUsers.id, policies.submittedByUserId));
 }

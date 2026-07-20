@@ -298,9 +298,11 @@ async function invokeWithoutContext(handler: RequestHandler): Promise<Error | un
 function account(id: string, isActive: boolean): UserAccount {
   return {
     createdAt: new Date("2026-07-01T00:00:00.000Z"),
+    displayName: id,
     email: `${id}@example.test`,
     id,
     isActive,
+    passwordChangeRequiredAt: null,
     sessionVersion: 0,
   };
 }

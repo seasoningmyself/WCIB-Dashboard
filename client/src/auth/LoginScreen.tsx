@@ -16,7 +16,7 @@ import {
 
 interface LoginScreenProps {
   api: AuthApi;
-  onAuthenticated(user: CurrentUser): void;
+  onAuthenticated(user: CurrentUser, authenticatedPassword: string): void;
 }
 
 interface LoginPanelProps {
@@ -27,6 +27,7 @@ interface LoginPanelProps {
   onSubmit(event: FormEvent<HTMLFormElement>): void;
   password: string;
   pending: boolean;
+  retryAfterSeconds?: number;
 }
 
 export function LoginScreen({ api, onAuthenticated }: LoginScreenProps) {
@@ -34,6 +35,7 @@ export function LoginScreen({ api, onAuthenticated }: LoginScreenProps) {
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<LoginErrorKind | null>(null);
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
   const errorRef = useRef<HTMLDivElement>(null);
   const singleFlight = useRef(createSingleFlight());
 
@@ -43,9 +45,25 @@ export function LoginScreen({ api, onAuthenticated }: LoginScreenProps) {
     }
   }, [error]);
 
+  useEffect(() => {
+    if (retryAfterSeconds <= 0) return;
+    const timer = window.setInterval(() => {
+      setRetryAfterSeconds((current) => {
+        if (current <= 1) {
+          setError((value) => (value === "throttled" ? null : value));
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1_000);
+    return () => window.clearInterval(timer);
+  }, [retryAfterSeconds > 0]);
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const request: LoginRequest = { email, password };
+    if (retryAfterSeconds > 0) return;
+    const authenticatedPassword = password;
+    const request: LoginRequest = { email, password: authenticatedPassword };
     const attempt = singleFlight.current.run(() => api.login(request));
     if (attempt === null) {
       return;
@@ -54,11 +72,12 @@ export function LoginScreen({ api, onAuthenticated }: LoginScreenProps) {
     setPending(true);
     setError(null);
     void attempt
-      .then(onAuthenticated)
+      .then((user) => onAuthenticated(user, authenticatedPassword))
       .catch((reason: unknown) => {
         const failure = loginFailureState(reason);
         setPassword(failure.password);
         setError(failure.error);
+        setRetryAfterSeconds(failure.retryAfterSeconds);
       })
       .finally(() => {
         setPending(false);
@@ -74,6 +93,7 @@ export function LoginScreen({ api, onAuthenticated }: LoginScreenProps) {
       onSubmit={handleSubmit}
       password={password}
       pending={pending}
+      retryAfterSeconds={retryAfterSeconds}
       errorRef={errorRef}
     />
   );
@@ -87,6 +107,7 @@ export function LoginPanel({
   onSubmit,
   password,
   pending,
+  retryAfterSeconds = 0,
   errorRef,
 }: LoginPanelProps & { errorRef?: React.RefObject<HTMLDivElement> }) {
   return (
@@ -108,7 +129,7 @@ export function LoginPanel({
             role="alert"
             tabIndex={-1}
           >
-            {loginErrorText(error)}
+            {loginErrorText(error, retryAfterSeconds)}
           </div>
         )}
 
@@ -116,7 +137,7 @@ export function LoginPanel({
           <label htmlFor="login-email">Email</label>
           <input
             autoComplete="username"
-            disabled={pending}
+            disabled={pending || retryAfterSeconds > 0}
             id="login-email"
             inputMode="email"
             maxLength={320}
@@ -133,7 +154,7 @@ export function LoginPanel({
           </div>
           <input
             autoComplete="current-password"
-            disabled={pending}
+            disabled={pending || retryAfterSeconds > 0}
             id="login-password"
             maxLength={1_024}
             name="password"
@@ -143,8 +164,16 @@ export function LoginPanel({
             value={password}
           />
 
-          <button className="login-submit" disabled={pending} type="submit">
-            {pending ? "Signing in..." : "Sign in"}
+          <button
+            className="login-submit"
+            disabled={pending || retryAfterSeconds > 0}
+            type="submit"
+          >
+            {pending
+              ? "Signing in..."
+              : retryAfterSeconds > 0
+                ? `Try again in ${retryAfterSeconds}s`
+                : "Sign in"}
           </button>
         </form>
       </section>

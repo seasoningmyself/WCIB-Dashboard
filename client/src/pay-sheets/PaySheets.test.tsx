@@ -227,6 +227,7 @@ test("non-admin entry fails closed before mounting the API-backed controller", (
       displayName: "Private Staff",
       email: `${role}@example.test`,
       id: uuid(role === "employee" ? 91 : 92),
+      passwordChangeRequired: false,
       role,
     };
     const markup = renderToStaticMarkup(<PaySheets user={user} />);

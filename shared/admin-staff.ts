@@ -31,6 +31,7 @@ export const createAdminStaffRequestSchema = z
     displayName: displayNameSchema,
     email: userEmailSchema,
     initialRate: producerRateInputSchema.optional(),
+    officeLocationId: uuidSchema.nullable().optional(),
     role: z.enum(STAFF_ROLES),
     temporaryPassword: passwordSchema,
   })
@@ -57,6 +58,7 @@ export const updateAdminStaffRequestSchema = z
     displayName: displayNameSchema.optional(),
     email: userEmailSchema.optional(),
     initialRate: producerRateInputSchema.optional(),
+    officeLocationId: uuidSchema.nullable().optional(),
     role: z.enum(STAFF_ROLES).optional(),
   })
   .strict()
@@ -87,6 +89,15 @@ export const adminStaffRecordSchema = z
     displayName: z.string().min(1),
     email: userEmailSchema,
     isActive: z.boolean(),
+    officeLocation: z
+      .object({
+        id: uuidSchema,
+        isActive: z.boolean(),
+        name: z.string().trim().min(1).max(200),
+      })
+      .strict()
+      .nullable(),
+    passwordChangeRequired: z.boolean(),
     rateState: z.enum(["configured", "dormant", "missing", "not_applicable"]),
     rates: z.array(adminStaffRateSchema),
     role: z.enum(STAFF_ROLES),
@@ -102,6 +113,10 @@ export const adminStaffMutationResponseSchema = z
   .object({ staff: adminStaffRecordSchema })
   .strict();
 
+export const issueTemporaryPasswordRequestSchema = z
+  .object({ temporaryPassword: passwordSchema })
+  .strict();
+
 export type ProducerRateInput = z.output<typeof producerRateInputSchema>;
 export type CreateAdminStaffRequest = z.output<
   typeof createAdminStaffRequestSchema
@@ -111,3 +126,6 @@ export type UpdateAdminStaffRequest = z.output<
 >;
 export type AdminStaffRate = z.output<typeof adminStaffRateSchema>;
 export type AdminStaffRecord = z.output<typeof adminStaffRecordSchema>;
+export type IssueTemporaryPasswordRequest = z.output<
+  typeof issueTemporaryPasswordRequestSchema
+>;

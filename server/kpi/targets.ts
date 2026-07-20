@@ -235,7 +235,7 @@ export async function listKpiProducerSources(
   const [profiles, rateOwners, sheetOwners, targetOwners] = await Promise.all([
     database
       .select({
-        displayName: staffProfiles.displayName,
+        displayName: users.displayName,
         profileActive: staffProfiles.isActive,
         role: staffProfiles.role,
         userActive: users.isActive,

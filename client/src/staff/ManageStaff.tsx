@@ -12,16 +12,19 @@ import type {
   ProducerRateInput,
   UpdateAdminStaffRequest,
 } from "../../../shared/admin-staff.js";
+import type { AdminOfficeLocation } from "../../../shared/admin-office-locations.js";
 import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
 import {
   ActiveDialogState,
   RateEditorDialog,
   StaffActiveDialog,
   StaffEditorDialog,
+  TemporaryPasswordDialog,
   type RateDialogState,
   type StaffDialogState,
 } from "./StaffDialogs.js";
 import { AdminStaffApiError, createAdminStaffApi } from "./api.js";
+import { createAdminOfficeApi } from "../offices/api.js";
 import { VocabularyManagement } from "./VocabularyManagement.js";
 import {
   formatRate,
@@ -41,7 +44,7 @@ export type ManageStaffState =
 
 export function ManageStaff({ user }: { user: CurrentUser }) {
   return isManageStaffAdmin(user) ? (
-    <AdminManageStaff />
+    <AdminManageStaff currentUserId={user.id} />
   ) : (
     <StaffMessage
       body="This page is not available for your account."
@@ -50,14 +53,19 @@ export function ManageStaff({ user }: { user: CurrentUser }) {
   );
 }
 
-function AdminManageStaff() {
+function AdminManageStaff({ currentUserId }: { currentUserId: string }) {
   const client = useApiClient();
   const api = useMemo(() => createAdminStaffApi(client), [client]);
+  const officeApi = useMemo(() => createAdminOfficeApi(client), [client]);
   const [state, setState] = useState<ManageStaffState>({ status: "loading" });
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [staffDialog, setStaffDialog] = useState<StaffDialogState | null>(null);
   const [rateDialog, setRateDialog] = useState<RateDialogState | null>(null);
   const [activeDialog, setActiveDialog] = useState<ActiveDialogState | null>(null);
+  const [temporaryPasswordDialog, setTemporaryPasswordDialog] = useState<{
+    staff: AdminStaffRecord;
+  } | null>(null);
+  const [officeOptions, setOfficeOptions] = useState<readonly AdminOfficeLocation[]>([]);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -70,9 +78,10 @@ function AdminManageStaff() {
       requestVersion.current = version;
       if (showLoading) setState({ status: "loading" });
       try {
-        const items = await api.list();
+        const [items, offices] = await Promise.all([api.list(), officeApi.list()]);
         if (requestVersion.current === version) {
           setState({ items, status: "ready" });
+          setOfficeOptions(offices.items);
         }
       } catch (error) {
         if (requestVersion.current !== version) return;
@@ -84,7 +93,7 @@ function AdminManageStaff() {
         });
       }
     },
-    [api],
+    [api, officeApi],
   );
 
   useEffect(() => {
@@ -103,6 +112,8 @@ function AdminManageStaff() {
     setStaffDialog(null);
     setRateDialog(null);
     setActiveDialog(null);
+    setTemporaryPasswordDialog(null);
+    setOfficeOptions([]);
     setDialogError(null);
     setNotice(null);
   }, []);
@@ -203,6 +214,26 @@ function AdminManageStaff() {
     }
   };
 
+  const issueTemporaryPassword = async (temporaryPassword: string) => {
+    if (temporaryPasswordDialog === null || !beginMutation()) return;
+    try {
+      await api.issueTemporaryPassword(
+        temporaryPasswordDialog.staff.userId,
+        temporaryPassword,
+      );
+      setTemporaryPasswordDialog(null);
+      setNotice("Temporary password issued. The user must replace it at sign-in.");
+      await load(false);
+    } catch (error) {
+      await handleFailure(
+        error,
+        "The temporary password must differ from the account's current password.",
+      );
+    } finally {
+      finishMutation();
+    }
+  };
+
   const updateRate = async (
     userId: string,
     rateId: string,
@@ -249,11 +280,16 @@ function AdminManageStaff() {
           setDialogError(null);
           setStaffDialog({ kind: "edit", staff });
         }}
+        onTemporaryPassword={(staff) => {
+          setDialogError(null);
+          setTemporaryPasswordDialog({ staff });
+        }}
         onRetry={() => void load()}
         onToggle={(userId) =>
           setExpandedUserId((current) => (current === userId ? null : userId))
         }
         pending={pending}
+        currentUserId={currentUserId}
         state={state}
         vocabulary={<VocabularyManagement />}
       />
@@ -275,6 +311,7 @@ function AdminManageStaff() {
         }}
         onCreate={(input) => void createStaff(input)}
         onUpdate={(userId, input) => void updateStaff(userId, input)}
+        officeOptions={officeOptions}
         pending={pending}
       />
       <RateEditorDialog
@@ -309,6 +346,21 @@ function AdminManageStaff() {
         onConfirm={() => void changeActive()}
         pending={pending}
       />
+      <TemporaryPasswordDialog
+        dialog={temporaryPasswordDialog}
+        error={dialogError}
+        key={temporaryPasswordDialog?.staff.userId ?? "temporary-password-closed"}
+        onCancel={() => {
+          if (!pending) {
+            setTemporaryPasswordDialog(null);
+            setDialogError(null);
+          }
+        }}
+        onConfirm={(temporaryPassword) =>
+          void issueTemporaryPassword(temporaryPassword)
+        }
+        pending={pending}
+      />
     </>
   );
 }
@@ -321,11 +373,13 @@ export function ManageStaffView({
   onAddRate,
   onCorrectRate,
   onEdit,
+  onTemporaryPassword,
   onRetry,
   onToggle,
   pending,
   state,
   vocabulary,
+  currentUserId,
 }: {
   expandedUserId: string | null;
   notice: string | null;
@@ -334,11 +388,13 @@ export function ManageStaffView({
   onAddRate(staff: AdminStaffRecord): void;
   onCorrectRate(staff: AdminStaffRecord, rate: AdminStaffRecord["rates"][number]): void;
   onEdit(staff: AdminStaffRecord): void;
+  onTemporaryPassword(staff: AdminStaffRecord): void;
   onRetry(): void;
   onToggle(userId: string): void;
   pending: boolean;
   state: ManageStaffState;
   vocabulary?: React.ReactNode;
+  currentUserId: string;
 }) {
   if (state.status === "loading") {
     return <StaffMessage body="Retrieving staff accounts and rate history..." busy title="Loading staff" />;
@@ -392,6 +448,9 @@ export function ManageStaffView({
                     <div>
                       <h2>{staff.displayName}</h2>
                       <p>{staff.email}</p>
+                      <p className="staff-office-assignment">
+                        {staff.officeLocation?.name ?? "Not assigned"}
+                      </p>
                     </div>
                   </div>
                   <div className="staff-badges" aria-label="Account classification">
@@ -399,6 +458,9 @@ export function ManageStaffView({
                     <span className={staff.isActive ? "is-active" : "is-inactive"}>
                       {staff.isActive ? "Active" : "Inactive"}
                     </span>
+                    {staff.passwordChangeRequired ? (
+                      <span className="is-password-required">Password change required</span>
+                    ) : null}
                     {staff.rateState === "not_applicable" ? null : (
                       <span className={`is-rate-${staff.rateState}`}>
                         {staffRateStateLabel(staff.rateState)}
@@ -410,6 +472,15 @@ export function ManageStaffView({
                     <button disabled={pending} onClick={() => onActive(staff, !staff.isActive)} type="button">
                       {staff.isActive ? "Deactivate" : "Reactivate"}
                     </button>
+                    {staff.userId === currentUserId ? null : (
+                      <button
+                        disabled={pending}
+                        onClick={() => onTemporaryPassword(staff)}
+                        type="button"
+                      >
+                        Issue temporary password
+                      </button>
+                    )}
                     {staff.rateState === "not_applicable" ? null : (
                       <button
                         aria-expanded={expanded}

@@ -38,14 +38,17 @@ test("own-draft edits lock ownership and atomically reopen sent-back work", asyn
       const database = drizzle(pool, { schema: databaseSchema });
       try {
         const owner = await createUser(database, {
+          displayName: "Edit Owner",
           email: `edit-owner-${randomUUID()}@example.test`,
           password: "StrongPass123!",
         });
         const other = await createUser(database, {
+          displayName: "Edit Other",
           email: `edit-other-${randomUUID()}@example.test`,
           password: "StrongPass123!",
         });
         const producer = await createUser(database, {
+          displayName: "Edit Producer",
           email: `edit-producer-${randomUUID()}@example.test`,
           password: "StrongPass123!",
         });
@@ -54,13 +57,9 @@ test("own-draft edits lock ownership and atomically reopen sent-back work", asyn
           password: "StrongPass123!",
         });
         await database.insert(staffProfiles).values([
-          { displayName: "Edit Owner", role: "employee", userId: owner.id },
-          { displayName: "Edit Other", role: "employee", userId: other.id },
-          {
-            displayName: "Edit Producer",
-            role: "producer",
-            userId: producer.id,
-          },
+          { role: "employee", userId: owner.id },
+          { role: "employee", userId: other.id },
+          { role: "producer", userId: producer.id },
         ]);
         await database.insert(userCapabilities).values({
           capability: "admin",

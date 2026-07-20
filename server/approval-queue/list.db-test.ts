@@ -32,24 +32,18 @@ test("admin approval work composes pending snapshots and flagged drafts", async 
           password: "StrongPass123!",
         });
         const employee = await createUser(database, {
+          displayName: "Approval Employee",
           email: `approval-employee-${randomUUID()}@example.test`,
           password: "StrongPass123!",
         });
         const producer = await createUser(database, {
+          displayName: "Approval Producer",
           email: `approval-producer-${randomUUID()}@example.test`,
           password: "StrongPass123!",
         });
         await database.insert(staffProfiles).values([
-          {
-            displayName: "Approval Employee",
-            role: "employee",
-            userId: employee.id,
-          },
-          {
-            displayName: "Approval Producer",
-            role: "producer",
-            userId: producer.id,
-          },
+          { role: "employee", userId: employee.id },
+          { role: "producer", userId: producer.id },
         ]);
         const employeeContext = staffContext(employee.id, "employee");
         const producerContext = staffContext(producer.id, "producer");

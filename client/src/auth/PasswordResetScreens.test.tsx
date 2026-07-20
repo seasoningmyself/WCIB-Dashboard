@@ -68,7 +68,9 @@ test("reset confirmation uses the shared password policy and matching input", ()
     />,
   );
   assert.match(markup, /At least 12 characters/);
-  assert.match(markup, /At least one uppercase letter/);
+  assert.match(markup, /No more than 128 characters/);
+  assert.match(markup, /Not common, compromised, or WCIB-predictable/);
+  assert.doesNotMatch(markup, /uppercase|lowercase|number|symbol/i);
   assert.match(markup, /autoComplete="new-password"/i);
   assert.match(markup, /Confirm password/);
   assert.doesNotMatch(markup, new RegExp(RESET_TOKEN));

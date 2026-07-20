@@ -18,7 +18,7 @@ import { PaySheets } from "../pay-sheets/PaySheets.js";
 import { MyCommissions } from "../commissions/MyCommissions.js";
 import { MyItems } from "../my-items/MyItems.js";
 import { ManageStaff } from "../staff/ManageStaff.js";
-import { OfficeLocationsSettings } from "../offices/OfficeLocationsSettings.js";
+import { SettingsSurface } from "../settings/AccountSettings.js";
 import { KpisGoals } from "../kpis/KpisGoals.js";
 import { resolveDraftSelection } from "../drafts/my-drafts-state.js";
 import { VocabularyProvider } from "../vocabulary/context.js";
@@ -35,6 +35,7 @@ import {
 
 interface AppShellProps {
   onLogout(): void;
+  onUserChanged?(user: CurrentUser): void;
   user: CurrentUser;
 }
 
@@ -45,7 +46,7 @@ interface AppShellViewProps extends AppShellProps {
   onNavigate?(path: string): void;
 }
 
-export function AppShell({ onLogout, user }: AppShellProps) {
+export function AppShell({ onLogout, onUserChanged, user }: AppShellProps) {
   const client = useApiClient();
   const [currentPath, setCurrentPath] = useState(readHashPath);
   const [navigationCounts, setNavigationCounts] =
@@ -95,6 +96,7 @@ export function AppShell({ onLogout, user }: AppShellProps) {
         setCurrentPath(path);
       }}
       onLogout={onLogout}
+      onUserChanged={(nextUser) => onUserChanged?.(nextUser)}
       user={user}
     />
   );
@@ -106,6 +108,7 @@ export function AppShellView({
   navigationCounts = {},
   onNavigate,
   onLogout,
+  onUserChanged,
   user,
 }: AppShellViewProps) {
   const navigation = useMemo(
@@ -201,7 +204,12 @@ export function AppShellView({
           ref={mainRef}
           tabIndex={-1}
         >
-          <ShellContent currentPath={currentPath} route={route} user={user} />
+          <ShellContent
+            currentPath={currentPath}
+            onUserChanged={onUserChanged}
+            route={route}
+            user={user}
+          />
         </main>
       </div>
     </div>
@@ -218,10 +226,12 @@ function mobileNavigationLabel(
 
 function ShellContent({
   currentPath,
+  onUserChanged,
   route,
   user,
 }: {
   currentPath: string;
+  onUserChanged?(user: CurrentUser): void;
   route: ReturnType<typeof resolveShellRoute>;
   user: CurrentUser;
 }) {
@@ -282,7 +292,14 @@ function ShellContent({
       return <ManageStaff user={user} />;
     }
     if (route.item.id === "settings") {
-      return <OfficeLocationsSettings user={user} />;
+      return (
+        <SettingsSurface
+          onDisplayNameChange={(displayName) =>
+            onUserChanged?.({ ...user, displayName })
+          }
+          user={user}
+        />
+      );
     }
     if (route.item.id === "kpis") {
       return <KpisGoals user={user} />;

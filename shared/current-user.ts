@@ -32,9 +32,10 @@ export const currentUserResponseSchema = z
       .object({
         allowedNavigation: z.array(z.enum(APP_NAVIGATION_IDS)),
         capabilities: z.array(z.enum(ACCESS_CAPABILITIES)),
-        displayName: z.string().min(1).nullable(),
+        displayName: z.string().min(1),
         email: z.string().email(),
         id: z.string().uuid(),
+        passwordChangeRequired: z.boolean(),
         role: z.enum(CURRENT_USER_ROLES).nullable(),
       })
       .strict(),

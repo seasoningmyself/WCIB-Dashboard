@@ -9,7 +9,7 @@ import {
   sessions,
   users,
 } from "../db/schema.js";
-import { hashPassword } from "./password.js";
+import { hashPassword, verifyPassword } from "./password.js";
 import type { PasswordResetDelivery } from "./password-reset-delivery.js";
 import { findUserByEmail, type AuthDatabase } from "./users.js";
 
@@ -119,9 +119,23 @@ export async function confirmPasswordReset(
         throw new InvalidPasswordResetTokenError();
       }
 
+      const [currentUser] = await transaction
+        .select({ passwordHash: users.passwordHash })
+        .from(users)
+        .where(and(eq(users.id, token.userId), eq(users.isActive, true)))
+        .for("update")
+        .limit(1);
+      if (
+        currentUser === undefined ||
+        (await verifyPassword(request.password, currentUser.passwordHash))
+      ) {
+        throw new InvalidPasswordResetTokenError();
+      }
+
       const [updatedUser] = await transaction
         .update(users)
         .set({
+          passwordChangeRequiredAt: null,
           passwordHash,
           sessionVersion: sql`${users.sessionVersion} + 1`,
         })

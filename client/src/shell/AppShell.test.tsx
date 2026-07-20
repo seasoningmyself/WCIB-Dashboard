@@ -13,6 +13,7 @@ const baseUser: CurrentUser = {
   displayName: "WCIB User",
   email: "user@example.test",
   id: "00000000-0000-4000-8000-000000000001",
+  passwordChangeRequired: false,
   role: null,
 };
 
@@ -311,7 +312,7 @@ test("server-authorized Manage Staff route mounts the real admin workspace", () 
   assert.doesNotMatch(markup, /WCIB workspace/);
 });
 
-test("server-authorized Settings route mounts real office management", () => {
+test("server-authorized Settings route mounts real own-account settings", () => {
   const markup = renderToStaticMarkup(
     withApi(
       <AppShellView
@@ -327,7 +328,7 @@ test("server-authorized Settings route mounts real office management", () => {
     ),
   );
 
-  assert.match(markup, /Loading office locations/);
+  assert.match(markup, /Loading settings/);
   assert.doesNotMatch(markup, /WCIB workspace/);
 });
 

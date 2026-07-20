@@ -36,10 +36,12 @@ test("help flags are owner-scoped, replay-safe, and atomically audited", async (
       const database = drizzle(pool, { schema: databaseSchema });
       try {
         const employee = await createUser(database, {
+          displayName: "Flag Employee",
           email: `flag-employee-${randomUUID()}@example.test`,
           password: "StrongPass123!",
         });
         const producer = await createUser(database, {
+          displayName: "Flag Producer",
           email: `flag-producer-${randomUUID()}@example.test`,
           password: "StrongPass123!",
         });
@@ -48,16 +50,8 @@ test("help flags are owner-scoped, replay-safe, and atomically audited", async (
           password: "StrongPass123!",
         });
         await database.insert(staffProfiles).values([
-          {
-            displayName: "Flag Employee",
-            role: "employee",
-            userId: employee.id,
-          },
-          {
-            displayName: "Flag Producer",
-            role: "producer",
-            userId: producer.id,
-          },
+          { role: "employee", userId: employee.id },
+          { role: "producer", userId: producer.id },
         ]);
         await database.insert(userCapabilities).values({
           capability: "admin",

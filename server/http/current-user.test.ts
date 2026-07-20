@@ -56,9 +56,11 @@ function account(
 ): UserAccount {
   return {
     createdAt: new Date("2026-07-09T00:00:00.000Z"),
+    displayName: id,
     email: `${id}@example.test`,
     id,
     isActive: true,
+    passwordChangeRequiredAt: null,
     sessionVersion: 0,
     ...overrides,
   };
@@ -109,7 +111,12 @@ function createFixture() {
   const identities = new Map<string, CurrentUserIdentity>([
     [
       ADMIN_ID,
-      { displayName: "Sophia", email: "sophia@example.test", id: ADMIN_ID },
+      {
+        displayName: "Sophia",
+        email: "sophia@example.test",
+        id: ADMIN_ID,
+        passwordChangeRequiredAt: null,
+      },
     ],
     [
       PRODUCER_ID,
@@ -117,6 +124,7 @@ function createFixture() {
         displayName: "Kaylee",
         email: "kaylee@example.test",
         id: PRODUCER_ID,
+        passwordChangeRequiredAt: null,
       },
     ],
     [
@@ -125,6 +133,7 @@ function createFixture() {
         displayName: "Mercedes",
         email: "mercedes@example.test",
         id: EMPLOYEE_ID,
+        passwordChangeRequiredAt: null,
       },
     ],
   ]);
@@ -201,18 +210,19 @@ test("GET /api/me returns exact server-derived role navigation", async () => {
       displayName: "Sophia",
       email: "sophia@example.test",
       id: ADMIN_ID,
+      passwordChangeRequired: false,
       role: "admin",
     },
   });
   assert.deepEqual(
     (producer.body as { user: { allowedNavigation: string[] } }).user
       .allowedNavigation,
-    ["turn_in", "my_items", "my_commissions"],
+    ["turn_in", "my_items", "my_commissions", "settings"],
   );
   assert.deepEqual(
     (employee.body as { user: { allowedNavigation: string[] } }).user
       .allowedNavigation,
-    ["turn_in", "my_items"],
+    ["turn_in", "my_items", "settings"],
   );
   assert.equal(admin.headers["cache-control"], "no-store");
 

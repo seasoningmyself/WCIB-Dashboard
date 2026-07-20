@@ -87,6 +87,7 @@ test("MGA payable role and date formatting fail closed", () => {
     displayName: "Sophia",
     email: "admin@example.test",
     id: uuid(90),
+    passwordChangeRequired: false,
     role: "admin",
   };
   assert.equal(isMgaPayablesAdmin(admin), true);

@@ -24,7 +24,7 @@ import { readDatabaseErrorCode } from "../db/error-code.js";
 import {
   approvalQueueEntries,
   drafts,
-  staffProfiles,
+  users,
   type ApprovalQueueEntryRecord,
   type DraftRecord,
 } from "../db/schema.js";
@@ -98,12 +98,12 @@ export async function listDeletedApprovalWork(
     database
       .select({
         ...getTableColumns(approvalQueueEntries),
-        submitterDisplayName: staffProfiles.displayName,
+        submitterDisplayName: users.displayName,
       })
       .from(approvalQueueEntries)
       .leftJoin(
-        staffProfiles,
-        eq(staffProfiles.userId, approvalQueueEntries.submittedByUserId),
+        users,
+        eq(users.id, approvalQueueEntries.submittedByUserId),
       )
       .where(
         and(
@@ -122,10 +122,10 @@ export async function listDeletedApprovalWork(
     database
       .select({
         ...getTableColumns(drafts),
-        submitterDisplayName: staffProfiles.displayName,
+        submitterDisplayName: users.displayName,
       })
       .from(drafts)
-      .leftJoin(staffProfiles, eq(staffProfiles.userId, drafts.ownerUserId))
+      .leftJoin(users, eq(users.id, drafts.ownerUserId))
       .where(
         and(
           eq(drafts.status, "flagged"),
@@ -139,10 +139,10 @@ export async function listDeletedApprovalWork(
     database
       .select({
         ...getTableColumns(drafts),
-        submitterDisplayName: staffProfiles.displayName,
+        submitterDisplayName: users.displayName,
       })
       .from(drafts)
-      .leftJoin(staffProfiles, eq(staffProfiles.userId, drafts.ownerUserId))
+      .leftJoin(users, eq(users.id, drafts.ownerUserId))
       .where(
         and(
           eq(drafts.status, "draft"),
@@ -321,12 +321,12 @@ async function getApprovalWorkDeletionSource(
     const [row] = await database
       .select({
         ...getTableColumns(approvalQueueEntries),
-        submitterDisplayName: staffProfiles.displayName,
+        submitterDisplayName: users.displayName,
       })
       .from(approvalQueueEntries)
       .leftJoin(
-        staffProfiles,
-        eq(staffProfiles.userId, approvalQueueEntries.submittedByUserId),
+        users,
+        eq(users.id, approvalQueueEntries.submittedByUserId),
       )
       .where(
         and(
@@ -348,10 +348,10 @@ async function getApprovalWorkDeletionSource(
   const [row] = await database
     .select({
       ...getTableColumns(drafts),
-      submitterDisplayName: staffProfiles.displayName,
+      submitterDisplayName: users.displayName,
     })
     .from(drafts)
-    .leftJoin(staffProfiles, eq(staffProfiles.userId, drafts.ownerUserId))
+    .leftJoin(users, eq(users.id, drafts.ownerUserId))
     .where(
       and(
         eq(drafts.id, targetId),

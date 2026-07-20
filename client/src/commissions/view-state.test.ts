@@ -16,6 +16,7 @@ test("producer commission access requires both producer role and server navigati
     displayName: "Kaylee",
     email: "kaylee@example.test",
     id: uuid(2),
+    passwordChangeRequired: false,
     role: "producer",
   };
   assert.equal(isMyCommissionsProducer(producer), true);

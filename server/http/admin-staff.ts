@@ -5,6 +5,7 @@ import {
   adminStaffParamsSchema,
   adminStaffRateParamsSchema,
   createAdminStaffRequestSchema,
+  issueTemporaryPasswordRequestSchema,
   producerRateInputSchema,
   updateAdminStaffRequestSchema,
 } from "../../shared/admin-staff.js";
@@ -36,6 +37,8 @@ export const ADMIN_STAFF_REACTIVATE_PATH =
 export const ADMIN_STAFF_RATES_PATH = "/api/admin/staff/:userId/rates";
 export const ADMIN_STAFF_RATE_PATH =
   "/api/admin/staff/:userId/rates/:rateId";
+export const ADMIN_STAFF_TEMPORARY_PASSWORD_PATH =
+  "/api/admin/staff/:userId/temporary-password";
 
 interface AdminStaffSourceLike {
   account: object;
@@ -59,6 +62,11 @@ export interface AdminStaffHandlerDependencies {
   ): Promise<AdminStaffSourceLike>;
   list(context: AuthorizedRequestContext): Promise<AdminStaffSourceLike[]>;
   logger: AppLogger;
+  issueTemporaryPassword(
+    context: AuthorizedRequestContext,
+    userId: string,
+    input: unknown,
+  ): Promise<AdminStaffSourceLike>;
   setActive(
     context: AuthorizedRequestContext,
     userId: string,
@@ -214,6 +222,27 @@ export function createAdminStaffRateUpdateHandler(
   });
 }
 
+export function createAdminTemporaryPasswordHandler(
+  dependencies: AdminStaffHandlerDependencies,
+): RequestHandler {
+  return asyncRoute(async (req, res) => {
+    const context = getAuthorizedRequestContext(res);
+    const { userId } = adminStaffParamsSchema.parse(req.params);
+    const input = issueTemporaryPasswordRequestSchema.parse(req.body);
+    let source: AdminStaffSourceLike;
+    try {
+      source = await dependencies.issueTemporaryPassword(
+        context,
+        userId,
+        input,
+      );
+    } catch (error) {
+      throw mapAdminStaffError(error);
+    }
+    respondWithStaff(res, source);
+  });
+}
+
 export function registerAdminStaffRoutes(
   routes: RouteRegistrar,
   options: RegisterAdminStaffRoutesOptions,
@@ -256,6 +285,11 @@ export function registerAdminStaffRoutes(
     ADMIN_STAFF_RATE_PATH,
     access,
     createAdminStaffRateUpdateHandler(options),
+  );
+  routes.post(
+    ADMIN_STAFF_TEMPORARY_PASSWORD_PATH,
+    access,
+    createAdminTemporaryPasswordHandler(options),
   );
 }
 

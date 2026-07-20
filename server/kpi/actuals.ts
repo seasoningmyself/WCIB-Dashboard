@@ -1,4 +1,4 @@
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AuthDatabase } from "../auth/users.js";
 import {
@@ -8,7 +8,7 @@ import {
   type KpiActualQuery,
   type KpiActualResponse,
 } from "../../shared/kpi-actuals.js";
-import { officeLocations, staffProfiles } from "../db/schema.js";
+import { officeLocations, staffProfiles, users } from "../db/schema.js";
 import {
   listAllClosedProducerKpiFacts,
   listClosedKpiFacts,
@@ -319,10 +319,11 @@ async function loadLabels(
       ? []
       : database
           .select({
-            displayName: staffProfiles.displayName,
+            displayName: users.displayName,
             userId: staffProfiles.userId,
           })
           .from(staffProfiles)
+          .innerJoin(users, eq(users.id, staffProfiles.userId))
           .where(inArray(staffProfiles.userId, producerIds)),
   ]);
   return Object.freeze({

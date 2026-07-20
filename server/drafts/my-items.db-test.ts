@@ -79,10 +79,12 @@ test("My Items is UUID-owned, blank-safe, role-guarded, and exact-field projecte
       let server: Server | null = null;
       try {
         const employee = await createUser(database, {
+          displayName: "Employee Owner",
           email: `stone124-employee-${randomUUID()}@example.test`,
           password: PASSWORD,
         });
         const producer = await createUser(database, {
+          displayName: "Producer Owner",
           email: `stone124-producer-${randomUUID()}@example.test`,
           password: PASSWORD,
         });
@@ -91,16 +93,8 @@ test("My Items is UUID-owned, blank-safe, role-guarded, and exact-field projecte
           password: PASSWORD,
         });
         await database.insert(staffProfiles).values([
-          {
-            displayName: "Employee Owner",
-            role: "employee",
-            userId: employee.id,
-          },
-          {
-            displayName: "Producer Owner",
-            role: "producer",
-            userId: producer.id,
-          },
+          { role: "employee", userId: employee.id },
+          { role: "producer", userId: producer.id },
         ]);
         await database.insert(userCapabilities).values({
           capability: "admin",

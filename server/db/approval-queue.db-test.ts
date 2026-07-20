@@ -45,6 +45,7 @@ test("approval queue preserves one immutable submitted snapshot per active draft
     await client.query("BEGIN");
 
     const submitter = await createUser(database, {
+      displayName: "Queue Submitter",
       email: `queue-submitter-${randomUUID()}@example.test`,
       password: "StrongPass123!",
     });
@@ -53,7 +54,6 @@ test("approval queue preserves one immutable submitted snapshot per active draft
       password: "StrongPass123!",
     });
     await database.insert(staffProfiles).values({
-      displayName: "Queue Submitter",
       role: "employee",
       userId: submitter.id,
     });

@@ -49,6 +49,7 @@ function user(role: CurrentUser["role"]): CurrentUser {
     displayName: "QA User",
     email: "qa@example.test",
     id: USER_ID,
+    passwordChangeRequired: false,
     role,
   };
 }

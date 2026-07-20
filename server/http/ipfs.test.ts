@@ -229,7 +229,15 @@ function errorResult(error: unknown): TestResult {
 
 function account(id: string, isActive = true): UserAccount {
   const at = new Date("2026-07-01T00:00:00.000Z");
-  return { createdAt: at, email: `${id}@example.test`, id, isActive, sessionVersion: 0 };
+  return {
+    createdAt: at,
+    displayName: id,
+    email: `${id}@example.test`,
+    id,
+    isActive,
+    passwordChangeRequiredAt: null,
+    sessionVersion: 0,
+  };
 }
 
 function principal(id: string, access: Partial<AccessPrincipal> = {}): AccessPrincipal {

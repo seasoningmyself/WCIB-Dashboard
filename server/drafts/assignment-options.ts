@@ -12,7 +12,7 @@ export async function listDraftAssignmentOptions(
 ): Promise<DraftAssignmentOption[]> {
   return database
     .select({
-      displayName: staffProfiles.displayName,
+      displayName: users.displayName,
       userId: staffProfiles.userId,
     })
     .from(staffProfiles)
@@ -25,7 +25,7 @@ export async function listDraftAssignmentOptions(
       ),
     )
     .orderBy(
-      asc(sql`lower(${staffProfiles.displayName})`),
+      asc(sql`lower(${users.displayName})`),
       asc(staffProfiles.userId),
     );
 }

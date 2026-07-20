@@ -1496,9 +1496,11 @@ function draft(
 function account(id: string, isActive = true): UserAccount {
   return {
     createdAt: new Date("2026-07-10T00:00:00.000Z"),
+    displayName: id,
     email: `${id}@example.test`,
     id,
     isActive,
+    passwordChangeRequiredAt: null,
     sessionVersion: 0,
   };
 }

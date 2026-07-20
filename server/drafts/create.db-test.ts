@@ -42,10 +42,12 @@ test("own draft creation enforces UUID ownership, active references, and clean d
       const database = drizzle(pool, { schema: databaseSchema });
       try {
         const employee = await createUser(database, {
+          displayName: "Draft Employee",
           email: `draft-employee-${randomUUID()}@example.test`,
           password: "StrongPass123!",
         });
         const producer = await createUser(database, {
+          displayName: "Draft Producer",
           email: `draft-producer-${randomUUID()}@example.test`,
           password: "StrongPass123!",
         });
@@ -54,16 +56,8 @@ test("own draft creation enforces UUID ownership, active references, and clean d
           password: "StrongPass123!",
         });
         await database.insert(staffProfiles).values([
-          {
-            displayName: "Draft Employee",
-            role: "employee",
-            userId: employee.id,
-          },
-          {
-            displayName: "Draft Producer",
-            role: "producer",
-            userId: producer.id,
-          },
+          { role: "employee", userId: employee.id },
+          { role: "producer", userId: producer.id },
         ]);
         const [carrier] = await database
           .insert(carriers)
@@ -245,10 +239,12 @@ test("content-bearing draft cap is owner-scoped and concurrent-safe", async () =
       const database = drizzle(pool, { schema: databaseSchema });
       try {
         const owner = await createUser(database, {
+          displayName: "Draft Cap Owner",
           email: `draft-cap-owner-${randomUUID()}@example.test`,
           password: "StrongPass123!",
         });
         const otherOwner = await createUser(database, {
+          displayName: "Other Draft Owner",
           email: `draft-cap-other-${randomUUID()}@example.test`,
           password: "StrongPass123!",
         });
@@ -260,16 +256,8 @@ test("content-bearing draft cap is owner-scoped and concurrent-safe", async () =
           .insert(userCapabilities)
           .values({ capability: "admin", userId: admin.id });
         await database.insert(staffProfiles).values([
-          {
-            displayName: "Draft Cap Owner",
-            role: "employee",
-            userId: owner.id,
-          },
-          {
-            displayName: "Other Draft Owner",
-            role: "employee",
-            userId: otherOwner.id,
-          },
+          { role: "employee", userId: owner.id },
+          { role: "employee", userId: otherOwner.id },
         ]);
         const [carrier] = await database
           .insert(carriers)
