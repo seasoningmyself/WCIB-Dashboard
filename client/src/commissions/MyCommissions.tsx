@@ -13,6 +13,8 @@ import {
   type MyCommissionsResponse,
 } from "../../../shared/my-commissions.js";
 import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
+import { EmptyState } from "../ui/EmptyState.js";
+import { PageHeader } from "../ui/PageHeader.js";
 import {
   createMyCommissionsApi,
   MyCommissionsApiError,
@@ -201,13 +203,16 @@ export function MyCommissionsView({
         className="my-commissions-screen-content"
         aria-labelledby="my-commissions-title"
       >
-        <header className="my-commissions-header">
-          <div>
-            <p>Producer payout workspace</p>
-            <h1 id="my-commissions-title">My Commissions</h1>
-          </div>
-          <span>Private to your account</span>
-        </header>
+        <PageHeader
+          eyebrow="Producer payout workspace"
+          status={(
+            <>
+              <strong>{state.data.summary.owedCount}</strong> {state.data.summary.owedCount === 1 ? "commission is" : "commissions are"} awaiting payment. Private to your account.
+            </>
+          )}
+          title="My Commissions"
+          titleId="my-commissions-title"
+        />
 
         <div className="my-commissions-summary" aria-label="Commission summary">
           <CommissionMetric
@@ -286,14 +291,18 @@ export function MyCommissionsView({
         )}
 
         {state.data.items.length === 0 ? (
-          <div className="my-commissions-empty">
-            <h2>{query.search === "" ? "No commission items yet" : "No matching commission items"}</h2>
-            <p>
-              {query.search === ""
-                ? "Approved and submitted producer items will appear here."
-                : "Try another insured name."}
-            </p>
-          </div>
+          <EmptyState
+            action={query.search === "" ? (
+              <a href="#/my-drafts">View my items</a>
+            ) : (
+              <button onClick={() => onSearchChange("")} type="button">Clear search</button>
+            )}
+            body={query.search === ""
+              ? "Approved producer policies will appear here when commission amounts are available."
+              : "Try another insured name or clear the search."}
+            className="my-commissions-empty"
+            heading={query.search === "" ? "No commission activity yet" : "No commissions match this search"}
+          />
         ) : (
           <div className="my-commissions-sections">
             <CommissionSection

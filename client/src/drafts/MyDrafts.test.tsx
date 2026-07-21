@@ -218,7 +218,7 @@ test("another-owner URL guess and list failures disclose no draft data", () => {
   });
   assert.match(loading, /Loading drafts/);
   assert.match(error, /Drafts unavailable/);
-  assert.match(empty, /No turn-ins yet/);
+  assert.match(empty, /No saved turn-ins/);
 });
 
 test("admin draft loading skips the staff-only change-request endpoint", async () => {

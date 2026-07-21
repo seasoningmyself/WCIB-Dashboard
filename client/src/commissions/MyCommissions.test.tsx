@@ -149,9 +149,9 @@ test("view exposes loading, denied, failure, blank, and searched-empty states", 
     paidLast30DaysAmount: "0.00",
     paidLast30DaysCount: 0,
   };
-  assert.match(renderReady(blank), /No commission items yet/);
+  assert.match(renderReady(blank), /No commission activity yet/);
   const searched = renderReady(blank, "Acme");
-  assert.match(searched, /No matching commission items/);
+  assert.match(searched, /No commissions match this search/);
   assert.match(searched, /aria-label="Clear commission search"/);
   assert.doesNotMatch(searched, /type="submit"/);
 });

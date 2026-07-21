@@ -21,6 +21,8 @@ import {
 } from "../../../shared/policy-ledger.js";
 import type { PolicyLedgerCorrectionRequest } from "../../../shared/policy-corrections.js";
 import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
+import { EmptyState } from "../ui/EmptyState.js";
+import { PageHeader } from "../ui/PageHeader.js";
 import {
   PolicyCorrectionDialog,
   type LedgerCorrectionDialog,
@@ -587,24 +589,26 @@ export function PolicyLedgerView({
   );
   return (
     <section className="ledger-page" aria-labelledby="ledger-page-title">
-      <header className="ledger-page-header">
-        <div>
-          <p>Agency financial record</p>
-          <h1 id="ledger-page-title">Policy Ledger</h1>
-        </div>
-        <div className="ledger-record-count" aria-label={`${state.data.filteredTotal} matching policies`}>
-          <strong>{state.data.filteredTotal}</strong>
-          <span>Policies</span>
-        </div>
-        <div className="ledger-page-actions">
-          <button className="ledger-deleted-button" disabled={pending || exportingIpfs} onClick={onExportIpfs} type="button">
-            {exportingIpfs ? "Preparing CSV..." : "Export IPFS CSV"}
-          </button>
-          <button className="ledger-deleted-button" disabled={pending || exportingIpfs} onClick={onOpenDeleted} type="button">
-            Deleted policies
-          </button>
-        </div>
-      </header>
+      <PageHeader
+        actions={(
+          <div className="ledger-page-actions">
+            <button className="ledger-deleted-button" disabled={pending || exportingIpfs} onClick={onExportIpfs} type="button">
+              {exportingIpfs ? "Preparing CSV..." : "Export IPFS CSV"}
+            </button>
+            <button className="ledger-deleted-button" disabled={pending || exportingIpfs} onClick={onOpenDeleted} type="button">
+              Deleted policies
+            </button>
+          </div>
+        )}
+        eyebrow="Agency financial record"
+        status={(
+          <>
+            <strong>{state.data.filteredTotal}</strong> {state.data.filteredTotal === 1 ? "policy matches" : "policies match"} the current view.
+          </>
+        )}
+        title="Policy Ledger"
+        titleId="ledger-page-title"
+      />
 
       <LedgerMetrics totals={state.data.totals} />
 
@@ -699,14 +703,33 @@ export function PolicyLedgerView({
       )}
 
       {state.data.items.length === 0 ? (
-        <div className="ledger-empty">
-          <h2>{state.data.total === 0 ? "No policies yet" : "No matching policies"}</h2>
-          <p>
-            {state.data.total === 0
-              ? "Approved policies will appear here."
-              : "Adjust the search or filters to see more policies."}
-          </p>
-        </div>
+        <EmptyState
+          action={state.data.total === 0 ? (
+            <a href="#/turn-in">Start a turn-in</a>
+          ) : (
+            <button
+              disabled={pending}
+              onClick={() => {
+                onSearch("");
+                onQuery({
+                  direction: "asc",
+                  duplicates: "all",
+                  finance: "all",
+                  month: undefined,
+                  sort: "insured",
+                });
+              }}
+              type="button"
+            >
+              Clear filters
+            </button>
+          )}
+          body={state.data.total === 0
+            ? "Approved policies will appear here after a turn-in is completed and added to the ledger."
+            : "Try another insured, policy number, carrier, MGA, or month."}
+          className="ledger-empty"
+          heading={state.data.total === 0 ? "No policies in the ledger" : "No policies match these filters"}
+        />
       ) : (
         <div className="ledger-table" role="table" aria-label="Policy ledger">
           <div className="ledger-table-header" role="row">

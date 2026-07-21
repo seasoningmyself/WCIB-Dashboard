@@ -80,7 +80,7 @@ test("screen exposes loading, empty, failure, denied, and safe non-admin states"
   assert.match(renderState({ status: "loading" }), /Loading staff/);
   assert.match(renderState({ status: "error" }), /Try again/);
   assert.match(renderState({ status: "denied" }), /Staff management unavailable/);
-  assert.match(renderState({ items: [], status: "ready" }), /No staff accounts yet/);
+  assert.match(renderState({ items: [], status: "ready" }), /No staff accounts/);
 
   for (const role of ["employee", "producer"] as const) {
     const user: CurrentUser = {

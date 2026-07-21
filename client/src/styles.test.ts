@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+const mainSource = readFileSync(new URL("./main.tsx", import.meta.url), "utf8");
 const rootMatch = css.match(/^:root\s*\{([\s\S]*?)\n\}/);
 
 assert.ok(rootMatch);
@@ -60,6 +61,13 @@ test("screen typography keeps the approved 11px minimum", () => {
   assert.doesNotMatch(screenCss, /font-size:\s*(?:\d|clamp\()/);
 });
 
+test("Archivo is self-hosted at every supported UI weight", () => {
+  assert.match(tokenValue("--font-family-ui"), /^"Archivo",/);
+  for (const weight of [400, 500, 600, 700]) {
+    assert.match(mainSource, new RegExp(`@fontsource/archivo/${weight}\\.css`));
+  }
+});
+
 test("body, table, and control examples retain the 12px content floor", () => {
   for (const rule of [
     /\.staff-rate-table\s*\{[^}]*font-size:\s*var\(--font-size-body\)/,
@@ -81,9 +89,11 @@ test("mobile controls keep the 44px touch-height floor", () => {
 
   assert.match(mobileFloor, /\.workspace-content button,/);
   assert.match(mobileFloor, /\.workspace-content input:not/);
-  assert.match(mobileFloor, /\.workspace-mobile-nav select,/);
+  assert.match(mobileFloor, /\.workspace-mobile-menu-button,/);
+  assert.match(mobileFloor, /\.workspace-nav-link,/);
   assert.match(mobileFloor, /\.password-label-row a,/);
   assert.match(mobileFloor, /min-height:\s*44px/);
+  assert.match(mobileFloor, /\.turn-in-icon-button\s*\{[^}]*min-width:\s*var\(--space-44\)/);
 });
 
 test("raw visual values stay inside the token definition block", () => {
@@ -180,6 +190,21 @@ test("Coastal uses the approved 46-property color vocabulary", () => {
   for (const [name, value] of Object.entries(coastalColors)) {
     assert.equal(tokenValue(name), value, name);
   }
+});
+
+test("Coastal canvas reaches every full-page ground", () => {
+  assert.match(
+    css,
+    /\.app-shell\s*\{[^}]*background:\s*var\(--canvas\)/,
+  );
+  assert.match(
+    css,
+    /\.login-page,\s*\n\.auth-status-page\s*\{[^}]*background:[\s\S]*?var\(--canvas\)/,
+  );
+  assert.match(
+    css,
+    /\.workspace-shell\s*\{[^}]*background:\s*var\(--canvas\)/,
+  );
 });
 
 test("Coastal text and interactive boundaries meet their contrast floors", () => {

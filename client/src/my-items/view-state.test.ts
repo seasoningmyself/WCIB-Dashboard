@@ -7,6 +7,7 @@ import {
   filterMyItems,
   isMyItemsStaff,
   myItemAgeLabel,
+  myItemEmptyHeading,
   myItemFilterLabel,
   myItemFilterFromPath,
   myItemOpenLabel,
@@ -40,6 +41,8 @@ test("My Items filtering and counts cover every workflow status", () => {
   });
   assert.deepEqual(filterMyItems(items, "flagged"), [items[2]]);
   assert.equal(myItemFilterLabel("flagged"), "Waiting on Sophia");
+  assert.equal(myItemEmptyHeading("sent_back"), "No sent-back turn-ins");
+  assert.equal(myItemEmptyHeading("flagged"), "No turn-ins waiting on Sophia");
   assert.equal(myItemFilterFromPath("/my-drafts?filter=flagged"), "flagged");
   assert.equal(myItemFilterFromPath("/my-drafts?filter=unknown"), "all");
 });

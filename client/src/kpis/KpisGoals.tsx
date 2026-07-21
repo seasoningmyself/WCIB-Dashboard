@@ -13,6 +13,8 @@ import type {
 } from "../../../shared/kpi-actuals.js";
 import type { KpiTargetListResponse } from "../../../shared/kpi-target-api.js";
 import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
+import { EmptyState } from "../ui/EmptyState.js";
+import { PageHeader } from "../ui/PageHeader.js";
 import { createKpiApi, KpiApiError } from "./api.js";
 import {
   KPI_PERIOD_OPTIONS,
@@ -249,16 +251,16 @@ export function KpisGoalsView({
     : state.actuals.scope.displayName ?? "Selected producer";
   return (
     <section className="kpi-page" aria-labelledby="kpi-page-title">
-      <header className="kpi-page-header">
-        <div>
-          <p>Closed performance</p>
-          <h1 id="kpi-page-title">KPIs &amp; Goals</h1>
-        </div>
-        <div className="kpi-source-badge">
-          <span>{scopeName}</span>
-          <strong>{year} / {period === "full" ? "Full year" : period}</strong>
-        </div>
-      </header>
+      <PageHeader
+        eyebrow="Closed performance"
+        status={(
+          <>
+            Showing <strong>{scopeName}</strong> for {year}, {period === "full" ? "full year" : period}.
+          </>
+        )}
+        title={<>KPIs &amp; Goals</>}
+        titleId="kpi-page-title"
+      />
 
       <section className="kpi-controls" aria-label="KPI scope and period">
         <label>
@@ -325,11 +327,13 @@ export function KpisGoalsView({
       />
 
       {state.actuals.empty ? (
-        <section className="kpi-empty" aria-labelledby="kpi-empty-title">
-          <p>Closed history</p>
-          <h2 id="kpi-empty-title">No closed pay-sheet activity for this period</h2>
-          <span>Actuals will appear after a pay sheet is closed.</span>
-        </section>
+        <EmptyState
+          action={<a href="#/pay-sheets">View pay sheets</a>}
+          body="KPI actuals appear after a pay sheet is closed for the selected period."
+          className="kpi-empty"
+          heading="No closed performance yet"
+          headingId="kpi-empty-title"
+        />
       ) : (
         <KpiActuals actuals={state.actuals} />
       )}

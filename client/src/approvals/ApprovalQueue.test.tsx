@@ -82,7 +82,7 @@ test("approval queue has bounded loading, error, empty, and denied states", () =
       status: "ready",
       work: { changeRequests: [], helpRequests: [], submissions: [] },
     }),
-    /Queue clear/,
+    /Nothing waiting for review/,
   );
 });
 

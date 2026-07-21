@@ -15,6 +15,8 @@ import {
   type MgaPayableListResponse,
 } from "../../../shared/mga-payables.js";
 import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
+import { EmptyState } from "../ui/EmptyState.js";
+import { PageHeader } from "../ui/PageHeader.js";
 import { formatMoneyExact } from "../ledger/view-state.js";
 import {
   createMgaPayablesApi,
@@ -300,19 +302,16 @@ export function MgaPayablesView({
   const { data } = state;
   return (
     <section className="mga-page" aria-labelledby="mga-page-title">
-      <header className="mga-page-header">
-        <div>
-          <p>Agency settlement</p>
-          <h1 id="mga-page-title">MGA Payables</h1>
-        </div>
-        <div
-          className="mga-open-count"
-          aria-label={`${data.summary.unpaidCount} outstanding policies`}
-        >
-          <strong>{data.summary.unpaidCount}</strong>
-          <span>Outstanding</span>
-        </div>
-      </header>
+      <PageHeader
+        eyebrow="Agency settlement"
+        status={(
+          <>
+            <strong>{data.summary.unpaidCount}</strong> {data.summary.unpaidCount === 1 ? "policy remains" : "policies remain"} outstanding.
+          </>
+        )}
+        title="MGA Payables"
+        titleId="mga-page-title"
+      />
 
       <div className="mga-summary" aria-label="MGA payable totals">
         <SummaryMetric
@@ -350,18 +349,20 @@ export function MgaPayablesView({
       )}
 
       {data.groups.length === 0 ? (
-        <div className="mga-empty">
-          <h2>
-            {data.summary.totalCount === 0
-              ? "No approved policies yet"
-              : `No ${filter === "all" ? "matching" : filter} payables`}
-          </h2>
-          <p>
-            {data.summary.totalCount === 0
-              ? "Approved policies will appear here."
-              : "Choose another payment-status filter."}
-          </p>
-        </div>
+        <EmptyState
+          action={data.summary.totalCount === 0 ? (
+            <a href="#/policy-ledger">View policy ledger</a>
+          ) : (
+            <button disabled={pending} onClick={() => onFilter("all")} type="button">Show all</button>
+          )}
+          body={data.summary.totalCount === 0
+            ? "Approved policies will appear here when money is due to an MGA."
+            : "There are no payables with this status."}
+          className="mga-empty"
+          heading={data.summary.totalCount === 0
+            ? "No MGA payables yet"
+            : `No ${filter === "paid" ? "paid" : filter === "unpaid" ? "unpaid" : "matching"} payables`}
+        />
       ) : (
         <div className="mga-group-list">
           {data.groups.map((group) => (

@@ -18,6 +18,8 @@ import type {
 } from "../../../shared/pay-sheet-api.js";
 import type { PolicyTypeOption } from "../../../shared/vocabulary.js";
 import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
+import { EmptyState } from "../ui/EmptyState.js";
+import { PageHeader } from "../ui/PageHeader.js";
 import { formatMoneyExact } from "../ledger/view-state.js";
 import { useVocabulary } from "../vocabulary/context.js";
 import {
@@ -745,16 +747,16 @@ export function PaySheetsView({
     groups.find(({ key }) => key === selectedOwnerKey) ?? groups[0] ?? null;
   return (
     <section className="pay-sheets-page" aria-labelledby="pay-sheets-title">
-      <header className="pay-sheets-page-header">
-        <div>
-          <p>Payroll workspace</p>
-          <h1 id="pay-sheets-title">Pay Sheets</h1>
-        </div>
-        <div className="pay-sheets-period-count">
-          <strong>{state.data.items.length}</strong>
-          <span>Periods</span>
-        </div>
-      </header>
+      <PageHeader
+        eyebrow="Payroll workspace"
+        status={(
+          <>
+            <strong>{state.data.items.length}</strong> {state.data.items.length === 1 ? "pay-sheet period is" : "pay-sheet periods are"} available across the agency.
+          </>
+        )}
+        title="Pay Sheets"
+        titleId="pay-sheets-title"
+      />
 
       {groups.length === 0 || activeGroup === null ? (
         <PaySheetBootstrap
@@ -819,13 +821,14 @@ export function PaySheetBootstrap({
 }) {
   return (
     <form
-      className="pay-sheets-empty pay-sheet-bootstrap"
+      className="app-empty-state pay-sheets-empty pay-sheet-bootstrap"
       onSubmit={(event) => {
         event.preventDefault();
         onSubmit();
       }}
     >
       <h2>Start pay sheets</h2>
+      <p>Choose the reporting period to begin from. This sets the first period for the agency and cannot be changed later.</p>
       <div className="pay-sheet-bootstrap-fields">
         <label>
           <span>Starting month</span>
@@ -870,9 +873,11 @@ export function PaySheetBootstrap({
         </label>
       </div>
       {error === null ? null : <p className="pay-sheet-bootstrap-error" role="alert">{error}</p>}
-      <button disabled={disabled} type="submit">
-        {disabled ? "Starting..." : "Start pay sheets"}
-      </button>
+      <div className="app-empty-state-action">
+        <button disabled={disabled} type="submit">
+          {disabled ? "Starting..." : "Start pay sheets"}
+        </button>
+      </div>
     </form>
   );
 }
@@ -906,7 +911,7 @@ function OwnerWorkspace({
         <div className="pay-sheet-section-heading">
           <div>
             <p>Current period</p>
-            <h2 id="pay-sheet-current-title">
+            <h2 id="pay-sheet-current-title" tabIndex={-1}>
               {open === null
                 ? "No open sheet"
                 : formatPaySheetPeriod(open.periodMonth, open.periodYear)}
@@ -917,10 +922,15 @@ function OwnerWorkspace({
           )}
         </div>
         {open === null ? (
-          <div className="pay-sheets-empty is-compact">
-            <h3>No open period</h3>
-            <p>Close history remains available below.</p>
-          </div>
+          <EmptyState
+            action={closed.length === 0 ? undefined : (
+              <button onClick={() => focusPaySheetSection("pay-sheet-history-title")} type="button">View closed history</button>
+            )}
+            body="Closed periods remain available below."
+            className="pay-sheets-empty is-compact"
+            heading="No open pay sheet"
+            headingLevel={3}
+          />
         ) : (
           <SheetPanel
             allSheets={allSheets}
@@ -938,15 +948,20 @@ function OwnerWorkspace({
         <div className="pay-sheet-section-heading">
           <div>
             <p>Immutable record</p>
-            <h2 id="pay-sheet-history-title">Closed history</h2>
+            <h2 id="pay-sheet-history-title" tabIndex={-1}>Closed history</h2>
           </div>
           <span>{closed.length} periods</span>
         </div>
         {closed.length === 0 ? (
-          <div className="pay-sheets-empty is-compact">
-            <h3>No closed periods</h3>
-            <p>Finalized sheets will appear here.</p>
-          </div>
+          <EmptyState
+            action={open === null ? undefined : (
+              <button onClick={() => focusPaySheetSection("pay-sheet-current-title")} type="button">View current period</button>
+            )}
+            body="Finalized periods will appear here after a current pay sheet is closed."
+            className="pay-sheets-empty is-compact"
+            heading="No closed pay sheets yet"
+            headingLevel={3}
+          />
         ) : (
           <div className="pay-sheet-history-list">
             {closed.map((sheet) => {
@@ -1106,7 +1121,8 @@ function PaySheetLiveKpiWidget({
   if (kpi.totalPolicyCount === 0) {
     return (
       <section className="pay-sheet-live-kpi is-empty" aria-label="Current period at a glance">
-        <span>No activity yet this period</span>
+        <strong>No activity yet this period</strong>
+        <span>Policies and adjustments will appear here as they are added.</span>
       </section>
     );
   }
@@ -1468,6 +1484,12 @@ function adjustmentAmounts(
 
 function SheetStatus({ status }: { status: PaySheetSummary["status"] }) {
   return <span className={`pay-sheet-status is-${status}`}>{status}</span>;
+}
+
+function focusPaySheetSection(id: string): void {
+  const heading = document.getElementById(id);
+  heading?.scrollIntoView({ behavior: "smooth", block: "start" });
+  heading?.focus({ preventScroll: true });
 }
 
 function DetailMessage({

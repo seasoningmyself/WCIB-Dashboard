@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  groupAuthorizedNavigation,
   normalizeShellPath,
   resolveAuthorizedNavigation,
   resolveShellRoute,
@@ -26,6 +27,28 @@ test("navigation maps only explicit server-issued identifiers", () => {
       path: "/my-commissions",
     },
   ]);
+});
+
+test("navigation groups authorized pages in Coastal task order", () => {
+  const groups = groupAuthorizedNavigation(resolveAuthorizedNavigation([
+    "settings",
+    "my_commissions",
+    "turn_in",
+    "my_items",
+  ]));
+
+  assert.deepEqual(
+    groups.map(({ id, items, label }) => ({
+      id,
+      items: items.map((item) => item.id),
+      label,
+    })),
+    [
+      { id: "daily", items: ["turn_in", "my_items"], label: "Daily" },
+      { id: "money", items: ["my_commissions"], label: "Money" },
+      { id: "setup", items: ["settings"], label: "Setup" },
+    ],
+  );
 });
 
 test("shell routes cannot select an unauthorized or external destination", () => {

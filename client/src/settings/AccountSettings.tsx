@@ -15,6 +15,7 @@ import { normalizePassword } from "../../../shared/password-policy.js";
 import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
 import { PasswordRequirements } from "../auth/PasswordRequirements.js";
 import { OfficeLocationsSettings } from "../offices/OfficeLocationsSettings.js";
+import { PageHeader } from "../ui/PageHeader.js";
 import { createSettingsApi, SettingsApiError } from "./api.js";
 
 type SettingsTab = "account" | "security" | "office";
@@ -33,10 +34,12 @@ export function SettingsSurface({
   const isAdmin = user.role === "admin" && user.capabilities.includes("admin");
   return (
     <section className="settings-page" aria-labelledby="settings-title">
-      <header className="settings-page-header">
-        <p>Personal account</p>
-        <h1 id="settings-title">Settings</h1>
-      </header>
+      <PageHeader
+        eyebrow="Personal account"
+        status={<>Manage the profile and security settings for <strong>{user.email}</strong>.</>}
+        title="Settings"
+        titleId="settings-title"
+      />
       <div className="settings-tabs" role="tablist" aria-label="Settings sections">
         <SettingsTabButton active={tab === "account"} onClick={() => setTab("account")}>Account</SettingsTabButton>
         <SettingsTabButton active={tab === "security"} onClick={() => setTab("security")}>Security</SettingsTabButton>

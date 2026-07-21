@@ -46,7 +46,7 @@ test("dedicated Help Requests renders v15 context and the shared resolution acti
 test("dedicated Help Requests has bounded states and fails closed for staff roles", () => {
   assert.match(renderView({ status: "loading" }), /Loading Help Requests/);
   assert.match(renderView({ status: "error" }), /Try again/);
-  assert.match(renderView({ items: [], status: "ready" }), /No open help requests/);
+  assert.match(renderView({ items: [], status: "ready" }), /No help requests/);
   for (const role of ["employee", "producer"] as const) {
     const markup = renderToStaticMarkup(<HelpRequests user={user(role)} />);
     assert.match(markup, /Help Requests unavailable/);
