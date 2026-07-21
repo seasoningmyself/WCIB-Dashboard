@@ -22,6 +22,31 @@ function tokenValue(name: string): string {
   return value;
 }
 
+function colorChannel(value: number): number {
+  const normalized = value / 255;
+  return normalized <= 0.04045
+    ? normalized / 12.92
+    : ((normalized + 0.055) / 1.055) ** 2.4;
+}
+
+function luminance(hex: string): number {
+  const color = hex.replace("#", "");
+  assert.equal(color.length, 6, `Expected a six-digit color, received ${hex}`);
+  const [red, green, blue] = [0, 2, 4].map((offset) =>
+    colorChannel(Number.parseInt(color.slice(offset, offset + 2), 16)),
+  );
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+}
+
+function contrastRatio(foreground: string, background: string): number {
+  const foregroundLuminance = luminance(foreground);
+  const backgroundLuminance = luminance(background);
+  return (
+    (Math.max(foregroundLuminance, backgroundLuminance) + 0.05) /
+    (Math.min(foregroundLuminance, backgroundLuminance) + 0.05)
+  );
+}
+
 test("screen typography keeps the approved 11px minimum", () => {
   const fontSizeTokens = [
     ...screenCss.matchAll(/font-size:\s*var\((--[\w-]+)\)/g),
@@ -101,12 +126,166 @@ test("font weights use the approved real-weight tokens", () => {
   assert.doesNotMatch(screenCss, /letter-spacing:\s*0\b/);
 });
 
-test("approved neutral color families resolve to one semantic token each", () => {
-  assert.equal(tokenValue("--text-muted"), "#5e6b75");
-  assert.equal(tokenValue("--text-secondary"), "#52616d");
-  assert.equal(tokenValue("--text-strong"), "#263640");
-  assert.equal(tokenValue("--border"), "#cbd5d7");
-  assert.equal(tokenValue("--border-subtle"), "#d3dcdf");
+test("Coastal uses the approved 46-property color vocabulary", () => {
+  const coastalColors = {
+    "--canvas": "#F2EFE9",
+    "--surface": "#FFFFFF",
+    "--surface-subtle": "#F8F6F2",
+    "--surface-muted": "#EAE7E0",
+    "--surface-accent": "#E4EDF3",
+    "--surface-selected": "#D2E0E9",
+    "--surface-sticky": "rgb(255 255 255 / 97%)",
+    "--text": "#1D3A4A",
+    "--text-secondary": "#405C6D",
+    "--text-muted": "#536A7A",
+    "--text-inverse": "#FFFFFF",
+    "--border": "#DDD8CE",
+    "--border-subtle": "#E8E4DC",
+    "--border-strong": "#87837B",
+    "--control-border": "#74858E",
+    "--accent-border": "#647F93",
+    "--accent": "#3E6C8D",
+    "--accent-hover": "#315A78",
+    "--accent-pressed": "#264A63",
+    "--focus-ring": "#3E6C8D",
+    "--nav-surface": "#1D3A4A",
+    "--nav-surface-deep": "#122B38",
+    "--nav-surface-hover": "#31566C",
+    "--success-text": "#2F5A48",
+    "--success": "#47745D",
+    "--success-border": "#688A78",
+    "--success-surface": "#E7F0EB",
+    "--warning-text": "#694A16",
+    "--warning": "#815B20",
+    "--warning-border": "#9B7636",
+    "--warning-surface": "#F6EEDC",
+    "--error-text": "#783434",
+    "--error": "#9C4949",
+    "--error-border": "#AD6663",
+    "--error-surface": "#F7E9E7",
+    "--dormant-text": "#58636C",
+    "--dormant-border": "#7D8588",
+    "--dormant-surface": "#EEEDE9",
+    "--series-1": "#3E6C8D",
+    "--series-2": "#3F7A78",
+    "--series-3": "#5F7D5B",
+    "--series-4": "#A57232",
+    "--series-5": "#74658D",
+    "--overlay-soft": "rgb(29 58 74 / 56%)",
+    "--overlay": "rgb(18 43 56 / 68%)",
+    "--transparent": "transparent",
+  } as const;
+
+  assert.equal(Object.keys(coastalColors).length, 46);
+  for (const [name, value] of Object.entries(coastalColors)) {
+    assert.equal(tokenValue(name), value, name);
+  }
+});
+
+test("Coastal text and interactive boundaries meet their contrast floors", () => {
+  const textPairs = [
+    ["--text", "--canvas"],
+    ["--text", "--surface"],
+    ["--text-secondary", "--canvas"],
+    ["--text-secondary", "--surface"],
+    ["--text-muted", "--canvas"],
+    ["--text-muted", "--surface"],
+    ["--text-inverse", "--accent"],
+    ["--text-inverse", "--accent-hover"],
+    ["--text-inverse", "--accent-pressed"],
+    ["--text-inverse", "--nav-surface"],
+    ["--text-inverse", "--nav-surface-hover"],
+    ["--success-text", "--success-surface"],
+    ["--warning-text", "--warning-surface"],
+    ["--error-text", "--error-surface"],
+    ["--dormant-text", "--dormant-surface"],
+    ["--accent", "--surface-accent"],
+    ["--accent-hover", "--surface-accent"],
+    ["--accent-pressed", "--surface-selected"],
+    ["--series-2", "--surface-subtle"],
+    ["--series-5", "--surface-subtle"],
+  ] as const;
+  for (const [foreground, background] of textPairs) {
+    assert.ok(
+      contrastRatio(tokenValue(foreground), tokenValue(background)) >= 4.5,
+      `${foreground} on ${background} must meet 4.5:1`,
+    );
+  }
+
+  for (const foreground of [
+    "--control-border",
+    "--accent-border",
+    "--border-strong",
+    "--focus-ring",
+    "--series-1",
+    "--series-2",
+    "--series-3",
+    "--series-4",
+    "--series-5",
+  ]) {
+    assert.ok(
+      contrastRatio(tokenValue(foreground), tokenValue("--surface")) >= 3,
+      `${foreground} on --surface must meet 3:1`,
+    );
+  }
+});
+
+test("state surfaces are not reused for generic interaction feedback", () => {
+  const stateSurfaceRules = [
+    ...screenCss.matchAll(/([^{}]+)\{[^{}]*background:\s*var\(--(?:success|warning|error)-surface\)/g),
+  ].map((match) => match[1].trim());
+
+  for (const selector of stateSurfaceRules) {
+    assert.doesNotMatch(selector, /:hover|:focus|:disabled|aria-(?:pressed|selected|expanded)/);
+  }
+  assert.match(
+    css,
+    /\.staff-vocabulary-class\.is-commercial\s*\{[^}]*border-color:\s*var\(--series-2\);[^}]*background:\s*var\(--surface-subtle\)/,
+  );
+  assert.match(
+    css,
+    /\.staff-vocabulary-class\.is-personal\s*\{[^}]*border-color:\s*var\(--series-5\);[^}]*background:\s*var\(--surface-subtle\)/,
+  );
+  assert.match(
+    css,
+    /\.staff-vocabulary-class\.is-life-health\s*\{[^}]*border-color:\s*var\(--series-4\);[^}]*background:\s*var\(--surface-subtle\)/,
+  );
+});
+
+test("disabled controls keep AA text contrast after feature-specific rules", () => {
+  const overrideStart = screenCss.lastIndexOf(
+    "/* Disabled controls remain visibly distinct without reducing text contrast. */",
+  );
+
+  assert.ok(overrideStart > screenCss.lastIndexOf("opacity: 0.58"));
+  assert.match(
+    screenCss.slice(overrideStart),
+    /button:disabled:disabled,[\s\S]*?background-color:\s*var\(--dormant-surface\);[\s\S]*?color:\s*var\(--dormant-text\);[\s\S]*?opacity:\s*1;/,
+  );
+});
+
+test("pay-sheet owner labels do not reduce approved text contrast with opacity", () => {
+  const ownerLabelRule = css.match(
+    /\.pay-sheet-owner-tabs button small\s*\{([^}]*)\}/,
+  );
+
+  assert.ok(ownerLabelRule);
+  assert.doesNotMatch(ownerLabelRule[1], /opacity:/);
+});
+
+test("removed overloaded color properties are no longer referenced", () => {
+  for (const token of [
+    "--surface-strong",
+    "--selected-surface",
+    "--accent-border-strong",
+    "--metric-accent",
+    "--paid-accent",
+    "--ipfs-pushed-accent",
+    "--override-accent",
+    "--focus-ring-solid",
+  ]) {
+    assert.doesNotMatch(css, new RegExp(`${token}\\b`));
+  }
 });
 
 test("responsive thresholds remain unchanged", () => {
