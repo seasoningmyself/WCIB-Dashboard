@@ -12,6 +12,8 @@ import {
   type OwnerPolicyChangeRequest,
 } from "../../../shared/policy-change-requests.js";
 import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
+import { EmptyState } from "../ui/EmptyState.js";
+import { PageHeader } from "../ui/PageHeader.js";
 import {
   DialogActions,
   DialogFrame,
@@ -330,20 +332,27 @@ function DraftList({
 }) {
   return (
     <section className="my-drafts-page" aria-labelledby="my-drafts-title">
-      <header className="my-drafts-header">
-        <div>
-          <p>Policy intake</p>
-          <h1 id="my-drafts-title">My Drafts</h1>
-        </div>
-        <a className="my-drafts-new" href="#/turn-in">New turn-in</a>
-      </header>
+      <PageHeader
+        actions={drafts.length === 0 ? undefined : (
+          <a className="my-drafts-new" href="#/turn-in">New turn-in</a>
+        )}
+        eyebrow="Policy intake"
+        status={(
+          <>
+            <strong>{drafts.length}</strong> {drafts.length === 1 ? "turn-in is" : "turn-ins are"} in your workspace.
+          </>
+        )}
+        title="My Drafts"
+        titleId="my-drafts-title"
+      />
 
       {drafts.length === 0 ? (
-        <div className="my-drafts-empty">
-          <h2>No turn-ins yet</h2>
-          <p>Saved drafts and submitted turn-ins will appear here.</p>
-          <a href="#/turn-in">Start a turn-in</a>
-        </div>
+        <EmptyState
+          action={<a href="#/turn-in">Start a turn-in</a>}
+          body="Turn-ins you save before submitting will appear here so you can continue where you left off."
+          className="my-drafts-empty"
+          heading="No saved turn-ins"
+        />
       ) : (
         <div className="my-drafts-table-wrap">
           <table className="my-drafts-table">

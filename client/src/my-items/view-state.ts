@@ -63,6 +63,23 @@ export function myItemFilterLabel(filter: MyItemFilter): string {
   }
 }
 
+export function myItemEmptyHeading(filter: MyItemFilter): string {
+  switch (filter) {
+    case "all":
+      return "No turn-ins";
+    case "draft":
+      return "No draft turn-ins";
+    case "submitted":
+      return "No submitted turn-ins";
+    case "flagged":
+      return "No turn-ins waiting on Sophia";
+    case "sent_back":
+      return "No sent-back turn-ins";
+    case "approved":
+      return "No approved turn-ins";
+  }
+}
+
 export function myItemStatusLabel(status: MyItem["status"]): string {
   return status === "flagged"
     ? "Waiting on Sophia"

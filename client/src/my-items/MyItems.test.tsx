@@ -114,7 +114,7 @@ test("My Items supports filters, loading, denied, error, empty, and filtered-emp
 
   const noApproved = populatedFixture();
   noApproved.items = noApproved.items.filter(({ status }) => status !== "approved");
-  assert.match(renderReady(noApproved, "approved"), /No approved items/);
+  assert.match(renderReady(noApproved, "approved"), /No approved turn-ins/);
 });
 
 test("My Items fails closed before mounting for unsupported or unauthorized principals", () => {

@@ -14,6 +14,8 @@ import type {
 } from "../../../shared/admin-staff.js";
 import type { AdminOfficeLocation } from "../../../shared/admin-office-locations.js";
 import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
+import { EmptyState } from "../ui/EmptyState.js";
+import { PageHeader } from "../ui/PageHeader.js";
 import {
   ActiveDialogState,
   RateEditorDialog,
@@ -419,23 +421,31 @@ export function ManageStaffView({
 
   return (
     <section className="staff-page" aria-labelledby="staff-page-title">
-      <header className="staff-page-header">
-        <div>
-          <p>Account administration</p>
-          <h1 id="staff-page-title">Manage Staff</h1>
-        </div>
-        <button className="staff-primary-action" disabled={pending} onClick={onAdd} type="button">
-          Add staff
-        </button>
-      </header>
+      <PageHeader
+        actions={state.items.length === 0 ? undefined : (
+          <button className="staff-primary-action" disabled={pending} onClick={onAdd} type="button">
+            Add staff
+          </button>
+        )}
+        eyebrow="Account administration"
+        status={(
+          <>
+            <strong>{state.items.length}</strong> {state.items.length === 1 ? "staff account is" : "staff accounts are"} in the roster.
+          </>
+        )}
+        title="Manage Staff"
+        titleId="staff-page-title"
+      />
 
       {notice !== null ? <p className="staff-notice" role="status">{notice}</p> : null}
 
       {state.items.length === 0 ? (
-        <div className="staff-empty">
-          <h2>No staff accounts yet</h2>
-          <p>Add the first employee or producer account.</p>
-        </div>
+        <EmptyState
+          action={<button className="staff-primary-action" disabled={pending} onClick={onAdd} type="button">Add staff</button>}
+          body="Add the people who need access, then assign their roles, offices, and producer rates."
+          className="staff-empty"
+          heading="No staff accounts"
+        />
       ) : (
         <div className="staff-roster" role="list">
           {state.items.map((staff) => {

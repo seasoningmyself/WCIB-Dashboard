@@ -8,6 +8,8 @@ import React, {
 import type { CurrentUser } from "../../../shared/current-user.js";
 import type { MyItemsResponse } from "../../../shared/my-items.js";
 import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
+import { EmptyState } from "../ui/EmptyState.js";
+import { PageHeader } from "../ui/PageHeader.js";
 import { createMyItemsApi, MyItemsApiError } from "./api.js";
 import {
   MY_ITEM_FILTERS,
@@ -15,6 +17,7 @@ import {
   filterMyItems,
   isMyItemsStaff,
   myItemAgeLabel,
+  myItemEmptyHeading,
   myItemFilterLabel,
   myItemFilterFromPath,
   myItemOpenLabel,
@@ -138,20 +141,25 @@ export function MyItemsView({
   const visibleItems = filterMyItems(state.data.items, filter);
   return (
     <section className="my-items-page" aria-labelledby="my-items-title">
-      <header className="my-items-header">
-        <div>
-          <p>Turn-in activity</p>
-          <h1 id="my-items-title">My Items</h1>
-        </div>
-        <a href="#/turn-in">New turn-in</a>
-      </header>
+      <PageHeader
+        actions={state.data.items.length === 0 ? undefined : <a href="#/turn-in">New turn-in</a>}
+        eyebrow="Turn-in activity"
+        status={(
+          <>
+            <strong>{state.data.items.length}</strong> {state.data.items.length === 1 ? "turn-in is" : "turn-ins are"} in your account.
+          </>
+        )}
+        title="My Items"
+        titleId="my-items-title"
+      />
 
       {state.data.items.length === 0 ? (
-        <div className="my-items-empty">
-          <h2>No turn-ins yet</h2>
-          <p>Saved drafts and submitted turn-ins will appear here.</p>
-          <a href="#/turn-in">Start a turn-in</a>
-        </div>
+        <EmptyState
+          action={<a href="#/turn-in">Start a turn-in</a>}
+          body="Your drafts, submissions, and completed items will appear here as they move through review."
+          className="my-items-empty"
+          heading="No turn-ins yet"
+        />
       ) : (
         <>
           <div className="my-items-filters" aria-label="My Items filters" role="tablist">
@@ -170,10 +178,12 @@ export function MyItemsView({
           </div>
 
           {visibleItems.length === 0 ? (
-            <div className="my-items-filter-empty">
-              <h2>No {myItemFilterLabel(filter).toLocaleLowerCase("en-US")} items</h2>
-              <p>Your other turn-ins are still available in the filters above.</p>
-            </div>
+            <EmptyState
+              action={<button onClick={() => onFilter("all")} type="button">Show all</button>}
+              body="Nothing in your account currently has this status."
+              className="my-items-filter-empty"
+              heading={myItemEmptyHeading(filter)}
+            />
           ) : (
             <div className="my-items-list">
               {visibleItems.map((item) => (

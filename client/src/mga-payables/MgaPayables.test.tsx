@@ -78,13 +78,13 @@ test("view exposes loading, denied, failure, blank, and filtered-empty states", 
   const blank = payablesFixture();
   blank.groups = [];
   blank.summary = totals("0.00", "0.00", 0, 0, 0);
-  assert.match(renderView(blank), /No approved policies yet/);
+  assert.match(renderView(blank), /No MGA payables yet/);
 
   const filtered = structuredClone(blank);
   filtered.status = "paid";
   filtered.summary = totals("850.00", "0.00", 0, 1, 1);
   assert.match(renderView(filtered, "paid"), /No paid payables/);
-  assert.match(renderView(filtered, "paid"), /Choose another payment-status filter/);
+  assert.match(renderView(filtered, "paid"), /There are no payables with this status/);
 });
 
 test("non-admin entry fails closed before mounting the API-backed controller", () => {

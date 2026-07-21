@@ -18,6 +18,8 @@ import type { UpdateDraftRequest } from "../../../shared/drafts.js";
 import type { ApproveWithOverrideRequest } from "../../../shared/policy-overrides.js";
 import type { PolicyLedgerCorrectionRequest } from "../../../shared/policy-corrections.js";
 import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
+import { EmptyState } from "../ui/EmptyState.js";
+import { PageHeader } from "../ui/PageHeader.js";
 import {
   PolicyLedgerApiError,
   createPolicyLedgerApi,
@@ -747,24 +749,26 @@ export function ApprovalQueueView({
     );
   return (
     <section className="approval-page" aria-labelledby="approval-page-title">
-      <header className="approval-page-header">
-        <div>
-          <p>Policy review</p>
-          <h1 id="approval-page-title">Approvals</h1>
-        </div>
-        <div className="approval-count" aria-label={`${total} open items`}>
-          <strong>{total}</strong>
-          <span>Open</span>
-        </div>
-        <button
-          className="approval-deleted-button"
-          disabled={pending}
-          onClick={onOpenDeleted}
-          type="button"
-        >
-          Deleted work ({state.deleted.items.length})
-        </button>
-      </header>
+      <PageHeader
+        actions={(
+          <button
+            className="approval-deleted-button"
+            disabled={pending}
+            onClick={onOpenDeleted}
+            type="button"
+          >
+            Deleted work ({state.deleted.items.length})
+          </button>
+        )}
+        eyebrow="Policy review"
+        status={(
+          <>
+            <strong>{total}</strong> {total === 1 ? "open item is" : "open items are"} waiting for review.
+          </>
+        )}
+        title="Approvals"
+        titleId="approval-page-title"
+      />
 
       <div className="approval-toolbar" aria-label="Approval queue filter">
         {(["all", "pending", "flagged"] as const).map((value) => (
@@ -796,10 +800,22 @@ export function ApprovalQueueView({
       )}
 
       {total === 0 ? (
-        <div className="approval-empty">
-          <h2>Queue clear</h2>
-          <p>No items match this view.</p>
-        </div>
+        <EmptyState
+          action={filter === "all" ? (
+            <a href="#/turn-in">Start a turn-in</a>
+          ) : (
+            <button disabled={pending} onClick={() => onFilter("all")} type="button">Show all</button>
+          )}
+          body={filter === "all"
+            ? "Submitted turn-ins and help requests will appear here when they need an administrator's decision."
+            : "There is no work in this part of the queue right now."}
+          className="approval-empty"
+          heading={filter === "pending"
+            ? "No pending submissions"
+            : filter === "flagged"
+              ? "No help requests in this view"
+              : "Nothing waiting for review"}
+        />
       ) : (
         <div className="approval-work-list">
           {state.work.submissions.length === 0 ? null : (

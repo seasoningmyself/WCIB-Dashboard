@@ -153,14 +153,14 @@ test("ledger renders loading, denied, failure, empty, and filtered-empty states"
   blank.total = 0;
   assert.match(
     ledgerMarkup({ state: { data: blank, status: "ready" } }),
-    /No policies yet/,
+    /No policies in the ledger/,
   );
 
   const filtered = structuredClone(blank);
   filtered.total = 4;
   assert.match(
     ledgerMarkup({ state: { data: filtered, status: "ready" } }),
-    /No matching policies/,
+    /No policies match these filters/,
   );
 });
 

@@ -80,7 +80,7 @@ test("KPI screen preserves target editing, pending, and empty closed-history sta
       },
     }),
   });
-  assert.match(empty, /No closed pay-sheet activity for this period/);
+  assert.match(empty, /No closed performance yet/);
   assert.match(empty, /Targets vs\. actuals/);
   assert.doesNotMatch(empty, /Business performance/);
 });

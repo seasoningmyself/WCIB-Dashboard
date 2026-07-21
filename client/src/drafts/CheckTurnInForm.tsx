@@ -10,6 +10,7 @@ import React, {
 import type { CurrentUser } from "../../../shared/current-user.js";
 import type { DraftResponse } from "../../../shared/drafts.js";
 import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
+import { PageHeader } from "../ui/PageHeader.js";
 import {
   InlineCarrierPicker,
   InlineMgaPicker,
@@ -793,12 +794,16 @@ export function CheckTurnInFormView({
 
   return (
     <section className="turn-in-page" aria-labelledby="turn-in-title">
-      <header className="turn-in-header">
-        <div className="turn-in-heading">
-          <p className="turn-in-kicker">Policy intake</p>
-          <h1 id="turn-in-title">Check Turn-In</h1>
-        </div>
-      </header>
+      <PageHeader
+        eyebrow="Policy intake"
+        status={(
+          <>
+            <strong>{draftStatusLabel(draft)}</strong> for {assignmentLabel}. {saveMessage(saveState, sentBack)}
+          </>
+        )}
+        title="Check Turn-In"
+        titleId="turn-in-title"
+      />
 
       {metrics.length === 0 ? null : (
         <nav className="turn-in-metrics" aria-label="Turn-in shortcuts">

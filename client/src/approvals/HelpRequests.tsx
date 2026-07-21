@@ -3,6 +3,8 @@ import type { ApprovalWorkListResponse } from "../../../shared/approval-queue.js
 import type { CurrentUser } from "../../../shared/current-user.js";
 import type { UpdateDraftRequest } from "../../../shared/drafts.js";
 import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
+import { EmptyState } from "../ui/EmptyState.js";
+import { PageHeader } from "../ui/PageHeader.js";
 import {
   PolicyLedgerApiError,
   createPolicyLedgerApi,
@@ -241,23 +243,25 @@ export function HelpRequestsView({
 
   return (
     <section className="help-requests-page" aria-labelledby="help-requests-title">
-      <header className="approval-page-header">
-        <div>
-          <p>Flagged turn-ins</p>
-          <h1 id="help-requests-title">Help Requests</h1>
-        </div>
-        <div className="approval-count" aria-label={`${state.items.length} open help requests`}>
-          <strong>{state.items.length}</strong>
-          <span>Open</span>
-        </div>
-      </header>
+      <PageHeader
+        eyebrow="Flagged turn-ins"
+        status={(
+          <>
+            <strong>{state.items.length}</strong> open {state.items.length === 1 ? "request needs" : "requests need"} resolution.
+          </>
+        )}
+        title="Help Requests"
+        titleId="help-requests-title"
+      />
 
       {notice === null ? null : <div className="approval-notice" role="status">{notice}</div>}
       {state.items.length === 0 ? (
-        <div className="approval-empty">
-          <h2>No open help requests</h2>
-          <p>Flagged turn-ins will appear here.</p>
-        </div>
+        <EmptyState
+          action={<a href="#/approvals">View approvals</a>}
+          body="Requests appear here when a staff member asks an administrator to review or correct a turn-in."
+          className="approval-empty"
+          heading="No help requests"
+        />
       ) : (
         <div className="help-request-list">
           {state.items.map((item) => (

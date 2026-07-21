@@ -9,6 +9,14 @@ export interface ShellNavigationItem {
   path: string;
 }
 
+export type ShellNavigationGroupId = "daily" | "money" | "setup";
+
+export interface ShellNavigationGroup {
+  id: ShellNavigationGroupId;
+  items: readonly ShellNavigationItem[];
+  label: string;
+}
+
 const NAVIGATION_ITEMS: Readonly<
   Record<AppNavigationId, ShellNavigationItem>
 > = {
@@ -51,6 +59,34 @@ const NAVIGATION_ITEMS: Readonly<
 
 const navigationIdSet = new Set<string>(APP_NAVIGATION_IDS);
 
+const NAVIGATION_GROUPS: readonly {
+  id: ShellNavigationGroupId;
+  identifiers: readonly AppNavigationId[];
+  label: string;
+}[] = [
+  {
+    id: "daily",
+    identifiers: ["approvals", "help_requests", "turn_in", "my_items"],
+    label: "Daily",
+  },
+  {
+    id: "money",
+    identifiers: [
+      "policy_ledger",
+      "mga_payables",
+      "pay_sheets",
+      "kpis",
+      "my_commissions",
+    ],
+    label: "Money",
+  },
+  {
+    id: "setup",
+    identifiers: ["manage_staff", "settings"],
+    label: "Setup",
+  },
+];
+
 export type ShellRoute =
   | { item: ShellNavigationItem; status: "ready" }
   | { status: "empty" }
@@ -73,6 +109,19 @@ export function resolveAuthorizedNavigation(
     navigation.push(NAVIGATION_ITEMS[id]);
   }
   return navigation;
+}
+
+export function groupAuthorizedNavigation(
+  navigation: readonly ShellNavigationItem[],
+): readonly ShellNavigationGroup[] {
+  const byId = new Map(navigation.map((item) => [item.id, item]));
+  return NAVIGATION_GROUPS.flatMap((group) => {
+    const items = group.identifiers.flatMap((identifier) => {
+      const item = byId.get(identifier);
+      return item === undefined ? [] : [item];
+    });
+    return items.length === 0 ? [] : [{ ...group, items }];
+  });
 }
 
 export function resolveShellRoute(

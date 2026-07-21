@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -52,20 +53,25 @@ test("shell renders the exact admin navigation supplied by /api/me", () => {
     assert.match(markup, new RegExp(`>${label}<`));
   }
   assert.match(markup, /aria-label="Primary navigation"/);
+  assert.match(markup, />Daily<\/h2>/);
+  assert.match(markup, />Money<\/h2>/);
+  assert.match(markup, />Setup<\/h2>/);
   assert.match(markup, /<main[^>]*tabindex="-1"/i);
   assert.match(markup, /<button[^>]*>Sign out<\/button>/);
+  assert.match(markup, /aria-controls="workspace-mobile-panel"/);
+  assert.match(markup, /aria-expanded="false"/);
 });
 
-test("producer and employee shells render only their universal draft navigation", () => {
+test("producer and employee shells degrade grouped navigation by authorization", () => {
   const producer = shellMarkup({
     ...baseUser,
-    allowedNavigation: ["turn_in", "my_items", "my_commissions"],
+    allowedNavigation: ["turn_in", "my_items", "my_commissions", "settings"],
     displayName: "Kaylee",
     role: "producer",
   });
   const employee = shellMarkup({
     ...baseUser,
-    allowedNavigation: ["turn_in", "my_items"],
+    allowedNavigation: ["turn_in", "my_items", "settings"],
     displayName: "Mercedes",
     role: "employee",
   });
@@ -73,10 +79,16 @@ test("producer and employee shells render only their universal draft navigation"
   assert.match(producer, />Check Turn-In</);
   assert.match(producer, />My Drafts</);
   assert.match(producer, />My Commissions</);
+  assert.match(producer, />Daily<\/h2>/);
+  assert.match(producer, />Money<\/h2>/);
+  assert.match(producer, />Setup<\/h2>/);
   assert.doesNotMatch(producer, />Pay Sheets</);
 
   assert.match(employee, />Check Turn-In</);
   assert.match(employee, />My Drafts</);
+  assert.match(employee, />Daily<\/h2>/);
+  assert.match(employee, />Setup<\/h2>/);
+  assert.doesNotMatch(employee, />Money<\/h2>/);
   assert.doesNotMatch(employee, />My Commissions</);
   assert.doesNotMatch(employee, />Policy Ledger</);
 });
@@ -110,13 +122,16 @@ test("shell renders count badges only for positive projected counts", () => {
 
   assert.match(markup, /aria-label="3 items need attention"[^>]*>3</);
   assert.doesNotMatch(markup, /0 items need attention/);
-  assert.match(
-    markup,
-    /<option value="approvals"[^>]*>Approvals \(3\)<\/option>/,
-  );
-  assert.match(markup, /<option value="help_requests">Help Requests<\/option>/);
-  assert.match(markup, /<option value="mga_payables">MGA Payables \(7\)<\/option>/);
-  assert.match(markup, /<option value="pay_sheets">Pay Sheets \(2\)<\/option>/);
+  assert.doesNotMatch(markup, /<select|<option|<optgroup/);
+});
+
+test("mobile navigation is a modal sheet with keyboard dismissal and focus containment", () => {
+  const source = readFileSync(new URL("./AppShell.tsx", import.meta.url), "utf8");
+  assert.match(source, /aria-modal="true"/);
+  assert.match(source, /role="dialog"/);
+  assert.match(source, /event\.key === "Escape"/);
+  assert.match(source, /event\.key !== "Tab"/);
+  assert.match(source, /mobileMenuButtonRef\.current\?\.focus\(\)/);
 });
 
 test("server-authorized staff my_items route mounts the status-only My Items screen", () => {
@@ -373,7 +388,8 @@ test("unknown IDs and unauthorized URLs fail closed in the shell", () => {
     ),
   );
 
-  assert.match(unknownNavigation, /Workspace access unavailable/);
+  assert.match(unknownNavigation, /No pages available for this account/);
+  assert.match(unknownNavigation, /Ask an administrator to check your role and access/);
   assert.doesNotMatch(unknownNavigation, /future_finance_page/);
   assert.doesNotMatch(unknownNavigation, />Pay Sheets</);
   assert.match(unauthorizedPath, /Page not available/);

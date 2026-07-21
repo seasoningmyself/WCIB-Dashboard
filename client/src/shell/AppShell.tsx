@@ -4,7 +4,6 @@ import React, {
   useMemo,
   useRef,
   useState,
-  type ChangeEvent,
 } from "react";
 import type { CurrentUser } from "../../../shared/current-user.js";
 import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
@@ -20,11 +19,14 @@ import { MyItems } from "../my-items/MyItems.js";
 import { ManageStaff } from "../staff/ManageStaff.js";
 import { SettingsSurface } from "../settings/AccountSettings.js";
 import { KpisGoals } from "../kpis/KpisGoals.js";
+import { PageHeader } from "../ui/PageHeader.js";
 import { resolveDraftSelection } from "../drafts/my-drafts-state.js";
 import { VocabularyProvider } from "../vocabulary/context.js";
 import {
+  groupAuthorizedNavigation,
   resolveAuthorizedNavigation,
   resolveShellRoute,
+  type ShellNavigationGroup,
   type ShellNavigationItem,
 } from "./navigation.js";
 import {
@@ -115,88 +117,118 @@ export function AppShellView({
     () => resolveAuthorizedNavigation(user.allowedNavigation),
     [user.allowedNavigation],
   );
+  const navigationGroups = useMemo(
+    () => groupAuthorizedNavigation(navigation),
+    [navigation],
+  );
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+  const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
+  const mobilePanelRef = useRef<HTMLDivElement>(null);
   const route = resolveShellRoute(currentPath, navigation);
   const activeId = route.status === "ready" ? route.item.id : null;
   const name = user.displayName ?? user.email;
 
-  const handleMobileNavigation = (event: ChangeEvent<HTMLSelectElement>) => {
-    const selected = navigation.find(
-      ({ id }) => id === event.currentTarget.value,
+  useEffect(() => {
+    setMobileNavigationOpen(false);
+  }, [currentPath]);
+
+  useEffect(() => {
+    if (!mobileNavigationOpen) return;
+    const panel = mobilePanelRef.current;
+    const focusable = () => Array.from(
+      panel?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ) ?? [],
     );
-    if (selected !== undefined) {
-      onNavigate?.(selected.path);
-    }
-  };
+    focusable()[0]?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMobileNavigationOpen(false);
+        mobileMenuButtonRef.current?.focus();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const controls = focusable();
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (first === undefined || last === undefined) return;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [mobileNavigationOpen]);
 
   return (
     <div className="workspace-shell">
-      <header className="workspace-header">
-        <a className="workspace-brand" href="#/" aria-label="WCIB Dashboard home">
-          <span className="workspace-brand-mark">WCIB</span>
-          <span className="workspace-brand-name">Dashboard</span>
-        </a>
-        <div className="workspace-user" aria-label="Current user">
-          <span className="workspace-avatar" aria-hidden="true">
-            {initials(name)}
-          </span>
-          <span className="workspace-user-copy">
-            <strong>{name}</strong>
-            <span>{roleLabel(user.role)}</span>
-          </span>
+      <aside className="workspace-sidebar">
+        <WorkspaceBrand />
+        <GroupedNavigation
+          activeId={activeId}
+          counts={navigationCounts}
+          groups={navigationGroups}
+          label="Primary navigation"
+        />
+        <WorkspaceUser name={name} onLogout={onLogout} role={user.role} />
+      </aside>
+
+      <div className="workspace-main">
+        <header className="workspace-mobile-header">
+          <WorkspaceBrand />
           <button
-            className="workspace-logout"
-            onClick={onLogout}
+            aria-controls="workspace-mobile-panel"
+            aria-expanded={mobileNavigationOpen}
+            aria-label={`${mobileNavigationOpen ? "Close" : "Open"} navigation and account menu`}
+            className="workspace-mobile-menu-button"
+            onClick={() => setMobileNavigationOpen((open) => !open)}
+            ref={mobileMenuButtonRef}
             type="button"
           >
-            Sign out
+            <span className="workspace-avatar" aria-hidden="true">{initials(name)}</span>
+            <span>{mobileNavigationOpen ? "Close" : "Menu"}</span>
           </button>
-        </div>
-      </header>
+        </header>
 
-      <div className="workspace-body">
-        <nav className="workspace-nav" aria-label="Primary navigation">
-          <div className="workspace-nav-label">Workspace</div>
-          {navigation.map((item) => {
-            const count = visibleNavigationCount(
-              navigationCounts,
-              item.id,
-            );
-            return (
-              <a
-                aria-current={activeId === item.id ? "page" : undefined}
-                className="workspace-nav-link"
-                href={`#${item.path}`}
-                key={item.id}
-              >
-                <span>{item.label}</span>
-                {count === null ? null : (
-                  <span
-                    aria-label={`${count} items need attention`}
-                    className="workspace-nav-count"
-                  >
-                    {count}
-                  </span>
-                )}
-              </a>
-            );
-          })}
-        </nav>
-
-        <div className="workspace-mobile-nav">
-          <label htmlFor="workspace-section">Workspace</label>
-          <select
-            id="workspace-section"
-            onChange={handleMobileNavigation}
-            value={activeId ?? ""}
-          >
-            {activeId === null ? <option value="">Select a page</option> : null}
-            {navigation.map((item) => (
-              <option key={item.id} value={item.id}>
-                {mobileNavigationLabel(item, navigationCounts)}
-              </option>
-            ))}
-          </select>
-        </div>
+        {mobileNavigationOpen ? (
+          <>
+            <button
+              aria-label="Close navigation"
+              className="workspace-mobile-backdrop"
+              onClick={() => {
+                setMobileNavigationOpen(false);
+                mobileMenuButtonRef.current?.focus();
+              }}
+              tabIndex={-1}
+              type="button"
+            />
+            <div
+              aria-label="Navigation and account menu"
+              aria-modal="true"
+              className="workspace-mobile-panel"
+              id="workspace-mobile-panel"
+              ref={mobilePanelRef}
+              role="dialog"
+            >
+              <GroupedNavigation
+                activeId={activeId}
+                counts={navigationCounts}
+                groups={navigationGroups}
+                label="Mobile primary navigation"
+                onNavigate={(path) => {
+                  setMobileNavigationOpen(false);
+                  onNavigate?.(path);
+                }}
+              />
+              <WorkspaceUser name={name} onLogout={onLogout} role={user.role} />
+            </div>
+          </>
+        ) : null}
 
         <main
           className="workspace-content"
@@ -216,12 +248,82 @@ export function AppShellView({
   );
 }
 
-function mobileNavigationLabel(
-  item: ShellNavigationItem,
-  counts: NavigationCounts,
-): string {
-  const count = visibleNavigationCount(counts, item.id);
-  return count === null ? item.label : `${item.label} (${count})`;
+function GroupedNavigation({
+  activeId,
+  counts,
+  groups,
+  label,
+  onNavigate,
+}: {
+  activeId: ShellNavigationItem["id"] | null;
+  counts: NavigationCounts;
+  groups: readonly ShellNavigationGroup[];
+  label: string;
+  onNavigate?(path: string): void;
+}) {
+  return (
+    <nav className="workspace-nav" aria-label={label}>
+      {groups.map((group) => (
+        <section className="workspace-nav-group" key={group.id}>
+          <h2>{group.label}</h2>
+          {group.items.map((item) => {
+            const count = visibleNavigationCount(counts, item.id);
+            return (
+              <a
+                aria-current={activeId === item.id ? "page" : undefined}
+                className="workspace-nav-link"
+                href={`#${item.path}`}
+                key={item.id}
+                onClick={() => onNavigate?.(item.path)}
+              >
+                <span>{item.label}</span>
+                {count === null ? null : (
+                  <span
+                    aria-label={`${count} items need attention`}
+                    className="workspace-nav-count"
+                  >
+                    {count}
+                  </span>
+                )}
+              </a>
+            );
+          })}
+        </section>
+      ))}
+    </nav>
+  );
+}
+
+function WorkspaceBrand() {
+  return (
+    <a className="workspace-brand" href="#/" aria-label="West Coast Insurance Brokers home">
+      <strong>West Coast</strong>
+      <span>Insurance Brokers</span>
+    </a>
+  );
+}
+
+function WorkspaceUser({
+  name,
+  onLogout,
+  role,
+}: {
+  name: string;
+  onLogout(): void;
+  role: CurrentUser["role"];
+}) {
+  return (
+    <div className="workspace-user" aria-label="Current user">
+      <span className="workspace-avatar" aria-hidden="true">{initials(name)}</span>
+      <span className="workspace-user-copy">
+        <strong>{name}</strong>
+        <span>{roleLabel(role)}</span>
+      </span>
+      <button className="workspace-logout" onClick={onLogout} type="button">
+        Sign out
+      </button>
+    </div>
+  );
 }
 
 function ShellContent({
@@ -306,18 +408,20 @@ function ShellContent({
     }
     return (
       <section className="workspace-page" aria-labelledby="workspace-page-title">
-        <header className="workspace-page-header">
-          <p>WCIB workspace</p>
-          <h1 id="workspace-page-title">{route.item.label}</h1>
-        </header>
+        <PageHeader
+          eyebrow="WCIB workspace"
+          status={<>The <strong>{route.item.label}</strong> workspace is available.</>}
+          title={route.item.label}
+          titleId="workspace-page-title"
+        />
       </section>
     );
   }
   if (route.status === "empty") {
     return (
       <section className="workspace-message" aria-labelledby="workspace-empty-title">
-        <h1 id="workspace-empty-title">Workspace access unavailable</h1>
-        <p>Your account has no assigned workspace pages.</p>
+        <h1 id="workspace-empty-title">No pages available for this account</h1>
+        <p>Ask an administrator to check your role and access.</p>
       </section>
     );
   }
