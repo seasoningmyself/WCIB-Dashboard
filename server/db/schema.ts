@@ -163,6 +163,7 @@ export const users = pgTable(
     }),
     isActive: boolean("is_active").notNull().default(true),
     sessionVersion: integer("session_version").notNull().default(0),
+    lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

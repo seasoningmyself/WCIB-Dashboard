@@ -60,6 +60,32 @@ test("admin capability works without a staff profile", () => {
   });
 });
 
+test("support capability is exact and does not inherit administrator access", () => {
+  const support = buildAccessPrincipal({
+    capabilities: [{ capability: "support_engineer", isActive: true }],
+    staffProfile: null,
+    userActive: true,
+    userId: "00000000-0000-4000-8000-000000000005",
+  });
+  const admin = principal({ capabilities: ["admin"] });
+
+  assert.deepEqual(
+    evaluateAccess(support, { capabilities: ["support_engineer"] }),
+    { allowed: true },
+  );
+  assert.deepEqual(evaluateAccess(support, { capabilities: ["admin"] }), {
+    allowed: false,
+    reason: accessDenialReasons.missingRequiredAccess,
+  });
+  assert.deepEqual(
+    evaluateAccess(admin, { capabilities: ["support_engineer"] }),
+    {
+      allowed: false,
+      reason: accessDenialReasons.missingRequiredAccess,
+    },
+  );
+});
+
 test("empty requirements deny every principal including admin", () => {
   const admin = principal({ capabilities: ["admin"] });
 

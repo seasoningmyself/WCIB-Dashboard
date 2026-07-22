@@ -379,6 +379,13 @@
       "when": 1784613544650,
       "tag": "0053_mfa_identity_security",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1784747898469,
+      "tag": "0054_support_engineer_capability",
+      "breakpoints": true
     }
   ]
 }
