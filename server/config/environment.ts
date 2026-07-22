@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { readPostgresUrl } from "./postgres-url.js";
+import { readMfaConfig, type MfaConfig } from "./mfa.js";
 
 const DEFAULT_PORT = 5000;
 const MINIMUM_SESSION_SECRET_LENGTH = 32;
@@ -10,6 +11,7 @@ export type NodeEnvironment = "development" | "test" | "production";
 
 export interface AppConfig {
   readonly databaseUrl: string;
+  readonly mfa: MfaConfig;
   readonly nodeEnv: NodeEnvironment;
   readonly port: number;
   readonly sessionSecret: string;
@@ -77,11 +79,13 @@ export function loadConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): AppConfig {
   const nodeEnv = readNodeEnvironment(env.NODE_ENV);
-
+  const databaseUrl = readPostgresUrl("DATABASE_URL", env.DATABASE_URL);
+  const sessionSecret = readSessionSecret(env.SESSION_SECRET, nodeEnv);
   return Object.freeze({
-    databaseUrl: readPostgresUrl("DATABASE_URL", env.DATABASE_URL),
+    databaseUrl,
+    mfa: readMfaConfig(env, nodeEnv, sessionSecret),
     nodeEnv,
     port: readPort(env.PORT),
-    sessionSecret: readSessionSecret(env.SESSION_SECRET, nodeEnv),
+    sessionSecret,
   });
 }

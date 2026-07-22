@@ -25,6 +25,21 @@ export async function hashPassword(password: string): Promise<string> {
   return hashWithArgon2(validatedPassword, ARGON2ID_OPTIONS);
 }
 
+export function hashOpaqueSecret(secret: string): Promise<string> {
+  return hashWithArgon2(secret, ARGON2ID_OPTIONS);
+}
+
+export async function verifyOpaqueSecret(
+  secret: string,
+  secretHash: string,
+): Promise<boolean> {
+  try {
+    return await verifyWithArgon2(secretHash, secret);
+  } catch {
+    return false;
+  }
+}
+
 export async function verifyPassword(
   password: string,
   passwordHash: string,

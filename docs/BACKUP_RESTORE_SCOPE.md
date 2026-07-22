@@ -32,10 +32,13 @@ The future implementation must restore in this order:
 8. `pay_sheet_adjustments`.
 9. `kpi_targets`.
 
-Authentication-owned MFA rows depend on users and remain inert until a later
-MFA ticket. A future security review must explicitly decide whether reset
-tokens or active sessions belong in an artifact; the default should be to omit
-those transient credentials and force reauthentication after restore.
+Authentication-owned MFA rows depend on users. Start Fresh preserves MFA
+settings, methods, passkeys, encrypted TOTP secrets, recovery codes,
+challenges, recovery grants, and step-up authorizations because it resets only
+business-generation data. A future portable backup review must explicitly
+decide whether credential and transient-session state belongs in an artifact;
+the default remains to omit transient challenges, grants, step-up approvals,
+reset tokens, and active sessions and force reauthentication after restore.
 
 ## Integrity rules
 

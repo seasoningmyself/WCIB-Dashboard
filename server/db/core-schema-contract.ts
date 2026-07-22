@@ -1,5 +1,5 @@
 export const approvedCoreSchemaFingerprint =
-  "2e9f37930b5a85aa44f6a77184ba013eda6eb246133e5c02dc2a4d1a91d5fd2b";
+  "a8a02c5d60d29136b7a0a28202ae97e05dfdf423d3c8e40440d18e3c60617ebf";
 
 export const coreSchemaTables = [
   "approval_queue_entries",
@@ -10,6 +10,9 @@ export const coreSchemaTables = [
   "drafts",
   "kpi_targets",
   "login_throttle_buckets",
+  "mfa_challenges",
+  "mfa_recovery_grants",
+  "mfa_step_up_authorizations",
   "mga_payments",
   "mgas",
   "office_locations",
@@ -25,8 +28,12 @@ export const coreSchemaTables = [
   "sessions",
   "staff_profiles",
   "user_capabilities",
-  "user_mfa_method_placeholders",
+  "user_mfa_methods",
+  "user_mfa_recovery_codes",
   "user_mfa_settings",
+  "user_totp_credentials",
+  "user_webauthn_credential_transports",
+  "user_webauthn_credentials",
   "users",
 ] as const;
 

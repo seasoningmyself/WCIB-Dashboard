@@ -79,6 +79,7 @@ test("current-user projection exposes only the explicit account contract", () =>
         "turn_in",
         "my_items",
       ],
+      authenticationState: "authenticated",
       capabilities: ["admin"],
       displayName: "Sophia",
       email: "sophia@example.test",

@@ -1,7 +1,11 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { resolve } from "node:path";
 import { createApp } from "./app.js";
-import { createSessionMiddleware } from "./auth/sessions.js";
+import {
+  createSessionMiddleware,
+  establishAuthenticatedSession,
+  establishMfaSession,
+} from "./auth/sessions.js";
 import { createDatabaseAuthorizationGuards } from "./auth/authorization.js";
 import { loadCurrentUserIdentity } from "./auth/current-user.js";
 import { loadConfig } from "./config/environment.js";
@@ -23,7 +27,8 @@ import {
   loadOwnSettings,
   updateOwnProfile,
 } from "./auth/settings.js";
-import { establishAuthenticatedSession } from "./auth/sessions.js";
+import { loadAccessPrincipal } from "./auth/access-repository.js";
+import { loadMfaAccessState } from "./auth/mfa-state.js";
 import {
   registerActiveVocabularyRoute,
   registerMgaMutationRoute,
@@ -172,12 +177,22 @@ import {
   resetBusinessState,
   restoreBusinessState,
 } from "./business-state/service.js";
+import { registerMfaRoutes } from "./http/mfa.js";
+import { registerAdminAccountSecurityRoutes } from "./http/admin-account-security.js";
+import {
+  listAdminAccountSecurity,
+  resetAdminMfa,
+  setAdminCapability,
+  updateAdminAccountEmail,
+} from "./auth/admin-account-security.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
 const pool = createDatabasePool(config.databaseUrl);
 const database = drizzle(pool, { schema: databaseSchema });
-const authorization = createDatabaseAuthorizationGuards(database, logger);
+const authorization = createDatabaseAuthorizationGuards(database, logger, {
+  adminMfaEnforcementEnabled: config.mfa.adminEnforcementEnabled,
+});
 const app = createApp({
   clientAssetsDirectory:
     config.nodeEnv === "production" ? resolve("dist/client") : undefined,
@@ -185,20 +200,50 @@ const app = createApp({
   readinessCheck: () => checkDatabaseConnection(pool),
   registerRoutes: (routes) => {
     registerAuthRoutes(routes, {
+      adminMfaEnforcementEnabled: config.mfa.adminEnforcementEnabled,
       database,
       logger,
       loginThrottleSecret: config.sessionSecret,
     });
     registerCurrentUserRoute(routes, {
       authorization,
-      loadIdentity: (userId) => loadCurrentUserIdentity(database, userId),
+      loadIdentity: (userId, isAdmin = false) =>
+        loadCurrentUserIdentity(database, userId, {
+          adminEnforcementEnabled: config.mfa.adminEnforcementEnabled,
+          isAdmin,
+        }),
     });
     registerRequiredPasswordChangeRoute(routes, {
       authorization,
       change: (context, input) =>
         replaceRequiredPassword(database, context, input, logger),
-      establishSession: establishAuthenticatedSession,
+      establishSession: async (req, user) => {
+        const principal = await loadAccessPrincipal(database, user.id);
+        if (principal === null) {
+          throw new Error("Password-change principal is unavailable");
+        }
+        const mfa = await loadMfaAccessState(database, user.id, {
+          adminEnforcementEnabled: config.mfa.adminEnforcementEnabled,
+          isAdmin: principal.capabilities.includes("admin"),
+        });
+        await establishMfaSession(
+          req,
+          user,
+          mfa.requiresMfaLogin
+            ? "mfa_challenge"
+            : mfa.policyRequired || mfa.enrollmentIncomplete
+              ? "mfa_enrollment"
+              : "authenticated",
+        );
+      },
       logger,
+    });
+    registerMfaRoutes(routes, {
+      authorization,
+      config: config.mfa,
+      database,
+      logger,
+      loginThrottleSecret: config.sessionSecret,
     });
     registerSettingsRoutes(routes, {
       authorization,
@@ -555,19 +600,20 @@ const app = createApp({
       get: (context, userId) =>
         getAdminStaffSource(database, context, userId),
       list: (context) => listAdminStaffSources(database, context),
-      issueTemporaryPassword: (context, userId, input) =>
+      issueTemporaryPassword: (context, userId, input, proof) =>
         issueAdminTemporaryPassword(
           database,
           context,
           userId,
           input,
           logger,
+          proof,
         ),
       logger,
       setActive: (context, userId, active) =>
         setAdminStaffActive(database, context, userId, active, logger),
-      update: (context, userId, input) =>
-        updateAdminStaff(database, context, userId, input, logger),
+      update: (context, userId, input, proof) =>
+        updateAdminStaff(database, context, userId, input, logger, proof),
       updateRate: (context, userId, rateId, input) =>
         updateAdminProducerRate(
           database,
@@ -575,6 +621,43 @@ const app = createApp({
           userId,
           rateId,
           input,
+          logger,
+        ),
+    });
+    registerAdminAccountSecurityRoutes(routes, {
+      authorization,
+      list: (context) =>
+        listAdminAccountSecurity(
+          database,
+          context,
+          config.mfa.adminEnforcementEnabled,
+        ),
+      resetMfa: (context, userId, input, proof) =>
+        resetAdminMfa(
+          database,
+          context,
+          userId,
+          input,
+          proof,
+          logger,
+        ),
+      setAdminCapability: (context, userId, input, proof) =>
+        setAdminCapability(
+          database,
+          context,
+          userId,
+          input,
+          proof,
+          config.mfa.adminEnforcementEnabled,
+          logger,
+        ),
+      updateEmail: (context, userId, input, proof) =>
+        updateAdminAccountEmail(
+          database,
+          context,
+          userId,
+          input,
+          proof,
           logger,
         ),
     });

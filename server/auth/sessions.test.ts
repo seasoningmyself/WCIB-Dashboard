@@ -187,7 +187,12 @@ test("session establishment regenerates identity and stores only WCIB auth state
   assert.equal(firstLogin.statusCode, 204);
   assert.equal(secondLogin.statusCode, 204);
   assert.notEqual(secondCookie, firstCookie);
-  assert.deepEqual(sessionKeys, ["cookie", "sessionVersion", "userId"]);
+  assert.deepEqual(sessionKeys, [
+    "authenticationState",
+    "cookie",
+    "sessionVersion",
+    "userId",
+  ]);
   assert.match(
     String(secondLogin.headers["set-cookie"]),
     /HttpOnly.*SameSite=Lax/,

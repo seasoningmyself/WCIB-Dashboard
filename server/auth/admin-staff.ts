@@ -36,6 +36,11 @@ import {
   type AuthDatabase,
 } from "./users.js";
 import { hashPassword, verifyPassword } from "./password.js";
+import {
+  consumeStepUpAuthorization,
+  StepUpRequiredError,
+  type StepUpProof,
+} from "./mfa-step-up.js";
 
 export const ADMIN_STAFF_ACCESS = {
   capabilities: ["admin"],
@@ -250,6 +255,7 @@ export async function updateAdminStaff(
   userId: string,
   input: unknown,
   logger: AppLogger,
+  proof?: StepUpProof,
 ): Promise<AdminStaffSource> {
   requireAdminStaffAccess(context);
   const request = updateAdminStaffRequestSchema.parse(input);
@@ -283,6 +289,14 @@ export async function updateAdminStaff(
         request.officeLocationId !== undefined &&
         request.officeLocationId !==
           (current.profile.officeLocation?.id ?? null);
+      if (emailChanged || roleChanged) {
+        if (proof === undefined) throw new StepUpRequiredError();
+        await consumeStepUpAuthorization(
+          transaction as AuthDatabase,
+          context,
+          proof,
+        );
+      }
       const needsInitialRate =
         current.profile.role === "employee" &&
         nextRole === "producer" &&
@@ -439,6 +453,7 @@ export async function issueAdminTemporaryPassword(
   userId: string,
   input: unknown,
   logger: AppLogger,
+  proof?: StepUpProof,
 ): Promise<AdminStaffSource> {
   requireAdminStaffAccess(context);
   if (context.principal.userId === userId) {
@@ -449,6 +464,12 @@ export async function issueAdminTemporaryPassword(
   const request = issueTemporaryPasswordRequestSchema.parse(input);
   try {
     await database.transaction(async (transaction) => {
+      if (proof === undefined) throw new StepUpRequiredError();
+      await consumeStepUpAuthorization(
+        transaction as AuthDatabase,
+        context,
+        proof,
+      );
       const current = await loadAdminStaffSource(
         transaction as AuthDatabase,
         userId,

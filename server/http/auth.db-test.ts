@@ -221,6 +221,7 @@ test("login endpoint creates WCIB sessions and returns scoped access summaries",
     );
     assert.equal(employeeLogin.statusCode, 200);
     assert.deepEqual(employeeLogin.body, {
+      authenticationState: "authenticated",
       user: {
         capabilities: [],
         email: `employee.${runId}@example.test`,
@@ -254,6 +255,7 @@ test("login endpoint creates WCIB sessions and returns scoped access summaries",
     const adminLogin = await login(runningServer.baseUrl, admin.email);
     assert.equal(adminLogin.statusCode, 200);
     assert.deepEqual(adminLogin.body, {
+      authenticationState: "authenticated",
       user: {
         capabilities: ["admin"],
         email: admin.email,
@@ -296,6 +298,7 @@ test("login endpoint creates WCIB sessions and returns scoped access summaries",
     assert.equal(testSessions.length, 1);
     for (const payload of testSessions) {
       assert.deepEqual(Object.keys(payload).sort(), [
+        "authenticationState",
         "cookie",
         "sessionVersion",
         "userId",

@@ -8,7 +8,6 @@ import { inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { Express } from "express";
 import type pg from "pg";
-import { MFA_METHOD_TYPES } from "../../shared/mfa-scaffold.js";
 import { createApp } from "../app.js";
 import { createDatabasePool } from "../db/client.js";
 import * as databaseSchema from "../db/schema.js";
@@ -16,7 +15,7 @@ import {
   sessions,
   staffProfiles,
   userCapabilities,
-  userMfaMethodPlaceholders,
+  userMfaMethods,
   userMfaSettings,
   users,
 } from "../db/schema.js";
@@ -108,8 +107,8 @@ async function deleteMfaTestUsers(
     [userIds],
   );
   await database
-    .delete(userMfaMethodPlaceholders)
-    .where(inArray(userMfaMethodPlaceholders.userId, [...userIds]));
+    .delete(userMfaMethods)
+    .where(inArray(userMfaMethods.userId, [...userIds]));
   await database
     .delete(userMfaSettings)
     .where(inArray(userMfaSettings.userId, [...userIds]));
@@ -176,7 +175,7 @@ test("admin MFA scaffold stays inert and does not alter password login", async (
       userId: admin.id,
     });
     await assert.rejects(
-      createAdminMfaScaffold(database, employee.id, ["email"]),
+      createAdminMfaScaffold(database, employee.id),
       AdminMfaCapabilityRequiredError,
     );
 
@@ -198,18 +197,10 @@ test("admin MFA scaffold stays inert and does not alter password login", async (
     assert.equal(adminWithoutMethods.statusCode, 200);
     assert.equal(employeeLogin.statusCode, 200);
 
-    const populatedScaffold = await createAdminMfaScaffold(
-      database,
-      admin.id,
-      MFA_METHOD_TYPES,
-    );
+    const populatedScaffold = await createAdminMfaScaffold(database, admin.id);
     assert.deepEqual(populatedScaffold, {
       enforcementEnabled: false,
-      methods: [
-        { enabled: false, methodType: "email" },
-        { enabled: false, methodType: "totp" },
-        { enabled: false, methodType: "webauthn" },
-      ],
+      methods: [],
       userId: admin.id,
     });
     const adminWithMethods = await login(runningServer.baseUrl, admin.email);
@@ -236,6 +227,7 @@ test("admin MFA scaffold stays inert and does not alter password login", async (
     assert.equal(testSessions.length, 3);
     for (const payload of testSessions) {
       assert.deepEqual(Object.keys(payload).sort(), [
+        "authenticationState",
         "cookie",
         "sessionVersion",
         "userId",
@@ -249,37 +241,13 @@ test("admin MFA scaffold stays inert and does not alter password login", async (
     });
     assert.equal(missingMfaRoute.statusCode, 404);
 
-    await assert.rejects(
-      pool.query(
-        "update user_mfa_settings set enforcement_enabled = true where user_id = $1",
-        [admin.id],
-      ),
+    const tables = await pool.query<{ table_name: string }>(
+      "select table_name from information_schema.tables where table_schema = 'public' and table_name like '%mfa%' order by table_name",
     );
-    await assert.rejects(
-      pool.query(
-        "update user_mfa_method_placeholders set is_enabled = true where user_id = $1",
-        [admin.id],
-      ),
+    assert.ok(tables.rows.some((row) => row.table_name === "user_mfa_methods"));
+    assert.ok(
+      tables.rows.some((row) => row.table_name === "mfa_step_up_authorizations"),
     );
-
-    const columnResult = await pool.query<{ column_name: string }>(
-      "select column_name from information_schema.columns where table_schema = 'public' and table_name in ('user_mfa_settings', 'user_mfa_method_placeholders') order by column_name",
-    );
-    const columns = columnResult.rows.map((row) => row.column_name);
-    for (const forbiddenColumn of [
-      "challenge",
-      "code",
-      "credential",
-      "recovery",
-      "secret",
-      "token",
-      "trusted_browser",
-    ]) {
-      assert.equal(
-        columns.some((column) => column.includes(forbiddenColumn)),
-        false,
-      );
-    }
   } finally {
     if (server !== null) {
       await closeServer(server);

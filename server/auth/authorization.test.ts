@@ -18,6 +18,8 @@ import {
   type RouteAccessRequirement,
 } from "./authorization.js";
 import type { UserAccount } from "./users.js";
+import type { MfaAccessState } from "./mfa-state.js";
+import type { MfaAuthenticationState } from "../../shared/mfa-scaffold.js";
 
 const EMPLOYEE_ID = "00000000-0000-4000-8000-000000000001";
 const PRODUCER_ID = "00000000-0000-4000-8000-000000000002";
@@ -142,7 +144,10 @@ function recordingLogger(): {
   };
 }
 
-function fakeSession(userId?: string): Request["session"] {
+function fakeSession(
+  userId?: string,
+  authenticationState: MfaAuthenticationState = "authenticated",
+): Request["session"] {
   const session = {
     cookie: {},
     destroy(callback: (error?: unknown) => void) {
@@ -150,13 +155,17 @@ function fakeSession(userId?: string): Request["session"] {
     },
   } as unknown as Request["session"];
   if (userId !== undefined) {
+    session.authenticationState = authenticationState;
     session.userId = userId;
     session.sessionVersion = 0;
   }
   return session;
 }
 
-function createFixture(options: { forcedUserId?: string } = {}) {
+function createFixture(options: {
+  adminMfaState?: MfaAccessState;
+  forcedUserId?: string;
+} = {}) {
   const { events, logger } = recordingLogger();
   const users = new Map([
     [
@@ -183,6 +192,15 @@ function createFixture(options: { forcedUserId?: string } = {}) {
       principalLoadCalls += 1;
       return principals.get(userId) ?? null;
     },
+    ...(options.adminMfaState === undefined
+      ? {}
+      : {
+          async loadMfaState(userId: string) {
+            return userId === ADMIN_ID
+              ? options.adminMfaState as MfaAccessState
+              : mfaAccessState();
+          },
+        }),
     logger,
   });
   let financialHandlerCalls = 0;
@@ -198,7 +216,13 @@ function createFixture(options: { forcedUserId?: string } = {}) {
           : identity === "admin"
             ? ADMIN_ID
             : undefined;
-    req.session = fakeSession(userId);
+    const requestedState = req.headers["x-test-authentication-state"];
+    const authenticationState =
+      typeof requestedState === "string" &&
+      ["authenticated", "mfa_challenge", "mfa_enrollment", "mfa_recovery"].includes(requestedState)
+        ? requestedState as MfaAuthenticationState
+        : "authenticated";
+    req.session = fakeSession(userId, authenticationState);
     next();
   };
   const app = createApp({
@@ -267,6 +291,17 @@ function createFixture(options: { forcedUserId?: string } = {}) {
         },
       );
       routes.get(
+        "/api/mfa-enrollment-allowed",
+        {
+          authorization: authorization.require(AUTHENTICATED_ACCESS, {
+            allowMfaEnrollment: true,
+          }),
+        },
+        (_req, res) => {
+          res.json({ status: "allowed" });
+        },
+      );
+      routes.get(
         "/api/default-deny",
         { authorization: authorization.require() },
         (_req, res) => {
@@ -326,6 +361,112 @@ function createFixture(options: { forcedUserId?: string } = {}) {
     getProjectionCalls: () => projectionCalls,
   };
 }
+
+function mfaAccessState(
+  overrides: Partial<MfaAccessState> = {},
+): MfaAccessState {
+  return {
+    activeMethodCount: 0,
+    enrolled: false,
+    enrollmentIncomplete: false,
+    enforcementEnabled: false,
+    policyRequired: false,
+    recoveryCodesAcknowledged: false,
+    requiresMfaLogin: false,
+    ...overrides,
+  };
+}
+
+test("MFA restrictions deny direct protected API calls before role evaluation", async () => {
+  const challengeFixture = createFixture({
+    adminMfaState: mfaAccessState({
+      activeMethodCount: 1,
+      enrolled: true,
+      enforcementEnabled: true,
+      recoveryCodesAcknowledged: true,
+      requiresMfaLogin: true,
+    }),
+  });
+  const challenged = await request(challengeFixture.app, "/api/financial", {
+    headers: {
+      "x-test-authentication-state": "mfa_challenge",
+      "x-test-identity": "admin",
+    },
+    method: "POST",
+  });
+  assert.deepEqual(challenged, {
+    body: {
+      error: {
+        code: "mfa_challenge_required",
+        message: "MFA challenge required",
+      },
+    },
+    statusCode: 403,
+  });
+  assert.equal(challengeFixture.getFinancialHandlerCalls(), 0);
+
+  const recoveryFixture = createFixture({
+    adminMfaState: mfaAccessState({
+      activeMethodCount: 1,
+      enrollmentIncomplete: true,
+      enforcementEnabled: true,
+    }),
+  });
+  const recovering = await request(recoveryFixture.app, "/api/financial", {
+    headers: {
+      "x-test-authentication-state": "mfa_recovery",
+      "x-test-identity": "admin",
+    },
+    method: "POST",
+  });
+  assert.deepEqual(recovering, {
+    body: {
+      error: {
+        code: "mfa_recovery_required",
+        message: "MFA recovery enrollment required",
+      },
+    },
+    statusCode: 403,
+  });
+  assert.equal(recoveryFixture.getFinancialHandlerCalls(), 0);
+
+  const requiredFixture = createFixture({
+    adminMfaState: mfaAccessState({ policyRequired: true }),
+  });
+  const required = await request(requiredFixture.app, "/api/financial", {
+    headers: { "x-test-identity": "admin" },
+    method: "POST",
+  });
+  assert.deepEqual(required, {
+    body: {
+      error: {
+        code: "mfa_enrollment_required",
+        message: "MFA enrollment required",
+      },
+    },
+    statusCode: 403,
+  });
+  assert.equal(requiredFixture.getFinancialHandlerCalls(), 0);
+
+  const enrollmentAllowed = await request(
+    requiredFixture.app,
+    "/api/mfa-enrollment-allowed",
+    { headers: { "x-test-identity": "admin" } },
+  );
+  assert.deepEqual(enrollmentAllowed, {
+    body: { status: "allowed" },
+    statusCode: 200,
+  });
+
+  const policyOffFixture = createFixture({
+    adminMfaState: mfaAccessState(),
+  });
+  const policyOff = await request(policyOffFixture.app, "/api/financial", {
+    headers: { "x-test-identity": "admin" },
+    method: "POST",
+  });
+  assert.equal(policyOff.statusCode, 200);
+});
 
 test("forced password state is denied before role evaluation except explicit exemptions", async () => {
   const fixture = createFixture({ forcedUserId: ADMIN_ID });

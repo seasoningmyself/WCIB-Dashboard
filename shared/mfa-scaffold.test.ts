@@ -1,17 +1,47 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  FOUNDATION_MFA_ENFORCEMENT_ENABLED,
-  isMfaMethodType,
-  MFA_METHOD_TYPES,
+  mfaMethodLabelSchema,
+  startTotpEnrollmentRequestSchema,
+  updateMfaMethodRequestSchema,
+  webAuthnCredentialRequestSchema,
 } from "./mfa-scaffold.js";
 
-test("Foundation MFA vocabulary is explicit and enforcement is off", () => {
-  assert.deepEqual(MFA_METHOD_TYPES, ["email", "totp", "webauthn"]);
-  assert.equal(FOUNDATION_MFA_ENFORCEMENT_ENABLED, false);
-  assert.equal(isMfaMethodType("email"), true);
-  assert.equal(isMfaMethodType("totp"), true);
-  assert.equal(isMfaMethodType("webauthn"), true);
-  assert.equal(isMfaMethodType("recovery_code"), false);
-  assert.equal(isMfaMethodType("trusted_browser"), false);
+const CHALLENGE_ID = "00000000-0000-4000-8000-000000000001";
+
+test("MFA method nicknames are trimmed and required by every write contract", () => {
+  assert.equal(mfaMethodLabelSchema.parse("  Personal YubiKey  "), "Personal YubiKey");
+  assert.equal(
+    startTotpEnrollmentRequestSchema.parse({ label: " Work phone " }).label,
+    "Work phone",
+  );
+  assert.equal(
+    updateMfaMethodRequestSchema.parse({ label: " Backup key " }).label,
+    "Backup key",
+  );
+  assert.equal(
+    webAuthnCredentialRequestSchema.parse({
+      challengeId: CHALLENGE_ID,
+      credential: { id: "credential" },
+      label: " Security key ",
+    }).label,
+    "Security key",
+  );
+
+  for (const input of [
+    {},
+    { label: "" },
+    { label: " ".repeat(4) },
+    { label: "x".repeat(101) },
+  ]) {
+    assert.equal(startTotpEnrollmentRequestSchema.safeParse(input).success, false);
+    assert.equal(updateMfaMethodRequestSchema.safeParse(input).success, false);
+  }
+  assert.equal(
+    webAuthnCredentialRequestSchema.safeParse({
+      challengeId: CHALLENGE_ID,
+      credential: { id: "credential" },
+    }).success,
+    false,
+  );
 });

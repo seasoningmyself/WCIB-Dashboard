@@ -143,7 +143,9 @@ docker compose up --build
 Compose creates exactly two services on the `wcib_local` network:
 
 - `app` runs the backend on `127.0.0.1:5000` and Vite on
-  `127.0.0.1:5173`. Its `DATABASE_URL` reaches Postgres at `db:5432`.
+  `127.0.0.1:5173`. Open it as `http://localhost:5173` when testing
+  WebAuthn because browsers do not accept an IP address as a relying-party ID.
+  Its `DATABASE_URL` reaches Postgres at `db:5432`.
 - `db` uses the official `postgres:18-alpine` image. Host tools may reach it at
   `127.0.0.1:54322`.
 
@@ -262,16 +264,16 @@ All commands fail before contacting Postgres when neither database URL is set.
 ## User identity and credentials
 
 The auth-owned `users` table uses a database-generated UUID identity. It stores
-only a normalized unique email, a bcrypt password hash, active state, session
-version, and creation time. Display names, staff profiles, roles, capabilities,
-password-reset tokens, and MFA structures are deliberately owned by later
-tickets and are not columns in this table.
+the canonical display name, normalized unique email, Argon2id or transitional
+bcrypt password hash, first-login password state, active state, session
+version, and creation time. Staff roles remain in `staff_profiles`; explicit
+administrator access remains in `user_capabilities`.
 
 All password creation and reset paths must reuse
-`shared/password-policy.ts` and `server/auth/password.ts`; passwords require at
-least 12 characters with uppercase, lowercase, numeric, and special characters.
-Plaintext passwords and password hashes must never be logged or returned from
-normal account reads.
+`shared/password-policy.ts` and `server/auth/password.ts`; passwords accept
+spaces and Unicode, require 12–128 characters, reject blocked and reused
+values, and do not use composition rules. Plaintext passwords and password
+hashes must never be logged or returned from normal account reads.
 
 After applying migrations to local Postgres, run the database-backed model
 smoke test with:
@@ -290,18 +292,18 @@ secure cookies work behind the hosting load balancer. Health and readiness
 routes are registered before session middleware and remain independent of the
 session store.
 
-The stored WCIB auth payload contains only `userId` and `sessionVersion` in
-addition to the standard cookie metadata. Login callers must use
-`establishAuthenticatedSession`, which regenerates the session ID before
-persisting identity. Authenticated lookup resolves the UUID against the current
+The stored WCIB auth payload contains `userId`, `sessionVersion`, and a bounded
+authentication state; recovery enrollment also carries a server-validated
+grant identifier. Session helpers regenerate the session ID before persisting
+identity. Authenticated lookup resolves the UUID against the current
 `users` row and destroys sessions for malformed, expired, deleted, disabled, or
 version-mismatched identities. Rejection logs contain a safe reason code only;
 they never contain cookies, session IDs, user UUIDs, emails, or credentials.
 
-Foundation sessions do not contain roles, capabilities, financial data,
-Dumpster domain fields, or MFA state. The later optional admin 2FA ticket may
-add inert pending-verification state without changing the authenticated
-identity contract.
+Sessions do not contain roles, capabilities, financial data, factor secrets,
+recovery codes, WebAuthn credential material, or domain records. Authorization
+loads current access and MFA policy state from the database on every protected
+request.
 
 After applying migrations, run the Postgres-backed lifecycle smoke test with:
 
@@ -322,13 +324,13 @@ fields, MFA state, or domain records.
 Unknown accounts, wrong passwords, disabled accounts, and an identity removed
 during login all return the same HTTP 401 `invalid_credentials` response.
 Malformed requests use the shared HTTP 400 validation response. Successful
-login regenerates the session ID before returning. Password-only login is the
-complete Foundation flow for employees, producers, and admins; optional admin
-2FA remains deferred and inert.
+password verification regenerates the session ID before returning. An enrolled
+account receives a restricted MFA-challenge session; password-only requests
+cannot reach protected endpoints. Unenrolled accounts remain password-only
+while the administrator-required policy flag is off.
 
-Foundation intentionally installs no login rate limiter. The route accepts a
-middleware list ahead of its standalone handler so Security Hardening ticket
-STONE-33 can add rate limiting without rewriting credential or session logic.
+Persistent account and IP throttles cover password, TOTP, passkey, recovery,
+and step-up failures without exposing whether an account exists.
 
 After applying migrations, run the real endpoint smoke test with:
 
@@ -381,32 +383,42 @@ DATABASE_URL=postgresql://wcib:wcib_local_password@127.0.0.1:54322/wcib \
   npm run test:db:password-reset
 ```
 
-### Optional admin 2FA scaffold
+### Multi-factor authentication and sensitive-action step-up
 
-Foundation includes schema-only structure for future optional admin 2FA:
-`user_mfa_settings` identifies an admin account with a scaffold, and
-`user_mfa_method_placeholders` can name `email`, `totp`, or `webauthn` as
-future method types. The service creates these records only for users with an
-active `admin` capability.
+Migration `0053_mfa_identity_security` activates the original MFA scaffold.
+WebAuthn security keys and device authenticators are preferred, TOTP is the
+fallback, and first enrollment produces ten one-time recovery codes. TOTP secrets use versioned AES-256-GCM encryption;
+recovery codes, WebAuthn challenges, recovery grants, and step-up tokens are
+stored only as hashes. Factor material is never written to logs or audit
+summaries.
 
-This is not active MFA protection. Database checks require
-`enforcement_enabled = false` and `is_enabled = false`; login and session code
-do not read either table. Admins with no placeholders and admins with inert
-placeholders both use the same password-only Foundation login as employees and
-producers. There are no enrollment, challenge, verification, recovery-code, or
-trusted-browser routes.
+WebAuthn accepts platform authenticators and external FIDO2 security keys over
+USB, NFC, or hybrid transports without restricting the authenticator brand.
+WCIB verifies the account password first, then requests a non-discoverable
+credential with user verification discouraged. A physical key therefore uses
+touch-only user presence without requiring a FIDO2 PIN; browsers or platform
+authenticators may still perform local verification when inherent to the
+device. Users name each security key, device passkey, or authenticator app, can rename it
+later, and may remove an individual method only after an exact-bound step-up.
+Method removal is a soft disable that invalidates other sessions; the final
+method must use the full Turn off MFA flow. Legacy Yubico OTP is not enabled.
+YubiKey browser prompts use WebAuthn, while Yubico Authenticator QR enrollment
+uses TOTP.
 
-The scaffold stores no secrets, credential IDs, assertions, challenges,
-recovery codes, or trusted-browser tokens. Activating any method requires a
-separate reviewed ticket to migrate the inert checks, add method-appropriate
-encrypted or hashed credential storage, implement challenge services and
-routes, update sessions, and add user-facing enrollment and recovery behavior.
+MFA is optional for every user and strongly recommended for administrators.
+Once enrolled, it is mandatory for that account's future logins. The
+administrator-required path is controlled by `WCIB_ADMIN_MFA_REQUIRED` and
+defaults to false until a second recovery administrator exists. Sensitive
+account mutations use a one-use authorization bound to the actor, session,
+session version, action, target, and exact mutation. Recovery codes grant only
+restricted re-enrollment and cannot authorize step-up.
 
-After applying migration `0005_mfa_scaffold`, run:
+Production requires `MFA_ENCRYPTION_KEY`, `WEBAUTHN_ORIGIN`, and a matching
+`WEBAUTHN_RP_ID`; see `.env.example`. After applying migration `0053`, run:
 
 ```sh
 DATABASE_URL=postgresql://wcib:wcib_local_password@127.0.0.1:54322/wcib \
-  npm run test:db:mfa-scaffold
+  npm run test:db:mfa
 ```
 
 ## Staff accounts and capabilities

@@ -5,6 +5,8 @@ import type {
   CurrentUserRole,
 } from "../../shared/current-user.js";
 import { users } from "../db/schema.js";
+import type { MfaState } from "../../shared/mfa-scaffold.js";
+import { loadMfaState } from "./mfa-state.js";
 import type { AuthorizedRequestContext } from "./authorization.js";
 import type { AccessPrincipal } from "./access.js";
 import type { AuthDatabase } from "./users.js";
@@ -32,6 +34,7 @@ export interface CurrentUserIdentity {
   displayName: string;
   email: string;
   id: string;
+  mfa?: MfaState;
   passwordChangeRequiredAt: Date | null;
 }
 
@@ -45,6 +48,7 @@ export class CurrentUserProjectionError extends Error {
 export async function loadCurrentUserIdentity(
   database: AuthDatabase,
   userId: string,
+  mfaOptions?: { adminEnforcementEnabled: boolean; isAdmin: boolean },
 ): Promise<CurrentUserIdentity | null> {
   const [identity] = await database
     .select({
@@ -57,7 +61,13 @@ export async function loadCurrentUserIdentity(
     .where(eq(users.id, userId))
     .limit(1);
 
-  return identity ?? null;
+  if (identity === undefined) return null;
+  return {
+    ...identity,
+    ...(mfaOptions === undefined
+      ? {}
+      : { mfa: await loadMfaState(database, userId, mfaOptions) }),
+  };
 }
 
 export function projectCurrentUser(
@@ -70,14 +80,23 @@ export function projectCurrentUser(
   }
 
   const role = currentUserRole(principal);
+  const authenticationState =
+    context.authentication?.state ?? "authenticated";
+  const workspaceAvailable =
+    authenticationState === "authenticated" &&
+    identity.mfa?.enrollmentRequired !== true;
   return {
     user: {
+      authenticationState,
       allowedNavigation:
-        role === null ? [] : [...NAVIGATION_BY_ROLE[role]],
+        role === null || !workspaceAvailable
+          ? []
+          : [...NAVIGATION_BY_ROLE[role]],
       capabilities: [...principal.capabilities].sort(),
       displayName: identity.displayName,
       email: identity.email,
       id: principal.userId,
+      ...(identity.mfa === undefined ? {} : { mfa: identity.mfa }),
       passwordChangeRequired: identity.passwordChangeRequiredAt !== null,
       role,
     },

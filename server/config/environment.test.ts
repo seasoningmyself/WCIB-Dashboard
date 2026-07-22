@@ -15,12 +15,32 @@ test("loadConfig reads an environment-driven database target", () => {
     SESSION_SECRET: SAFE_SESSION_SECRET,
   });
 
-  assert.deepEqual(config, {
+  assert.deepEqual(
+    {
+      databaseUrl: config.databaseUrl,
+      nodeEnv: config.nodeEnv,
+      port: config.port,
+      sessionSecret: config.sessionSecret,
+    },
+    {
     databaseUrl,
     nodeEnv: "development",
     port: 8080,
     sessionSecret: SAFE_SESSION_SECRET,
+    },
+  );
+  assert.deepEqual(config.mfa.webAuthn, {
+    origin: "http://localhost:5173",
+    rpId: "localhost",
+    rpName: "West Coast Insurance Brokers",
   });
+  assert.equal(config.mfa.adminEnforcementEnabled, false);
+  assert.equal(config.mfa.encryptionKeys.current.id, "development");
+  assert.equal(config.mfa.encryptionKeys.current.key.length, 32);
+  assert.deepEqual(
+    config.mfa.encryptionKeys.all,
+    [config.mfa.encryptionKeys.current],
+  );
   assert.ok(Object.isFrozen(config));
 });
 
@@ -58,6 +78,20 @@ test("loadConfig validates database and port formats", () => {
         SESSION_SECRET: SAFE_SESSION_SECRET,
       }),
     /PORT must be an integer between 1 and 65535/,
+  );
+});
+
+test("loadConfig rejects an IP address as a WebAuthn relying-party ID", () => {
+  assert.throws(
+    () =>
+      loadConfig({
+        DATABASE_URL: "postgresql://wcib:secret@db:5432/wcib",
+        NODE_ENV: "development",
+        SESSION_SECRET: SAFE_SESSION_SECRET,
+        WEBAUTHN_ORIGIN: "http://127.0.0.1:5173",
+        WEBAUTHN_RP_ID: "127.0.0.1",
+      }),
+    /must be a hostname, not an IP address/,
   );
 });
 

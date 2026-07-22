@@ -1,7 +1,65 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 19, 2026 (First-login account security, Settings, and staged CSP rollout.)
+**Last updated:** July 21, 2026 (Optional MFA, recovery, and exact-action step-up security.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
+
+---
+
+## July 21, 2026 — MFA is available now; administrator enforcement waits for a second recovery admin
+
+WebAuthn security keys and device authenticators are the preferred MFA method,
+with authenticator-app TOTP as a fallback. Enrollment is optional for every user and strongly encouraged for
+administrators. Once any user enrolls, MFA is mandatory for that user's future
+logins. The administrator-required policy path is complete but its
+`WCIB_ADMIN_MFA_REQUIRED` flag defaults to false. WCIB will enable it only
+after a second administrator exists who can recover Sophia from total factor
+loss; this avoids making production SQL the only recovery path.
+
+WebAuthn supports both platform authenticators and external FIDO2 security
+keys, including USB, NFC, and hybrid transports. WCIB always verifies the
+account password before MFA or sensitive-action step-up, so WebAuthn requests
+a non-discoverable credential and user presence while discouraging user
+verification. This deliberately avoids creating or requesting a YubiKey FIDO2
+PIN: password plus physical touch remains two-factor authentication. A browser
+or platform authenticator may still perform local verification when inherent
+to that device, but WCIB does not require it. This is not a passwordless flow.
+Each security key, device passkey, or authenticator app requires a user-chosen nickname. Users can rename a method
+and can remove one method after exact-bound step-up; removal is audited,
+soft-disables the credential history, rotates the session version, and promotes
+a deterministic remaining method when needed.
+The final method can only be removed through the full Turn off MFA flow.
+Legacy Yubico OTP is not enabled: a YubiKey browser prompt uses WebAuthn, while
+Yubico Authenticator QR enrollment uses the existing standards-based TOTP
+fallback.
+
+Enrollment shows ten 128-bit recovery codes once, stores only Argon2id hashes
+plus non-secret lookup prefixes, and requires confirmation that the codes were
+saved. Codes are atomic and single-use; regeneration revokes the prior set.
+Using a recovery code grants only a short, session-bound re-enrollment flow. It
+does not open the application and can never authorize a sensitive step-up. A
+different administrator can reset a lost user's MFA from Account Security;
+administrators cannot reset themselves. If recovery re-enrollment is
+interrupted, the next login remains at the recovery challenge rather than
+falling back to password-only setup. Exhausted recovery codes require another
+administrator to reset MFA.
+
+Role or admin-capability changes, temporary-password issuance, sign-in-email
+changes, and MFA disable/reset require password re-authentication plus passkey
+or TOTP. Each authorization is one-use and bound to actor, current session and
+session version, action type, target user, and the exact mutation digest. The
+authorization is consumed in the same database transaction as its mutation.
+Recovery codes are deliberately excluded from step-up.
+
+TOTP secrets use versioned AES-256-GCM envelopes with an independent
+production key. WebAuthn validates the configured HTTPS origin and RP ID;
+challenges and step-up tokens are stored only as hashes. MFA enrollment,
+factor changes, challenge results, recovery use, step-up results, resets, and
+disablement are audited without secrets, codes, assertions, public keys, or
+credential material. MFA failures share the login throttle boundary.
+
+Migration 0053 activates the existing scaffold, adds normalized credential,
+challenge, recovery, and step-up storage, and advances the generation schema
+contract from 53 to 54. Start Fresh preserves all identity-security tables.
 
 ---
 

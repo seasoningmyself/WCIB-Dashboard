@@ -15,6 +15,9 @@ import {
   type SessionUserLookup,
 } from "./sessions.js";
 import { findUserById, type AuthDatabase } from "./users.js";
+import { loadMfaAccessState, type MfaAccessState } from "./mfa-state.js";
+import { validateRecoveryGrant } from "./mfa-recovery.js";
+import type { MfaAuthenticationState } from "../../shared/mfa-scaffold.js";
 import { asyncRoute, HttpError } from "../http/errors.js";
 import type { AppLogger } from "../logging/logger.js";
 import { safeRouteLabel } from "../logging/request.js";
@@ -26,13 +29,26 @@ export type RouteAccessRequirement =
   | AccessRequirement;
 
 export interface AuthorizedRequestContext {
+  authentication?: {
+    recoveryGrantId?: string;
+    state: MfaAuthenticationState;
+  };
   principal: AccessPrincipal;
 }
 
 export interface AuthorizationDependencies {
   findUser: SessionUserLookup;
   loadPrincipal(userId: string): Promise<AccessPrincipal | null>;
+  loadMfaState?(
+    userId: string,
+    options: { isAdmin: boolean },
+  ): Promise<MfaAccessState>;
   logger: AppLogger;
+  validateRecoveryGrant?(
+    userId: string,
+    grantId: string | undefined,
+    sessionId: string,
+  ): Promise<boolean>;
 }
 
 const authorizationGuardMarker = Symbol("wcib.authorizationGuard");
@@ -49,6 +65,9 @@ export interface AuthorizationGuards {
 }
 
 export interface AuthorizationGuardOptions {
+  allowMfaChallenge?: boolean;
+  allowMfaEnrollment?: boolean;
+  allowMfaRecovery?: boolean;
   allowPasswordChangeRequired?: boolean;
 }
 
@@ -74,11 +93,20 @@ export function createAuthorizationGuards(
 export function createDatabaseAuthorizationGuards(
   database: AuthDatabase,
   logger: AppLogger,
+  options: { adminMfaEnforcementEnabled?: boolean } = {},
 ): AuthorizationGuards {
   return createAuthorizationGuards({
     findUser: (userId) => findUserById(database, userId),
     loadPrincipal: (userId) => loadAccessPrincipal(database, userId),
+    loadMfaState: (userId, stateOptions) =>
+      loadMfaAccessState(database, userId, {
+        adminEnforcementEnabled:
+          options.adminMfaEnforcementEnabled === true,
+        isAdmin: stateOptions.isAdmin,
+      }),
     logger,
+    validateRecoveryGrant: (userId, grantId, sessionId) =>
+      validateRecoveryGrant(database, userId, grantId, sessionId),
   });
 }
 
@@ -161,6 +189,87 @@ function createAuthorizationGuard(
       return;
     }
 
+    if (
+      session.authenticationState === "mfa_challenge" &&
+      options.allowMfaChallenge !== true
+    ) {
+      denyForMfa(
+        dependencies.logger,
+        req,
+        next,
+        apiErrorCodes.mfaChallengeRequired,
+        "MFA challenge required",
+        principal.userId,
+      );
+      return;
+    }
+    if (
+      session.authenticationState === "mfa_enrollment" &&
+      options.allowMfaEnrollment !== true
+    ) {
+      denyForMfa(
+        dependencies.logger,
+        req,
+        next,
+        apiErrorCodes.mfaEnrollmentRequired,
+        "MFA enrollment must be completed",
+        principal.userId,
+      );
+      return;
+    }
+    if (session.authenticationState === "mfa_recovery") {
+      const validRecoveryGrant =
+        dependencies.validateRecoveryGrant === undefined
+          ? false
+          : await dependencies.validateRecoveryGrant(
+              principal.userId,
+              session.recoveryGrantId,
+              req.sessionID,
+            );
+      if (!validRecoveryGrant || options.allowMfaRecovery !== true) {
+        denyForMfa(
+          dependencies.logger,
+          req,
+          next,
+          apiErrorCodes.mfaRecoveryRequired,
+          "MFA recovery enrollment required",
+          principal.userId,
+        );
+        return;
+      }
+    }
+
+    const mfaState =
+      dependencies.loadMfaState === undefined
+        ? {
+            activeMethodCount: 0,
+            enrolled: false,
+            enrollmentIncomplete: false,
+            enforcementEnabled: false,
+            policyRequired: false,
+            recoveryCodesAcknowledged: false,
+            requiresMfaLogin: false,
+          }
+        : await dependencies.loadMfaState(principal.userId, {
+            isAdmin: principal.capabilities.includes("admin"),
+          });
+    if (
+      session.authenticationState === "authenticated" &&
+      !mfaState.enrolled &&
+      (mfaState.policyRequired || mfaState.enrollmentIncomplete) &&
+      options.allowMfaEnrollment !== true
+    ) {
+      denyForMfa(
+        dependencies.logger,
+        req,
+        next,
+        apiErrorCodes.mfaEnrollmentRequired,
+        "MFA enrollment required",
+        principal.userId,
+      );
+      return;
+    }
+
     const decision =
       requirement === AUTHENTICATED_ACCESS
         ? { allowed: true as const }
@@ -176,7 +285,10 @@ function createAuthorizationGuard(
       return;
     }
 
-    setAuthorizedRequestContext(res, principal);
+    setAuthorizedRequestContext(res, principal, {
+      recoveryGrantId: session.recoveryGrantId,
+      state: session.authenticationState,
+    });
     next();
   });
 
@@ -203,13 +315,32 @@ function normalizeRequirement(
 function setAuthorizedRequestContext(
   res: Response,
   principal: AccessPrincipal,
+  authentication: NonNullable<AuthorizedRequestContext["authentication"]>,
 ): void {
   const trustedPrincipal = Object.freeze({
     ...principal,
     capabilities: Object.freeze([...principal.capabilities]),
   });
   (res.locals as Record<PropertyKey, unknown>)[authorizationContextKey] =
-    Object.freeze({ principal: trustedPrincipal });
+    Object.freeze({
+      authentication: Object.freeze({ ...authentication }),
+      principal: trustedPrincipal,
+    });
+}
+
+function denyForMfa(
+  logger: AppLogger,
+  req: Request,
+  next: Parameters<RequestHandler>[2],
+  code:
+    | typeof apiErrorCodes.mfaChallengeRequired
+    | typeof apiErrorCodes.mfaEnrollmentRequired
+    | typeof apiErrorCodes.mfaRecoveryRequired,
+  message: string,
+  userId: string,
+): void {
+  logDenial(logger, req, code, userId);
+  next(new HttpError(403, code, message));
 }
 
 function logDenial(

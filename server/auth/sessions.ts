@@ -4,6 +4,10 @@ import session from "express-session";
 import type { CookieOptions } from "express-session";
 import type pg from "pg";
 import { z } from "zod";
+import {
+  MFA_AUTHENTICATION_STATES,
+  type MfaAuthenticationState,
+} from "../../shared/mfa-scaffold.js";
 import type { NodeEnvironment } from "../config/environment.js";
 import type { AppLogger } from "../logging/logger.js";
 import type { UserAccount } from "./users.js";
@@ -26,7 +30,12 @@ export type SessionRejectionReason =
   (typeof sessionRejectionReasons)[keyof typeof sessionRejectionReasons];
 
 export type AuthenticatedSessionResult =
-  | { authenticated: true; user: UserAccount }
+  | {
+      authenticated: true;
+      authenticationState: MfaAuthenticationState;
+      recoveryGrantId: string | undefined;
+      user: UserAccount;
+    }
   | { authenticated: false; reason: SessionRejectionReason };
 
 export type SessionUserLookup = (
@@ -87,9 +96,33 @@ export async function establishAuthenticatedSession(
     throw new Error("Cannot establish a session for an inactive user");
   }
 
+  await establishMfaSession(req, user, "authenticated");
+}
+
+export async function establishMfaSession(
+  req: Request,
+  user: Pick<UserAccount, "id" | "isActive" | "sessionVersion">,
+  authenticationState: MfaAuthenticationState,
+  recoveryGrantId?: string,
+): Promise<void> {
+  if (!user.isActive) {
+    throw new Error("Cannot establish a session for an inactive user");
+  }
   await regenerateSession(req);
-  req.session.userId = user.id;
-  req.session.sessionVersion = user.sessionVersion;
+  setSessionIdentity(req, user, authenticationState, recoveryGrantId);
+  await saveSession(req);
+}
+
+export async function continueMfaSession(
+  req: Request,
+  user: Pick<UserAccount, "id" | "isActive" | "sessionVersion">,
+  authenticationState: MfaAuthenticationState,
+  recoveryGrantId?: string,
+): Promise<void> {
+  if (!user.isActive) {
+    throw new Error("Cannot continue a session for an inactive user");
+  }
+  setSessionIdentity(req, user, authenticationState, recoveryGrantId);
   await saveSession(req);
 }
 
@@ -101,6 +134,8 @@ export async function resolveAuthenticatedSession(
 ): Promise<AuthenticatedSessionResult> {
   const userId = req.session.userId;
   const sessionVersion = req.session.sessionVersion;
+  const authenticationState =
+    req.session.authenticationState ?? "authenticated";
 
   if (userId === undefined && sessionVersion === undefined) {
     return rejectSession(
@@ -114,7 +149,8 @@ export async function resolveAuthenticatedSession(
   if (
     !sessionUserIdSchema.safeParse(userId).success ||
     !Number.isInteger(sessionVersion) ||
-    (sessionVersion ?? -1) < 0
+    (sessionVersion ?? -1) < 0 ||
+    !MFA_AUTHENTICATION_STATES.includes(authenticationState)
   ) {
     return rejectSession(
       req,
@@ -150,7 +186,12 @@ export async function resolveAuthenticatedSession(
     );
   }
 
-  return { authenticated: true, user };
+  return {
+    authenticated: true,
+    authenticationState,
+    recoveryGrantId: req.session.recoveryGrantId,
+    user,
+  };
 }
 
 export async function destroyAuthenticatedSession(
@@ -209,4 +250,20 @@ async function saveSession(req: Request): Promise<void> {
       reject(error);
     });
   });
+}
+
+function setSessionIdentity(
+  req: Request,
+  user: Pick<UserAccount, "id" | "sessionVersion">,
+  authenticationState: MfaAuthenticationState,
+  recoveryGrantId: string | undefined,
+): void {
+  req.session.authenticationState = authenticationState;
+  if (recoveryGrantId === undefined) {
+    delete req.session.recoveryGrantId;
+  } else {
+    req.session.recoveryGrantId = recoveryGrantId;
+  }
+  req.session.userId = user.id;
+  req.session.sessionVersion = user.sessionVersion;
 }

@@ -8,6 +8,12 @@ import pg from "pg";
 import type { CreateDraftRequest } from "../../shared/drafts.js";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import { verifyPassword } from "../auth/password.js";
+import { hashOpaqueSecret } from "../auth/password.js";
+import {
+  encryptMfaSecret,
+  hashMfaValue,
+  mfaSecretContext,
+} from "../auth/mfa-crypto.js";
 import { createUser, findUserCredentialsByEmail } from "../auth/users.js";
 import { listApprovalWork } from "../approval-queue/list.js";
 import {
@@ -47,6 +53,15 @@ import {
   producerRateHistory,
   sessions,
   userCapabilities,
+  userMfaMethods,
+  userMfaRecoveryCodes,
+  userMfaSettings,
+  userTotpCredentials,
+  userWebAuthnCredentialTransports,
+  userWebAuthnCredentials,
+  mfaChallenges,
+  mfaRecoveryGrants,
+  mfaStepUpAuthorizations,
 } from "./schema.js";
 import * as databaseSchema from "./schema.js";
 
@@ -67,7 +82,7 @@ const generationTables = [
 
 type TestDatabase = ReturnType<typeof drizzle<typeof databaseSchema>>;
 
-test("Start Fresh seals, isolates, and restores every transactional surface", async () => {
+test("Start Fresh seals, isolates, and restores every transactional surface", { concurrency: false }, async () => {
   const databaseUrl = process.env.DATABASE_URL;
   assert.ok(databaseUrl, "DATABASE_URL is required for business-state test");
 
@@ -220,7 +235,7 @@ test("Start Fresh seals, isolates, and restores every transactional surface", as
   );
 });
 
-test("generation control serializes writers and reset/restore audit failures roll back", async () => {
+test("generation control serializes writers and reset/restore audit failures roll back", { concurrency: false }, async () => {
   const databaseUrl = process.env.DATABASE_URL;
   assert.ok(databaseUrl, "DATABASE_URL is required for business-state lock test");
 
@@ -339,6 +354,80 @@ async function createCompleteGeneration(database: TestDatabase): Promise<Generat
   const adminEmail = `state-admin-${randomUUID()}@example.test`;
   const admin = await createUser(database, { email: adminEmail, password: adminPassword });
   await database.insert(userCapabilities).values({ capability: "admin", userId: admin.id });
+  const identitySecurityAt = new Date("2026-06-01T00:00:00.000Z");
+  await database.insert(userMfaSettings).values({
+    enforcementEnabled: true,
+    enrollmentCompletedAt: identitySecurityAt,
+    recoveryCodesAcknowledgedAt: identitySecurityAt,
+    userId: admin.id,
+  });
+  const [passkeyMethod, totpMethod] = await database
+    .insert(userMfaMethods)
+    .values([
+      {
+        isPrimary: true,
+        label: "Generation test passkey",
+        methodType: "webauthn",
+        userId: admin.id,
+        verifiedAt: identitySecurityAt,
+      },
+      {
+        label: "Generation test authenticator",
+        methodType: "totp",
+        userId: admin.id,
+        verifiedAt: identitySecurityAt,
+      },
+    ])
+    .returning({ id: userMfaMethods.id, methodType: userMfaMethods.methodType });
+  assert.ok(passkeyMethod?.methodType === "webauthn");
+  assert.ok(totpMethod?.methodType === "totp");
+  await database.insert(userWebAuthnCredentials).values({
+    counter: 1,
+    credentialId: `generation-credential-${admin.id}`,
+    methodId: passkeyMethod.id,
+    publicKey: "dGVzdC1wdWJsaWMta2V5",
+  });
+  await database.insert(userWebAuthnCredentialTransports).values({
+    methodId: passkeyMethod.id,
+    transport: "internal",
+  });
+  const encryptionKey = { id: "generation-test", key: Buffer.alloc(32, 7) };
+  await database.insert(userTotpCredentials).values({
+    encryptedSecret: encryptMfaSecret(
+      "GENERATIONTESTSECRET",
+      mfaSecretContext(admin.id, totpMethod.id),
+      { all: [encryptionKey], current: encryptionKey },
+    ),
+    methodId: totpMethod.id,
+  });
+  await database.insert(userMfaRecoveryCodes).values({
+    codeHash: await hashOpaqueSecret("WCIBGENERATIONRECOVERY"),
+    lookupPrefix: "GENERATION",
+    userId: admin.id,
+  });
+  await database.insert(mfaChallenges).values({
+    challengeHash: hashMfaValue("generation-challenge"),
+    expiresAt: new Date("2027-01-01T00:00:00.000Z"),
+    methodId: passkeyMethod.id,
+    purpose: "webauthn_authentication",
+    userId: admin.id,
+  });
+  await database.insert(mfaRecoveryGrants).values({
+    expiresAt: new Date("2027-01-01T00:00:00.000Z"),
+    sessionIdHash: hashMfaValue("generation-recovery-session"),
+    userId: admin.id,
+  });
+  await database.insert(mfaStepUpAuthorizations).values({
+    actionType: "mfa_disable",
+    expiresAt: new Date("2027-01-01T00:00:00.000Z"),
+    methodType: "webauthn",
+    mutationDigest: hashMfaValue("generation-mutation"),
+    sessionIdHash: hashMfaValue("generation-step-up-session"),
+    sessionVersion: admin.sessionVersion,
+    targetUserId: admin.id,
+    tokenHash: hashMfaValue("generation-step-up-token"),
+    userId: admin.id,
+  });
   await database.insert(producerRateHistory).values({
     effectiveDate: "2000-01-01",
     newBrokerRate: "25.00",
@@ -603,7 +692,16 @@ async function dumpSurvivors(pool: pg.Pool): Promise<string> {
       'carriers', (SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM carriers t),
       'mgas', (SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM mgas t),
       'policyTypes', (SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM policy_types t),
-      'sessions', (SELECT jsonb_agg(to_jsonb(t) ORDER BY t.sid) FROM sessions t)
+      'sessions', (SELECT jsonb_agg(to_jsonb(t) ORDER BY t.sid) FROM sessions t),
+      'mfaSettings', (SELECT jsonb_agg(to_jsonb(t) ORDER BY t.user_id) FROM user_mfa_settings t),
+      'mfaMethods', (SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM user_mfa_methods t),
+      'passkeys', (SELECT jsonb_agg(to_jsonb(t) ORDER BY t.method_id) FROM user_webauthn_credentials t),
+      'passkeyTransports', (SELECT jsonb_agg(to_jsonb(t) ORDER BY t.method_id, t.transport) FROM user_webauthn_credential_transports t),
+      'totp', (SELECT jsonb_agg(to_jsonb(t) ORDER BY t.method_id) FROM user_totp_credentials t),
+      'recoveryCodes', (SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM user_mfa_recovery_codes t),
+      'mfaChallenges', (SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM mfa_challenges t),
+      'mfaRecoveryGrants', (SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM mfa_recovery_grants t),
+      'mfaStepUp', (SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM mfa_step_up_authorizations t)
     )::text AS value
   `);
   return result.rows[0]?.value ?? "{}";
