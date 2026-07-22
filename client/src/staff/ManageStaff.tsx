@@ -6,6 +6,7 @@ import React, {
   useState,
 } from "react";
 import type { CurrentUser } from "../../../shared/current-user.js";
+import type { MfaStepUpDescriptor } from "../../../shared/mfa-scaffold.js";
 import type {
   AdminStaffRecord,
   CreateAdminStaffRequest,
@@ -28,6 +29,8 @@ import {
 import { AdminStaffApiError, createAdminStaffApi } from "./api.js";
 import { createAdminOfficeApi } from "../offices/api.js";
 import { VocabularyManagement } from "./VocabularyManagement.js";
+import { createMfaApi } from "../auth/mfa-api.js";
+import { MfaStepUpDialog } from "../auth/MfaStepUpDialog.js";
 import {
   formatRate,
   formatStaffDate,
@@ -46,7 +49,7 @@ export type ManageStaffState =
 
 export function ManageStaff({ user }: { user: CurrentUser }) {
   return isManageStaffAdmin(user) ? (
-    <AdminManageStaff currentUserId={user.id} />
+    <AdminManageStaff user={user} />
   ) : (
     <StaffMessage
       body="This page is not available for your account."
@@ -55,9 +58,23 @@ export function ManageStaff({ user }: { user: CurrentUser }) {
   );
 }
 
-function AdminManageStaff({ currentUserId }: { currentUserId: string }) {
+type StaffSensitiveMutation =
+  | {
+      input: UpdateAdminStaffRequest;
+      kind: "update";
+      userId: string;
+    }
+  | {
+      kind: "temporary_password";
+      temporaryPassword: string;
+      userId: string;
+    };
+
+function AdminManageStaff({ user }: { user: CurrentUser }) {
+  const currentUserId = user.id;
   const client = useApiClient();
   const api = useMemo(() => createAdminStaffApi(client), [client]);
+  const mfaApi = useMemo(() => createMfaApi(), []);
   const officeApi = useMemo(() => createAdminOfficeApi(client), [client]);
   const [state, setState] = useState<ManageStaffState>({ status: "loading" });
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
@@ -70,6 +87,8 @@ function AdminManageStaff({ currentUserId }: { currentUserId: string }) {
   const [officeOptions, setOfficeOptions] = useState<readonly AdminOfficeLocation[]>([]);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [sensitiveMutation, setSensitiveMutation] =
+    useState<StaffSensitiveMutation | null>(null);
   const [pending, setPending] = useState(false);
   const pendingRef = useRef(false);
   const requestVersion = useRef(0);
@@ -115,6 +134,7 @@ function AdminManageStaff({ currentUserId }: { currentUserId: string }) {
     setRateDialog(null);
     setActiveDialog(null);
     setTemporaryPasswordDialog(null);
+    setSensitiveMutation(null);
     setOfficeOptions([]);
     setDialogError(null);
     setNotice(null);
@@ -167,11 +187,16 @@ function AdminManageStaff({ currentUserId }: { currentUserId: string }) {
     }
   };
 
-  const updateStaff = async (userId: string, input: UpdateAdminStaffRequest) => {
+  const updateStaff = async (
+    userId: string,
+    input: UpdateAdminStaffRequest,
+    stepUpToken?: string,
+  ) => {
     if (!beginMutation()) return;
     try {
-      await api.update(userId, input);
+      await api.update(userId, input, stepUpToken);
       setStaffDialog(null);
+      setSensitiveMutation(null);
       setNotice("Staff account updated.");
       await load(false);
     } catch (error) {
@@ -216,14 +241,19 @@ function AdminManageStaff({ currentUserId }: { currentUserId: string }) {
     }
   };
 
-  const issueTemporaryPassword = async (temporaryPassword: string) => {
+  const issueTemporaryPassword = async (
+    temporaryPassword: string,
+    stepUpToken: string,
+  ) => {
     if (temporaryPasswordDialog === null || !beginMutation()) return;
     try {
       await api.issueTemporaryPassword(
         temporaryPasswordDialog.staff.userId,
         temporaryPassword,
+        stepUpToken,
       );
       setTemporaryPasswordDialog(null);
+      setSensitiveMutation(null);
       setNotice("Temporary password issued. The user must replace it at sign-in.");
       await load(false);
     } catch (error) {
@@ -312,7 +342,13 @@ function AdminManageStaff({ currentUserId }: { currentUserId: string }) {
           }
         }}
         onCreate={(input) => void createStaff(input)}
-        onUpdate={(userId, input) => void updateStaff(userId, input)}
+        onUpdate={(userId, input) => {
+          if (input.email !== undefined || input.role !== undefined) {
+            setSensitiveMutation({ input, kind: "update", userId });
+            return;
+          }
+          void updateStaff(userId, input);
+        }}
         officeOptions={officeOptions}
         pending={pending}
       />
@@ -358,13 +394,62 @@ function AdminManageStaff({ currentUserId }: { currentUserId: string }) {
             setDialogError(null);
           }
         }}
-        onConfirm={(temporaryPassword) =>
-          void issueTemporaryPassword(temporaryPassword)
-        }
+        onConfirm={(temporaryPassword) => {
+          if (temporaryPasswordDialog === null) return;
+          setSensitiveMutation({
+            kind: "temporary_password",
+            temporaryPassword,
+            userId: temporaryPasswordDialog.staff.userId,
+          });
+        }}
         pending={pending}
       />
+      {sensitiveMutation === null ? null : (
+        <MfaStepUpDialog
+          api={mfaApi}
+          descriptor={staffMutationDescriptor(sensitiveMutation)}
+          methods={user.mfa?.methods ?? []}
+          onAuthorized={async (token) => {
+            if (sensitiveMutation.kind === "update") {
+              await updateStaff(
+                sensitiveMutation.userId,
+                sensitiveMutation.input,
+                token,
+              );
+              return;
+            }
+            await issueTemporaryPassword(
+              sensitiveMutation.temporaryPassword,
+              token,
+            );
+          }}
+          onCancel={() => setSensitiveMutation(null)}
+          title={
+            sensitiveMutation.kind === "temporary_password"
+              ? "Issue a temporary password"
+              : "Change staff access"
+          }
+        />
+      )}
     </>
   );
+}
+
+function staffMutationDescriptor(
+  mutation: StaffSensitiveMutation,
+): MfaStepUpDescriptor {
+  if (mutation.kind === "update") {
+    return {
+      action: "admin_staff_update",
+      mutation: mutation.input,
+      targetUserId: mutation.userId,
+    };
+  }
+  return {
+    action: "temporary_password",
+    mutation: { temporaryPassword: mutation.temporaryPassword },
+    targetUserId: mutation.userId,
+  };
 }
 
 export function ManageStaffView({

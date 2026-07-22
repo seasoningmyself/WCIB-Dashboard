@@ -206,6 +206,7 @@ test("GET /api/me returns exact server-derived role navigation", async () => {
         "turn_in",
         "my_items",
       ],
+      authenticationState: "authenticated",
       capabilities: ["admin"],
       displayName: "Sophia",
       email: "sophia@example.test",

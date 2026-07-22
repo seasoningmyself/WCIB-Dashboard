@@ -41,6 +41,19 @@ export const AUDIT_ACTIONS = [
   "user_password_changed",
   "user_profile_changed",
   "user_temporary_password_issued",
+  "user_mfa_enrolled",
+  "user_mfa_method_added",
+  "user_mfa_method_renamed",
+  "user_mfa_method_removed",
+  "user_mfa_recovery_code_used",
+  "user_mfa_recovery_codes_regenerated",
+  "user_mfa_challenge_succeeded",
+  "user_mfa_challenge_failed",
+  "user_mfa_step_up_succeeded",
+  "user_mfa_step_up_failed",
+  "user_mfa_disabled",
+  "user_mfa_reset",
+  "user_admin_capability_changed",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

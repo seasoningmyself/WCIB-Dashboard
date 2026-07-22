@@ -184,6 +184,7 @@ test("Postgres sessions enforce identity lifecycle and minimal payloads", async 
       .find((payload) => payload.userId === user.id);
     assert.ok(storedPayload);
     assert.deepEqual(Object.keys(storedPayload).sort(), [
+      "authenticationState",
       "cookie",
       "sessionVersion",
       "userId",

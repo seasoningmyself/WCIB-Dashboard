@@ -20,6 +20,7 @@ import {
 } from "../auth/admin-staff.js";
 import { createDatabaseAuthorizationGuards } from "../auth/authorization.js";
 import { loadCurrentUserIdentity } from "../auth/current-user.js";
+import { issueStepUpAuthorization } from "../auth/mfa-step-up.js";
 import { createSessionMiddleware } from "../auth/sessions.js";
 import { createUser } from "../auth/users.js";
 import { createDatabasePool } from "../db/client.js";
@@ -32,6 +33,7 @@ import {
   auditEvents,
   policies,
   producerRateHistory,
+  sessions,
   staffProfiles,
   userCapabilities,
   users,
@@ -51,6 +53,7 @@ import {
 } from "./admin-staff.js";
 import { CURRENT_USER_PATH, registerCurrentUserRoute } from "./current-user.js";
 import { auditRouteAccessDeclarations } from "./routes.js";
+import type { MfaStepUpDescriptor } from "../../shared/mfa-scaffold.js";
 
 const PASSWORD = "StrongPass123!";
 const SESSION_SECRET = "admin-staff-db-test-secret-at-least-32-characters";
@@ -128,20 +131,28 @@ test("admin staff endpoints preserve identity history and rate integrity", async
                 createAdminProducerRate(database, context, userId, input, logger),
               get: (context, userId) =>
                 getAdminStaffSource(database, context, userId),
-              issueTemporaryPassword: (context, userId, input) =>
+              issueTemporaryPassword: (context, userId, input, proof) =>
                 issueAdminTemporaryPassword(
                   database,
                   context,
                   userId,
                   input,
                   logger,
+                  proof,
                 ),
               list: (context) => listAdminStaffSources(database, context),
               logger,
               setActive: (context, userId, active) =>
                 setAdminStaffActive(database, context, userId, active, logger),
-              update: (context, userId, input) =>
-                updateAdminStaff(database, context, userId, input, logger),
+              update: (context, userId, input, proof) =>
+                updateAdminStaff(
+                  database,
+                  context,
+                  userId,
+                  input,
+                  logger,
+                  proof,
+                ),
               updateRate: (context, userId, rateId, input) =>
                 updateAdminProducerRate(
                   database,
@@ -292,6 +303,16 @@ test("admin staff endpoints preserve identity history and rate integrity", async
           cookie: adminCookie,
           method: "PATCH",
           path: ADMIN_STAFF_DETAIL_PATH.replace(":userId", employee.userId),
+          stepUpToken: await adminStepUpToken(
+            database,
+            admin.id,
+            {
+              action: "admin_staff_update",
+              mutation: { role: "producer" },
+              targetUserId: employee.userId,
+            },
+            logger,
+          ),
         });
         assert.equal(missingRate.statusCode, 409);
         const promoted = await request(running.baseUrl, {
@@ -299,6 +320,16 @@ test("admin staff endpoints preserve identity history and rate integrity", async
           cookie: adminCookie,
           method: "PATCH",
           path: ADMIN_STAFF_DETAIL_PATH.replace(":userId", employee.userId),
+          stepUpToken: await adminStepUpToken(
+            database,
+            admin.id,
+            {
+              action: "admin_staff_update",
+              mutation: { initialRate: INITIAL_RATE, role: "producer" },
+              targetUserId: employee.userId,
+            },
+            logger,
+          ),
         });
         assert.equal(promoted.statusCode, 200);
         assert.equal((promoted.body as any).staff.rateState, "configured");
@@ -314,6 +345,16 @@ test("admin staff endpoints preserve identity history and rate integrity", async
           cookie: adminCookie,
           method: "PATCH",
           path: ADMIN_STAFF_DETAIL_PATH.replace(":userId", employee.userId),
+          stepUpToken: await adminStepUpToken(
+            database,
+            admin.id,
+            {
+              action: "admin_staff_update",
+              mutation: { role: "employee" },
+              targetUserId: employee.userId,
+            },
+            logger,
+          ),
         });
         assert.equal(demoted.statusCode, 200);
         assert.equal((demoted.body as any).staff.rateState, "dormant");
@@ -330,6 +371,16 @@ test("admin staff endpoints preserve identity history and rate integrity", async
           cookie: adminCookie,
           method: "PATCH",
           path: ADMIN_STAFF_DETAIL_PATH.replace(":userId", employee.userId),
+          stepUpToken: await adminStepUpToken(
+            database,
+            admin.id,
+            {
+              action: "admin_staff_update",
+              mutation: { role: "producer" },
+              targetUserId: employee.userId,
+            },
+            logger,
+          ),
         });
         assert.equal(promotedWithDormantHistory.statusCode, 200);
         assert.equal((promotedWithDormantHistory.body as any).staff.rates.length, 1);
@@ -443,6 +494,16 @@ test("admin staff endpoints preserve identity history and rate integrity", async
           path: ADMIN_STAFF_TEMPORARY_PASSWORD_PATH.replace(
             ":userId",
             references.submittedByUserId,
+          ),
+          stepUpToken: await adminStepUpToken(
+            database,
+            admin.id,
+            {
+              action: "temporary_password",
+              mutation: { temporaryPassword: recoveryPassword },
+              targetUserId: references.submittedByUserId,
+            },
+            logger,
           ),
         });
         assert.equal(recovery.statusCode, 200);
@@ -810,11 +871,20 @@ async function login(
 
 async function request(
   baseUrl: string,
-  options: { body?: unknown; cookie?: string; method?: string; path: string },
+  options: {
+    body?: unknown;
+    cookie?: string;
+    method?: string;
+    path: string;
+    stepUpToken?: string;
+  },
 ): Promise<TestResponse> {
   const headers: Record<string, string> = {};
   if (options.body !== undefined) headers["content-type"] = "application/json";
   if (options.cookie !== undefined) headers.cookie = options.cookie;
+  if (options.stepUpToken !== undefined) {
+    headers["X-WCIB-Step-Up"] = options.stepUpToken;
+  }
   const response = await fetch(`${baseUrl}${options.path}`, {
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
     headers,
@@ -826,4 +896,39 @@ async function request(
     headers: response.headers,
     statusCode: response.status,
   };
+}
+
+async function adminStepUpToken(
+  database: ReturnType<typeof drizzle<typeof databaseSchema>>,
+  adminUserId: string,
+  descriptor: MfaStepUpDescriptor,
+  logger: StructuredLogger,
+): Promise<string> {
+  const [session] = await database
+    .select({ sess: sessions.sess, sid: sessions.sid })
+    .from(sessions)
+    .where(sql`${sessions.sess}->>'userId' = ${adminUserId}`)
+    .limit(1);
+  assert.ok(session);
+  const sessionVersion = Number(
+    (session.sess as Record<string, unknown>).sessionVersion,
+  );
+  assert.equal(Number.isInteger(sessionVersion), true);
+  const result = await issueStepUpAuthorization(
+    database,
+    {
+      authentication: { state: "authenticated" },
+      principal: {
+        capabilities: ["admin"],
+        staffRole: null,
+        userActive: true,
+        userId: adminUserId,
+      },
+    },
+    descriptor,
+    { sessionId: session.sid, sessionVersion },
+    "totp",
+    logger,
+  );
+  return result.token;
 }

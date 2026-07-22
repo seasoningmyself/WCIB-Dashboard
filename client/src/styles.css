@@ -4535,6 +4535,592 @@ h1 {
   }
 }
 
+/* Multi-factor authentication and account security */
+.mfa-challenge-panel {
+  display: grid;
+  gap: var(--space-16);
+}
+
+.mfa-challenge-panel .login-heading {
+  margin-bottom: var(--space-0);
+}
+
+.mfa-code-form {
+  border-top: var(--border-width-thin) solid var(--border);
+  padding-top: var(--space-18);
+}
+
+.mfa-mode-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-8);
+}
+
+.mfa-mode-tabs button,
+.mfa-sign-out {
+  min-height: 40px;
+  border: var(--border-width-thin) solid var(--control-border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  padding: var(--space-8) var(--space-10);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-bold);
+}
+
+.mfa-mode-tabs button.is-active {
+  border-color: var(--accent-border);
+  background: var(--surface-accent);
+  color: var(--accent-pressed);
+}
+
+.mfa-sign-out {
+  justify-self: center;
+  border-color: var(--transparent);
+  background: var(--transparent);
+}
+
+.mfa-enrollment-page {
+  min-height: 100vh;
+  display: grid;
+  overflow-y: auto;
+  place-items: center;
+  background:
+    linear-gradient(
+      90deg,
+      var(--accent-pressed) 0 14px,
+      var(--accent) 14px 18px,
+      var(--transparent) 18px
+    ),
+    var(--canvas);
+  padding: var(--space-28);
+}
+
+.mfa-enrollment-panel {
+  width: min(100%, 640px);
+  min-width: 0;
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-dialog);
+  background: var(--surface);
+  box-shadow: var(--shadow-auth-panel);
+  padding: var(--space-26);
+}
+
+.settings-panel .mfa-enrollment-panel {
+  width: 100%;
+  box-shadow: none;
+}
+
+.mfa-enrollment-panel > header {
+  border-bottom: var(--border-width-thin) solid var(--border);
+  padding-bottom: var(--space-16);
+}
+
+.mfa-enrollment-panel > header > p:first-child {
+  margin: var(--space-0) var(--space-0) var(--space-5);
+  color: var(--success-text);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+}
+
+.mfa-enrollment-panel h1 {
+  margin: var(--space-0);
+  color: var(--text);
+  font-size: var(--font-size-page-md);
+  line-height: var(--line-height-heading-tight);
+}
+
+.mfa-enrollment-panel > header > p:last-child,
+.mfa-totp-setup > p {
+  margin: var(--space-8) var(--space-0) var(--space-0);
+  color: var(--text-muted);
+  font-size: var(--font-size-body-emphasis);
+  line-height: var(--line-height-relaxed);
+}
+
+.mfa-method-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-12);
+  margin-top: var(--space-20);
+}
+
+.mfa-enrollment-panel button,
+.mfa-settings-panel button,
+.account-security-panel button {
+  min-height: 40px;
+  border: var(--border-width-thin) solid var(--control-border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  padding: var(--space-8) var(--space-13);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-bold);
+}
+
+.mfa-enrollment-panel button.is-primary,
+.mfa-settings-panel button.is-primary,
+.mfa-step-up-dialog button.is-primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--text-inverse);
+}
+
+.mfa-enrollment-panel button:disabled,
+.mfa-settings-panel button:disabled,
+.account-security-panel button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.mfa-method-choice {
+  display: grid;
+  min-height: 116px;
+  align-content: center;
+  gap: var(--space-7);
+  text-align: left;
+}
+
+.mfa-method-choice.is-selected {
+  border-color: var(--accent);
+  background: var(--surface-accent);
+  box-shadow: var(--shadow-focus-soft);
+}
+
+.mfa-method-choice strong {
+  color: inherit;
+  font-size: var(--font-size-control);
+}
+
+.mfa-method-choice span {
+  color: var(--text-muted);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-body);
+}
+
+.mfa-method-choice.is-primary span {
+  color: var(--text-inverse);
+}
+
+.mfa-totp-setup,
+.mfa-method-name-form {
+  display: grid;
+  gap: var(--space-12);
+  margin-top: var(--space-20);
+}
+
+.mfa-qr-code {
+  width: fit-content;
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  padding: var(--space-12);
+}
+
+.mfa-secret {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+  padding: var(--space-10);
+  color: var(--text);
+  font-size: var(--font-size-body);
+}
+
+.mfa-totp-setup label,
+.mfa-method-name-form label,
+.mfa-method-rename label {
+  color: var(--text-secondary);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-bold);
+}
+
+.mfa-totp-setup input,
+.mfa-method-name-form input,
+.mfa-method-rename input,
+.mfa-step-up-dialog input {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  border: var(--border-width-thin) solid var(--control-border);
+  border-radius: var(--radius-control);
+  padding: var(--space-8) var(--space-10);
+  color: var(--text);
+  font-size: var(--font-size-body-emphasis);
+}
+
+.mfa-enrollment-actions,
+.mfa-enrollment-footer,
+.mfa-recovery-actions,
+.mfa-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+.mfa-enrollment-actions,
+.mfa-enrollment-footer {
+  justify-content: flex-end;
+}
+
+.mfa-enrollment-footer {
+  margin-top: var(--space-20);
+}
+
+.mfa-recovery-step {
+  margin-top: var(--space-20);
+}
+
+.mfa-recovery-replacement {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-12);
+  margin-top: var(--space-20);
+}
+
+.mfa-recovery-replacement p {
+  margin: var(--space-0);
+  color: var(--text-muted);
+  font-size: var(--font-size-body-emphasis);
+  line-height: var(--line-height-relaxed);
+}
+
+.mfa-recovery-codes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-7) var(--space-18);
+  margin: var(--space-0);
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface-subtle);
+  padding: var(--space-16) var(--space-16) var(--space-16) var(--space-42);
+}
+
+.mfa-recovery-codes code {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-bold);
+}
+
+.mfa-recovery-actions {
+  margin-top: var(--space-12);
+}
+
+.mfa-copy-notice {
+  margin: var(--space-8) var(--space-0) var(--space-0);
+  color: var(--success-text);
+  font-size: var(--font-size-body);
+}
+
+.mfa-saved-confirmation {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: var(--space-10);
+  margin-top: var(--space-12);
+  color: var(--text-secondary);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-bold);
+}
+
+.mfa-saved-confirmation input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.settings-security-stack {
+  display: grid;
+  gap: var(--space-26);
+}
+
+.settings-security-stack > .settings-panel + .settings-panel {
+  border-top: var(--border-width-thin) solid var(--border);
+}
+
+.mfa-recommendation {
+  margin: var(--space-0) var(--space-0) var(--space-16);
+  border-left: var(--border-width-strong) solid var(--warning-border);
+  background: var(--warning-surface);
+  padding: var(--space-10) var(--space-12);
+  color: var(--warning-text);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+}
+
+.mfa-status-row,
+.mfa-method-list li {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-14);
+}
+
+.mfa-status-row > div,
+.mfa-method-list li > div {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+.mfa-status-row strong,
+.mfa-method-list strong {
+  color: var(--text);
+  font-size: var(--font-size-body-emphasis);
+}
+
+.mfa-status-row span,
+.mfa-method-list span {
+  color: var(--text-muted);
+  font-size: var(--font-size-meta);
+}
+
+.mfa-method-list {
+  display: grid;
+  gap: var(--space-0);
+  margin: var(--space-14) var(--space-0) var(--space-0);
+  padding: var(--space-0);
+  list-style: none;
+}
+
+.mfa-method-list li {
+  border-top: var(--border-width-thin) solid var(--border-subtle);
+  padding: var(--space-11) var(--space-0);
+}
+
+.mfa-method-list li > .mfa-method-row-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-7);
+}
+
+.mfa-method-list li > .mfa-method-row-actions button {
+  min-height: 36px;
+  padding: var(--space-6) var(--space-9);
+}
+
+.mfa-method-rename {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: minmax(150px, 1fr) auto;
+  gap: var(--space-6) var(--space-10);
+}
+
+.mfa-method-rename label {
+  grid-column: 1 / -1;
+}
+
+.mfa-method-rename .mfa-method-row-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-7);
+}
+
+.mfa-recovery-status {
+  margin: var(--space-14) var(--space-0) var(--space-0);
+  color: var(--text-muted);
+  font-size: var(--font-size-body);
+}
+
+.mfa-recovery-status.is-warning,
+.account-security-required {
+  color: var(--warning-text);
+}
+
+.mfa-settings-actions {
+  margin-top: var(--space-18);
+}
+
+.mfa-settings-actions .mfa-danger-action {
+  border-color: var(--error-border);
+  color: var(--error-text);
+}
+
+.mfa-dialog-backdrop {
+  z-index: 130;
+}
+
+.mfa-step-up-content {
+  display: grid;
+  gap: var(--space-14);
+  padding: var(--space-18) var(--space-20) var(--space-0);
+}
+
+.mfa-step-up-content > p {
+  margin: var(--space-0);
+  color: var(--text-muted);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-relaxed);
+}
+
+.mfa-step-up-totp {
+  display: grid;
+  gap: var(--space-10);
+  border-top: var(--border-width-thin) solid var(--border-subtle);
+  padding-top: var(--space-14);
+}
+
+.mfa-passkey-action {
+  width: 100%;
+}
+
+.account-security-panel {
+  max-width: 920px;
+}
+
+.account-security-list {
+  display: grid;
+  gap: var(--space-9);
+}
+
+.account-security-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(170px, 1.25fr) minmax(150px, 1fr) auto;
+  align-items: center;
+  gap: var(--space-18);
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  padding: var(--space-14);
+}
+
+.account-security-identity,
+.account-security-mfa {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+.account-security-identity strong {
+  color: var(--text);
+  font-size: var(--font-size-body-emphasis);
+}
+
+.account-security-identity span,
+.account-security-mfa > span:not(.status-badge) {
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+  font-size: var(--font-size-body);
+}
+
+.account-security-identity small,
+.account-security-mfa small {
+  color: var(--text-muted);
+  font-size: var(--font-size-meta);
+}
+
+.account-security-mfa .status-badge {
+  width: fit-content;
+}
+
+.account-security-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-6);
+}
+
+.account-security-actions button {
+  min-height: 36px;
+  padding: var(--space-7) var(--space-9);
+}
+
+.staff-dialog textarea {
+  width: 100%;
+  min-width: 0;
+  border: var(--border-width-thin) solid var(--control-border);
+  border-radius: var(--radius-control);
+  padding: var(--space-9) var(--space-10);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--font-size-body-emphasis);
+  resize: vertical;
+}
+
+@media (max-width: 760px) {
+  .mfa-enrollment-page {
+    align-items: end;
+    padding: var(--space-0);
+  }
+
+  .mfa-enrollment-panel.is-required {
+    max-height: 94vh;
+    overflow-y: auto;
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: var(--radius-dialog-top);
+    padding: var(--space-18);
+  }
+
+  .mfa-enrollment-panel h1 {
+    font-size: var(--font-size-title-lg);
+  }
+
+  .mfa-method-choices,
+  .mfa-recovery-codes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mfa-enrollment-panel button,
+  .mfa-enrollment-panel input,
+  .mfa-settings-panel button,
+  .mfa-settings-panel input,
+  .mfa-step-up-dialog button,
+  .mfa-step-up-dialog input,
+  .account-security-panel button,
+  .account-security-panel input,
+  .account-security-panel textarea {
+    min-height: 44px;
+  }
+
+  .mfa-method-list li {
+    align-items: flex-start;
+  }
+
+  .mfa-method-list li > .mfa-method-row-actions {
+    flex-wrap: wrap;
+  }
+
+  .mfa-method-list li > .mfa-method-row-actions button {
+    min-height: 44px;
+  }
+
+  .mfa-method-rename {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mfa-method-rename .mfa-method-row-actions {
+    justify-content: flex-end;
+  }
+
+  .account-security-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-12);
+  }
+
+  .account-security-actions {
+    justify-content: flex-start;
+  }
+
+  .account-security-actions button {
+    flex: 1 1 132px;
+  }
+}
+
 @media (max-width: 600px) {
   .kpi-page,
   .kpi-message {
@@ -10244,6 +10830,18 @@ h1 {
   .settings-message {
     width: min(100% - 24px, 920px);
     padding-top: var(--space-22);
+  }
+
+  .settings-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow-x: visible;
+  }
+
+  .settings-tabs button {
+    min-width: 0;
+    min-height: 44px;
+    padding: var(--space-0) var(--space-8);
   }
 }
 

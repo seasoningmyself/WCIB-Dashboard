@@ -146,6 +146,7 @@ test("login returns only the safe WCIB identity and access summary", async () =>
 
   assert.equal(response.statusCode, 200);
   assert.deepEqual(response.body, {
+    authenticationState: "authenticated",
     user: {
       capabilities: ["admin"],
       email: "admin@example.test",
@@ -177,6 +178,118 @@ test("login returns only the safe WCIB identity and access summary", async () =>
   ]) {
     assert.equal(serialized.includes(forbidden), false);
   }
+});
+
+test("an enrolled account receives only an MFA challenge session after a valid password", async () => {
+  const { logger } = recordingLogger();
+  let authenticatedSessions = 0;
+  let challengeSessions = 0;
+  let clearedFailures = 0;
+  const handler = createLoginHandler({
+    async authenticate() {
+      return authenticated();
+    },
+    async establishMfaSession(_req, user, state) {
+      assert.equal(user.id, USER_ID);
+      assert.equal(state, "mfa_challenge");
+      challengeSessions += 1;
+    },
+    async establishSession() {
+      authenticatedSessions += 1;
+    },
+    async loadMfaState() {
+      return {
+        activeMethodCount: 1,
+        enrolled: true,
+        enrollmentIncomplete: false,
+        enforcementEnabled: true,
+        policyRequired: false,
+        recoveryCodesAcknowledged: true,
+        requiresMfaLogin: true,
+      };
+    },
+    async loadPrincipal() {
+      return principal({ capabilities: ["admin"] });
+    },
+    logger,
+    throttle: {
+      async check() {
+        return null;
+      },
+      async clearAccount() {
+        clearedFailures += 1;
+      },
+      async recordFailure() {
+        return null;
+      },
+    },
+  });
+
+  const response = await invokeHandler(handler, {
+    email: "admin@example.test",
+    password: "StrongPass123!",
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, {
+    authenticationState: "mfa_required",
+    user: {
+      capabilities: ["admin"],
+      email: "admin@example.test",
+      id: USER_ID,
+      staffRole: null,
+    },
+  });
+  assert.equal(authenticatedSessions, 0);
+  assert.equal(challengeSessions, 1);
+  assert.equal(clearedFailures, 0);
+});
+
+test("required password replacement takes precedence over an enrolled MFA challenge", async () => {
+  const { logger } = recordingLogger();
+  let authenticatedSessions = 0;
+  let mfaSessions = 0;
+  const handler = createLoginHandler({
+    async authenticate() {
+      return {
+        ...authenticated(),
+        account: account({
+          passwordChangeRequiredAt: new Date("2026-07-21T12:00:00.000Z"),
+        }),
+      };
+    },
+    async establishMfaSession() {
+      mfaSessions += 1;
+    },
+    async establishSession() {
+      authenticatedSessions += 1;
+    },
+    async loadMfaState() {
+      return {
+        activeMethodCount: 1,
+        enrolled: true,
+        enrollmentIncomplete: false,
+        enforcementEnabled: true,
+        policyRequired: false,
+        recoveryCodesAcknowledged: true,
+        requiresMfaLogin: true,
+      };
+    },
+    async loadPrincipal() {
+      return principal({ capabilities: ["admin"] });
+    },
+    logger,
+  });
+
+  const response = await invokeHandler(handler, {
+    email: "admin@example.test",
+    password: "Temporary harbor 72!",
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal((response.body as any).authenticationState, "authenticated");
+  assert.equal(authenticatedSessions, 1);
+  assert.equal(mfaSessions, 0);
 });
 
 test("invalid and unavailable identities share one non-enumerating response", async () => {

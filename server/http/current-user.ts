@@ -16,12 +16,18 @@ import type { RouteRegistrar } from "./routes.js";
 export const CURRENT_USER_PATH = "/api/me";
 
 export interface CurrentUserHandlerDependencies {
-  loadIdentity(userId: string): Promise<CurrentUserIdentity | null>;
+  loadIdentity(
+    userId: string,
+    isAdmin?: boolean,
+  ): Promise<CurrentUserIdentity | null>;
 }
 
 export interface RegisterCurrentUserRouteOptions {
   authorization: AuthorizationGuards;
-  loadIdentity(userId: string): Promise<CurrentUserIdentity | null>;
+  loadIdentity(
+    userId: string,
+    isAdmin?: boolean,
+  ): Promise<CurrentUserIdentity | null>;
 }
 
 export function createCurrentUserHandler(
@@ -29,7 +35,10 @@ export function createCurrentUserHandler(
 ): RequestHandler {
   return asyncRoute(async (_req, res) => {
     const { principal } = getAuthorizedRequestContext(res);
-    const identity = await dependencies.loadIdentity(principal.userId);
+    const identity = await dependencies.loadIdentity(
+      principal.userId,
+      principal.capabilities.includes("admin"),
+    );
     if (identity === null) {
       throw new HttpError(403, apiErrorCodes.forbidden, "Forbidden");
     }
@@ -51,6 +60,9 @@ export function registerCurrentUserRoute(
     CURRENT_USER_PATH,
     {
       authorization: options.authorization.require(AUTHENTICATED_ACCESS, {
+        allowMfaChallenge: true,
+        allowMfaEnrollment: true,
+        allowMfaRecovery: true,
         allowPasswordChangeRequired: true,
       }),
     },

@@ -333,8 +333,44 @@ test("responsive thresholds remain unchanged", () => {
   ].map((match) => Number(match[1]));
 
   assert.deepEqual(breakpoints, [
-    980, 680, 420, 680, 420, 1040, 600, 640, 1020, 760, 600, 760, 900,
+    980, 680, 420, 680, 420, 1040, 600, 640, 1020, 760, 760, 600, 760, 900,
     680, 1160, 920, 680, 1080, 680, 520, 1080, 760, 480, 900, 700, 500,
     860, 600, 600, 760,
   ]);
+});
+
+test("mobile MFA method actions override the compact desktop height", () => {
+  const mfaMobileStart = css.indexOf(
+    "@media (max-width: 760px)",
+    css.indexOf(".mfa-enrollment-page"),
+  );
+  const nextMobileBlock = css.indexOf(
+    "@media (max-width: 760px)",
+    mfaMobileStart + 1,
+  );
+  assert.notEqual(mfaMobileStart, -1);
+  assert.notEqual(nextMobileBlock, -1);
+  const mfaMobile = css.slice(mfaMobileStart, nextMobileBlock);
+
+  assert.match(
+    mfaMobile,
+    /\.mfa-method-list li > \.mfa-method-row-actions button\s*\{[^}]*min-height:\s*44px;/,
+  );
+});
+
+test("mobile settings tabs fit all four sections without clipping", () => {
+  const mobileSettingsStart = css.lastIndexOf("@media (max-width: 600px)");
+  const mobileTouchStart = css.lastIndexOf("@media (max-width: 760px)");
+  assert.notEqual(mobileSettingsStart, -1);
+  assert.ok(mobileTouchStart > mobileSettingsStart);
+  const mobileSettings = css.slice(mobileSettingsStart, mobileTouchStart);
+
+  assert.match(
+    mobileSettings,
+    /\.settings-tabs\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\);[^}]*overflow-x:\s*visible;/,
+  );
+  assert.match(
+    mobileSettings,
+    /\.settings-tabs button\s*\{[^}]*min-width:\s*0;[^}]*min-height:\s*44px;/,
+  );
 });

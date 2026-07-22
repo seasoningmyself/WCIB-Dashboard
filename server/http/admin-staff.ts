@@ -1,4 +1,4 @@
-import type { RequestHandler, Response } from "express";
+import type { Request, RequestHandler, Response } from "express";
 import {
   adminStaffListResponseSchema,
   adminStaffMutationResponseSchema,
@@ -27,6 +27,7 @@ import type { AppLogger } from "../logging/logger.js";
 import { projectAuthorizedFields } from "../security/field-projection.js";
 import { asyncRoute, HttpError } from "./errors.js";
 import type { RouteRegistrar } from "./routes.js";
+import { StepUpRequiredError, type StepUpProof } from "../auth/mfa-step-up.js";
 
 export const ADMIN_STAFF_PATH = "/api/admin/staff";
 export const ADMIN_STAFF_DETAIL_PATH = "/api/admin/staff/:userId";
@@ -66,6 +67,7 @@ export interface AdminStaffHandlerDependencies {
     context: AuthorizedRequestContext,
     userId: string,
     input: unknown,
+    proof?: StepUpProof,
   ): Promise<AdminStaffSourceLike>;
   setActive(
     context: AuthorizedRequestContext,
@@ -76,6 +78,7 @@ export interface AdminStaffHandlerDependencies {
     context: AuthorizedRequestContext,
     userId: string,
     input: unknown,
+    proof?: StepUpProof,
   ): Promise<AdminStaffSourceLike>;
   updateRate(
     context: AuthorizedRequestContext,
@@ -160,7 +163,16 @@ export function createAdminStaffUpdateHandler(
     const input = updateAdminStaffRequestSchema.parse(req.body);
     let source: AdminStaffSourceLike;
     try {
-      source = await dependencies.update(context, userId, input);
+      source = await dependencies.update(
+        context,
+        userId,
+        input,
+        stepUpProof(req, {
+          action: "admin_staff_update",
+          mutation: input,
+          targetUserId: userId,
+        }),
+      );
     } catch (error) {
       throw mapAdminStaffError(error);
     }
@@ -235,6 +247,11 @@ export function createAdminTemporaryPasswordHandler(
         context,
         userId,
         input,
+        stepUpProof(req, {
+          action: "temporary_password",
+          mutation: input,
+          targetUserId: userId,
+        }),
       );
     } catch (error) {
       throw mapAdminStaffError(error);
@@ -330,5 +347,28 @@ function mapAdminStaffError(error: unknown): unknown {
   if (error instanceof AdminStaffBoundsError) {
     return new HttpError(400, apiErrorCodes.badRequest, "Staff result is too large");
   }
+  if (error instanceof StepUpRequiredError) {
+    return new HttpError(
+      403,
+      apiErrorCodes.stepUpRequired,
+      "MFA step-up required",
+    );
+  }
   return error;
+}
+
+function stepUpProof(
+  req: Request,
+  descriptor: StepUpProof["descriptor"],
+): StepUpProof {
+  const sessionVersion = req.session.sessionVersion;
+  if (!Number.isInteger(sessionVersion) || (sessionVersion ?? -1) < 0) {
+    throw new HttpError(401, apiErrorCodes.unauthorized, "Authentication required");
+  }
+  return {
+    descriptor,
+    sessionId: req.sessionID,
+    sessionVersion: sessionVersion as number,
+    token: req.header("X-WCIB-Step-Up")?.trim() || undefined,
+  };
 }

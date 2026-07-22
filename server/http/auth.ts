@@ -18,7 +18,9 @@ import { verifyPassword } from "../auth/password.js";
 import {
   destroyAuthenticatedSession,
   establishAuthenticatedSession,
+  establishMfaSession,
 } from "../auth/sessions.js";
+import { loadMfaAccessState, type MfaAccessState } from "../auth/mfa-state.js";
 import {
   findUserCredentialsByEmail,
   opportunisticallyUpgradePasswordHash,
@@ -37,6 +39,15 @@ export const LOGOUT_PATH = "/api/auth/logout";
 export interface LoginHandlerDependencies {
   authenticate(request: LoginRequest): Promise<AuthenticatedLogin | null>;
   establishSession(req: Request, user: UserAccount): Promise<void>;
+  establishMfaSession?(
+    req: Request,
+    user: UserAccount,
+    state: "mfa_challenge" | "mfa_enrollment",
+  ): Promise<void>;
+  loadMfaState?(
+    userId: string,
+    isAdmin: boolean,
+  ): Promise<MfaAccessState>;
   loadPrincipal(userId: string): Promise<AccessPrincipal | null>;
   logger: AppLogger;
   throttle?: LoginThrottle;
@@ -48,6 +59,7 @@ export interface LoginHandlerDependencies {
 }
 
 export interface RegisterAuthRoutesOptions {
+  adminMfaEnforcementEnabled?: boolean;
   database: AuthDatabase;
   logger: AppLogger;
   loginThrottleSecret?: string;
@@ -127,9 +139,33 @@ export function createLoginHandler(
       }
     }
 
-    await throttle.clearAccount(throttleKeys.account);
-    await dependencies.establishSession(req, user);
+    const mfaState =
+      dependencies.loadMfaState === undefined
+        ? null
+        : await dependencies.loadMfaState(
+            user.id,
+            principal.capabilities.includes("admin"),
+          );
+    const mfaSessionState = user.passwordChangeRequiredAt !== null
+      ? null
+      : mfaState?.requiresMfaLogin === true
+        ? "mfa_challenge"
+        : mfaState?.policyRequired === true ||
+            mfaState?.enrollmentIncomplete === true
+          ? "mfa_enrollment"
+          : null;
+    if (mfaSessionState !== null) {
+      if (dependencies.establishMfaSession === undefined) {
+        throw new Error("MFA session establishment is unavailable");
+      }
+      await dependencies.establishMfaSession(req, user, mfaSessionState);
+    } else {
+      await throttle.clearAccount(throttleKeys.account);
+      await dependencies.establishSession(req, user);
+    }
     const response: LoginResponse = {
+      authenticationState:
+        mfaSessionState === null ? "authenticated" : "mfa_required",
       user: {
         capabilities: [...principal.capabilities].sort(),
         email: user.email,
@@ -194,6 +230,13 @@ export function registerAuthRoutes(
         verifyPassword,
       }),
     establishSession: establishAuthenticatedSession,
+    establishMfaSession,
+    loadMfaState: (userId, isAdmin) =>
+      loadMfaAccessState(options.database, userId, {
+        adminEnforcementEnabled:
+          options.adminMfaEnforcementEnabled === true,
+        isAdmin,
+      }),
     loadPrincipal: (userId) => loadAccessPrincipal(options.database, userId),
     logger: options.logger,
     throttle,

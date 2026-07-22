@@ -46,6 +46,7 @@ import {
 } from "../../shared/business-state.js";
 import {
   type AnyPgColumn,
+  bigint,
   boolean,
   check,
   date,
@@ -442,49 +443,306 @@ export const userMfaSettings = pgTable(
     enforcementEnabled: boolean("enforcement_enabled")
       .notNull()
       .default(false),
+    policyRequiredAt: timestamp("policy_required_at", { withTimezone: true }),
+    enrollmentCompletedAt: timestamp("enrollment_completed_at", {
+      withTimezone: true,
+    }),
+    recoveryCodesAcknowledgedAt: timestamp(
+      "recovery_codes_acknowledged_at",
+      { withTimezone: true },
+    ),
     createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [
     check(
-      "user_mfa_settings_foundation_inert_check",
-      sql`${table.enforcementEnabled} = false`,
+      "user_mfa_settings_acknowledged_after_enrollment_check",
+      sql`${table.recoveryCodesAcknowledgedAt} is null OR ${table.enrollmentCompletedAt} is not null`,
     ),
   ],
 );
 
-export const userMfaMethodPlaceholders = pgTable(
-  "user_mfa_method_placeholders",
+export const userMfaMethods = pgTable(
+  "user_mfa_methods",
   {
     id: uuid("id").defaultRandom().primaryKey(),
     userId: uuid("user_id")
       .notNull()
       .references(() => userMfaSettings.userId, { onDelete: "cascade" }),
     methodType: mfaMethodTypeEnum("method_type").notNull(),
-    isEnabled: boolean("is_enabled").notNull().default(false),
+    label: text("label").notNull(),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    disabledAt: timestamp("disabled_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [
-    uniqueIndex("user_mfa_method_placeholders_user_type_idx").on(
-      table.userId,
-      table.methodType,
+    index("user_mfa_methods_user_idx").on(table.userId),
+    uniqueIndex("user_mfa_methods_active_totp_idx")
+      .on(table.userId)
+      .where(sql`${table.methodType} = 'totp' AND ${table.disabledAt} is null`),
+    check(
+      "user_mfa_methods_active_type_check",
+      sql`${table.methodType} in ('email', 'totp', 'webauthn')`,
     ),
     check(
-      "user_mfa_method_placeholders_foundation_inert_check",
-      sql`${table.isEnabled} = false`,
+      "user_mfa_methods_label_check",
+      sql`${table.label} = btrim(${table.label}) AND char_length(${table.label}) BETWEEN 1 AND 100`,
+    ),
+    check(
+      "user_mfa_methods_verified_expiry_check",
+      sql`${table.verifiedAt} is null OR ${table.expiresAt} is null`,
     ),
   ],
 );
 
 export type UserMfaSettingsRecord = typeof userMfaSettings.$inferSelect;
 export type NewUserMfaSettingsRecord = typeof userMfaSettings.$inferInsert;
-export type UserMfaMethodPlaceholderRecord =
-  typeof userMfaMethodPlaceholders.$inferSelect;
-export type NewUserMfaMethodPlaceholderRecord =
-  typeof userMfaMethodPlaceholders.$inferInsert;
+export type UserMfaMethodRecord = typeof userMfaMethods.$inferSelect;
+export type NewUserMfaMethodRecord = typeof userMfaMethods.$inferInsert;
+
+export const userWebAuthnCredentials = pgTable(
+  "user_webauthn_credentials",
+  {
+    methodId: uuid("method_id")
+      .primaryKey()
+      .references(() => userMfaMethods.id, { onDelete: "cascade" }),
+    credentialId: text("credential_id").notNull(),
+    publicKey: text("public_key").notNull(),
+    counter: bigint("counter", { mode: "number" }).notNull().default(0),
+    credentialDeviceType: text("credential_device_type"),
+    credentialBackedUp: boolean("credential_backed_up"),
+    authenticatorAttachment: text("authenticator_attachment"),
+    aaguid: text("aaguid"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("user_webauthn_credentials_credential_id_idx").on(
+      table.credentialId,
+    ),
+    check(
+      "user_webauthn_credentials_counter_check",
+      sql`${table.counter} >= 0`,
+    ),
+  ],
+);
+
+export const userWebAuthnCredentialTransports = pgTable(
+  "user_webauthn_credential_transports",
+  {
+    methodId: uuid("method_id")
+      .notNull()
+      .references(() => userWebAuthnCredentials.methodId, {
+        onDelete: "cascade",
+      }),
+    transport: text("transport").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.methodId, table.transport] }),
+    check(
+      "user_webauthn_credential_transports_value_check",
+      sql`${table.transport} in ('ble', 'cable', 'hybrid', 'internal', 'nfc', 'smart-card', 'usb')`,
+    ),
+  ],
+);
+
+export const userTotpCredentials = pgTable(
+  "user_totp_credentials",
+  {
+    methodId: uuid("method_id")
+      .primaryKey()
+      .references(() => userMfaMethods.id, { onDelete: "cascade" }),
+    encryptedSecret: text("encrypted_secret").notNull(),
+    algorithm: text("algorithm").notNull().default("sha1"),
+    digits: integer("digits").notNull().default(6),
+    periodSeconds: integer("period_seconds").notNull().default(30),
+    lastAcceptedTimeStep: bigint("last_accepted_time_step", {
+      mode: "number",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "user_totp_credentials_contract_check",
+      sql`${table.algorithm} = 'sha1' AND ${table.digits} = 6 AND ${table.periodSeconds} = 30`,
+    ),
+    check(
+      "user_totp_credentials_envelope_check",
+      sql`${table.encryptedSecret} ~ '^wcibenc:v1:[A-Za-z0-9._-]+:[A-Za-z0-9_-]+:[A-Za-z0-9_-]+:[A-Za-z0-9_-]+$'`,
+    ),
+  ],
+);
+
+export const userMfaRecoveryCodes = pgTable(
+  "user_mfa_recovery_codes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => userMfaSettings.userId, { onDelete: "cascade" }),
+    lookupPrefix: text("lookup_prefix").notNull(),
+    codeHash: text("code_hash").notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("user_mfa_recovery_codes_user_prefix_idx").on(
+      table.userId,
+      table.lookupPrefix,
+    ),
+    index("user_mfa_recovery_codes_active_idx").on(
+      table.userId,
+      table.consumedAt,
+    ),
+    check(
+      "user_mfa_recovery_codes_prefix_check",
+      sql`${table.lookupPrefix} ~ '^[A-Z0-9]{10}$'`,
+    ),
+    check(
+      "user_mfa_recovery_codes_hash_check",
+      sql`${table.codeHash} ~ '^\\$argon2id\\$v=19\\$m=[0-9]+,t=[0-9]+,p=[0-9]+\\$[A-Za-z0-9+/]+\\$[A-Za-z0-9+/]+$'`,
+    ),
+  ],
+);
+
+export const mfaChallenges = pgTable(
+  "mfa_challenges",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    methodId: uuid("method_id").references(() => userMfaMethods.id, {
+      onDelete: "cascade",
+    }),
+    purpose: text("purpose").notNull(),
+    challengeHash: text("challenge_hash").notNull(),
+    sessionIdHash: text("session_id_hash"),
+    sessionVersion: integer("session_version"),
+    actionType: text("action_type"),
+    targetUserId: uuid("target_user_id").references(() => users.id, {
+      onDelete: "cascade",
+    }),
+    mutationDigest: text("mutation_digest"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("mfa_challenges_user_expiry_idx").on(table.userId, table.expiresAt),
+    check(
+      "mfa_challenges_purpose_check",
+      sql`${table.purpose} in ('webauthn_registration', 'webauthn_authentication', 'step_up_webauthn')`,
+    ),
+    check(
+      "mfa_challenges_hash_check",
+      sql`${table.challengeHash} ~ '^[a-f0-9]{64}$'`,
+    ),
+    check(
+      "mfa_challenges_step_up_binding_check",
+      sql`(${table.purpose} = 'step_up_webauthn') = (${table.sessionIdHash} is not null AND ${table.sessionVersion} is not null AND ${table.actionType} is not null AND ${table.targetUserId} is not null AND ${table.mutationDigest} is not null)`,
+    ),
+  ],
+);
+
+export const mfaRecoveryGrants = pgTable(
+  "mfa_recovery_grants",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    sessionIdHash: text("session_id_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("mfa_recovery_grants_session_idx").on(table.sessionIdHash),
+    index("mfa_recovery_grants_user_expiry_idx").on(
+      table.userId,
+      table.expiresAt,
+    ),
+    check(
+      "mfa_recovery_grants_session_hash_check",
+      sql`${table.sessionIdHash} ~ '^[a-f0-9]{64}$'`,
+    ),
+  ],
+);
+
+export const mfaStepUpAuthorizations = pgTable(
+  "mfa_step_up_authorizations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    sessionIdHash: text("session_id_hash").notNull(),
+    sessionVersion: integer("session_version").notNull(),
+    actionType: text("action_type").notNull(),
+    targetUserId: uuid("target_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    mutationDigest: text("mutation_digest").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    methodType: mfaMethodTypeEnum("method_type").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("mfa_step_up_authorizations_token_idx").on(table.tokenHash),
+    index("mfa_step_up_authorizations_user_expiry_idx").on(
+      table.userId,
+      table.expiresAt,
+    ),
+    check(
+      "mfa_step_up_authorizations_action_check",
+      sql`${table.actionType} in ('admin_staff_update', 'temporary_password', 'admin_capability_change', 'mfa_disable', 'mfa_reset')`,
+    ),
+    check(
+      "mfa_step_up_authorizations_hashes_check",
+      sql`${table.sessionIdHash} ~ '^[a-f0-9]{64}$' AND ${table.mutationDigest} ~ '^[a-f0-9]{64}$' AND ${table.tokenHash} ~ '^[a-f0-9]{64}$'`,
+    ),
+    check(
+      "mfa_step_up_authorizations_method_check",
+      sql`${table.methodType} in ('totp', 'webauthn')`,
+    ),
+    check(
+      "mfa_step_up_authorizations_session_version_check",
+      sql`${table.sessionVersion} >= 0`,
+    ),
+  ],
+);
 
 export const staffProfiles = pgTable(
   "staff_profiles",

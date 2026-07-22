@@ -372,6 +372,13 @@
       "when": 1784482053360,
       "tag": "0052_security_first_login_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1784613544650,
+      "tag": "0053_mfa_identity_security",
+      "breakpoints": true
     }
   ]
 }

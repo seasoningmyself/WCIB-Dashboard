@@ -35,7 +35,7 @@ const schemaSource = readFileSync(
 );
 const snapshot = JSON.parse(
   readFileSync(
-    resolve(process.cwd(), "drizzle/meta/0052_snapshot.json"),
+    resolve(process.cwd(), "drizzle/meta/0053_snapshot.json"),
     "utf8",
   ),
 ) as DrizzleSnapshot;
@@ -83,9 +83,19 @@ test("foreign keys use UUID identity and cannot orphan domain records", () => {
   }
 
   assert.deepEqual(cascadeNames.sort(), [
+    "mfa_challenges_method_id_user_mfa_methods_id_fk",
+    "mfa_challenges_target_user_id_users_id_fk",
+    "mfa_challenges_user_id_users_id_fk",
+    "mfa_recovery_grants_user_id_users_id_fk",
+    "mfa_step_up_authorizations_target_user_id_users_id_fk",
+    "mfa_step_up_authorizations_user_id_users_id_fk",
     "password_reset_tokens_user_id_users_id_fk",
-    "user_mfa_method_placeholders_user_id_user_mfa_settings_user_id_fk",
+    "user_mfa_methods_user_id_user_mfa_settings_user_id_fk",
+    "user_mfa_recovery_codes_user_id_user_mfa_settings_user_id_fk",
     "user_mfa_settings_user_id_users_id_fk",
+    "user_totp_credentials_method_id_user_mfa_methods_id_fk",
+    "user_webauthn_credential_transports_method_id_user_webauthn_credentials_method_id_fk",
+    "user_webauthn_credentials_method_id_user_mfa_methods_id_fk",
   ]);
 });
 

@@ -35,10 +35,15 @@ export interface AdminStaffApi {
   issueTemporaryPassword(
     userId: string,
     temporaryPassword: string,
+    stepUpToken?: string,
   ): Promise<AdminStaffRecord>;
   list(): Promise<readonly AdminStaffRecord[]>;
   setActive(userId: string, active: boolean): Promise<AdminStaffRecord>;
-  update(userId: string, input: UpdateAdminStaffRequest): Promise<AdminStaffRecord>;
+  update(
+    userId: string,
+    input: UpdateAdminStaffRequest,
+    stepUpToken?: string,
+  ): Promise<AdminStaffRecord>;
   updateRate(
     userId: string,
     rateId: string,
@@ -68,7 +73,7 @@ export function createAdminStaffApi(client: ApiClient): AdminStaffApi {
       const response = await read(client, "/admin/staff");
       return response.items;
     },
-    async issueTemporaryPassword(userId, temporaryPassword) {
+    async issueTemporaryPassword(userId, temporaryPassword, stepUpToken) {
       const params = parseRequest(adminStaffParamsSchema, { userId });
       const body = parseRequest(issueTemporaryPasswordRequestSchema, {
         temporaryPassword,
@@ -79,6 +84,7 @@ export function createAdminStaffApi(client: ApiClient): AdminStaffApi {
           `/admin/staff/${encodeURIComponent(params.userId)}/temporary-password`,
           "POST",
           body,
+          stepUpToken,
         )
       ).staff;
     },
@@ -94,7 +100,7 @@ export function createAdminStaffApi(client: ApiClient): AdminStaffApi {
         )
       ).staff;
     },
-    async update(userId, input) {
+    async update(userId, input, stepUpToken) {
       const params = parseRequest(adminStaffParamsSchema, { userId });
       const body = parseRequest(updateAdminStaffRequestSchema, input);
       return (
@@ -103,6 +109,7 @@ export function createAdminStaffApi(client: ApiClient): AdminStaffApi {
           `/admin/staff/${encodeURIComponent(params.userId)}`,
           "PATCH",
           body,
+          stepUpToken,
         )
       ).staff;
     },
@@ -140,6 +147,7 @@ async function mutate(
   path: string,
   method: "PATCH" | "POST",
   body: unknown,
+  stepUpToken?: string,
 ) {
   let response: Response;
   try {
@@ -148,6 +156,9 @@ async function mutate(
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
+        ...(stepUpToken === undefined
+          ? {}
+          : { "X-WCIB-Step-Up": stepUpToken }),
       },
       method,
     });

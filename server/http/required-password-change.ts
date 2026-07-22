@@ -72,6 +72,7 @@ export function registerRequiredPasswordChangeRoute(
     REQUIRED_PASSWORD_CHANGE_PATH,
     {
       authorization: options.authorization.require(AUTHENTICATED_ACCESS, {
+        allowMfaEnrollment: true,
         allowPasswordChangeRequired: true,
       }),
     },

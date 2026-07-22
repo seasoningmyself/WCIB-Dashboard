@@ -11,23 +11,29 @@ import {
   type OwnSettings,
 } from "../../../shared/account-settings.js";
 import type { CurrentUser } from "../../../shared/current-user.js";
+import type { MfaState } from "../../../shared/mfa-scaffold.js";
 import { normalizePassword } from "../../../shared/password-policy.js";
 import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
 import { PasswordRequirements } from "../auth/PasswordRequirements.js";
 import { OfficeLocationsSettings } from "../offices/OfficeLocationsSettings.js";
 import { PageHeader } from "../ui/PageHeader.js";
 import { createSettingsApi, SettingsApiError } from "./api.js";
+import { createMfaApi } from "../auth/mfa-api.js";
+import { MfaSettingsPanel } from "../auth/MfaEnrollment.js";
+import { AccountSecurityPanel } from "./AccountSecurity.js";
 
-type SettingsTab = "account" | "security" | "office";
+type SettingsTab = "account" | "security" | "account_security" | "office";
 type AccountState =
   | { status: "denied" | "error" | "loading" }
   | { settings: OwnSettings; status: "ready" };
 
 export function SettingsSurface({
   onDisplayNameChange,
+  onMfaChange,
   user,
 }: {
   onDisplayNameChange(displayName: string): void;
+  onMfaChange(mfa: MfaState): void;
   user: CurrentUser;
 }) {
   const [tab, setTab] = useState<SettingsTab>("account");
@@ -44,15 +50,22 @@ export function SettingsSurface({
         <SettingsTabButton active={tab === "account"} onClick={() => setTab("account")}>Account</SettingsTabButton>
         <SettingsTabButton active={tab === "security"} onClick={() => setTab("security")}>Security</SettingsTabButton>
         {isAdmin ? (
+          <SettingsTabButton active={tab === "account_security"} onClick={() => setTab("account_security")}>Account security</SettingsTabButton>
+        ) : null}
+        {isAdmin ? (
           <SettingsTabButton active={tab === "office"} onClick={() => setTab("office")}>Office &amp; data</SettingsTabButton>
         ) : null}
       </div>
       {tab === "office" && isAdmin ? (
         <OfficeLocationsSettings user={user} />
+      ) : tab === "account_security" && isAdmin ? (
+        <AccountSecurityPanel user={user} />
       ) : (
         <OwnSettingsController
           activeTab={tab === "security" ? "security" : "account"}
           onDisplayNameChange={onDisplayNameChange}
+          onMfaChange={onMfaChange}
+          user={user}
         />
       )}
     </section>
@@ -84,9 +97,13 @@ function SettingsTabButton({
 function OwnSettingsController({
   activeTab,
   onDisplayNameChange,
+  onMfaChange,
+  user,
 }: {
   activeTab: "account" | "security";
   onDisplayNameChange(displayName: string): void;
+  onMfaChange(mfa: MfaState): void;
+  user: CurrentUser;
 }) {
   const client = useApiClient();
   const api = useMemo(() => createSettingsApi(client), [client]);
@@ -151,31 +168,39 @@ function OwnSettingsController({
       settings={state.settings}
     />
   ) : (
-    <SecurityPanel
-      error={error}
-      notice={notice}
-      onSave={async (currentPassword, newPassword, confirmation) => {
-        if (passwordPending) return false;
-        setPasswordPending(true);
-        setError(null);
-        setNotice(null);
-        try {
-          await api.changePassword({
-            confirmation,
-            currentPassword,
-            newPassword,
-          });
-          setNotice("Password changed. Other signed-in sessions were ended.");
-          return true;
-        } catch (caught) {
-          setError(passwordError(caught));
-          return false;
-        } finally {
-          setPasswordPending(false);
-        }
-      }}
-      pending={passwordPending}
-    />
+    <div className="settings-security-stack">
+      <SecurityPanel
+        error={error}
+        notice={notice}
+        onSave={async (currentPassword, newPassword, confirmation) => {
+          if (passwordPending) return false;
+          setPasswordPending(true);
+          setError(null);
+          setNotice(null);
+          try {
+            await api.changePassword({
+              confirmation,
+              currentPassword,
+              newPassword,
+            });
+            setNotice("Password changed. Other signed-in sessions were ended.");
+            return true;
+          } catch (caught) {
+            setError(passwordError(caught));
+            return false;
+          } finally {
+            setPasswordPending(false);
+          }
+        }}
+        pending={passwordPending}
+      />
+      <MfaSettingsPanel
+        api={createMfaApi()}
+        initialMfa={user.mfa ?? emptyMfaState(user.role === "admin")}
+        onMfaChange={onMfaChange}
+        userId={user.id}
+      />
+    </div>
   );
 }
 
@@ -409,4 +434,16 @@ function passwordError(error: unknown): string {
     return "Review the password requirements and try again.";
   }
   return "Your password could not be changed. Try again.";
+}
+
+function emptyMfaState(adminRecommended: boolean): MfaState {
+  return {
+    adminEnforcementEnabled: false,
+    adminRecommended,
+    enrolled: false,
+    enrollmentRequired: false,
+    methods: [],
+    recoveryCodesAcknowledged: false,
+    recoveryCodesRemaining: 0,
+  };
 }

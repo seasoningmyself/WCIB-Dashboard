@@ -11,6 +11,12 @@ import { ApiClientProvider } from "./api/context.js";
 import { createAuthApi, type AuthApi } from "./auth/api.js";
 import { SignedOutExperience } from "./auth/SignedOutExperience.js";
 import { RequiredPasswordChangeDialog } from "./auth/RequiredPasswordChangeDialog.js";
+import { MfaChallengeScreen } from "./auth/MfaChallengeScreen.js";
+import {
+  RecommendedMfaEnrollment,
+  RequiredMfaEnrollment,
+} from "./auth/MfaEnrollment.js";
+import { createMfaApi, type MfaApi } from "./auth/mfa-api.js";
 import {
   createLogoutAction,
   createSessionBoundary,
@@ -23,6 +29,7 @@ import {
 } from "./shell/navigation.js";
 
 const defaultAuthApi = createAuthApi();
+const defaultMfaApi = createMfaApi();
 
 type AuthState =
   | { status: "authenticated"; user: CurrentUser }
@@ -32,10 +39,15 @@ type AuthState =
 
 interface AppProps {
   authApi?: AuthApi;
+  mfaApi?: MfaApi;
 }
 
-export function App({ authApi = defaultAuthApi }: AppProps) {
+export function App({
+  authApi = defaultAuthApi,
+  mfaApi = defaultMfaApi,
+}: AppProps) {
   const [auth, setAuth] = useState<AuthState>({ status: "loading" });
+  const [mfaPromptDismissed, setMfaPromptDismissed] = useState(false);
   const [restoreAttempt, setRestoreAttempt] = useState(0);
   const boundaryRef = useRef<SessionBoundary | null>(null);
   const temporaryPasswordRef = useRef<string | null>(null);
@@ -99,6 +111,7 @@ export function App({ authApi = defaultAuthApi }: AppProps) {
             : "/";
       }
       boundary.beginSession();
+      setMfaPromptDismissed(false);
       temporaryPasswordRef.current = user.passwordChangeRequired
         ? (authenticatedPassword ?? null)
         : null;
@@ -106,6 +119,16 @@ export function App({ authApi = defaultAuthApi }: AppProps) {
     },
     [auth, boundary],
   );
+  const refreshAuthenticatedUser = useCallback(async () => {
+    const user = await authApi.restoreCurrentUser();
+    if (user === null) {
+      boundary.endSession("expired", currentHashPath());
+      throw new Error("Authenticated session ended");
+    }
+    boundary.beginSession();
+    setAuth({ status: "authenticated", user });
+    return user;
+  }, [authApi, boundary]);
 
   if (auth.status === "loading") {
     return <AuthLoading />;
@@ -146,6 +169,7 @@ export function App({ authApi = defaultAuthApi }: AppProps) {
         onChanged={(user) => {
           temporaryPasswordRef.current = null;
           boundary.beginSession();
+          setMfaPromptDismissed(false);
           setAuth({ status: "authenticated", user });
         }}
         onLogout={() => {
@@ -153,6 +177,53 @@ export function App({ authApi = defaultAuthApi }: AppProps) {
           logoutAction.run();
         }}
         temporaryPassword={temporaryPasswordRef.current}
+        user={auth.user}
+      />
+    );
+  }
+
+  if (auth.user.authenticationState === "mfa_challenge") {
+    return (
+      <MfaChallengeScreen
+        api={mfaApi}
+        onComplete={async () => {
+          await refreshAuthenticatedUser();
+        }}
+        onLogout={() => logoutAction.run()}
+        user={auth.user}
+      />
+    );
+  }
+
+  if (
+    auth.user.authenticationState === "mfa_enrollment" ||
+    auth.user.authenticationState === "mfa_recovery" ||
+    auth.user.mfa?.enrollmentRequired === true
+  ) {
+    return (
+      <RequiredMfaEnrollment
+        api={mfaApi}
+        onComplete={async () => {
+          await refreshAuthenticatedUser();
+        }}
+        onLogout={() => logoutAction.run()}
+        user={auth.user}
+      />
+    );
+  }
+
+  if (
+    auth.user.mfa?.adminRecommended === true &&
+    !auth.user.mfa.enrolled &&
+    !mfaPromptDismissed
+  ) {
+    return (
+      <RecommendedMfaEnrollment
+        api={mfaApi}
+        onComplete={async () => {
+          await refreshAuthenticatedUser();
+        }}
+        onDismiss={() => setMfaPromptDismissed(true)}
         user={auth.user}
       />
     );

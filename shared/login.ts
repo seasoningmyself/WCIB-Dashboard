@@ -27,11 +27,15 @@ export interface LoginUserSummary {
 }
 
 export interface LoginResponse {
+  authenticationState?: "authenticated" | "mfa_required";
   user: LoginUserSummary;
 }
 
 export const loginResponseSchema = z
   .object({
+    authenticationState: z
+      .enum(["authenticated", "mfa_required"])
+      .optional(),
     user: z
       .object({
         capabilities: z.array(z.enum(ACCESS_CAPABILITIES)),
