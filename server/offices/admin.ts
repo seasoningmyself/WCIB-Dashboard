@@ -3,6 +3,7 @@ import type { AccessRequirement } from "../auth/access.js";
 import { evaluateAccess } from "../auth/access.js";
 import type { AuthorizedRequestContext } from "../auth/authorization.js";
 import type { AuthDatabase } from "../auth/users.js";
+import { writeAuditEventInDrizzleTransaction } from "../audit/event.js";
 import { readDatabaseErrorCode } from "../db/error-code.js";
 import {
   officeLocations,
@@ -19,8 +20,8 @@ import {
 } from "../../shared/admin-office-locations.js";
 import { deriveOfficeSelectionMode } from "../../shared/office-selection.js";
 
-export const ADMIN_OFFICE_ACCESS = {
-  capabilities: ["admin"],
+export const OFFICE_MANAGEMENT_ACCESS = {
+  capabilities: ["admin", "support_engineer"],
 } as const satisfies AccessRequirement;
 
 export interface AdminOfficeManagementSource {
@@ -81,6 +82,20 @@ export async function createAdminOfficeLocation(
       if (created === undefined) {
         throw new Error("Office location insert returned no row");
       }
+      await writeAuditEventInDrizzleTransaction(
+        transaction,
+        context,
+        {
+          action: "office_location_created",
+          after: {
+            allowedFields: ["isActive", "name"],
+            source: { isActive: true, name: request.name },
+          },
+          entityId: created.id,
+          entityType: "office_location",
+        },
+        logger,
+      );
       return {
         officeLocationId: created.id,
         state: await loadState(transaction as AuthDatabase),
@@ -110,6 +125,24 @@ export async function renameAdminOfficeLocation(
           .update(officeLocations)
           .set({ name: request.name, updatedAt: new Date() })
           .where(eq(officeLocations.id, officeLocationId));
+        await writeAuditEventInDrizzleTransaction(
+          transaction,
+          context,
+          {
+            action: "office_location_renamed",
+            after: {
+              allowedFields: ["name"],
+              source: { name: request.name },
+            },
+            before: {
+              allowedFields: ["name"],
+              source: { name: current.name },
+            },
+            entityId: officeLocationId,
+            entityType: "office_location",
+          },
+          logger,
+        );
       }
       return loadState(transaction as AuthDatabase);
     });
@@ -136,6 +169,26 @@ export async function setAdminOfficeLocationActive(
           .update(officeLocations)
           .set({ isActive: active, updatedAt: new Date() })
           .where(eq(officeLocations.id, officeLocationId));
+        await writeAuditEventInDrizzleTransaction(
+          transaction,
+          context,
+          {
+            action: active
+              ? "office_location_reactivated"
+              : "office_location_deactivated",
+            after: {
+              allowedFields: ["isActive"],
+              source: { isActive: active },
+            },
+            before: {
+              allowedFields: ["isActive"],
+              source: { isActive: current.isActive },
+            },
+            entityId: officeLocationId,
+            entityType: "office_location",
+          },
+          logger,
+        );
       }
       return loadState(transaction as AuthDatabase);
     });
@@ -156,7 +209,7 @@ export function projectAdminOfficeManagementSource(
   source: Readonly<AdminOfficeManagementSource>,
   context: AuthorizedRequestContext,
 ): AdminOfficeManagementResponse | null {
-  if (!evaluateAccess(context.principal, ADMIN_OFFICE_ACCESS).allowed) {
+  if (!evaluateAccess(context.principal, OFFICE_MANAGEMENT_ACCESS).allowed) {
     return null;
   }
   return adminOfficeManagementResponseSchema.parse({
@@ -178,7 +231,7 @@ export function deriveAdminOfficeMode(
 }
 
 function requireAdminOfficeAccess(context: AuthorizedRequestContext): void {
-  if (!evaluateAccess(context.principal, ADMIN_OFFICE_ACCESS).allowed) {
+  if (!evaluateAccess(context.principal, OFFICE_MANAGEMENT_ACCESS).allowed) {
     throw new AdminOfficeAccessDeniedError();
   }
 }
