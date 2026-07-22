@@ -1,20 +1,23 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 21, 2026 (Mandatory MFA, recovery, and exact-action step-up security.)
+**Last updated:** July 21, 2026 (Optional MFA, recovery, and exact-action step-up security.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
 
 ---
 
-## July 21, 2026 — MFA is mandatory for every active account
+## July 21, 2026 — MFA is optional and strongly encouraged
 
 WebAuthn security keys and device authenticators are the preferred MFA method,
-with authenticator-app TOTP as a fallback. Enrollment is required for every
-active user before workspace access. Production enables both
-`WCIB_ADMIN_MFA_REQUIRED` and `WCIB_MFA_REQUIRED`; authorization enforces the
-policy before role evaluation, including direct API requests. Ennis is the
-capability-only recovery administrator for Sophia and does not appear in the
-Manage Staff roster. The retained Sophia demo identity is not treated as the
-production recovery operator.
+with authenticator-app TOTP as a fallback. Enrollment is optional for every
+active user, including administrators, and is strongly encouraged. Production
+leaves `WCIB_ADMIN_MFA_REQUIRED` and `WCIB_MFA_REQUIRED` disabled, so an
+unenrolled user retains workspace access. Once a user enrolls, MFA is required
+for that account's future logins. The server-side policy enforcement path
+remains available behind those flags if the agency later chooses to require
+enrollment without another rebuild. Ennis is the capability-only recovery
+administrator for Sophia and does not appear in the Manage Staff roster. The
+retained Sophia demo identity is not treated as the production recovery
+operator.
 
 WebAuthn supports both platform authenticators and external FIDO2 security
 keys, including USB, NFC, and hybrid transports. WCIB always verifies the
