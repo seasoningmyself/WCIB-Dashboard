@@ -4,6 +4,8 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { CurrentUser } from "../../../shared/current-user.js";
 import type { AdminOfficeManagementResponse } from "../../../shared/admin-office-locations.js";
+import { ApiClientProvider } from "../api/context.js";
+import { createSessionBoundary } from "../auth/session-boundary.js";
 import {
   OfficeActiveDialog,
   OfficeEditorDialog,
@@ -80,6 +82,29 @@ test("office settings fails closed for employee and producer callers", () => {
     assert.match(markup, /Office settings unavailable/);
     assert.doesNotMatch(markup, /Loading office locations|Add location|San Francisco/);
   }
+});
+
+test("support engineer can manage offices without receiving data-reset controls", () => {
+  const support: CurrentUser = {
+    allowedNavigation: ["support", "settings"],
+    capabilities: ["support_engineer"],
+    displayName: "Support Engineer",
+    email: "support@example.test",
+    id: OFFICE_A,
+    passwordChangeRequired: false,
+    role: null,
+  };
+  const markup = renderToStaticMarkup(
+    <ApiClientProvider
+      boundary={createSessionBoundary(() => {})}
+      client={{ async request() { return Response.json({}); } }}
+    >
+      <OfficeLocationsSettings embedded user={support} />
+    </ApiClientProvider>,
+  );
+
+  assert.match(markup, /Loading office locations/);
+  assert.doesNotMatch(markup, /Office settings unavailable|Start Fresh|Business generations/);
 });
 
 function fixture(): AdminOfficeManagementResponse {

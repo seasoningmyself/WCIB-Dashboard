@@ -47,6 +47,30 @@ test("current-user navigation is an exact server-owned role policy", () => {
     allowedNavigationForPrincipal(principal({ staffRole: "producer" })),
     ["turn_in", "my_items", "my_commissions", "settings"],
   );
+  assert.deepEqual(
+    allowedNavigationForPrincipal(
+      principal({ capabilities: ["support_engineer"] }),
+    ),
+    ["support", "settings"],
+  );
+  assert.deepEqual(
+    allowedNavigationForPrincipal(
+      principal({ capabilities: ["admin", "support_engineer"] }),
+    ),
+    [
+      "support",
+      "approvals",
+      "help_requests",
+      "policy_ledger",
+      "mga_payables",
+      "pay_sheets",
+      "kpis",
+      "manage_staff",
+      "turn_in",
+      "my_items",
+      "settings",
+    ],
+  );
   assert.deepEqual(allowedNavigationForPrincipal(principal()), []);
   assert.deepEqual(
     allowedNavigationForPrincipal(principal({ userActive: false })),

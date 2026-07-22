@@ -51,6 +51,25 @@ test("navigation groups authorized pages in Coastal task order", () => {
   );
 });
 
+test("support navigation is isolated ahead of ordinary role groups", () => {
+  const groups = groupAuthorizedNavigation(resolveAuthorizedNavigation([
+    "support",
+    "settings",
+  ]));
+
+  assert.deepEqual(
+    groups.map(({ id, items, label }) => ({
+      id,
+      items: items.map((item) => item.id),
+      label,
+    })),
+    [
+      { id: "support", items: ["support"], label: "Support" },
+      { id: "setup", items: ["settings"], label: "Setup" },
+    ],
+  );
+});
+
 test("shell routes cannot select an unauthorized or external destination", () => {
   const navigation = resolveAuthorizedNavigation([
     "turn_in",

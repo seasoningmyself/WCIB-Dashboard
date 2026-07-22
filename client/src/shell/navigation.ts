@@ -9,7 +9,7 @@ export interface ShellNavigationItem {
   path: string;
 }
 
-export type ShellNavigationGroupId = "daily" | "money" | "setup";
+export type ShellNavigationGroupId = "daily" | "money" | "setup" | "support";
 
 export interface ShellNavigationGroup {
   id: ShellNavigationGroupId;
@@ -55,6 +55,7 @@ const NAVIGATION_ITEMS: Readonly<
     label: "My Commissions",
     path: "/my-commissions",
   },
+  support: { id: "support", label: "Support", path: "/support" },
 };
 
 const navigationIdSet = new Set<string>(APP_NAVIGATION_IDS);
@@ -64,6 +65,11 @@ const NAVIGATION_GROUPS: readonly {
   identifiers: readonly AppNavigationId[];
   label: string;
 }[] = [
+  {
+    id: "support",
+    identifiers: ["support"],
+    label: "Support",
+  },
   {
     id: "daily",
     identifiers: ["approvals", "help_requests", "turn_in", "my_items"],

@@ -94,9 +94,9 @@ export function projectCurrentUser(
     user: {
       authenticationState,
       allowedNavigation:
-        role === null || !workspaceAvailable
+        !workspaceAvailable
           ? []
-          : [...NAVIGATION_BY_ROLE[role]],
+          : [...allowedNavigationForPrincipal(principal)],
       capabilities: [...principal.capabilities].sort(),
       displayName: identity.displayName,
       email: identity.email,
@@ -115,7 +115,15 @@ export function allowedNavigationForPrincipal(
     return [];
   }
   const role = currentUserRole(principal);
-  return role === null ? [] : [...NAVIGATION_BY_ROLE[role]];
+  const roleNavigation = role === null ? [] : [...NAVIGATION_BY_ROLE[role]];
+  if (!principal.capabilities.includes("support_engineer")) {
+    return roleNavigation;
+  }
+  return [
+    "support",
+    ...roleNavigation.filter((identifier) => identifier !== "settings"),
+    "settings",
+  ];
 }
 
 function currentUserRole(
