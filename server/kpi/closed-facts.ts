@@ -23,6 +23,7 @@ export type ClosedKpiFactScope =
 
 export interface ClosedKpiFact {
   addedAt: Date;
+  closedAt: Date;
   ownerType: "sophia" | "producer";
   ownerUserId: string;
   paySheetId: string;
@@ -101,6 +102,7 @@ async function loadClosedKpiFacts(
   const records = await database
     .select({
       addedAt: paySheetPolicies.addedAt,
+      closedAt: paySheets.closedAt,
       frozenPolicySnapshot: paySheetPolicies.frozenPolicySnapshot,
       ownerType: paySheets.ownerType,
       ownerUserId: paySheets.ownerUserId,
@@ -118,10 +120,16 @@ async function loadClosedKpiFacts(
       asc(paySheetPolicies.id),
     );
 
-  return records.map(({ frozenPolicySnapshot, ...record }) => ({
-    ...record,
-    snapshot: parsePaySheetPolicySnapshot(frozenPolicySnapshot),
-  }));
+  return records.map(({ closedAt, frozenPolicySnapshot, ...record }) => {
+    if (closedAt === null) {
+      throw new Error("Closed KPI fact is missing its close timestamp");
+    }
+    return {
+      ...record,
+      closedAt,
+      snapshot: parsePaySheetPolicySnapshot(frozenPolicySnapshot),
+    };
+  });
 }
 
 export function deriveClosedKpiActualInputs(

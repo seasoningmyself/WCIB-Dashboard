@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { operationalSupportDashboardSchema } from "./support-dashboard.js";
+import {
+  operationalSupportDashboardSchema,
+  SUPPORT_AUDIT_CATEGORIES,
+  supportDashboardQuerySchema,
+} from "./support-dashboard.js";
 
 const NOW = "2026-07-22T18:00:00.000Z";
 const FINGERPRINT = "a".repeat(64);
@@ -15,6 +19,17 @@ test("support dashboard contract is bounded and excludes diagnostic detail", () 
         mfaEnrolled: true,
       },
     ],
+    auditActivity: {
+      categories: SUPPORT_AUDIT_CATEGORIES.map((type, index) => ({
+        count: index,
+        lastOccurredAt: index === 0 ? null : NOW,
+        type,
+      })),
+      latestEventAt: NOW,
+      totalEventCount: 15,
+      windowEnd: NOW,
+      windowStart: "2026-07-21T18:00:00.000Z",
+    },
     backup: {
       ageSeconds: 3_600,
       checkedAt: NOW,
@@ -24,6 +39,34 @@ test("support dashboard contract is bounded and excludes diagnostic detail", () 
       pointInTimeRecoveryEnabled: true,
       provider: "digitalocean",
       status: "fresh",
+    },
+    companyNumbers: {
+      asOf: NOW,
+      empty: false,
+      monthly: [1, 2, 3].map((month) => ({
+        agencyRevenue: "100.00",
+        month,
+        newPolicyCount: 1,
+        policyCount: 2,
+      })),
+      period: "Q1",
+      source: "closed_pay_sheets",
+      targets: {
+        newPolicyCount: 10,
+        newRevenue: "1000.00",
+        retentionRate: "80.00",
+      },
+      totals: {
+        agencyRevenue: "300.00",
+        existingPolicyCount: 3,
+        newPolicyCount: 3,
+        newRevenue: "150.00",
+        policyCount: 6,
+        retentionRate: "50.00",
+        wonBackCount: 1,
+        wonBackRevenue: "50.00",
+      },
+      year: 2026,
     },
     environment: "production",
     health: { checkedAt: NOW, responseTimeMs: 0, status: "ok" },
@@ -117,6 +160,15 @@ test("support dashboard contract is bounded and excludes diagnostic detail", () 
         issues: [{ ...dashboard.sentry.issues[0], stackTrace: "secret" }],
       },
     }).success,
+    false,
+  );
+  assert.deepEqual(supportDashboardQuerySchema.parse({}), {});
+  assert.deepEqual(
+    supportDashboardQuerySchema.parse({ period: "Q3", year: "2026" }),
+    { period: "Q3", year: 2026 },
+  );
+  assert.equal(
+    supportDashboardQuerySchema.safeParse({ scopeType: "producer" }).success,
     false,
   );
 });

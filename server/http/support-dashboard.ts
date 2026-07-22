@@ -1,5 +1,9 @@
 import type { RequestHandler } from "express";
-import { operationalSupportDashboardSchema } from "../../shared/support-dashboard.js";
+import {
+  operationalSupportDashboardSchema,
+  supportDashboardQuerySchema,
+  type SupportDashboardQuery,
+} from "../../shared/support-dashboard.js";
 import { apiErrorCodes } from "../../shared/api-errors.js";
 import {
   getAuthorizedRequestContext,
@@ -22,6 +26,7 @@ export const SUPPORT_DASHBOARD_PATH = "/api/support/dashboard";
 export interface SupportDashboardHandlerDependencies {
   load(
     context: AuthorizedRequestContext,
+    query: SupportDashboardQuery,
   ): Promise<OperationalSupportDashboard>;
 }
 
@@ -33,11 +38,12 @@ export interface RegisterSupportDashboardRoutesOptions
 export function createSupportDashboardHandler(
   dependencies: SupportDashboardHandlerDependencies,
 ): RequestHandler {
-  return asyncRoute(async (_req, res) => {
+  return asyncRoute(async (req, res) => {
     const context = getAuthorizedRequestContext(res);
+    const query = supportDashboardQuerySchema.parse(req.query);
     let source: OperationalSupportDashboard;
     try {
-      source = await dependencies.load(context);
+      source = await dependencies.load(context, query);
     } catch (error) {
       if (error instanceof SupportDashboardAccessDeniedError) {
         throw new HttpError(403, apiErrorCodes.forbidden, "Forbidden");

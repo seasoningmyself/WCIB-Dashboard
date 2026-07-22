@@ -11,6 +11,7 @@ import { createDatabasePool } from "../db/client.js";
 import { withDisposableMigratedDatabase } from "../db/disposable-database-test-helper.js";
 import {
   auditEvents,
+  kpiTargets,
   loginThrottleBuckets,
   userCapabilities,
   userMfaMethods,
@@ -92,6 +93,30 @@ test("support dashboard exposes bounded diagnostics and audits access", async ()
             lastFailedAt: new Date(NOW.getTime() - 120_000),
           },
         ]);
+        await database.insert(kpiTargets).values({
+          newPolicyCountTarget: 12,
+          newRevenueTarget: "1200.00",
+          producerUserId: null,
+          retentionRateTarget: "80.00",
+          scopeType: "company",
+          year: 2026,
+        });
+        await database.insert(auditEvents).values([
+          {
+            action: "user_password_changed",
+            actorUserId: sophia.id,
+            entityId: sophia.id,
+            entityType: "user",
+            occurredAt: new Date(NOW.getTime() - 120_000),
+          },
+          {
+            action: "pay_sheet_closed",
+            actorUserId: sophia.id,
+            entityId: randomUUID(),
+            entityType: "pay_sheet",
+            occurredAt: new Date(NOW.getTime() - 60_000),
+          },
+        ]);
 
         const dashboard = await loadOperationalSupportDashboard(
           database,
@@ -117,6 +142,25 @@ test("support dashboard exposes bounded diagnostics and audits access", async ()
         assert.equal(dashboard.backup.status, "unavailable");
         assert.equal(dashboard.sentry.status, "unavailable");
         assert.equal(dashboard.integrity.status, "ok");
+        assert.deepEqual(dashboard.companyNumbers.targets, {
+          newPolicyCount: 12,
+          newRevenue: "1200.00",
+          retentionRate: "80.00",
+        });
+        assert.equal(dashboard.companyNumbers.empty, true);
+        assert.equal(dashboard.auditActivity.totalEventCount, 2);
+        assert.equal(
+          dashboard.auditActivity.categories.find(
+            ({ type }) => type === "authentication",
+          )?.count,
+          1,
+        );
+        assert.equal(
+          dashboard.auditActivity.categories.find(
+            ({ type }) => type === "financial_workflow",
+          )?.count,
+          1,
+        );
         assert.equal(dashboard.administrators.length, 2);
         const sophiaState = dashboard.administrators.find(
           ({ email }) => email === sophia.email,

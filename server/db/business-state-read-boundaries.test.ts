@@ -45,6 +45,7 @@ const reviewedReadModules = [
   "server/policies/mga-payable-group-state.ts",
   "server/policies/mga-payables.ts",
   "server/policy-change-requests/service.ts",
+  "server/support/aggregates.ts",
   "server/vocabulary/manage.ts",
 ] as const;
 

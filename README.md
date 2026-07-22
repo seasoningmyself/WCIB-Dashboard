@@ -869,6 +869,17 @@ limited to scrubbed issue titles, counts, timestamps, and direct Sentry links.
 Provider tokens, backup sizes, stack traces, event bodies, IPs, bucket hashes,
 MFA method detail, and raw audit records are never serialized.
 
+Company numbers on this route are computed by a dedicated support projection
+from active-generation, closed company pay-sheet facts. The allowlist is limited
+to the selected year/period, latest close timestamp, agency-level revenue and
+policy counts, won-back and retention totals, company targets, and monthly
+company totals. It does not reuse the administrator KPI DTO and never exposes
+producer payouts or splits, names, offices, pay sheets, policies, insureds,
+carriers, MGAs, transactions, or assignments. Audit diagnostics are likewise
+limited to a rolling 24-hour total plus counts and last-occurrence timestamps for
+six fixed categories; raw actions, actors, targets, entity IDs, reasons, and
+before/after summaries remain inaccessible.
+
 ## Module rules
 
 - Routes parse transport input and delegate; domain services own business

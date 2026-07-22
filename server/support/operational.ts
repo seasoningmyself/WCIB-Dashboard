@@ -30,11 +30,25 @@ import {
   type OperationalSupportDashboard,
   type SupportBackup,
 } from "../../shared/support-dashboard.js";
+import type { SupportDashboardQuery } from "../../shared/support-dashboard.js";
 import type { SupportBackupProvider } from "./digitalocean-backups.js";
 import type {
   SupportTelemetryProvider,
   SupportTelemetrySnapshot,
 } from "./sentry.js";
+import {
+  loadSupportAuditActivity,
+  loadSupportCompanyNumbers,
+} from "./aggregates.js";
+import {
+  SupportDashboardAccessDeniedError,
+  SupportDashboardBoundsError,
+} from "./errors.js";
+
+export {
+  SupportDashboardAccessDeniedError,
+  SupportDashboardBoundsError,
+} from "./errors.js";
 
 export const SUPPORT_DASHBOARD_ACCESS = {
   capabilities: ["support_engineer"],
@@ -55,29 +69,26 @@ export interface OperationalSupportOptions {
   timer?: () => number;
 }
 
-export class SupportDashboardAccessDeniedError extends Error {
-  constructor() {
-    super("Support dashboard access denied");
-    this.name = "SupportDashboardAccessDeniedError";
-  }
-}
-
-export class SupportDashboardBoundsError extends Error {
-  constructor() {
-    super("Support dashboard result exceeds its supported bound");
-    this.name = "SupportDashboardBoundsError";
-  }
-}
-
 export async function loadOperationalSupportDashboard(
   database: AuthDatabase,
   context: AuthorizedRequestContext,
   options: OperationalSupportOptions,
+  rawQuery: SupportDashboardQuery = {},
 ): Promise<OperationalSupportDashboard> {
   requireSupportAccess(context);
   const now = options.now?.() ?? new Date();
   const timer = options.timer ?? (() => performance.now());
-  const [readiness, migration, backup, integrity, loginSecurity, telemetry, administrators] =
+  const [
+    readiness,
+    migration,
+    backup,
+    integrity,
+    loginSecurity,
+    telemetry,
+    administrators,
+    auditActivity,
+    companyNumbers,
+  ] =
     await Promise.all([
       loadReadiness(options.readinessCheck, now, timer),
       loadMigrationParity(database, now),
@@ -86,11 +97,15 @@ export async function loadOperationalSupportDashboard(
       loadLoginSecurity(database, now),
       loadTelemetry(options, now),
       loadAdministratorRecovery(database),
+      loadSupportAuditActivity(database, now),
+      loadSupportCompanyNumbers(database, rawQuery, now),
     ]);
 
   const source = operationalSupportDashboardSchema.parse({
     administrators,
+    auditActivity,
     backup,
+    companyNumbers,
     environment: options.nodeEnv,
     health: {
       checkedAt: now.toISOString(),

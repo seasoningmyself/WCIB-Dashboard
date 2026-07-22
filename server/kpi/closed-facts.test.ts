@@ -40,6 +40,7 @@ function fact(
   });
   return {
     addedAt: new Date("2026-07-31T12:00:00.000Z"),
+    closedAt: new Date("2026-07-31T13:00:00.000Z"),
     ownerType: "sophia",
     ownerUserId: "00000000-0000-4000-8000-000000000003",
     paySheetId: "00000000-0000-4000-8000-000000000005",

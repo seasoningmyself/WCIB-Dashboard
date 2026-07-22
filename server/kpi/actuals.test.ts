@@ -198,6 +198,7 @@ function fact(input: {
   });
   return {
     addedAt: new Date("2026-01-31T12:00:00.000Z"),
+    closedAt: new Date("2026-01-31T13:00:00.000Z"),
     ownerType: input.ownerType,
     ownerUserId: input.ownerUserId,
     paySheetId: uuid(200 + input.month),

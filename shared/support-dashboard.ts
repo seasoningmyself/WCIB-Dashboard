@@ -1,9 +1,126 @@
 import { z } from "zod";
+import {
+  KPI_PERIOD_MONTHS,
+  kpiActualPeriodSchema,
+} from "./kpi-actuals.js";
 
 const timestampSchema = z.string().datetime({ offset: true });
 const nullableTimestampSchema = timestampSchema.nullable();
 const durationSchema = z.number().int().min(0).max(60_000);
 const fingerprintSchema = z.string().regex(/^[0-9a-f]{64}$/);
+const countSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+const moneySchema = z.string().regex(/^(?:0|[1-9][0-9]{0,14})\.[0-9]{2}$/);
+const rateSchema = z
+  .string()
+  .regex(/^(?:0|[1-9][0-9]?|100)\.[0-9]{2}$/)
+  .refine((value) => Number(value) <= 100);
+
+export const supportDashboardQuerySchema = z
+  .object({
+    period: kpiActualPeriodSchema.optional(),
+    year: z.coerce.number().int().min(2000).max(9999).optional(),
+  })
+  .strict();
+
+export const SUPPORT_AUDIT_CATEGORIES = [
+  "authentication",
+  "mfa",
+  "access_control",
+  "system_maintenance",
+  "business_workflow",
+  "financial_workflow",
+] as const;
+
+export const supportAuditCategorySchema = z.enum(SUPPORT_AUDIT_CATEGORIES);
+
+const supportAuditCategoryActivitySchema = z
+  .object({
+    count: countSchema,
+    lastOccurredAt: nullableTimestampSchema,
+    type: supportAuditCategorySchema,
+  })
+  .strict();
+
+export const supportAuditActivitySchema = z
+  .object({
+    categories: z
+      .array(supportAuditCategoryActivitySchema)
+      .length(SUPPORT_AUDIT_CATEGORIES.length),
+    latestEventAt: nullableTimestampSchema,
+    totalEventCount: countSchema,
+    windowEnd: timestampSchema,
+    windowStart: timestampSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (
+      value.categories.some(
+        ({ type }, index) => type !== SUPPORT_AUDIT_CATEGORIES[index],
+      )
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Support audit categories must use the fixed order",
+        path: ["categories"],
+      });
+    }
+  });
+
+const supportCompanyTotalsSchema = z
+  .object({
+    agencyRevenue: moneySchema,
+    existingPolicyCount: countSchema,
+    newPolicyCount: countSchema,
+    newRevenue: moneySchema,
+    policyCount: countSchema,
+    retentionRate: rateSchema.nullable(),
+    wonBackCount: countSchema,
+    wonBackRevenue: moneySchema,
+  })
+  .strict();
+
+const supportCompanyTargetsSchema = z
+  .object({
+    newPolicyCount: countSchema.nullable(),
+    newRevenue: moneySchema.nullable(),
+    retentionRate: rateSchema.nullable(),
+  })
+  .strict();
+
+const supportCompanyMonthlySchema = z
+  .object({
+    agencyRevenue: moneySchema,
+    month: z.number().int().min(1).max(12),
+    newPolicyCount: countSchema,
+    policyCount: countSchema,
+  })
+  .strict();
+
+export const supportCompanyNumbersSchema = z
+  .object({
+    asOf: nullableTimestampSchema,
+    empty: z.boolean(),
+    monthly: z.array(supportCompanyMonthlySchema).max(12),
+    period: kpiActualPeriodSchema,
+    source: z.literal("closed_pay_sheets"),
+    targets: supportCompanyTargetsSchema,
+    totals: supportCompanyTotalsSchema,
+    year: z.number().int().min(2000).max(9999),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const expectedMonths = KPI_PERIOD_MONTHS[value.period];
+    if (
+      value.monthly.length !== expectedMonths.length ||
+      value.monthly.some(({ month }, index) => month !== expectedMonths[index])
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Support company months must match the selected period",
+        path: ["monthly"],
+      });
+    }
+  });
 
 export const supportReleaseSchema = z
   .object({
@@ -152,7 +269,9 @@ export const supportAdministratorRecoverySchema = z
 export const operationalSupportDashboardSchema = z
   .object({
     administrators: z.array(supportAdministratorRecoverySchema).max(100),
+    auditActivity: supportAuditActivitySchema,
     backup: supportBackupSchema,
+    companyNumbers: supportCompanyNumbersSchema,
     environment: z.enum(["development", "test", "production"]),
     health: supportHealthSchema,
     integrity: supportIntegritySchema,
@@ -169,6 +288,10 @@ export const operationalSupportDashboardSchema = z
 export type OperationalSupportDashboard = z.output<
   typeof operationalSupportDashboardSchema
 >;
+export type SupportAuditActivity = z.output<typeof supportAuditActivitySchema>;
 export type SupportBackup = z.output<typeof supportBackupSchema>;
+export type SupportCompanyNumbers = z.output<typeof supportCompanyNumbersSchema>;
+export type SupportDashboardQuery = z.output<typeof supportDashboardQuerySchema>;
 export type SupportSentry = z.output<typeof supportSentrySchema>;
 export type SupportUptime = z.output<typeof supportUptimeSchema>;
+export type SupportAuditCategory = (typeof SUPPORT_AUDIT_CATEGORIES)[number];

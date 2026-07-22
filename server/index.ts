@@ -216,7 +216,7 @@ const app = createApp({
   registerRoutes: (routes) => {
     registerSupportDashboardRoutes(routes, {
       authorization,
-      load: (context) =>
+      load: (context, query) =>
         loadOperationalSupportDashboard(database, context, {
           backupProvider: supportBackupProvider,
           config: config.support,
@@ -224,7 +224,7 @@ const app = createApp({
           nodeEnv: config.nodeEnv,
           readinessCheck: () => checkDatabaseConnection(pool),
           telemetryProvider: supportTelemetryProvider,
-        }),
+        }, query),
     });
     registerAuthRoutes(routes, {
       adminMfaEnforcementEnabled: config.mfa.adminEnforcementEnabled,
