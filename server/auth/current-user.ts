@@ -52,6 +52,7 @@ export async function loadCurrentUserIdentity(
     adminEnforcementEnabled: boolean;
     allUsersEnforcementEnabled?: boolean;
     isAdmin: boolean;
+    isSupportEngineer?: boolean;
   },
 ): Promise<CurrentUserIdentity | null> {
   const [identity] = await database

@@ -1,4 +1,3 @@
-import type { Request } from "express";
 import {
   adminAccountSecurityListResponseSchema,
   adminAccountSecurityParamsSchema,
@@ -21,6 +20,7 @@ import { StepUpRequiredError, type StepUpProof } from "../auth/mfa-step-up.js";
 import { projectAuthorizedFields } from "../security/field-projection.js";
 import { asyncRoute, HttpError } from "./errors.js";
 import type { RouteRegistrar } from "./routes.js";
+import { readStepUpProof } from "./step-up-proof.js";
 
 export const ADMIN_ACCOUNT_SECURITY_PATH = "/api/admin/account-security";
 export const ADMIN_ACCOUNT_SECURITY_CAPABILITY_PATH =
@@ -101,7 +101,7 @@ export function registerAdminAccountSecurityRoutes(
           context,
           userId,
           input,
-          stepUpProof(req, {
+          readStepUpProof(req, {
             action: "admin_capability_change",
             mutation: input,
             targetUserId: userId,
@@ -123,7 +123,7 @@ export function registerAdminAccountSecurityRoutes(
           context,
           userId,
           input,
-          stepUpProof(req, {
+          readStepUpProof(req, {
             action: "admin_staff_update",
             mutation: input,
             targetUserId: userId,
@@ -145,7 +145,7 @@ export function registerAdminAccountSecurityRoutes(
           context,
           userId,
           input,
-          stepUpProof(req, {
+          readStepUpProof(req, {
             action: "mfa_reset",
             mutation: input,
             targetUserId: userId,
@@ -155,22 +155,6 @@ export function registerAdminAccountSecurityRoutes(
       res.status(204).end();
     }),
   );
-}
-
-function stepUpProof(
-  req: Request,
-  descriptor: StepUpProof["descriptor"],
-): StepUpProof {
-  const sessionVersion = req.session.sessionVersion;
-  if (!Number.isInteger(sessionVersion) || (sessionVersion ?? -1) < 0) {
-    throw new HttpError(401, apiErrorCodes.unauthorized, "Authentication required");
-  }
-  return {
-    descriptor,
-    sessionId: req.sessionID,
-    sessionVersion: sessionVersion as number,
-    token: req.header("X-WCIB-Step-Up")?.trim() || undefined,
-  };
 }
 
 async function runMutation(mutate: () => Promise<void>): Promise<void> {

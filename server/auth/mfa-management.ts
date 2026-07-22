@@ -170,12 +170,14 @@ export async function disableOwnMfa(
     adminEnforcementEnabled: boolean;
     allUsersEnforcementEnabled?: boolean;
     isAdmin: boolean;
+    isSupportEngineer?: boolean;
   },
   logger: AppLogger,
   now = new Date(),
 ): Promise<UserAccount> {
   if (
     options.allUsersEnforcementEnabled === true ||
+    options.isSupportEngineer === true ||
     (options.adminEnforcementEnabled && options.isAdmin)
   ) {
     throw new MfaPolicyRequiredError();

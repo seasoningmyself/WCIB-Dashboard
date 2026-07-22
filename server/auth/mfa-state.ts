@@ -25,6 +25,7 @@ export interface MfaPolicyOptions {
   adminEnforcementEnabled: boolean;
   allUsersEnforcementEnabled?: boolean;
   isAdmin: boolean;
+  isSupportEngineer?: boolean;
 }
 
 export async function ensureMfaSettings(
@@ -72,6 +73,7 @@ export async function loadMfaAccessState(
   const enrollmentIncomplete = enforcementEnabled && !enrolled;
   const policyRequired =
     options.allUsersEnforcementEnabled === true ||
+    options.isSupportEngineer === true ||
     (options.adminEnforcementEnabled && options.isAdmin) ||
     (settings?.policyRequiredAt !== null &&
       settings?.policyRequiredAt !== undefined);

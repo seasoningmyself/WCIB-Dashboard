@@ -47,6 +47,7 @@ export interface LoginHandlerDependencies {
   loadMfaState?(
     userId: string,
     isAdmin: boolean,
+    isSupportEngineer: boolean,
   ): Promise<MfaAccessState>;
   loadPrincipal(userId: string): Promise<AccessPrincipal | null>;
   logger: AppLogger;
@@ -146,6 +147,7 @@ export function createLoginHandler(
         : await dependencies.loadMfaState(
             user.id,
             principal.capabilities.includes("admin"),
+            principal.capabilities.includes("support_engineer"),
           );
     const mfaSessionState = user.passwordChangeRequiredAt !== null
       ? null
@@ -232,13 +234,14 @@ export function registerAuthRoutes(
       }),
     establishSession: establishAuthenticatedSession,
     establishMfaSession,
-    loadMfaState: (userId, isAdmin) =>
+    loadMfaState: (userId, isAdmin, isSupportEngineer) =>
       loadMfaAccessState(options.database, userId, {
         adminEnforcementEnabled:
           options.adminMfaEnforcementEnabled === true,
         allUsersEnforcementEnabled:
           options.allUsersMfaEnforcementEnabled === true,
         isAdmin,
+        isSupportEngineer,
       }),
     loadPrincipal: (userId) => loadAccessPrincipal(options.database, userId),
     logger: options.logger,

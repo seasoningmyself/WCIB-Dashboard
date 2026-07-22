@@ -185,6 +185,8 @@ import {
   setAdminCapability,
   updateAdminAccountEmail,
 } from "./auth/admin-account-security.js";
+import { resetUserMfa } from "./auth/mfa-reset.js";
+import { registerSupportAccountSecurityRoutes } from "./http/support-account-security.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
@@ -209,11 +211,16 @@ const app = createApp({
     });
     registerCurrentUserRoute(routes, {
       authorization,
-      loadIdentity: (userId, isAdmin = false) =>
+      loadIdentity: (
+        userId,
+        isAdmin = false,
+        isSupportEngineer = false,
+      ) =>
         loadCurrentUserIdentity(database, userId, {
           adminEnforcementEnabled: config.mfa.adminEnforcementEnabled,
           allUsersEnforcementEnabled: config.mfa.allUsersEnforcementEnabled,
           isAdmin,
+          isSupportEngineer,
         }),
     });
     registerRequiredPasswordChangeRoute(routes, {
@@ -229,6 +236,8 @@ const app = createApp({
           adminEnforcementEnabled: config.mfa.adminEnforcementEnabled,
           allUsersEnforcementEnabled: config.mfa.allUsersEnforcementEnabled,
           isAdmin: principal.capabilities.includes("admin"),
+          isSupportEngineer:
+            principal.capabilities.includes("support_engineer"),
         });
         await establishMfaSession(
           req,
@@ -658,6 +667,18 @@ const app = createApp({
         ),
       updateEmail: (context, userId, input, proof) =>
         updateAdminAccountEmail(
+          database,
+          context,
+          userId,
+          input,
+          proof,
+          logger,
+        ),
+    });
+    registerSupportAccountSecurityRoutes(routes, {
+      authorization,
+      resetMfa: (context, userId, input, proof) =>
+        resetUserMfa(
           database,
           context,
           userId,

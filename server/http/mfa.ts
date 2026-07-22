@@ -823,6 +823,8 @@ function policyOptions(
     adminEnforcementEnabled: options.config.adminEnforcementEnabled,
     allUsersEnforcementEnabled: options.config.allUsersEnforcementEnabled,
     isAdmin: context.principal.capabilities.includes("admin"),
+    isSupportEngineer:
+      context.principal.capabilities.includes("support_engineer"),
   };
 }
 

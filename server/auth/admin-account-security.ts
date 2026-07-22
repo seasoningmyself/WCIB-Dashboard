@@ -1,20 +1,13 @@
-import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
-  resetAdminMfaRequestSchema,
   updateAdminAccountEmailRequestSchema,
   updateAdminCapabilityRequestSchema,
   type AdminAccountSecurityItem,
 } from "../../shared/admin-account-security.js";
 import { writeAuditEventInDrizzleTransaction } from "../audit/event.js";
 import {
-  mfaChallenges,
-  mfaRecoveryGrants,
-  mfaStepUpAuthorizations,
-  sessions,
   staffProfiles,
   userCapabilities,
-  userMfaMethods,
-  userMfaRecoveryCodes,
   userMfaSettings,
   users,
 } from "../db/schema.js";
@@ -22,6 +15,11 @@ import { readDatabaseErrorCode } from "../db/error-code.js";
 import type { AppLogger } from "../logging/logger.js";
 import type { AuthorizedRequestContext } from "./authorization.js";
 import { writeMfaAudit } from "./mfa-audit.js";
+import {
+  MfaResetConflictError,
+  MfaResetNotFoundError,
+  resetUserMfa,
+} from "./mfa-reset.js";
 import { loadMfaState } from "./mfa-state.js";
 import {
   consumeStepUpAuthorization,
@@ -242,98 +240,25 @@ export async function resetAdminMfa(
   now = new Date(),
 ): Promise<void> {
   requireAdmin(context);
-  const input = resetAdminMfaRequestSchema.parse(rawInput);
-  if (targetUserId === context.principal.userId) {
-    throw new AdminAccountSecurityConflictError(
-      "Another administrator must reset your MFA",
-    );
-  }
-  await database.transaction(async (transaction) => {
-    await consumeStepUpAuthorization(
-      transaction as AuthDatabase,
+  try {
+    await resetUserMfa(
+      database,
       context,
+      targetUserId,
+      rawInput,
       proof,
+      logger,
       now,
     );
-    const [target] = await transaction
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.id, targetUserId))
-      .for("update")
-      .limit(1);
-    if (target === undefined) throw new AdminAccountSecurityNotFoundError();
-    const methods = await transaction
-      .select({ methodType: userMfaMethods.methodType })
-      .from(userMfaMethods)
-      .where(
-        and(
-          eq(userMfaMethods.userId, targetUserId),
-          isNotNull(userMfaMethods.verifiedAt),
-          isNull(userMfaMethods.disabledAt),
-        ),
-      );
-    await transaction
-      .update(userMfaMethods)
-      .set({ disabledAt: now, isPrimary: false, updatedAt: now })
-      .where(
-        and(
-          eq(userMfaMethods.userId, targetUserId),
-          isNull(userMfaMethods.disabledAt),
-        ),
-      );
-    await transaction
-      .delete(userMfaRecoveryCodes)
-      .where(eq(userMfaRecoveryCodes.userId, targetUserId));
-    await transaction
-      .delete(mfaChallenges)
-      .where(eq(mfaChallenges.userId, targetUserId));
-    await transaction
-      .delete(mfaRecoveryGrants)
-      .where(eq(mfaRecoveryGrants.userId, targetUserId));
-    await transaction
-      .delete(mfaStepUpAuthorizations)
-      .where(eq(mfaStepUpAuthorizations.userId, targetUserId));
-    await transaction
-      .insert(userMfaSettings)
-      .values({ userId: targetUserId })
-      .onConflictDoNothing();
-    await transaction
-      .update(userMfaSettings)
-      .set({
-        enforcementEnabled: true,
-        enrollmentCompletedAt: null,
-        policyRequiredAt: now,
-        recoveryCodesAcknowledgedAt: null,
-        updatedAt: now,
-      })
-      .where(eq(userMfaSettings.userId, targetUserId));
-    await incrementSessionVersion(transaction as AuthDatabase, targetUserId);
-    for (const method of methods) {
-      if (method.methodType === "totp" || method.methodType === "webauthn") {
-        await writeMfaAudit(
-          transaction as AuthDatabase,
-          context,
-          {
-            action: "user_mfa_method_removed",
-            method: method.methodType,
-            targetUserId,
-          },
-          logger,
-        );
-      }
+  } catch (error) {
+    if (error instanceof MfaResetNotFoundError) {
+      throw new AdminAccountSecurityNotFoundError();
     }
-    await writeMfaAudit(
-      transaction as AuthDatabase,
-      context,
-      {
-        action: "user_mfa_reset",
-        outcome: "success",
-        reason: input.reason,
-        targetUserId,
-      },
-      logger,
-    );
-  });
+    if (error instanceof MfaResetConflictError) {
+      throw new AdminAccountSecurityConflictError(error.message);
+    }
+    throw error;
+  }
 }
 
 function requireAdmin(context: AuthorizedRequestContext): void {

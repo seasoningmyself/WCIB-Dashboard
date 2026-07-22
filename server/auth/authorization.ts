@@ -41,7 +41,7 @@ export interface AuthorizationDependencies {
   loadPrincipal(userId: string): Promise<AccessPrincipal | null>;
   loadMfaState?(
     userId: string,
-    options: { isAdmin: boolean },
+    options: { isAdmin: boolean; isSupportEngineer: boolean },
   ): Promise<MfaAccessState>;
   logger: AppLogger;
   validateRecoveryGrant?(
@@ -108,6 +108,7 @@ export function createDatabaseAuthorizationGuards(
         allUsersEnforcementEnabled:
           options.allUsersMfaEnforcementEnabled === true,
         isAdmin: stateOptions.isAdmin,
+        isSupportEngineer: stateOptions.isSupportEngineer,
       }),
     logger,
     validateRecoveryGrant: (userId, grantId, sessionId) =>
@@ -257,6 +258,8 @@ function createAuthorizationGuard(
           }
         : await dependencies.loadMfaState(principal.userId, {
             isAdmin: principal.capabilities.includes("admin"),
+            isSupportEngineer:
+              principal.capabilities.includes("support_engineer"),
           });
     if (
       session.authenticationState === "authenticated" &&
