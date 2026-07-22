@@ -123,6 +123,18 @@ test("Start Fresh seals, isolates, and restores every transactional surface", { 
         assert.equal(await dumpSurvivors(pool), beforeSurvivors);
         assert.equal(await dumpMigrationLedger(pool), beforeMigrationLedger);
         assert.equal(await activeGenerationId(database), reset.activeGeneration.id);
+        assert.deepEqual(
+          await database
+            .select({ capability: userCapabilities.capability })
+            .from(userCapabilities)
+            .where(
+              and(
+                eq(userCapabilities.userId, fixture.supportUserId),
+                eq(userCapabilities.capability, "support_engineer"),
+              ),
+            ),
+          [{ capability: "support_engineer" }],
+        );
 
         const credentials = await findUserCredentialsByEmail(database, fixture.adminEmail);
         assert.ok(credentials);
@@ -333,6 +345,7 @@ interface GenerationFixture {
   producerContext: AuthorizedRequestContext;
   references: Awaited<ReturnType<typeof createPolicyReferenceFixture>>;
   sessionId: string;
+  supportUserId: string;
 }
 
 async function createCompleteGeneration(database: TestDatabase): Promise<GenerationFixture> {
@@ -354,6 +367,13 @@ async function createCompleteGeneration(database: TestDatabase): Promise<Generat
   const adminEmail = `state-admin-${randomUUID()}@example.test`;
   const admin = await createUser(database, { email: adminEmail, password: adminPassword });
   await database.insert(userCapabilities).values({ capability: "admin", userId: admin.id });
+  const support = await createUser(database, {
+    email: `state-support-${randomUUID()}@example.test`,
+    password: adminPassword,
+  });
+  await database
+    .insert(userCapabilities)
+    .values({ capability: "support_engineer", userId: support.id });
   const identitySecurityAt = new Date("2026-06-01T00:00:00.000Z");
   await database.insert(userMfaSettings).values({
     enforcementEnabled: true,
@@ -578,6 +598,7 @@ async function createCompleteGeneration(database: TestDatabase): Promise<Generat
     producerContext,
     references: generationReferences,
     sessionId,
+    supportUserId: support.id,
   };
 }
 
