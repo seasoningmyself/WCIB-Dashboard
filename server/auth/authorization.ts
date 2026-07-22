@@ -93,7 +93,10 @@ export function createAuthorizationGuards(
 export function createDatabaseAuthorizationGuards(
   database: AuthDatabase,
   logger: AppLogger,
-  options: { adminMfaEnforcementEnabled?: boolean } = {},
+  options: {
+    adminMfaEnforcementEnabled?: boolean;
+    allUsersMfaEnforcementEnabled?: boolean;
+  } = {},
 ): AuthorizationGuards {
   return createAuthorizationGuards({
     findUser: (userId) => findUserById(database, userId),
@@ -102,6 +105,8 @@ export function createDatabaseAuthorizationGuards(
       loadMfaAccessState(database, userId, {
         adminEnforcementEnabled:
           options.adminMfaEnforcementEnabled === true,
+        allUsersEnforcementEnabled:
+          options.allUsersMfaEnforcementEnabled === true,
         isAdmin: stateOptions.isAdmin,
       }),
     logger,

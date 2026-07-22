@@ -405,11 +405,14 @@ method must use the full Turn off MFA flow. Legacy Yubico OTP is not enabled.
 YubiKey browser prompts use WebAuthn, while Yubico Authenticator QR enrollment
 uses TOTP.
 
-MFA is optional for every user and strongly recommended for administrators.
-Once enrolled, it is mandatory for that account's future logins. The
-administrator-required path is controlled by `WCIB_ADMIN_MFA_REQUIRED` and
-defaults to false until a second recovery administrator exists. Sensitive
-account mutations use a one-use authorization bound to the actor, session,
+MFA enrollment can be optional or policy-required. Once enrolled, it is
+mandatory for that account's future logins. The administrator-required path is
+controlled by `WCIB_ADMIN_MFA_REQUIRED`. The all-account policy is controlled
+independently by `WCIB_MFA_REQUIRED`; when
+enabled, every active account must enroll before accessing the workspace and
+cannot disable MFA while the policy remains active. Both policies are enforced
+server-side before role evaluation. Sensitive account mutations use a one-use
+authorization bound to the actor, session,
 session version, action, target, and exact mutation. Recovery codes grant only
 restricted re-enrollment and cannot authorize step-up.
 

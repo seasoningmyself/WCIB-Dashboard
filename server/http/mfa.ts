@@ -821,6 +821,7 @@ function policyOptions(
 ) {
   return {
     adminEnforcementEnabled: options.config.adminEnforcementEnabled,
+    allUsersEnforcementEnabled: options.config.allUsersEnforcementEnabled,
     isAdmin: context.principal.capabilities.includes("admin"),
   };
 }

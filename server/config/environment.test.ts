@@ -35,6 +35,7 @@ test("loadConfig reads an environment-driven database target", () => {
     rpName: "West Coast Insurance Brokers",
   });
   assert.equal(config.mfa.adminEnforcementEnabled, false);
+  assert.equal(config.mfa.allUsersEnforcementEnabled, false);
   assert.equal(config.mfa.encryptionKeys.current.id, "development");
   assert.equal(config.mfa.encryptionKeys.current.key.length, 32);
   assert.deepEqual(
@@ -42,6 +43,18 @@ test("loadConfig reads an environment-driven database target", () => {
     [config.mfa.encryptionKeys.current],
   );
   assert.ok(Object.isFrozen(config));
+});
+
+test("loadConfig enables the all-account MFA policy independently", () => {
+  const config = loadConfig({
+    DATABASE_URL: "postgresql://wcib:secret@db:5432/wcib",
+    NODE_ENV: "development",
+    SESSION_SECRET: SAFE_SESSION_SECRET,
+    WCIB_MFA_REQUIRED: "true",
+  });
+
+  assert.equal(config.mfa.adminEnforcementEnabled, false);
+  assert.equal(config.mfa.allUsersEnforcementEnabled, true);
 });
 
 test("loadConfig reports missing required values without printing secrets", () => {

@@ -12,6 +12,7 @@ export interface MfaEncryptionKey {
 
 export interface MfaConfig {
   adminEnforcementEnabled: boolean;
+  allUsersEnforcementEnabled: boolean;
   encryptionKeys: {
     all: readonly MfaEncryptionKey[];
     current: MfaEncryptionKey;
@@ -55,6 +56,11 @@ export function readMfaConfig(
     adminEnforcementEnabled: readBoolean(
       env.WCIB_ADMIN_MFA_REQUIRED,
       "WCIB_ADMIN_MFA_REQUIRED",
+      false,
+    ),
+    allUsersEnforcementEnabled: readBoolean(
+      env.WCIB_MFA_REQUIRED,
+      "WCIB_MFA_REQUIRED",
       false,
     ),
     encryptionKeys: Object.freeze({

@@ -60,6 +60,7 @@ export interface LoginHandlerDependencies {
 
 export interface RegisterAuthRoutesOptions {
   adminMfaEnforcementEnabled?: boolean;
+  allUsersMfaEnforcementEnabled?: boolean;
   database: AuthDatabase;
   logger: AppLogger;
   loginThrottleSecret?: string;
@@ -235,6 +236,8 @@ export function registerAuthRoutes(
       loadMfaAccessState(options.database, userId, {
         adminEnforcementEnabled:
           options.adminMfaEnforcementEnabled === true,
+        allUsersEnforcementEnabled:
+          options.allUsersMfaEnforcementEnabled === true,
         isAdmin,
       }),
     loadPrincipal: (userId) => loadAccessPrincipal(options.database, userId),

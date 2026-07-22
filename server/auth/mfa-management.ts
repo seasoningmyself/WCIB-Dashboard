@@ -166,11 +166,18 @@ export async function disableOwnMfa(
   database: AuthDatabase,
   context: AuthorizedRequestContext,
   proof: StepUpProof,
-  options: { adminEnforcementEnabled: boolean; isAdmin: boolean },
+  options: {
+    adminEnforcementEnabled: boolean;
+    allUsersEnforcementEnabled?: boolean;
+    isAdmin: boolean;
+  },
   logger: AppLogger,
   now = new Date(),
 ): Promise<UserAccount> {
-  if (options.adminEnforcementEnabled && options.isAdmin) {
+  if (
+    options.allUsersEnforcementEnabled === true ||
+    (options.adminEnforcementEnabled && options.isAdmin)
+  ) {
     throw new MfaPolicyRequiredError();
   }
   return database.transaction(async (transaction) => {
