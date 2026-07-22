@@ -96,6 +96,20 @@ test("mobile controls keep the 44px touch-height floor", () => {
   assert.match(mobileFloor, /\.turn-in-icon-button\s*\{[^}]*min-width:\s*var\(--space-44\)/);
 });
 
+test("turn-in content reserves desktop clearance for the sticky action bar", () => {
+  assert.match(
+    css,
+    /@media \(min-width: 761px\)\s*\{\s*\.turn-in-page\s*\{[^}]*padding-bottom:\s*var\(--space-0\)[^}]*\}\s*\.turn-in-controls\s*\{[^}]*padding-bottom:\s*var\(--space-72\)[^}]*\}\s*\.turn-in-controls :is\(button, input, select, textarea\)\s*\{[^}]*scroll-margin-bottom:\s*var\(--space-72\)/,
+  );
+
+  const mobileTurnInStart = css.indexOf("@media (max-width: 760px)");
+  assert.notEqual(mobileTurnInStart, -1);
+  assert.match(
+    css.slice(mobileTurnInStart),
+    /\.turn-in-actions\s*\{[^}]*position:\s*static/,
+  );
+});
+
 test("raw visual values stay inside the token definition block", () => {
   assert.doesNotMatch(
     screenCss,
