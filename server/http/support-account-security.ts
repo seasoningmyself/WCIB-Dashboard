@@ -3,7 +3,7 @@ import {
   resetAdminMfaRequestSchema,
 } from "../../shared/admin-account-security.js";
 import { apiErrorCodes } from "../../shared/api-errors.js";
-import type { AccessRequirement } from "../auth/access.js";
+import { supportAccountSecurityListResponseSchema } from "../../shared/support-account-security.js";
 import {
   getAuthorizedRequestContext,
   type AuthorizationGuards,
@@ -15,19 +15,31 @@ import {
   MfaResetNotFoundError,
 } from "../auth/mfa-reset.js";
 import { StepUpRequiredError, type StepUpProof } from "../auth/mfa-step-up.js";
+import {
+  projectSupportAccountSecurityTargets,
+  SUPPORT_ACCOUNT_SECURITY_ACCESS,
+  SupportAccountSecurityAccessDeniedError,
+} from "../auth/support-account-security.js";
+import { projectAuthorizedFields } from "../security/field-projection.js";
 import { asyncRoute, HttpError } from "./errors.js";
 import type { RouteRegistrar } from "./routes.js";
 import { readStepUpProof } from "./step-up-proof.js";
 
 export const SUPPORT_ACCOUNT_MFA_RESET_PATH =
   "/api/support/accounts/:userId/mfa-reset";
-
-export const SUPPORT_ACCOUNT_SECURITY_ACCESS = {
-  capabilities: ["support_engineer"],
-} as const satisfies AccessRequirement;
+export const SUPPORT_ACCOUNT_SECURITY_PATH = "/api/support/accounts";
 
 export interface RegisterSupportAccountSecurityRoutesOptions {
   authorization: AuthorizationGuards;
+  list(context: AuthorizedRequestContext): Promise<
+    Array<{
+      displayName: string;
+      email: string;
+      id: string;
+      mfaEnrolled: boolean;
+      mfaEnrollmentRequired: boolean;
+    }>
+  >;
   resetMfa(
     context: AuthorizedRequestContext,
     userId: string,
@@ -40,12 +52,42 @@ export function registerSupportAccountSecurityRoutes(
   routes: RouteRegistrar,
   options: RegisterSupportAccountSecurityRoutesOptions,
 ): void {
+  const access = {
+    authorization: options.authorization.require(
+      SUPPORT_ACCOUNT_SECURITY_ACCESS,
+    ),
+  } as const;
+  routes.get(
+    SUPPORT_ACCOUNT_SECURITY_PATH,
+    access,
+    asyncRoute(async (_request, response) => {
+      const context = getAuthorizedRequestContext(response);
+      let items;
+      try {
+        items = await options.list(context);
+      } catch (error) {
+        if (error instanceof SupportAccountSecurityAccessDeniedError) {
+          throw new HttpError(403, apiErrorCodes.forbidden, "Forbidden");
+        }
+        throw error;
+      }
+      const projected = projectAuthorizedFields(
+        response,
+        { items },
+        projectSupportAccountSecurityTargets,
+      );
+      if (projected === null) {
+        throw new HttpError(403, apiErrorCodes.forbidden, "Forbidden");
+      }
+      response
+        .set("Cache-Control", "no-store")
+        .json(supportAccountSecurityListResponseSchema.parse(projected));
+    }),
+  );
   routes.post(
     SUPPORT_ACCOUNT_MFA_RESET_PATH,
     {
-      authorization: options.authorization.require(
-        SUPPORT_ACCOUNT_SECURITY_ACCESS,
-      ),
+      authorization: access.authorization,
     },
     asyncRoute(async (request, response) => {
       const context = getAuthorizedRequestContext(response);

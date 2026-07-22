@@ -19,6 +19,7 @@ export const adminAccountSecurityItemSchema = z
       })
       .strict(),
     staffRole: z.enum(STAFF_ROLES).nullable(),
+    supportCapability: z.boolean(),
   })
   .strict();
 

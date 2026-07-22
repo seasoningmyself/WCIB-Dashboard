@@ -10,6 +10,7 @@ import { toErrorResponse } from "./errors.js";
 import type { RouteAccessDeclaration, RouteRegistrar } from "./routes.js";
 import {
   SUPPORT_ACCOUNT_MFA_RESET_PATH,
+  SUPPORT_ACCOUNT_SECURITY_PATH,
   registerSupportAccountSecurityRoutes,
 } from "./support-account-security.js";
 
@@ -23,43 +24,54 @@ test("support MFA reset route requires support_engineer exactly", async () => {
   const fixture = createFixture();
 
   for (const identity of ["admin", "employee"] as const) {
-    const result = await invokeGuard(fixture.registration, identity);
-    assert.equal(result.statusCode, 403);
+    for (const registration of fixture.registrations) {
+      const result = await invokeGuard(registration, identity);
+      assert.equal(result.statusCode, 403);
+    }
   }
   assert.equal(fixture.handlerCalls(), 0);
 
-  const allowed = await invokeGuard(fixture.registration, "support");
-  assert.equal(allowed.statusCode, 200);
+  for (const registration of fixture.registrations) {
+    const allowed = await invokeGuard(registration, "support");
+    assert.equal(allowed.statusCode, 200);
+  }
 });
 
-test("support MFA reset registers one guarded mutation route", () => {
+test("support account security registers only guarded list and reset routes", () => {
   const fixture = createFixture();
-  assert.equal(fixture.registration.method, "POST");
-  assert.equal(fixture.registration.path, SUPPORT_ACCOUNT_MFA_RESET_PATH);
-  assert.equal(
-    typeof fixture.registration.access.authorization,
-    "function",
+  assert.deepEqual(
+    fixture.registrations.map(({ access, method, path }) => ({
+      guarded: typeof access.authorization === "function",
+      method,
+      path,
+      public: "public" in access,
+    })),
+    [
+      { guarded: true, method: "GET", path: SUPPORT_ACCOUNT_SECURITY_PATH, public: false },
+      { guarded: true, method: "POST", path: SUPPORT_ACCOUNT_MFA_RESET_PATH, public: false },
+    ],
   );
 });
 
 test("unenrolled support is denied before the reset handler", async () => {
   const fixture = createFixture({ supportMfaRequired: true });
-  const result = await invokeGuard(fixture.registration, "support");
-
-  assert.equal(result.statusCode, 403);
+  for (const registration of fixture.registrations) {
+    const result = await invokeGuard(registration, "support");
+    assert.equal(result.statusCode, 403);
+  }
   assert.equal(fixture.handlerCalls(), 0);
 });
 
 interface Registration {
   access: RouteAccessDeclaration;
   handler: RequestHandler;
-  method: "POST";
+  method: "GET" | "POST";
   path: string;
 }
 
 function createFixture(options: { supportMfaRequired?: boolean } = {}): {
   handlerCalls(): number;
-  registration: Registration;
+  registrations: Registration[];
 } {
   const accounts = new Map([
     [SUPPORT_ID, account(SUPPORT_ID)],
@@ -116,6 +128,13 @@ function createFixture(options: { supportMfaRequired?: boolean } = {}): {
   const registrations: Registration[] = [];
   let calls = 0;
   const routes = {
+    get(
+      path: string,
+      access: RouteAccessDeclaration,
+      ...handlers: RequestHandler[]
+    ) {
+      registrations.push({ access, handler: handlers[0]!, method: "GET", path });
+    },
     post(
       path: string,
       access: RouteAccessDeclaration,
@@ -126,14 +145,18 @@ function createFixture(options: { supportMfaRequired?: boolean } = {}): {
   } as unknown as RouteRegistrar;
   registerSupportAccountSecurityRoutes(routes, {
     authorization,
+    async list() {
+      calls += 1;
+      return [];
+    },
     async resetMfa() {
       calls += 1;
     },
   });
-  assert.equal(registrations.length, 1);
+  assert.equal(registrations.length, 2);
   return {
     handlerCalls: () => calls,
-    registration: registrations[0]!,
+    registrations,
   };
 }
 
@@ -153,7 +176,7 @@ async function invokeGuard(
       return "step-up-token";
     },
     headers: {},
-    method: "POST",
+    method: registration.method,
     originalUrl: registration.path,
     params: { userId: TARGET_ID },
     route: { path: registration.path },
@@ -167,7 +190,13 @@ async function invokeGuard(
   } as unknown as Request;
   const response = {
     end() {},
+    json() {
+      return this;
+    },
     locals: {},
+    set() {
+      return this;
+    },
     status() {
       return this;
     },

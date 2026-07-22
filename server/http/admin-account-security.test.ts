@@ -10,6 +10,7 @@ import {
   ADMIN_ACCOUNT_SECURITY_EMAIL_PATH,
   ADMIN_ACCOUNT_SECURITY_MFA_RESET_PATH,
   ADMIN_ACCOUNT_SECURITY_PATH,
+  ADMIN_ACCOUNT_SECURITY_SUPPORT_CAPABILITY_PATH,
   registerAdminAccountSecurityRoutes,
 } from "./admin-account-security.js";
 import { toErrorResponse } from "./errors.js";
@@ -39,7 +40,7 @@ test("Account Security denies employee and producer callers before every handler
   }
 });
 
-test("Account Security declares only the four guarded administrator routes", () => {
+test("Account Security declares only the five guarded administrator routes", () => {
   const fixture = createFixture();
   assert.deepEqual(
     fixture.registrations.map(({ access, method, path }) => ({
@@ -51,6 +52,7 @@ test("Account Security declares only the four guarded administrator routes", () 
     [
       { guarded: true, method: "GET", path: ADMIN_ACCOUNT_SECURITY_PATH, public: false },
       { guarded: true, method: "PATCH", path: ADMIN_ACCOUNT_SECURITY_CAPABILITY_PATH, public: false },
+      { guarded: true, method: "PATCH", path: ADMIN_ACCOUNT_SECURITY_SUPPORT_CAPABILITY_PATH, public: false },
       { guarded: true, method: "PATCH", path: ADMIN_ACCOUNT_SECURITY_EMAIL_PATH, public: false },
       { guarded: true, method: "POST", path: ADMIN_ACCOUNT_SECURITY_MFA_RESET_PATH, public: false },
     ],
@@ -95,6 +97,7 @@ function createFixture(): { handlerCalls: number; registrations: Registration[] 
     },
     resetMfa: called,
     setAdminCapability: called,
+    setSupportCapability: called,
     updateEmail: called,
   });
   return result;

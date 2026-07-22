@@ -25,6 +25,8 @@ import { readStepUpProof } from "./step-up-proof.js";
 export const ADMIN_ACCOUNT_SECURITY_PATH = "/api/admin/account-security";
 export const ADMIN_ACCOUNT_SECURITY_CAPABILITY_PATH =
   "/api/admin/account-security/:userId/admin-capability";
+export const ADMIN_ACCOUNT_SECURITY_SUPPORT_CAPABILITY_PATH =
+  "/api/admin/account-security/:userId/support-capability";
 export const ADMIN_ACCOUNT_SECURITY_EMAIL_PATH =
   "/api/admin/account-security/:userId/email";
 export const ADMIN_ACCOUNT_SECURITY_MFA_RESET_PATH =
@@ -38,6 +40,7 @@ interface AccountSecuritySource {
   isActive: boolean;
   mfa: object;
   staffRole: string | null;
+  supportCapability: boolean;
 }
 
 export interface RegisterAdminAccountSecurityRoutesOptions {
@@ -50,6 +53,12 @@ export interface RegisterAdminAccountSecurityRoutesOptions {
     proof: StepUpProof,
   ): Promise<void>;
   setAdminCapability(
+    context: AuthorizedRequestContext,
+    userId: string,
+    input: unknown,
+    proof: StepUpProof,
+  ): Promise<void>;
+  setSupportCapability(
     context: AuthorizedRequestContext,
     userId: string,
     input: unknown,
@@ -104,6 +113,28 @@ export function registerAdminAccountSecurityRoutes(
           readStepUpProof(req, {
             action: "admin_capability_change",
             mutation: input,
+            targetUserId: userId,
+          }),
+        ),
+      );
+      res.status(204).end();
+    }),
+  );
+  routes.patch(
+    ADMIN_ACCOUNT_SECURITY_SUPPORT_CAPABILITY_PATH,
+    access,
+    asyncRoute(async (req, res) => {
+      const context = getAuthorizedRequestContext(res);
+      const { userId } = adminAccountSecurityParamsSchema.parse(req.params);
+      const input = updateAdminCapabilityRequestSchema.parse(req.body);
+      await runMutation(() =>
+        options.setSupportCapability(
+          context,
+          userId,
+          input,
+          readStepUpProof(req, {
+            action: "admin_capability_change",
+            mutation: { capability: "support_engineer", ...input },
             targetUserId: userId,
           }),
         ),

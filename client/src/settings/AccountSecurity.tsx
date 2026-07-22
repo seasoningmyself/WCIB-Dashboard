@@ -16,6 +16,7 @@ import {
 
 type SensitiveMutation =
   | { enabled: boolean; item: AdminAccountSecurityItem; kind: "capability" }
+  | { enabled: boolean; item: AdminAccountSecurityItem; kind: "support_capability" }
   | { email: string; item: AdminAccountSecurityItem; kind: "email" }
   | { item: AdminAccountSecurityItem; kind: "reset"; reason: string };
 
@@ -68,7 +69,7 @@ export function AccountSecurityPanel({ user }: { user: CurrentUser }) {
     <section className="settings-panel account-security-panel" aria-labelledby="account-security-title" role="tabpanel">
       <header>
         <h2 id="account-security-title">Account security</h2>
-        <p>Manage administrator recovery, sign-in email, and the separate administrator capability.</p>
+        <p>Manage administrator recovery, sign-in email, and capability-only support access.</p>
       </header>
       {user.mfa?.enrolled !== true ? (
         <p className="mfa-recommendation" role="status">
@@ -103,6 +104,14 @@ export function AccountSecurityPanel({ user }: { user: CurrentUser }) {
                 {item.adminCapability ? "Remove admin" : "Make admin"}
               </button>
               <button
+                disabled={item.staffRole !== null}
+                onClick={() => setMutation({ enabled: !item.supportCapability, item, kind: "support_capability" })}
+                title={item.staffRole !== null ? "Support access is limited to capability-only accounts" : undefined}
+                type="button"
+              >
+                {item.supportCapability ? "Remove support" : "Grant support"}
+              </button>
+              <button
                 disabled={!item.mfa.enrolled || item.id === user.id}
                 onClick={() => setDraft({ item, kind: "reset" })}
                 title={item.id === user.id ? "Another administrator must reset your MFA" : undefined}
@@ -134,6 +143,8 @@ export function AccountSecurityPanel({ user }: { user: CurrentUser }) {
             try {
               if (mutation.kind === "capability") {
                 await api.setAdminCapability(mutation.item.id, mutation.enabled, token);
+              } else if (mutation.kind === "support_capability") {
+                await api.setSupportCapability(mutation.item.id, mutation.enabled, token);
               } else if (mutation.kind === "email") {
                 await api.updateEmail(mutation.item.id, mutation.email, token);
               } else {
@@ -216,6 +227,13 @@ function mutationDescriptor(mutation: SensitiveMutation): MfaStepUpDescriptor {
   if (mutation.kind === "capability") {
     return { action: "admin_capability_change", mutation: { enabled: mutation.enabled }, targetUserId: mutation.item.id };
   }
+  if (mutation.kind === "support_capability") {
+    return {
+      action: "admin_capability_change",
+      mutation: { capability: "support_engineer", enabled: mutation.enabled },
+      targetUserId: mutation.item.id,
+    };
+  }
   if (mutation.kind === "email") {
     return { action: "admin_staff_update", mutation: { email: mutation.email }, targetUserId: mutation.item.id };
   }
@@ -224,6 +242,7 @@ function mutationDescriptor(mutation: SensitiveMutation): MfaStepUpDescriptor {
 
 function stepUpTitle(mutation: SensitiveMutation): string {
   if (mutation.kind === "capability") return mutation.enabled ? "Grant administrator access" : "Remove administrator access";
+  if (mutation.kind === "support_capability") return mutation.enabled ? "Grant support access" : "Remove support access";
   if (mutation.kind === "email") return "Change sign-in email";
   return "Reset this account's MFA";
 }
@@ -233,7 +252,9 @@ function methodLabel(method: "totp" | "webauthn"): string {
 }
 
 function accountRole(item: AdminAccountSecurityItem): string {
+  if (item.adminCapability && item.supportCapability) return "Administrator + support engineer";
   if (item.adminCapability) return "Administrator";
+  if (item.supportCapability) return "Support engineer";
   if (item.staffRole === "producer") return "Producer";
   if (item.staffRole === "employee") return "Employee";
   return "Capability-only account";

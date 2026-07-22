@@ -183,10 +183,12 @@ import {
   listAdminAccountSecurity,
   resetAdminMfa,
   setAdminCapability,
+  setSupportCapability,
   updateAdminAccountEmail,
 } from "./auth/admin-account-security.js";
 import { resetUserMfa } from "./auth/mfa-reset.js";
 import { registerSupportAccountSecurityRoutes } from "./http/support-account-security.js";
+import { listSupportAccountSecurityTargets } from "./auth/support-account-security.js";
 import { createDigitalOceanBackupProvider } from "./support/digitalocean-backups.js";
 import { createSentrySupportProvider } from "./support/sentry.js";
 import { loadOperationalSupportDashboard } from "./support/operational.js";
@@ -701,6 +703,17 @@ const app = createApp({
           config.mfa.adminEnforcementEnabled,
           logger,
         ),
+      setSupportCapability: (context, userId, input, proof) =>
+        setSupportCapability(
+          database,
+          context,
+          userId,
+          input,
+          proof,
+          config.mfa.adminEnforcementEnabled,
+          config.mfa.allUsersEnforcementEnabled,
+          logger,
+        ),
       updateEmail: (context, userId, input, proof) =>
         updateAdminAccountEmail(
           database,
@@ -713,6 +726,14 @@ const app = createApp({
     });
     registerSupportAccountSecurityRoutes(routes, {
       authorization,
+      list: (context) =>
+        listSupportAccountSecurityTargets(
+          database,
+          context,
+          config.mfa.adminEnforcementEnabled,
+          config.mfa.allUsersEnforcementEnabled,
+          logger,
+        ),
       resetMfa: (context, userId, input, proof) =>
         resetUserMfa(
           database,
