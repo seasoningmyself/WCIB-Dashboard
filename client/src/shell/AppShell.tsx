@@ -399,6 +399,7 @@ function ShellContent({
           onDisplayNameChange={(displayName) =>
             onUserChanged?.({ ...user, displayName })
           }
+          onMfaChange={(mfa) => onUserChanged?.({ ...user, mfa })}
           user={user}
         />
       );
