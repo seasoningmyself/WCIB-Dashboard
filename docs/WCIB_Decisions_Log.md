@@ -1,7 +1,41 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 21, 2026 (Optional MFA, recovery, and exact-action step-up security.)
+**Last updated:** July 22, 2026 (Scoped engineering support authority.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
+
+---
+
+## July 22, 2026 — Engineering support is an exact scoped capability
+
+Engineering support uses the exact `support_engineer` capability rather than
+full administrator access. Administrator capability does not implicitly grant
+the Support dashboard. A support account has no staff profile, appears in
+Account Security rather than Manage Staff, and may manage only office-location
+vocabulary plus its own Settings and MFA. Its only user-targeting mutation is
+resetting another user's MFA after the engineer completes an exact-action
+password-and-factor step-up and supplies a written reason. It cannot reset
+itself.
+
+The support account cannot manage staff, roles, commission rates, approvals,
+policies, pay sheets, payment state, settings outside offices, Start Fresh, or
+any business record. It cannot read individual compensation, pay sheets,
+policies, insureds, carrier/MGA detail, assignments, or named financial data.
+Company numbers are a dedicated aggregate-only projection with no producer
+payout or split fields. Audit diagnostics expose only a time window, total,
+and fixed-category counts and last-occurrence timestamps; actors, targets,
+entities, reasons, raw actions, and before/after values remain inaccessible.
+
+MFA is mandatory for `support_engineer`. A support account may rotate methods
+only while retaining at least one verified factor; complete MFA removal requires
+a different administrator. Support-surface access and MFA resets are audited
+without diagnostic payloads or credential material.
+
+The production downgrade of `salam@shieldstonelabs.com` remains gated. Sophia
+and Earl must each complete first-login password replacement, enroll MFA, and
+prove step-up authentication before Ennis loses administrator access. Until
+that recovery prerequisite is observed, no production capability change is
+permitted. Migration 0054 advances the generation schema contract from 54 to
+55 and remains local-only until explicitly applied to managed PostgreSQL.
 
 ---
 
