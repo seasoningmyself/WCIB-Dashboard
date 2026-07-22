@@ -65,7 +65,7 @@ export async function resetUserMfa(
     );
   }
   await database.transaction(async (transaction) => {
-    await consumeStepUpAuthorization(
+    const stepUpMethod = await consumeStepUpAuthorization(
       transaction as AuthDatabase,
       context,
       proof,
@@ -145,6 +145,7 @@ export async function resetUserMfa(
       context,
       {
         action: "user_mfa_reset",
+        method: stepUpMethod,
         outcome: "success",
         reason: input.reason,
         targetUserId,

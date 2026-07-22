@@ -268,7 +268,11 @@ test("support MFA is mandatory and reset is scoped, atomic, and audited", async 
       assert.deepEqual(resetAudits, [
         {
           actorUserId: support.id,
-          afterSummary: { outcome: "success", reason: resetInput.reason },
+          afterSummary: {
+            method: "totp",
+            outcome: "success",
+            reason: resetInput.reason,
+          },
           entityId: target.id,
         },
       ]);
