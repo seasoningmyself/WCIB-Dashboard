@@ -19,6 +19,7 @@ import { MyItems } from "../my-items/MyItems.js";
 import { ManageStaff } from "../staff/ManageStaff.js";
 import { SettingsSurface } from "../settings/AccountSettings.js";
 import { KpisGoals } from "../kpis/KpisGoals.js";
+import { SupportDashboard } from "../support/SupportDashboard.js";
 import { PageHeader } from "../ui/PageHeader.js";
 import { resolveDraftSelection } from "../drafts/my-drafts-state.js";
 import { VocabularyProvider } from "../vocabulary/context.js";
@@ -175,7 +176,7 @@ export function AppShellView({
           groups={navigationGroups}
           label="Primary navigation"
         />
-        <WorkspaceUser name={name} onLogout={onLogout} role={user.role} />
+        <WorkspaceUser capabilities={user.capabilities} name={name} onLogout={onLogout} role={user.role} />
       </aside>
 
       <div className="workspace-main">
@@ -225,7 +226,7 @@ export function AppShellView({
                   onNavigate?.(path);
                 }}
               />
-              <WorkspaceUser name={name} onLogout={onLogout} role={user.role} />
+              <WorkspaceUser capabilities={user.capabilities} name={name} onLogout={onLogout} role={user.role} />
             </div>
           </>
         ) : null}
@@ -304,10 +305,12 @@ function WorkspaceBrand() {
 }
 
 function WorkspaceUser({
+  capabilities,
   name,
   onLogout,
   role,
 }: {
+  capabilities: CurrentUser["capabilities"];
   name: string;
   onLogout(): void;
   role: CurrentUser["role"];
@@ -317,7 +320,7 @@ function WorkspaceUser({
       <span className="workspace-avatar" aria-hidden="true">{initials(name)}</span>
       <span className="workspace-user-copy">
         <strong>{name}</strong>
-        <span>{roleLabel(role)}</span>
+        <span>{roleLabel(role, capabilities)}</span>
       </span>
       <button className="workspace-logout" onClick={onLogout} type="button">
         Sign out
@@ -407,6 +410,9 @@ function ShellContent({
     if (route.item.id === "kpis") {
       return <KpisGoals user={user} />;
     }
+    if (route.item.id === "support") {
+      return <SupportDashboard user={user} />;
+    }
     return (
       <section className="workspace-page" aria-labelledby="workspace-page-title">
         <PageHeader
@@ -451,7 +457,13 @@ function initials(name: string): string {
     .join("") || "W";
 }
 
-function roleLabel(role: CurrentUser["role"]): string {
+function roleLabel(
+  role: CurrentUser["role"],
+  capabilities: CurrentUser["capabilities"],
+): string {
+  if (capabilities.includes("support_engineer") && role === null) {
+    return "Support engineer";
+  }
   switch (role) {
     case "admin":
       return "Administrator";

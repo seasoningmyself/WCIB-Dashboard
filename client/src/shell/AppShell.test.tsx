@@ -93,6 +93,22 @@ test("producer and employee shells degrade grouped navigation by authorization",
   assert.doesNotMatch(employee, />Policy Ledger</);
 });
 
+test("support-only shell exposes Support and Settings without admin workspaces", () => {
+  const markup = shellMarkup({
+    ...baseUser,
+    allowedNavigation: ["support", "settings"],
+    capabilities: ["support_engineer"],
+    displayName: "Ennis",
+    role: null,
+  });
+
+  assert.match(markup, />Support<\/span>/);
+  assert.match(markup, />Settings<\/span>/);
+  assert.match(markup, /Support engineer/);
+  assert.match(markup, /Loading support status/);
+  assert.doesNotMatch(markup, />Manage Staff<|>Approvals<|>Pay Sheets<|>KPIs &amp; Goals</);
+});
+
 test("shell renders count badges only for positive projected counts", () => {
   const markup = renderToStaticMarkup(
     withApi(
