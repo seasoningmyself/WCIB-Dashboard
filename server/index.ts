@@ -192,6 +192,7 @@ const pool = createDatabasePool(config.databaseUrl);
 const database = drizzle(pool, { schema: databaseSchema });
 const authorization = createDatabaseAuthorizationGuards(database, logger, {
   adminMfaEnforcementEnabled: config.mfa.adminEnforcementEnabled,
+  allUsersMfaEnforcementEnabled: config.mfa.allUsersEnforcementEnabled,
 });
 const app = createApp({
   clientAssetsDirectory:
@@ -201,6 +202,7 @@ const app = createApp({
   registerRoutes: (routes) => {
     registerAuthRoutes(routes, {
       adminMfaEnforcementEnabled: config.mfa.adminEnforcementEnabled,
+      allUsersMfaEnforcementEnabled: config.mfa.allUsersEnforcementEnabled,
       database,
       logger,
       loginThrottleSecret: config.sessionSecret,
@@ -210,6 +212,7 @@ const app = createApp({
       loadIdentity: (userId, isAdmin = false) =>
         loadCurrentUserIdentity(database, userId, {
           adminEnforcementEnabled: config.mfa.adminEnforcementEnabled,
+          allUsersEnforcementEnabled: config.mfa.allUsersEnforcementEnabled,
           isAdmin,
         }),
     });
@@ -224,6 +227,7 @@ const app = createApp({
         }
         const mfa = await loadMfaAccessState(database, user.id, {
           adminEnforcementEnabled: config.mfa.adminEnforcementEnabled,
+          allUsersEnforcementEnabled: config.mfa.allUsersEnforcementEnabled,
           isAdmin: principal.capabilities.includes("admin"),
         });
         await establishMfaSession(
@@ -631,6 +635,7 @@ const app = createApp({
           database,
           context,
           config.mfa.adminEnforcementEnabled,
+          config.mfa.allUsersEnforcementEnabled,
         ),
       resetMfa: (context, userId, input, proof) =>
         resetAdminMfa(

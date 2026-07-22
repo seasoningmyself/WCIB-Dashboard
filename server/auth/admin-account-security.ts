@@ -52,6 +52,7 @@ export async function listAdminAccountSecurity(
   database: AuthDatabase,
   context: AuthorizedRequestContext,
   adminEnforcementEnabled: boolean,
+  allUsersEnforcementEnabled = false,
 ): Promise<AdminAccountSecurityItem[]> {
   requireAdmin(context);
   const accounts = await database
@@ -78,6 +79,7 @@ export async function listAdminAccountSecurity(
     const isAdmin = account.adminCapability === true;
     const mfa = await loadMfaState(database, account.id, {
       adminEnforcementEnabled,
+      allUsersEnforcementEnabled,
       isAdmin,
     });
     result.push({

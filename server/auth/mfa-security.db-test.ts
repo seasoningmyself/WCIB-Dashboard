@@ -30,7 +30,11 @@ import {
   replaceRecoveryCodesInTransaction,
   validateRecoveryGrant,
 } from "./mfa-recovery.js";
-import { ensureMfaSettings, loadMfaAccessState } from "./mfa-state.js";
+import {
+  ensureMfaSettings,
+  loadMfaAccessState,
+  loadMfaState,
+} from "./mfa-state.js";
 import {
   consumeStepUpAuthorization,
   issueStepUpAuthorization,
@@ -148,6 +152,39 @@ test("MFA factors, recovery, policy, and step-up guarantees hold", async (t) => 
           { role: "employee", userId: webAuthnOptionsUser.id },
         ]);
         const context = adminContext(actor.id);
+
+        await t.test("the all-account policy requires employee enrollment", async () => {
+          const access = await loadMfaAccessState(database, staffTarget.id, {
+            adminEnforcementEnabled: false,
+            allUsersEnforcementEnabled: true,
+            isAdmin: false,
+          });
+          assert.equal(access.enrolled, false);
+          assert.equal(access.policyRequired, true);
+
+          const state = await loadMfaState(database, staffTarget.id, {
+            adminEnforcementEnabled: false,
+            allUsersEnforcementEnabled: true,
+            isAdmin: false,
+          });
+          assert.equal(state.enrollmentRequired, true);
+          assert.equal(state.policyRequired, true);
+
+          await assert.rejects(
+            disableOwnMfa(
+              database,
+              employeeContext(staffTarget.id),
+              missingProof(staffTarget.id, "mfa_disable", { enabled: false }),
+              {
+                adminEnforcementEnabled: false,
+                allUsersEnforcementEnabled: true,
+                isAdmin: false,
+              },
+              logger,
+            ),
+            MfaPolicyRequiredError,
+          );
+        });
 
         await t.test("TOTP enrollment hashes recovery codes and rejects replay", async () => {
           const now = new Date("2026-07-21T18:00:00.000Z");

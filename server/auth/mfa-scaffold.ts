@@ -42,6 +42,7 @@ export async function getAdminMfaScaffold(
   if (principal === null) return null;
   const state = await loadMfaState(database, userId, {
     adminEnforcementEnabled: false,
+    allUsersEnforcementEnabled: false,
     isAdmin: principal.capabilities.includes("admin"),
   });
   return {

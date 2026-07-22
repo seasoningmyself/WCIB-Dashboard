@@ -21,6 +21,12 @@ export interface MfaAccessState {
   requiresMfaLogin: boolean;
 }
 
+export interface MfaPolicyOptions {
+  adminEnforcementEnabled: boolean;
+  allUsersEnforcementEnabled?: boolean;
+  isAdmin: boolean;
+}
+
 export async function ensureMfaSettings(
   database: AuthDatabase,
   userId: string,
@@ -34,7 +40,7 @@ export async function ensureMfaSettings(
 export async function loadMfaAccessState(
   database: AuthDatabase,
   userId: string,
-  options: { adminEnforcementEnabled: boolean; isAdmin: boolean },
+  options: MfaPolicyOptions,
 ): Promise<MfaAccessState> {
   const [settings] = await database
     .select({
@@ -65,6 +71,7 @@ export async function loadMfaAccessState(
   const enforcementEnabled = settings?.enforcementEnabled === true;
   const enrollmentIncomplete = enforcementEnabled && !enrolled;
   const policyRequired =
+    options.allUsersEnforcementEnabled === true ||
     (options.adminEnforcementEnabled && options.isAdmin) ||
     (settings?.policyRequiredAt !== null &&
       settings?.policyRequiredAt !== undefined);
@@ -85,7 +92,7 @@ export async function loadMfaAccessState(
 export async function loadMfaState(
   database: AuthDatabase,
   userId: string,
-  options: { adminEnforcementEnabled: boolean; isAdmin: boolean },
+  options: MfaPolicyOptions,
 ): Promise<MfaState> {
   const access = await loadMfaAccessState(database, userId, options);
   const methods = await loadActiveMethods(database, userId);
@@ -106,6 +113,7 @@ export async function loadMfaState(
     enrollmentRequired:
       !access.enrolled &&
       (access.policyRequired || access.enrollmentIncomplete),
+    policyRequired: access.policyRequired,
     methods,
     recoveryCodesAcknowledged: access.recoveryCodesAcknowledged,
     recoveryCodesRemaining: recoveryCodes.length,

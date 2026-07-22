@@ -48,7 +48,11 @@ export class CurrentUserProjectionError extends Error {
 export async function loadCurrentUserIdentity(
   database: AuthDatabase,
   userId: string,
-  mfaOptions?: { adminEnforcementEnabled: boolean; isAdmin: boolean },
+  mfaOptions?: {
+    adminEnforcementEnabled: boolean;
+    allUsersEnforcementEnabled?: boolean;
+    isAdmin: boolean;
+  },
 ): Promise<CurrentUserIdentity | null> {
   const [identity] = await database
     .select({

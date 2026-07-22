@@ -117,7 +117,7 @@ export function MfaSettingsPanel({
     setMfa(next);
     onMfaChange(next);
   };
-  const disableBlocked = mfa.adminRecommended && mfa.adminEnforcementEnabled;
+  const disableBlocked = mfa.policyRequired;
 
   const renameMethod = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

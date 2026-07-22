@@ -25,6 +25,7 @@ const user: CurrentUser = {
     adminRecommended: true,
     enrolled: false,
     enrollmentRequired: false,
+    policyRequired: false,
     methods: [],
     recoveryCodesAcknowledged: false,
     recoveryCodesRemaining: 0,
@@ -218,4 +219,25 @@ test("MFA settings show user-defined method names and individual controls", () =
   assert.match(markup, /aria-label="Rename Personal YubiKey"/);
   assert.match(markup, /aria-label="Remove Personal YubiKey"/);
   assert.match(markup, /Passkey or security key/);
+});
+
+test("policy-required users cannot turn off MFA", () => {
+  const markup = renderToStaticMarkup(
+    <MfaSettingsPanel
+      api={api}
+      initialMfa={{
+        ...user.mfa!,
+        adminRecommended: false,
+        enrolled: true,
+        policyRequired: true,
+        recoveryCodesAcknowledged: true,
+        recoveryCodesRemaining: 10,
+      }}
+      onMfaChange={() => {}}
+      userId={user.id}
+    />,
+  );
+
+  assert.match(markup, /MFA is required by administrator policy/);
+  assert.match(markup, /<button[^>]*disabled=""[^>]*>Turn off MFA<\/button>/);
 });

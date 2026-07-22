@@ -442,6 +442,7 @@ function emptyMfaState(adminRecommended: boolean): MfaState {
     adminRecommended,
     enrolled: false,
     enrollmentRequired: false,
+    policyRequired: false,
     methods: [],
     recoveryCodesAcknowledged: false,
     recoveryCodesRemaining: 0,

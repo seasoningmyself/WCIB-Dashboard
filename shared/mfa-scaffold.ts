@@ -53,6 +53,7 @@ export const mfaStateSchema = z
     adminRecommended: z.boolean(),
     enrolled: z.boolean(),
     enrollmentRequired: z.boolean(),
+    policyRequired: z.boolean(),
     methods: z.array(mfaMethodSummarySchema),
     recoveryCodesAcknowledged: z.boolean(),
     recoveryCodesRemaining: z.number().int().min(0).max(MFA_RECOVERY_CODE_COUNT),
