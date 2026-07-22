@@ -125,6 +125,7 @@ async function invokeHandler(
 test("login returns only the safe WCIB identity and access summary", async () => {
   const { events, logger } = recordingLogger();
   let establishedSessions = 0;
+  let completedLogins = 0;
   const handler = createLoginHandler({
     async authenticate() {
       return authenticated();
@@ -137,6 +138,10 @@ test("login returns only the safe WCIB identity and access summary", async () =>
       return principal({ capabilities: ["admin"] });
     },
     logger,
+    async recordCompletedLogin(userId) {
+      assert.equal(userId, USER_ID);
+      completedLogins += 1;
+    },
   });
 
   const response = await invokeHandler(handler, {
@@ -155,6 +160,7 @@ test("login returns only the safe WCIB identity and access summary", async () =>
     },
   });
   assert.equal(establishedSessions, 1);
+  assert.equal(completedLogins, 1);
   assert.deepEqual(events, [
     {
       context: {
@@ -185,6 +191,7 @@ test("an enrolled account receives only an MFA challenge session after a valid p
   let authenticatedSessions = 0;
   let challengeSessions = 0;
   let clearedFailures = 0;
+  let completedLogins = 0;
   const handler = createLoginHandler({
     async authenticate() {
       return authenticated();
@@ -212,6 +219,9 @@ test("an enrolled account receives only an MFA challenge session after a valid p
       return principal({ capabilities: ["admin"] });
     },
     logger,
+    async recordCompletedLogin() {
+      completedLogins += 1;
+    },
     throttle: {
       async check() {
         return null;
@@ -243,12 +253,14 @@ test("an enrolled account receives only an MFA challenge session after a valid p
   assert.equal(authenticatedSessions, 0);
   assert.equal(challengeSessions, 1);
   assert.equal(clearedFailures, 0);
+  assert.equal(completedLogins, 0);
 });
 
 test("required password replacement takes precedence over an enrolled MFA challenge", async () => {
   const { logger } = recordingLogger();
   let authenticatedSessions = 0;
   let mfaSessions = 0;
+  let completedLogins = 0;
   const handler = createLoginHandler({
     async authenticate() {
       return {
@@ -279,6 +291,9 @@ test("required password replacement takes precedence over an enrolled MFA challe
       return principal({ capabilities: ["admin"] });
     },
     logger,
+    async recordCompletedLogin() {
+      completedLogins += 1;
+    },
   });
 
   const response = await invokeHandler(handler, {
@@ -290,6 +305,7 @@ test("required password replacement takes precedence over an enrolled MFA challe
   assert.equal((response.body as any).authenticationState, "authenticated");
   assert.equal(authenticatedSessions, 1);
   assert.equal(mfaSessions, 0);
+  assert.equal(completedLogins, 0);
 });
 
 test("invalid and unavailable identities share one non-enumerating response", async () => {

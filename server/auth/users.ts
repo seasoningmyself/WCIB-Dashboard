@@ -109,6 +109,20 @@ export async function opportunisticallyUpgradePasswordHash(
   return updated !== undefined;
 }
 
+export async function recordCompletedLogin(
+  database: AuthDatabase,
+  userId: string,
+  occurredAt = new Date(),
+): Promise<void> {
+  if (Number.isNaN(occurredAt.getTime())) {
+    throw new Error("Completed login timestamp is invalid");
+  }
+  await database
+    .update(users)
+    .set({ lastLoginAt: occurredAt })
+    .where(eq(users.id, userId));
+}
+
 export async function findUserById(
   database: AuthDatabase,
   id: string,

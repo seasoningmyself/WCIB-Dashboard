@@ -24,6 +24,7 @@ import { loadMfaAccessState, type MfaAccessState } from "../auth/mfa-state.js";
 import {
   findUserCredentialsByEmail,
   opportunisticallyUpgradePasswordHash,
+  recordCompletedLogin,
   type AuthDatabase,
   type UserAccount,
 } from "../auth/users.js";
@@ -51,6 +52,7 @@ export interface LoginHandlerDependencies {
   ): Promise<MfaAccessState>;
   loadPrincipal(userId: string): Promise<AccessPrincipal | null>;
   logger: AppLogger;
+  recordCompletedLogin?(userId: string): Promise<void>;
   throttle?: LoginThrottle;
   upgradePasswordHash?(
     userId: string,
@@ -165,6 +167,9 @@ export function createLoginHandler(
     } else {
       await throttle.clearAccount(throttleKeys.account);
       await dependencies.establishSession(req, user);
+      if (user.passwordChangeRequiredAt === null) {
+        await recordCompletedLoginSafely(dependencies, user.id);
+      }
     }
     const response: LoginResponse = {
       authenticationState:
@@ -245,6 +250,8 @@ export function registerAuthRoutes(
       }),
     loadPrincipal: (userId) => loadAccessPrincipal(options.database, userId),
     logger: options.logger,
+    recordCompletedLogin: (userId) =>
+      recordCompletedLogin(options.database, userId),
     throttle,
     upgradePasswordHash: (userId, password, currentPasswordHash) =>
       opportunisticallyUpgradePasswordHash(
@@ -281,6 +288,22 @@ export function registerAuthRoutes(
     delivery: options.passwordResetDelivery,
     logger: options.logger,
   });
+}
+
+async function recordCompletedLoginSafely(
+  dependencies: LoginHandlerDependencies,
+  userId: string,
+): Promise<void> {
+  if (dependencies.recordCompletedLogin === undefined) return;
+  try {
+    await dependencies.recordCompletedLogin(userId);
+  } catch {
+    dependencies.logger.warn("Last-login status update deferred", {
+      component: "auth",
+      event: "last_login_update_deferred",
+      userId,
+    });
+  }
 }
 
 function invalidCredentialsError(): HttpError {

@@ -187,11 +187,23 @@ import {
 } from "./auth/admin-account-security.js";
 import { resetUserMfa } from "./auth/mfa-reset.js";
 import { registerSupportAccountSecurityRoutes } from "./http/support-account-security.js";
+import { createDigitalOceanBackupProvider } from "./support/digitalocean-backups.js";
+import { createSentrySupportProvider } from "./support/sentry.js";
+import { loadOperationalSupportDashboard } from "./support/operational.js";
+import { registerSupportDashboardRoutes } from "./http/support-dashboard.js";
+import { recordCompletedLogin } from "./auth/users.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
 const pool = createDatabasePool(config.databaseUrl);
 const database = drizzle(pool, { schema: databaseSchema });
+const supportBackupProvider = createDigitalOceanBackupProvider(
+  config.support.digitalOceanBackup,
+  config.support.backupFreshnessThresholdHours,
+);
+const supportTelemetryProvider = createSentrySupportProvider(
+  config.support.sentry,
+);
 const authorization = createDatabaseAuthorizationGuards(database, logger, {
   adminMfaEnforcementEnabled: config.mfa.adminEnforcementEnabled,
   allUsersMfaEnforcementEnabled: config.mfa.allUsersEnforcementEnabled,
@@ -202,6 +214,18 @@ const app = createApp({
   logger,
   readinessCheck: () => checkDatabaseConnection(pool),
   registerRoutes: (routes) => {
+    registerSupportDashboardRoutes(routes, {
+      authorization,
+      load: (context) =>
+        loadOperationalSupportDashboard(database, context, {
+          backupProvider: supportBackupProvider,
+          config: config.support,
+          logger,
+          nodeEnv: config.nodeEnv,
+          readinessCheck: () => checkDatabaseConnection(pool),
+          telemetryProvider: supportTelemetryProvider,
+        }),
+    });
     registerAuthRoutes(routes, {
       adminMfaEnforcementEnabled: config.mfa.adminEnforcementEnabled,
       allUsersMfaEnforcementEnabled: config.mfa.allUsersEnforcementEnabled,
@@ -239,15 +263,27 @@ const app = createApp({
           isSupportEngineer:
             principal.capabilities.includes("support_engineer"),
         });
+        const authenticationState = mfa.requiresMfaLogin
+          ? "mfa_challenge"
+          : mfa.policyRequired || mfa.enrollmentIncomplete
+            ? "mfa_enrollment"
+            : "authenticated";
         await establishMfaSession(
           req,
           user,
-          mfa.requiresMfaLogin
-            ? "mfa_challenge"
-            : mfa.policyRequired || mfa.enrollmentIncomplete
-              ? "mfa_enrollment"
-              : "authenticated",
+          authenticationState,
         );
+        if (authenticationState === "authenticated") {
+          try {
+            await recordCompletedLogin(database, user.id);
+          } catch {
+            logger.warn("Last-login status update deferred", {
+              component: "auth",
+              event: "last_login_update_deferred",
+              userId: user.id,
+            });
+          }
+        }
       },
       logger,
     });
