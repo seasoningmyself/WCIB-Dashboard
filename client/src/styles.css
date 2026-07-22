@@ -3119,6 +3119,20 @@ h1 {
   opacity: 0.58;
 }
 
+@media (min-width: 761px) {
+  .turn-in-page {
+    padding-bottom: var(--space-0);
+  }
+
+  .turn-in-controls {
+    padding-bottom: var(--space-72);
+  }
+
+  .turn-in-controls :is(button, input, select, textarea) {
+    scroll-margin-bottom: var(--space-72);
+  }
+}
+
 .turn-in-dialog-backdrop {
   position: fixed;
   z-index: 100;
