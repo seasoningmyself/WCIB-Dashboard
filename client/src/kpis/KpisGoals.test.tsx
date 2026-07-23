@@ -83,6 +83,29 @@ test("KPI screen preserves target editing, pending, and empty closed-history sta
   assert.match(empty, /No closed performance yet/);
   assert.match(empty, /Targets vs\. actuals/);
   assert.doesNotMatch(empty, /Business performance/);
+
+  const firstRunTargets = kpiTargetsFixture();
+  firstRunTargets.items = [];
+  const firstRun = renderView({
+    actuals: kpiActualsFixture({
+      empty: true,
+      monthly: [],
+      offices: [],
+      producerPayouts: [],
+      transactionTypes: [],
+    }),
+    targetValues: {
+      newPolicyCountTarget: "",
+      newRevenueTarget: "",
+      retentionRateTarget: "",
+    },
+    targets: firstRunTargets,
+  });
+  assert.match(firstRun, /Set annual targets for 2026/);
+  assert.match(firstRun, /Once a pay sheet closes/);
+  assert.match(firstRun, /Set annual targets/);
+  assert.match(firstRun, /View pay sheets/);
+  assert.doesNotMatch(firstRun, /Targets vs\. actuals|No annual target|Not set/);
 });
 
 test("KPI screen fails closed for every non-admin role before API context mounts", () => {
@@ -120,10 +143,22 @@ function renderView({
   actuals = kpiActualsFixture(),
   pending = false,
   state,
+  targets = kpiTargetsFixture(),
+  targetValues = {
+    newPolicyCountTarget: "12",
+    newRevenueTarget: "125000.00",
+    retentionRateTarget: "75.00",
+  },
 }: {
   actuals?: ReturnType<typeof kpiActualsFixture>;
   pending?: boolean;
   state?: KpiScreenState;
+  targets?: ReturnType<typeof kpiTargetsFixture>;
+  targetValues?: {
+    newPolicyCountTarget: string;
+    newRevenueTarget: string;
+    retentionRateTarget: string;
+  };
 } = {}): string {
   return renderToStaticMarkup(
     <KpisGoalsView
@@ -143,13 +178,9 @@ function renderView({
       state={state ?? {
         actuals,
         status: "ready",
-        targets: kpiTargetsFixture(),
+        targets,
       }}
-      targetValues={{
-        newPolicyCountTarget: "12",
-        newRevenueTarget: "125000.00",
-        retentionRateTarget: "75.00",
-      }}
+      targetValues={targetValues}
       year={2026}
       yearDraft="2026"
     />,

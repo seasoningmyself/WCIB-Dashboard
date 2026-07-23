@@ -234,6 +234,7 @@ test("validation state is accessible and admin submission targets the ledger", (
   const markup = renderView({
     errors: { insuredName: "Enter the insured name." },
     form: completeForm(),
+    submitAttempted: true,
     user: { ...producer(), capabilities: ["admin"], role: "admin" },
   });
 
@@ -246,25 +247,42 @@ test("validation state is accessible and admin submission targets the ledger", (
   assert.match(markup, /Submit to ledger/);
 });
 
-test("live validation exposes missing and contradictory fields before submit", () => {
-  const missing = renderView({
+test("validation stays quiet when untouched, validates touched fields, and expands after submit", () => {
+  const untouched = renderView({
     form: createEmptyTurnInState(),
     user: producer(),
   });
-  const invalid = renderView({
+  const touched = renderView({
+    form: createEmptyTurnInState(),
+    touchedFields: new Set(["insuredName"]),
+    user: producer(),
+  });
+  const submitted = renderView({
+    form: createEmptyTurnInState(),
+    submitAttempted: true,
+    user: producer(),
+  });
+  const contradictory = renderView({
     form: {
       ...completeForm(),
       effectiveDate: "07/10/2027",
       expirationDate: "07/10/2026",
     },
+    touchedFields: new Set(["expirationDate"]),
     user: producer(),
   });
 
-  assert.match(missing, /aria-live="polite"/);
-  assert.match(missing, /class="turn-in-validation is-warning"/);
-  assert.match(missing, /Choose an account assignment/);
-  assert.match(invalid, /class="turn-in-validation is-error"/);
-  assert.match(invalid, /Expiration cannot precede the effective date/);
+  assert.doesNotMatch(untouched, /Issues to fix before submitting/);
+  assert.doesNotMatch(untouched, /Enter the insured name/);
+  assert.match(touched, /aria-invalid="true"/);
+  assert.match(touched, /Enter the insured name/);
+  assert.doesNotMatch(touched, /Choose an account assignment/);
+  assert.doesNotMatch(touched, /Issues to fix before submitting/);
+  assert.match(submitted, /class="turn-in-validation is-warning"/);
+  assert.match(submitted, /\d+ items need attention/);
+  assert.match(submitted, /Choose an account assignment/);
+  assert.match(contradictory, /Expiration cannot precede the effective date/);
+  assert.doesNotMatch(contradictory, /Issues to fix before submitting/);
 });
 
 test("payment guidance renders v15 full, direct-bill, and deposit context", () => {
@@ -285,7 +303,7 @@ test("payment guidance renders v15 full, direct-bill, and deposit context", () =
   assert.match(deposit, /Balance of \$635\.00 will be financed/);
 });
 
-test("pending writes disable the complete form and duplicate action buttons", () => {
+test("pending writes disable the complete form and consolidated action controls", () => {
   const markup = renderView({
     form: createEmptyTurnInState(),
     saveState: "saving",
@@ -296,7 +314,7 @@ test("pending writes disable the complete form and duplicate action buttons", ()
   assert.match(markup, /<button[^>]*disabled=""[^>]*type="button"/);
 });
 
-test("v15 header and footer expose complete status and duplicate action surfaces", () => {
+test("turn-in status and operations render in one consolidated action surface", () => {
   const markup = renderView({
     draft: draftWithStatus("draft"),
     form: { ...createEmptyTurnInState(), accountAssignment: "book", producerUserId: USER_ID },
@@ -312,14 +330,17 @@ test("v15 header and footer expose complete status and duplicate action surfaces
   assert.match(markup, /Kaylee&#x27;s account/);
   assert.match(markup, />draft</);
   assert.match(markup, /Draft saved/);
+  assert.match(markup, /<details class="turn-in-action-menu">/);
+  assert.match(markup, /More actions/);
   assert.match(markup, /Save &amp; start new/);
   assert.match(markup, /Clear form/);
   assert.match(markup, /Discard draft/);
   assert.match(markup, /Download PDF/);
   assert.match(markup, /Approvals waiting/);
   assert.match(markup, /href="#\/approvals"/);
-  assert.match(markup, />Clear</);
-  assert.equal((markup.match(/>Request help</g) ?? []).length, 2);
+  assert.doesNotMatch(markup, /turn-in-draft-actions/);
+  assert.equal((markup.match(/>Request help</g) ?? []).length, 1);
+  assert.equal((markup.match(/>Clear form</g) ?? []).length, 1);
 });
 
 test("zero, one, and many office modes drive the turn-in controls", () => {
@@ -433,6 +454,8 @@ function renderView({
   help,
   ipfsHistory,
   saveState = "idle",
+  submitAttempted = false,
+  touchedFields,
   user,
   vocabulary,
 }: {
@@ -442,6 +465,8 @@ function renderView({
   help?: DraftHelpControl;
   ipfsHistory?: Parameters<typeof CheckTurnInFormView>[0]["ipfsHistory"];
   saveState?: "dirty" | "error" | "idle" | "saved" | "saving";
+  submitAttempted?: boolean;
+  touchedFields?: ReadonlySet<string>;
   user: CurrentUser;
   vocabulary?: ActiveVocabularyResponse;
 }): string {
@@ -465,12 +490,15 @@ function renderView({
           onClear={() => {}}
           onDiscard={() => {}}
           onFieldChange={() => {}}
+          onFieldBlur={() => {}}
           onPrint={() => {}}
           onRetryAssignments={() => {}}
           onSave={() => {}}
           onSaveAndStartNew={() => {}}
           onSubmit={() => {}}
           saveState={saveState}
+          submitAttempted={submitAttempted}
+          touchedFields={touchedFields}
           user={user}
         />
       </VocabularyProvider>
