@@ -27,12 +27,12 @@ test("current-user navigation is an exact server-owned role policy", () => {
       principal({ capabilities: ["admin"], staffRole: "producer" }),
     ),
     [
+      "kpis",
       "approvals",
       "help_requests",
       "policy_ledger",
       "mga_payables",
       "pay_sheets",
-      "kpis",
       "manage_staff",
       "settings",
       "turn_in",
@@ -45,7 +45,7 @@ test("current-user navigation is an exact server-owned role policy", () => {
   );
   assert.deepEqual(
     allowedNavigationForPrincipal(principal({ staffRole: "producer" })),
-    ["turn_in", "my_items", "my_commissions", "settings"],
+    ["my_commissions", "turn_in", "my_items", "settings"],
   );
   assert.deepEqual(
     allowedNavigationForPrincipal(
@@ -59,12 +59,12 @@ test("current-user navigation is an exact server-owned role policy", () => {
     ),
     [
       "support",
+      "kpis",
       "approvals",
       "help_requests",
       "policy_ledger",
       "mga_payables",
       "pay_sheets",
-      "kpis",
       "manage_staff",
       "turn_in",
       "my_items",
@@ -92,12 +92,12 @@ test("current-user projection exposes only the explicit account contract", () =>
   assert.deepEqual(response, {
     user: {
       allowedNavigation: [
+        "kpis",
         "approvals",
         "help_requests",
         "policy_ledger",
         "mga_payables",
         "pay_sheets",
-        "kpis",
         "manage_staff",
         "settings",
         "turn_in",

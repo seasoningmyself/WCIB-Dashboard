@@ -9,7 +9,12 @@ export interface ShellNavigationItem {
   path: string;
 }
 
-export type ShellNavigationGroupId = "daily" | "money" | "setup" | "support";
+export type ShellNavigationGroupId =
+  | "overview"
+  | "records"
+  | "support"
+  | "team"
+  | "work";
 
 export interface ShellNavigationGroup {
   id: ShellNavigationGroupId;
@@ -20,7 +25,11 @@ export interface ShellNavigationGroup {
 const NAVIGATION_ITEMS: Readonly<
   Record<AppNavigationId, ShellNavigationItem>
 > = {
-  approvals: { id: "approvals", label: "Approvals", path: "/approvals" },
+  approvals: {
+    id: "approvals",
+    label: "Review Queue",
+    path: "/approvals",
+  },
   help_requests: {
     id: "help_requests",
     label: "Help Requests",
@@ -41,7 +50,7 @@ const NAVIGATION_ITEMS: Readonly<
     label: "Pay Sheets",
     path: "/pay-sheets",
   },
-  kpis: { id: "kpis", label: "KPIs & Goals", path: "/kpis" },
+  kpis: { id: "kpis", label: "Agency Overview", path: "/kpis" },
   manage_staff: {
     id: "manage_staff",
     label: "Manage Staff",
@@ -71,25 +80,28 @@ const NAVIGATION_GROUPS: readonly {
     label: "Support",
   },
   {
-    id: "daily",
-    identifiers: ["approvals", "help_requests", "turn_in", "my_items"],
-    label: "Daily",
+    id: "overview",
+    identifiers: ["kpis", "my_commissions"],
+    label: "Overview",
   },
   {
-    id: "money",
+    id: "work",
+    identifiers: ["approvals", "help_requests", "turn_in", "my_items"],
+    label: "Work",
+  },
+  {
+    id: "records",
     identifiers: [
       "policy_ledger",
       "mga_payables",
       "pay_sheets",
-      "kpis",
-      "my_commissions",
     ],
-    label: "Money",
+    label: "Records & Money",
   },
   {
-    id: "setup",
+    id: "team",
     identifiers: ["manage_staff", "settings"],
-    label: "Setup",
+    label: "Team",
   },
 ];
 
@@ -123,11 +135,31 @@ export function groupAuthorizedNavigation(
   const byId = new Map(navigation.map((item) => [item.id, item]));
   return NAVIGATION_GROUPS.flatMap((group) => {
     const items = group.identifiers.flatMap((identifier) => {
+      if (identifier === "help_requests" && byId.has("approvals")) {
+        return [];
+      }
       const item = byId.get(identifier);
       return item === undefined ? [] : [item];
     });
-    return items.length === 0 ? [] : [{ ...group, items }];
+    if (items.length === 0) {
+      return [];
+    }
+    const label =
+      group.id === "team" && !byId.has("manage_staff")
+        ? "Account"
+        : group.label;
+    return [{ ...group, items, label }];
   });
+}
+
+export function activeNavigationId(
+  routeId: AppNavigationId,
+  navigation: readonly ShellNavigationItem[],
+): AppNavigationId {
+  return routeId === "help_requests" &&
+    navigation.some(({ id }) => id === "approvals")
+    ? "approvals"
+    : routeId;
 }
 
 export function resolveShellRoute(

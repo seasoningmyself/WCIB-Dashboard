@@ -3,6 +3,7 @@ import { test } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
+  findVocabularyExactMatch,
   filterVocabularyItems,
   VocabularyManagementView,
   type VocabularyManagementState,
@@ -39,8 +40,7 @@ test("managed vocabulary opens a focused active-company workspace", () => {
     "Insurance companies",
     "MGA / payees",
     "Policy types",
-    "Add company",
-    "Search insurance companies",
+    "Search or add insurance companies",
     "Used Carrier",
     "In use",
     "Deactivate",
@@ -76,6 +76,24 @@ test("vocabulary filtering separates active and inactive entries before search",
     filterVocabularyItems(items, "", "inactive").map(({ name }) => name),
     ["Alpha Historical"],
   );
+});
+
+test("vocabulary creation is suppressed for exact active or inactive matches", () => {
+  const items = [
+    { id: `${ID.slice(0, -1)}1`, inUse: false, isActive: true, name: "Alpha Carrier" },
+    { id: `${ID.slice(0, -1)}2`, inUse: false, isActive: false, name: "Historical MGA" },
+  ];
+
+  assert.equal(
+    findVocabularyExactMatch(items, "  alpha carrier  ")?.name,
+    "Alpha Carrier",
+  );
+  assert.equal(
+    findVocabularyExactMatch(items, "HISTORICAL MGA")?.isActive,
+    false,
+  );
+  assert.equal(findVocabularyExactMatch(items, "Alpha"), null);
+  assert.equal(findVocabularyExactMatch(items, ""), null);
 });
 
 test("managed vocabulary limits the first page to 25 rows", () => {

@@ -106,6 +106,17 @@ test("mobile controls keep the 44px touch-height floor", () => {
   );
 });
 
+test("staff action menus can escape their cards and stack above later rows", () => {
+  assert.match(
+    css,
+    /\.staff-row\s*\{[^}]*overflow:\s*visible/,
+  );
+  assert.match(
+    css,
+    /\.staff-more-menu\[open\]\s*\{[^}]*z-index:\s*5/,
+  );
+});
+
 test("turn-in content reserves desktop clearance for the sticky action bar", () => {
   assert.match(
     css,

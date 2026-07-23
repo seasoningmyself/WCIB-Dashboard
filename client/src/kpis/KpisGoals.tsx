@@ -258,7 +258,7 @@ export function KpisGoalsView({
             Showing <strong>{scopeName}</strong> for {year}, {period === "full" ? "full year" : period}.
           </>
         )}
-        title={<>KPIs &amp; Goals</>}
+        title="Agency Overview"
         titleId="kpi-page-title"
       />
 

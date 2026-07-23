@@ -390,7 +390,7 @@
 
 .staff-row {
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   border: var(--border-width-thin) solid var(--border);
   border-radius: var(--radius-panel);
   background: var(--surface);
@@ -589,6 +589,10 @@
   position: relative;
 }
 
+.staff-more-menu[open] {
+  z-index: 5;
+}
+
 .staff-more-menu > summary {
   min-height: 36px;
   box-sizing: border-box;
@@ -620,7 +624,6 @@
 
 .staff-more-menu > div {
   position: absolute;
-  z-index: 5;
   top: calc(100% + var(--space-5));
   left: 0;
   display: grid;
@@ -912,20 +915,25 @@
   letter-spacing: var(--letter-spacing-normal);
 }
 
-.staff-vocabulary-add {
+.staff-vocabulary-search-add {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--space-7);
+  gap: var(--space-8);
   margin-top: var(--space-14);
 }
 
-.staff-vocabulary-add.has-class {
-  grid-template-columns: minmax(0, 1fr) minmax(105px, .55fr) auto;
+.staff-vocabulary-search-add > label {
+  display: grid;
+  gap: var(--space-5);
 }
 
-.staff-vocabulary-add input,
-.staff-vocabulary-add select,
-.staff-vocabulary-search input {
+.staff-vocabulary-search-add > label > span {
+  color: var(--text-muted);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-bold);
+}
+
+.staff-vocabulary-search-add input,
+.staff-vocabulary-search-add select {
   width: 100%;
   min-width: 0;
   height: 36px;
@@ -937,16 +945,32 @@
   font-size: var(--font-size-body);
 }
 
-.staff-vocabulary-search {
-  display: grid;
-  gap: var(--space-5);
-  margin-top: var(--space-10);
+.staff-vocabulary-search-add-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-7);
 }
 
-.staff-vocabulary-search > span {
-  color: var(--text-muted);
-  font-size: var(--font-size-meta);
+.staff-vocabulary-search-add-actions select {
+  width: min(100%, 180px);
+}
+
+.staff-vocabulary-search-add-actions button {
+  min-height: 36px;
+  border: var(--border-width-thin) solid var(--accent);
+  border-radius: var(--radius-control);
+  background: var(--accent);
+  padding: var(--space-0) var(--space-13);
+  color: var(--text-inverse);
+  font-size: var(--font-size-body);
   font-weight: var(--font-weight-bold);
+}
+
+.staff-vocabulary-existing {
+  margin: var(--space-0);
+  color: var(--text-muted);
+  font-size: var(--font-size-body);
 }
 
 .staff-vocabulary-list {
@@ -1430,13 +1454,17 @@
     justify-self: start;
   }
 
-  .staff-vocabulary-add,
-  .staff-vocabulary-add.has-class {
-    grid-template-columns: 1fr;
+  .staff-vocabulary-search-add-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 
-  .staff-vocabulary-add button {
-    justify-self: start;
+  .staff-vocabulary-search-add-actions select {
+    width: 100%;
+  }
+
+  .staff-vocabulary-search-add-actions button {
+    align-self: flex-start;
   }
 
   .staff-vocabulary-row {
@@ -11216,6 +11244,56 @@ h1 {
   background: var(--transparent);
   box-shadow: none;
   padding: var(--space-0);
+}
+
+.review-queue-tabs {
+  display: flex;
+  width: 100%;
+  gap: var(--space-16);
+  overflow-x: auto;
+  margin-bottom: var(--space-16);
+  border-bottom: var(--border-width-thin) solid var(--border);
+}
+
+.review-queue-tabs a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-7);
+  flex: 0 0 auto;
+  border-bottom: var(--border-width-strong) solid var(--transparent);
+  padding: var(--space-9) var(--space-2) var(--space-8);
+  color: var(--text-muted);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+}
+
+.review-queue-tabs a:hover,
+.review-queue-tabs a:focus-visible {
+  color: var(--text);
+}
+
+.review-queue-tabs a:focus-visible {
+  outline: var(--border-width-medium) solid var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.review-queue-tabs a[aria-current="page"] {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+  font-weight: var(--font-weight-bold);
+}
+
+.review-queue-tabs small {
+  color: var(--text-muted);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-medium);
+}
+
+.review-queue-tabs a[aria-current="page"] small {
+  color: var(--accent);
 }
 
 .mga-filter {

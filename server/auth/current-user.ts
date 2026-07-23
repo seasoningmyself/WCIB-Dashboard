@@ -13,19 +13,19 @@ import type { AuthDatabase } from "./users.js";
 
 const NAVIGATION_BY_ROLE = {
   admin: [
+    "kpis",
     "approvals",
     "help_requests",
     "policy_ledger",
     "mga_payables",
     "pay_sheets",
-    "kpis",
     "manage_staff",
     "settings",
     "turn_in",
     "my_items",
   ],
   employee: ["turn_in", "my_items", "settings"],
-  producer: ["turn_in", "my_items", "my_commissions", "settings"],
+  producer: ["my_commissions", "turn_in", "my_items", "settings"],
 } as const satisfies Readonly<
   Record<CurrentUserRole, readonly AppNavigationId[]>
 >;

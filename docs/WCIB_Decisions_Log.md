@@ -5,6 +5,28 @@
 
 ---
 
+## July 23, 2026 — Navigation and home views follow the user's job
+
+The shell presents role-specific starting views without creating a separate
+authorization model. Administrators start on Agency Overview, producers start
+on My Commissions, employees start on Check Turn-In, and support engineers
+start on Support. The server-issued navigation order remains the source of
+truth for the `/` route.
+
+Administrator navigation groups Agency Overview, work requiring action,
+financial records, and team setup. Approvals and Help Requests remain separate
+authorized routes over their existing audited workflows, but the sidebar
+presents them as one Review Queue with internal tabs and a combined attention
+count. A user authorized for only one route still sees only that route.
+
+Managed carriers, MGAs, and policy types use one explicit search-or-add field.
+Typing filters immediately; creation remains a separate button and is
+suppressed when an active or inactive entry already matches exactly. Existing
+vocabulary creation, duplicate confirmation, deactivation, generation scope,
+and audit behavior are unchanged.
+
+---
+
 ## July 23, 2026 — Assignment choices are staff configuration
 
 Administrators manage whether each active producer offers a named book option,

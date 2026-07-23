@@ -5,6 +5,7 @@ import type { ApiClient } from "../api/client.js";
 import {
   loadNavigationCounts,
   navigationCountsFromProjectedData,
+  reviewQueueNavigationCount,
   visibleNavigationCount,
 } from "./navigation-counts.js";
 
@@ -76,6 +77,11 @@ test("navigation counts match the corresponding projected screen sets", () => {
   });
   assert.equal(visibleNavigationCount(counts, "approvals"), 3);
   assert.equal(visibleNavigationCount({ approvals: 0 }, "approvals"), null);
+  assert.equal(reviewQueueNavigationCount(counts), 5);
+  assert.equal(
+    reviewQueueNavigationCount({ approvals: 0, help_requests: 0 }),
+    null,
+  );
 });
 
 test("producer badge loading calls only producer-authorized projected APIs", async () => {
