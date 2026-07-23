@@ -730,9 +730,45 @@
 
 .staff-vocabulary-sections {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-18);
   margin-top: var(--space-18);
+}
+
+.staff-vocabulary-tabs,
+.staff-vocabulary-state-tabs {
+  display: flex;
+  align-items: end;
+  gap: var(--space-18);
+  overflow-x: auto;
+  border-bottom: var(--border-width-thin) solid var(--border);
+}
+
+.staff-vocabulary-tabs {
+  margin-top: var(--space-18);
+}
+
+.staff-vocabulary-tabs button,
+.staff-vocabulary-state-tabs button {
+  min-height: 44px;
+  flex: 0 0 auto;
+  border: 0;
+  border-bottom: var(--border-width-strong) solid transparent;
+  border-radius: 0;
+  background: transparent;
+  padding-right: var(--space-0);
+  padding-left: var(--space-0);
+  color: var(--text-muted);
+}
+
+.staff-vocabulary-tabs button.is-active,
+.staff-vocabulary-state-tabs button.is-active {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+}
+
+.staff-vocabulary-tabs button:hover:not(:disabled),
+.staff-vocabulary-state-tabs button:hover:not(:disabled) {
+  border-bottom-color: var(--accent-border);
+  background: transparent;
 }
 
 .staff-vocabulary-section {
@@ -793,6 +829,10 @@
   overflow-y: auto;
   margin-top: var(--space-10);
   border-top: var(--border-width-thin) solid var(--border-subtle);
+}
+
+.staff-vocabulary-state-tabs {
+  margin-top: var(--space-10);
 }
 
 .staff-vocabulary-list > p,
@@ -879,6 +919,26 @@
   min-width: 80px;
   padding-right: var(--space-8);
   padding-left: var(--space-8);
+}
+
+.staff-vocabulary-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  border-top: var(--border-width-thin) solid var(--border);
+  padding-top: var(--space-10);
+}
+
+.staff-vocabulary-pagination > span {
+  color: var(--text-muted);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-meta);
+}
+
+.staff-vocabulary-pagination > div {
+  display: flex;
+  gap: var(--space-7);
 }
 
 .staff-vocabulary-message {
@@ -1246,6 +1306,16 @@
   .staff-vocabulary-row button {
     grid-column: 2;
     grid-row: 1 / span 2;
+  }
+
+  .staff-vocabulary-pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .staff-vocabulary-pagination > div {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
   }
 
   .staff-dialog-backdrop {

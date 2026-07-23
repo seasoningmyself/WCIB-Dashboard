@@ -239,9 +239,12 @@ export function VocabularyManagementView({
   pending: boolean;
   state: VocabularyManagementState;
 }) {
-  const [carrierSearch, setCarrierSearch] = useState("");
-  const [mgaSearch, setMgaSearch] = useState("");
-  const [policyTypeSearch, setPolicyTypeSearch] = useState("");
+  const [kind, setKind] = useState<AdminVocabularyKind>("carrier");
+  const [search, setSearch] = useState("");
+  const [stateFilter, setStateFilter] = useState<"active" | "inactive">(
+    "active",
+  );
+  const [page, setPage] = useState(1);
 
   if (state.status === "loading") {
     return <VocabularyMessage body="Loading managed lists..." title="Vocabulary" />;
@@ -264,6 +267,34 @@ export function VocabularyManagementView({
     );
   }
 
+  const config = vocabularySectionConfig(state.data, kind);
+  const filteredItems = filterVocabularyItems(
+    config.items,
+    search,
+    stateFilter,
+  );
+  const pageCount = Math.max(
+    1,
+    Math.ceil(filteredItems.length / VOCABULARY_PAGE_SIZE),
+  );
+  const currentPage = Math.min(page, pageCount);
+  const pageItems = filteredItems.slice(
+    (currentPage - 1) * VOCABULARY_PAGE_SIZE,
+    currentPage * VOCABULARY_PAGE_SIZE,
+  );
+  const activeItems = config.items.filter(({ isActive }) => isActive).length;
+  const inactiveItems = config.items.length - activeItems;
+  const changeKind = (nextKind: AdminVocabularyKind) => {
+    setKind(nextKind);
+    setSearch("");
+    setStateFilter("active");
+    setPage(1);
+  };
+  const changeStateFilter = (next: "active" | "inactive") => {
+    setStateFilter(next);
+    setPage(1);
+  };
+
   return (
     <section className="staff-vocabulary" aria-labelledby="staff-vocabulary-title">
       <header>
@@ -274,36 +305,73 @@ export function VocabularyManagementView({
         <span>{activeCount(state.data)} active entries</span>
       </header>
       {notice !== null ? <p className="staff-notice" role="status">{notice}</p> : null}
+      <div
+        aria-label="Managed vocabulary categories"
+        className="staff-vocabulary-tabs"
+        role="tablist"
+      >
+        {(
+          [
+            ["carrier", "Insurance companies"],
+            ["mga", "MGA / payees"],
+            ["policy_type", "Policy types"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            aria-selected={kind === value}
+            className={kind === value ? "is-active" : undefined}
+            key={value}
+            onClick={() => changeKind(value)}
+            role="tab"
+            type="button"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <div className="staff-vocabulary-sections">
         <VocabularySection
-          addForm={<SimpleAddForm disabled={pending} label="Add company" onAdd={onAddCarrier} placeholder="Insurance company name" />}
-          items={filterItems(state.data.carriers, carrierSearch)}
-          kind="carrier"
-          onSearch={setCarrierSearch}
+          activeCount={activeItems}
+          addForm={
+            kind === "carrier" ? (
+              <SimpleAddForm
+                disabled={pending}
+                label="Add company"
+                onAdd={onAddCarrier}
+                placeholder="Insurance company name"
+              />
+            ) : kind === "mga" ? (
+              <SimpleAddForm
+                disabled={pending}
+                label="Add MGA"
+                onAdd={onAddMga}
+                placeholder="MGA or payee name"
+              />
+            ) : (
+              <PolicyTypeAddForm
+                disabled={pending}
+                onAdd={onAddPolicyType}
+              />
+            )
+          }
+          inactiveCount={inactiveItems}
+          items={pageItems}
+          kind={kind}
+          onNext={() => setPage((current) => Math.min(pageCount, current + 1))}
+          onPrevious={() => setPage((current) => Math.max(1, current - 1))}
+          onSearch={(value) => {
+            setSearch(value);
+            setPage(1);
+          }}
           onSetActive={onSetActive}
+          onStateFilter={changeStateFilter}
+          page={currentPage}
+          pageCount={pageCount}
           pending={pending}
-          search={carrierSearch}
-          title="Insurance companies"
-        />
-        <VocabularySection
-          addForm={<SimpleAddForm disabled={pending} label="Add MGA" onAdd={onAddMga} placeholder="MGA or payee name" />}
-          items={filterItems(state.data.mgas, mgaSearch)}
-          kind="mga"
-          onSearch={setMgaSearch}
-          onSetActive={onSetActive}
-          pending={pending}
-          search={mgaSearch}
-          title="MGA / payees"
-        />
-        <VocabularySection
-          addForm={<PolicyTypeAddForm disabled={pending} onAdd={onAddPolicyType} />}
-          items={filterItems(state.data.policyTypes, policyTypeSearch)}
-          kind="policy_type"
-          onSearch={setPolicyTypeSearch}
-          onSetActive={onSetActive}
-          pending={pending}
-          search={policyTypeSearch}
-          title="Policy types"
+          search={search}
+          stateFilter={stateFilter}
+          title={config.title}
+          totalShown={filteredItems.length}
         />
       </div>
     </section>
@@ -311,33 +379,51 @@ export function VocabularyManagementView({
 }
 
 function VocabularySection({
+  activeCount,
   addForm,
+  inactiveCount,
   items,
   kind,
+  onNext,
+  onPrevious,
   onSearch,
   onSetActive,
+  onStateFilter,
+  page,
+  pageCount,
   pending,
   search,
+  stateFilter,
   title,
+  totalShown,
 }: {
+  activeCount: number;
   addForm: React.ReactNode;
+  inactiveCount: number;
   items: readonly (AdminVocabularyItem | AdminPolicyTypeItem)[];
   kind: AdminVocabularyKind;
+  onNext(): void;
+  onPrevious(): void;
   onSearch(value: string): void;
   onSetActive(
     kind: AdminVocabularyKind,
     item: AdminVocabularyItem,
     active: boolean,
   ): void;
+  onStateFilter(value: "active" | "inactive"): void;
+  page: number;
+  pageCount: number;
   pending: boolean;
   search: string;
+  stateFilter: "active" | "inactive";
   title: string;
+  totalShown: number;
 }) {
   return (
     <section className="staff-vocabulary-section">
       <header>
         <h3>{title}</h3>
-        <span>{items.length} shown</span>
+        <span>{totalShown} shown</span>
       </header>
       {addForm}
       <label className="staff-vocabulary-search">
@@ -349,6 +435,30 @@ function VocabularySection({
           value={search}
         />
       </label>
+      <div
+        aria-label={`${title} status`}
+        className="staff-vocabulary-state-tabs"
+        role="tablist"
+      >
+        <button
+          aria-selected={stateFilter === "active"}
+          className={stateFilter === "active" ? "is-active" : undefined}
+          onClick={() => onStateFilter("active")}
+          role="tab"
+          type="button"
+        >
+          Active ({activeCount})
+        </button>
+        <button
+          aria-selected={stateFilter === "inactive"}
+          className={stateFilter === "inactive" ? "is-active" : undefined}
+          onClick={() => onStateFilter("inactive")}
+          role="tab"
+          type="button"
+        >
+          Inactive ({inactiveCount})
+        </button>
+      </div>
       <div className="staff-vocabulary-list" role="list">
         {items.length === 0 ? (
           <p>No matches</p>
@@ -379,6 +489,27 @@ function VocabularySection({
           ))
         )}
       </div>
+      <footer className="staff-vocabulary-pagination">
+        <span>
+          Page {page} of {pageCount}
+        </span>
+        <div>
+          <button
+            disabled={pending || page === 1}
+            onClick={onPrevious}
+            type="button"
+          >
+            Previous
+          </button>
+          <button
+            disabled={pending || page === pageCount}
+            onClick={onNext}
+            type="button"
+          >
+            Next
+          </button>
+        </div>
+      </footer>
     </section>
   );
 }
@@ -472,18 +603,41 @@ function VocabularyMessage({
   );
 }
 
-function filterItems<T extends AdminVocabularyItem>(
+const VOCABULARY_PAGE_SIZE = 25;
+
+export function filterVocabularyItems<T extends AdminVocabularyItem>(
   items: readonly T[],
   query: string,
+  stateFilter: "active" | "inactive",
 ): readonly T[] {
   const normalized = query.trim().toLocaleLowerCase();
-  return normalized === ""
-    ? items
-    : items.filter(({ name }) => name.toLocaleLowerCase().includes(normalized));
+  return items.filter(
+    ({ isActive, name }) =>
+      isActive === (stateFilter === "active") &&
+      (normalized === "" ||
+        name.toLocaleLowerCase().includes(normalized)),
+  );
 }
 
 function activeCount(data: AdminVocabularyManagementResponse): number {
   return [...data.carriers, ...data.mgas, ...data.policyTypes].filter(
     ({ isActive }) => isActive,
   ).length;
+}
+
+function vocabularySectionConfig(
+  data: AdminVocabularyManagementResponse,
+  kind: AdminVocabularyKind,
+): {
+  items: readonly (AdminVocabularyItem | AdminPolicyTypeItem)[];
+  title: string;
+} {
+  switch (kind) {
+    case "carrier":
+      return { items: data.carriers, title: "Insurance companies" };
+    case "mga":
+      return { items: data.mgas, title: "MGA / payees" };
+    case "policy_type":
+      return { items: data.policyTypes, title: "Policy types" };
+  }
 }
