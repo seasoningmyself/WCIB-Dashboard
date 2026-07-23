@@ -246,6 +246,17 @@ export function KpisGoalsView({
     return <KpiMessage kind={state.status} onRetry={onRetry} />;
   }
   const scopeValue = encodeKpiScope(scope);
+  const configuredTarget = findKpiTarget(state.targets, scope);
+  const firstRun =
+    state.actuals.empty &&
+    (
+      configuredTarget === null ||
+      (
+        configuredTarget.newPolicyCountTarget === null &&
+        configuredTarget.newRevenueTarget === null &&
+        configuredTarget.retentionRateTarget === null
+      )
+    );
   const scopeName = state.actuals.scope.scopeType === "company"
     ? "Company-wide"
     : state.actuals.scope.displayName ?? "Selected producer";
@@ -317,25 +328,95 @@ export function KpisGoalsView({
       {notice === null ? null : <div className="kpi-notice" role="status">{notice}</div>}
       {formError === null ? null : <div className="kpi-form-error" role="alert">{formError}</div>}
 
-      <TargetEditor
-        actuals={state.actuals}
-        onClear={onClear}
-        onSave={onSave}
-        onValues={onTargetValues}
-        pending={pending}
-        values={targetValues}
-      />
-
-      {state.actuals.empty ? (
-        <EmptyState
-          action={<a href="#/pay-sheets">View pay sheets</a>}
-          body="KPI actuals appear after a pay sheet is closed for the selected period."
-          className="kpi-empty"
-          heading="No closed performance yet"
-          headingId="kpi-empty-title"
+      {firstRun ? (
+        <AgencyOverviewZeroState
+          actuals={state.actuals}
+          key={`${scopeValue}:${year}`}
+          onClear={onClear}
+          onSave={onSave}
+          onValues={onTargetValues}
+          pending={pending}
+          values={targetValues}
+          year={year}
         />
       ) : (
-        <KpiActuals actuals={state.actuals} />
+        <TargetEditor
+          actuals={state.actuals}
+          onClear={onClear}
+          onSave={onSave}
+          onValues={onTargetValues}
+          pending={pending}
+          values={targetValues}
+        />
+      )}
+
+      {firstRun ? null : state.actuals.empty ? (
+          <EmptyState
+            action={<a href="#/pay-sheets">View pay sheets</a>}
+            body="KPI actuals appear after a pay sheet is closed for the selected period."
+            className="kpi-empty"
+            heading="No closed performance yet"
+            headingId="kpi-empty-title"
+          />
+        ) : (
+          <KpiActuals actuals={state.actuals} />
+        )}
+    </section>
+  );
+}
+
+function AgencyOverviewZeroState({
+  actuals,
+  onClear,
+  onSave,
+  onValues,
+  pending,
+  values,
+  year,
+}: {
+  actuals: KpiActualResponse;
+  onClear(): void;
+  onSave(): void;
+  onValues(values: KpiTargetEditorValues): void;
+  pending: boolean;
+  values: KpiTargetEditorValues;
+  year: number;
+}) {
+  const [editing, setEditing] = useState(false);
+  const sectionRef = useRef<HTMLElement>(null);
+  const startEditing = () => {
+    setEditing(true);
+    requestAnimationFrame(() => {
+      sectionRef.current?.querySelector<HTMLInputElement>("input")?.focus();
+    });
+  };
+  return (
+    <section
+      className="app-empty-state kpi-empty kpi-first-run"
+      ref={sectionRef}
+    >
+      <h2>Set annual targets for {year}</h2>
+      <p>
+        Add goals for new policies, new revenue, and retention. Once a pay sheet
+        closes, this page will compare actual results with those targets.
+      </p>
+      {editing ? (
+        <TargetEditor
+          actuals={actuals}
+          allowClear={false}
+          onClear={onClear}
+          onSave={onSave}
+          onValues={onValues}
+          pending={pending}
+          values={values}
+        />
+      ) : (
+        <div className="app-empty-state-action kpi-first-run-actions">
+          <button disabled={pending} onClick={startEditing} type="button">
+            Set annual targets
+          </button>
+          <a href="#/pay-sheets">View pay sheets</a>
+        </div>
       )}
     </section>
   );
@@ -343,6 +424,7 @@ export function KpisGoalsView({
 
 function TargetEditor({
   actuals,
+  allowClear = true,
   onClear,
   onSave,
   onValues,
@@ -350,6 +432,7 @@ function TargetEditor({
   values,
 }: {
   actuals: KpiActualResponse;
+  allowClear?: boolean;
   onClear(): void;
   onSave(): void;
   onValues(values: KpiTargetEditorValues): void;
@@ -370,9 +453,11 @@ function TargetEditor({
           <h2>Targets vs. actuals</h2>
         </div>
         <div className="kpi-target-actions">
-          <button className="is-clear" disabled={pending} onClick={onClear} type="button">
-            Clear targets
-          </button>
+          {allowClear ? (
+            <button className="is-clear" disabled={pending} onClick={onClear} type="button">
+              Clear targets
+            </button>
+          ) : null}
           <button className="is-primary" disabled={pending} type="submit">
             {pending ? "Saving..." : "Save targets"}
           </button>

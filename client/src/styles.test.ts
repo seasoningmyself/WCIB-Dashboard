@@ -118,6 +118,15 @@ test("staff action menus can escape their cards and stack above later rows", () 
 });
 
 test("turn-in content reserves desktop clearance for the sticky action bar", () => {
+  assert.doesNotMatch(css, /\.turn-in-draft-actions/);
+  assert.match(
+    css,
+    /\.turn-in-action-menu > div\s*\{[^}]*position:\s*absolute[^}]*bottom:\s*calc\(100% \+ var\(--space-8\)\)/,
+  );
+  assert.match(
+    css,
+    /\.turn-in-action-menu:not\(\[open\]\) > div\s*\{[^}]*display:\s*none/,
+  );
   assert.match(
     css,
     /@media \(min-width: 761px\)\s*\{\s*\.turn-in-page\s*\{[^}]*padding-bottom:\s*var\(--space-0\)[^}]*\}\s*\.turn-in-controls\s*\{[^}]*padding-bottom:\s*var\(--space-72\)[^}]*\}\s*\.turn-in-controls :is\(button, input, select, textarea\)\s*\{[^}]*scroll-margin-bottom:\s*var\(--space-72\)/,
@@ -128,6 +137,31 @@ test("turn-in content reserves desktop clearance for the sticky action bar", () 
   assert.match(
     css.slice(mobileTurnInStart),
     /\.turn-in-actions\s*\{[^}]*position:\s*static/,
+  );
+  assert.match(
+    css.slice(mobileTurnInStart),
+    /\.turn-in-actions button,\s*\n\s*\.turn-in-action-menu summary\s*\{[^}]*min-height:\s*44px/,
+  );
+});
+
+test("ledger totals use hierarchy instead of decorative series colors", () => {
+  const metricsStart = css.indexOf(".ledger-metrics {");
+  const toolbarStart = css.indexOf(".ledger-toolbar {", metricsStart);
+  assert.notEqual(metricsStart, -1);
+  assert.notEqual(toolbarStart, -1);
+  const metricsCss = css.slice(metricsStart, toolbarStart);
+
+  assert.match(metricsCss, /\.ledger-metric-primary/);
+  assert.match(metricsCss, /\.ledger-metric-split/);
+  assert.match(metricsCss, /\.ledger-metric-secondary/);
+  assert.doesNotMatch(metricsCss, /var\(--series-/);
+  assert.doesNotMatch(metricsCss, /\.ledger-metric:nth-child/);
+});
+
+test("Agency Overview keeps the first-run secondary action visually secondary", () => {
+  assert.match(
+    css,
+    /\.app-empty-state-action\.kpi-first-run-actions > a\s*\{[^}]*background:\s*var\(--surface\)[^}]*color:\s*var\(--accent-hover\)/,
   );
 });
 

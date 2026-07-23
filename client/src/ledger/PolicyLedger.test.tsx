@@ -86,6 +86,11 @@ test("admin ledger renders financial totals, filters, badges, detail, and separa
   ]) {
     assert.doesNotMatch(markup, new RegExp(escapeRegExp(excludedAction)));
   }
+  assert.match(markup, /class="ledger-metric-primary"/);
+  assert.match(markup, /class="ledger-metric-split"/);
+  assert.match(markup, /class="ledger-metric-secondary"/);
+  assert.match(markup, /Revenue split/);
+  assert.doesNotMatch(markup, /class="ledger-metric"/);
   for (const dormantPaymentField of [
     "Premium total",
     "Collected to date",

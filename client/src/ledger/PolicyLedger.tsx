@@ -782,23 +782,40 @@ export function PolicyLedgerView({
 }
 
 function LedgerMetrics({ totals }: { totals: PolicyLedgerListResponse["totals"] }) {
-  const metrics = [
+  const secondaryMetrics = [
     ["Collected", totals.amountPaid],
     ["Commission", totals.commissionAmount],
     ["Broker fees", totals.brokerFee],
-    ["Agency revenue", totals.agencyRevenue],
-    ["Producer share", totals.producerPayout],
-    ["Sophia share", totals.sophiaRetained],
   ] as const;
   return (
-    <div className="ledger-metrics" aria-label="Ledger totals">
-      {metrics.map(([label, value]) => (
-        <div className="ledger-metric" key={label}>
-          <span>{label}</span>
-          <strong>{formatMoneyExact(value)}</strong>
+    <section className="ledger-metrics" aria-label="Ledger totals">
+      <div className="ledger-metric-primary">
+        <span>Agency revenue</span>
+        <strong>{formatMoneyExact(totals.agencyRevenue)}</strong>
+        <small>Commission plus broker fees retained by the agency</small>
+      </div>
+      <div className="ledger-metric-split">
+        <span>Revenue split</span>
+        <div>
+          <div>
+            <span>Producer share</span>
+            <strong>{formatMoneyExact(totals.producerPayout)}</strong>
+          </div>
+          <div>
+            <span>Sophia share</span>
+            <strong>{formatMoneyExact(totals.sophiaRetained)}</strong>
+          </div>
         </div>
-      ))}
-    </div>
+      </div>
+      <div className="ledger-metric-secondary">
+        {secondaryMetrics.map(([label, value]) => (
+          <div key={label}>
+            <span>{label}</span>
+            <strong>{formatMoneyExact(value)}</strong>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

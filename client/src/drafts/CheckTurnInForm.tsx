@@ -69,6 +69,7 @@ type IpfsHistoryState =
 
 const BLUR_AUTOSAVE_DELAY_MS = 150;
 const BACKUP_AUTOSAVE_INTERVAL_MS = 30_000;
+const EMPTY_TOUCHED_FIELDS: ReadonlySet<string> = new Set();
 
 export function CheckTurnInForm({
   initialDraft = null,
@@ -86,6 +87,10 @@ export function CheckTurnInForm({
       : turnInStateFromDraft(initialDraft),
   );
   const [errors, setErrors] = useState<TurnInValidationErrors>({});
+  const [touchedFields, setTouchedFields] = useState<ReadonlySet<string>>(
+    EMPTY_TOUCHED_FIELDS,
+  );
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>(
     initialDraft === null ? "idle" : "saved",
   );
@@ -131,6 +136,8 @@ export function CheckTurnInForm({
           : createEmptyTurnInState(),
     );
     setErrors({});
+    setTouchedFields(EMPTY_TOUCHED_FIELDS);
+    setSubmitAttempted(false);
     setSaveState(initialDraft === null ? "idle" : "saved");
     setHelpOpen(false);
     setHelpReason("");
@@ -296,6 +303,8 @@ export function CheckTurnInForm({
     setDraft(null);
     setForm(createEmptyTurnInState());
     setErrors({});
+    setTouchedFields(EMPTY_TOUCHED_FIELDS);
+    setSubmitAttempted(false);
     setProducerOptions([]);
     setSaveState("idle");
     setHelpOpen(false);
@@ -353,6 +362,17 @@ export function CheckTurnInForm({
     }));
     setErrors((current) => omitError(current, "accountAssignment"));
     setSaveState("dirty");
+  }, []);
+
+  const touchField = useCallback((field: string) => {
+    setTouchedFields((current) => {
+      if (current.has(field)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.add(field);
+      return next;
+    });
   }, []);
 
   const freshForm = useCallback(() => {
@@ -468,6 +488,8 @@ export function CheckTurnInForm({
     }
     setForm(freshForm());
     setErrors({});
+    setTouchedFields(EMPTY_TOUCHED_FIELDS);
+    setSubmitAttempted(false);
     setSaveState(draft === null ? "idle" : "dirty");
     setIpfsHistory({ status: "idle" });
     ipfsHistoryVersionRef.current += 1;
@@ -502,6 +524,8 @@ export function CheckTurnInForm({
       onDraftDiscard?.(draft.id);
       setDraft(null);
       setForm(freshForm());
+      setTouchedFields(EMPTY_TOUCHED_FIELDS);
+      setSubmitAttempted(false);
       lastPersistedInputRef.current = null;
       setSaveState("idle");
       setIpfsHistory({ status: "idle" });
@@ -547,6 +571,8 @@ export function CheckTurnInForm({
     setForm(freshForm());
     lastPersistedInputRef.current = null;
     setErrors({});
+    setTouchedFields(EMPTY_TOUCHED_FIELDS);
+    setSubmitAttempted(false);
     setSaveState("idle");
     setIpfsHistory({ status: "idle" });
     ipfsHistoryVersionRef.current += 1;
@@ -566,9 +592,10 @@ export function CheckTurnInForm({
     ) {
       return;
     }
+    setSubmitAttempted(true);
     const validation = validateTurnInForSubmit(form);
     if (Object.keys(validation).length > 0) {
-      setErrors(validation);
+      setErrors({});
       setSaveState("error");
       focusFirstError(validation);
       return;
@@ -675,12 +702,15 @@ export function CheckTurnInForm({
       onClear={clearForm}
       onDiscard={() => void discardDraft()}
       onFieldChange={changeField}
+      onFieldBlur={touchField}
       onPrint={printTurnIn}
       onRetryAssignments={() => setAssignmentAttempt((value) => value + 1)}
       onSave={() => void save()}
       onSaveAndStartNew={() => void saveAndStartNew()}
       onSubmit={() => void submit()}
       saveState={saveState}
+      submitAttempted={submitAttempted}
+      touchedFields={touchedFields}
       user={user}
     />
   );
@@ -704,12 +734,15 @@ interface CheckTurnInFormViewProps {
     field: Key,
     value: TurnInFormState[Key],
   ): void;
+  onFieldBlur?(field: string): void;
   onPrint?(): void;
   onRetryAssignments(): void;
   onSave(): void;
   onSaveAndStartNew(): void;
   onSubmit(): void;
   saveState: SaveState;
+  submitAttempted?: boolean;
+  touchedFields?: ReadonlySet<string>;
   user: CurrentUser;
 }
 
@@ -732,7 +765,7 @@ export function CheckTurnInFormView({
   assignmentState,
   completionRef,
   draft,
-  errors,
+  errors: reportedErrors,
   form,
   help,
   ipfsHistory = { status: "idle" },
@@ -742,21 +775,28 @@ export function CheckTurnInFormView({
   onClear,
   onDiscard,
   onFieldChange,
+  onFieldBlur,
   onPrint,
   onRetryAssignments,
   onSave,
   onSaveAndStartNew,
   onSubmit,
   saveState,
+  submitAttempted = false,
+  touchedFields = EMPTY_TOUCHED_FIELDS,
   user,
 }: CheckTurnInFormViewProps) {
   const vocabulary = useVocabulary();
   const summary = calculateTurnInSummary(form);
   const wording = getTurnInWording(form.transactionType);
   const paymentGuidance = getTurnInPaymentGuidance(form);
-  const validationSummaryErrors = useMemo(
-    () => ({ ...validateTurnInForSubmit(form), ...errors }),
-    [errors, form],
+  const clientErrors = useMemo(
+    () => visibleTurnInValidationErrors(form, touchedFields, submitAttempted),
+    [form, submitAttempted, touchedFields],
+  );
+  const errors = useMemo(
+    () => ({ ...clientErrors, ...reportedErrors }),
+    [clientErrors, reportedErrors],
   );
   const pending = saveState === "saving";
   const completed = draft !== null && !isEditableDraft(draft);
@@ -833,34 +873,6 @@ export function CheckTurnInFormView({
         </div>
       </div>
 
-      <div className="turn-in-draft-actions" aria-label="Draft actions">
-        <button disabled={formLocked} onClick={onSaveAndStartNew} type="button">
-          Save &amp; start new
-        </button>
-        <button className="is-clear" disabled={pending} onClick={onClear} type="button">
-          Clear form
-        </button>
-        {draft?.status === "draft" && onDiscard !== undefined ? (
-          <button className="is-discard" disabled={pending} onClick={onDiscard} type="button">
-            Discard draft
-          </button>
-        ) : null}
-        {onPrint !== undefined ? (
-          <button
-            disabled={pending || !turnInFormHasContent(form)}
-            onClick={onPrint}
-            type="button"
-          >
-            Download PDF
-          </button>
-        ) : null}
-        {help?.canRequest ? (
-          <button className="turn-in-help" disabled={pending} onClick={help.onOpen} type="button">
-            Request help
-          </button>
-        ) : null}
-      </div>
-
       {errors.form === undefined ? null : (
         <div className="turn-in-alert" role="alert">{errors.form}</div>
       )}
@@ -896,6 +908,19 @@ export function CheckTurnInFormView({
         noValidate
         onBlur={(event) => {
           if (event.target instanceof HTMLElement && event.target.matches("input, select, textarea")) {
+            const fieldContainer = event.target.closest<HTMLElement>("[data-turn-in-field]");
+            if (
+              fieldContainer !== null &&
+              !(
+                event.relatedTarget instanceof Node &&
+                fieldContainer.contains(event.relatedTarget)
+              )
+            ) {
+              const field = fieldContainer.dataset.turnInField;
+              if (field !== undefined) {
+                onFieldBlur?.(field);
+              }
+            }
             onBlurAutosave?.();
           }
         }}
@@ -1132,7 +1157,10 @@ export function CheckTurnInFormView({
             <ReadOnlyAmount label={wording.calculatedTotalLabel} value={summary.proposalTotal} />
           </div>
           {form.commissionMode === "pct" ? (
-            <label className="turn-in-check turn-in-commission-confirmation">
+            <label
+              className="turn-in-check turn-in-commission-confirmation"
+              data-turn-in-field="commissionConfirmed"
+            >
               <input
                 aria-describedby={fieldErrorId(
                   "commissionConfirmed",
@@ -1233,15 +1261,25 @@ export function CheckTurnInFormView({
         </FormSection>
         </fieldset>
 
-        <TurnInValidationSummary errors={validationSummaryErrors} />
+        <TurnInValidationSummary errors={submitAttempted ? errors : {}} />
 
         <footer className="turn-in-actions">
           <div aria-live="polite" className="turn-in-action-status">
             {saveMessage(saveState, sentBack)}
           </div>
-          <button className="turn-in-clear" disabled={pending} onClick={onClear} type="button">
-            Clear
-          </button>
+          <TurnInActionMenu
+            canPrint={onPrint !== undefined && turnInFormHasContent(form)}
+            canSaveAndStartNew={!formLocked}
+            onClear={onClear}
+            onDiscard={
+              draft?.status === "draft" && onDiscard !== undefined
+                ? onDiscard
+                : undefined
+            }
+            onPrint={onPrint}
+            onSaveAndStartNew={onSaveAndStartNew}
+            pending={pending}
+          />
           {help?.canRequest ? (
             <button
               className="turn-in-help"
@@ -1391,7 +1429,10 @@ function TransactionTypeField({
   );
 
   return (
-    <div className="turn-in-field turn-in-wide">
+    <div
+      className="turn-in-field turn-in-wide"
+      data-turn-in-field="transactionType"
+    >
       <div className="turn-in-transaction-layout">
         <div className="turn-in-transaction-control">
           <VocabularyPicker
@@ -1463,6 +1504,87 @@ function TurnInValidationSummary({ errors }: { errors: TurnInValidationErrors })
   );
 }
 
+function visibleTurnInValidationErrors(
+  form: TurnInFormState,
+  touchedFields: ReadonlySet<string>,
+  submitAttempted: boolean,
+): TurnInValidationErrors {
+  const errors = validateTurnInForSubmit(form);
+  if (submitAttempted) {
+    return errors;
+  }
+  return Object.fromEntries(
+    Object.entries(errors).filter(([field]) => touchedFields.has(field)),
+  );
+}
+
+function TurnInActionMenu({
+  canPrint,
+  canSaveAndStartNew,
+  onClear,
+  onDiscard,
+  onPrint,
+  onSaveAndStartNew,
+  pending,
+}: {
+  canPrint: boolean;
+  canSaveAndStartNew: boolean;
+  onClear(): void;
+  onDiscard?(): void;
+  onPrint?(): void;
+  onSaveAndStartNew(): void;
+  pending: boolean;
+}) {
+  const invoke = (
+    event: React.MouseEvent<HTMLButtonElement>,
+    action: () => void,
+  ) => {
+    event.currentTarget.closest("details")?.removeAttribute("open");
+    action();
+  };
+  return (
+    <details className="turn-in-action-menu">
+      <summary>More actions</summary>
+      <div>
+        <button
+          disabled={!canSaveAndStartNew}
+          onClick={(event) => invoke(event, onSaveAndStartNew)}
+          type="button"
+        >
+          Save &amp; start new
+        </button>
+        {onPrint === undefined ? null : (
+          <button
+            disabled={pending || !canPrint}
+            onClick={(event) => invoke(event, onPrint)}
+            type="button"
+          >
+            Download PDF
+          </button>
+        )}
+        <button
+          className="is-danger"
+          disabled={pending}
+          onClick={(event) => invoke(event, onClear)}
+          type="button"
+        >
+          Clear form
+        </button>
+        {onDiscard === undefined ? null : (
+          <button
+            className="is-danger"
+            disabled={pending}
+            onClick={(event) => invoke(event, onDiscard)}
+            type="button"
+          >
+            Discard draft
+          </button>
+        )}
+      </div>
+    </details>
+  );
+}
+
 function validationIssueTone(message: string): "error" | "warning" {
   return /\b(cannot|exceed|must match|negative)\b/i.test(message)
     ? "error"
@@ -1477,7 +1599,7 @@ function FormField({ children, error, field, label, required = false }: {
   required?: boolean;
 }) {
   return (
-    <div className="turn-in-field">
+    <div className="turn-in-field" data-turn-in-field={field}>
       {label === undefined ? null : (
         <label htmlFor={fieldId(field)}>{label}{required ? <span aria-hidden="true"> *</span> : null}</label>
       )}
@@ -1540,7 +1662,10 @@ function MoneyField(props: Omit<Parameters<typeof TextField>[0], "type"> & { hin
 
 function TextAreaField({ error, field, label, onChange, placeholder, required = false, value, wide = false }: Omit<Parameters<typeof TextField>[0], "type"> & { placeholder?: string; wide?: boolean }) {
   return (
-    <div className={wide ? "turn-in-field turn-in-wide" : "turn-in-field"}>
+    <div
+      className={wide ? "turn-in-field turn-in-wide" : "turn-in-field"}
+      data-turn-in-field={field}
+    >
       <label htmlFor={fieldId(field)}>{label}{required ? <span aria-hidden="true"> *</span> : null}</label>
       <textarea aria-describedby={fieldErrorId(field, error)} aria-invalid={error !== undefined} aria-required={required} id={fieldId(field)} maxLength={maxLengthForField(field)} onChange={(event) => onChange(event.currentTarget.value)} placeholder={placeholder} rows={3} value={value} />
       <FieldError error={error} field={field} />
@@ -1563,6 +1688,7 @@ function SegmentedField({ error, errorField, legend, name, onChange, options, va
       aria-describedby={fieldErrorId(field, error)}
       aria-invalid={error !== undefined}
       className="turn-in-segmented"
+      data-turn-in-field={field}
       id={fieldId(field)}
     >
       <legend>{legend}</legend>
