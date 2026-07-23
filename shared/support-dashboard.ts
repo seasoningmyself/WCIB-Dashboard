@@ -9,7 +9,6 @@ const nullableTimestampSchema = timestampSchema.nullable();
 const durationSchema = z.number().int().min(0).max(60_000);
 const fingerprintSchema = z.string().regex(/^[0-9a-f]{64}$/);
 const countSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
-const moneySchema = z.string().regex(/^(?:0|[1-9][0-9]{0,14})\.[0-9]{2}$/);
 const rateSchema = z
   .string()
   .regex(/^(?:0|[1-9][0-9]?|100)\.[0-9]{2}$/)
@@ -66,45 +65,50 @@ export const supportAuditActivitySchema = z
     }
   });
 
-const supportCompanyTotalsSchema = z
+const supportKpiCalculationTotalsSchema = z
   .object({
-    agencyRevenue: moneySchema,
-    existingPolicyCount: countSchema,
     newPolicyCount: countSchema,
-    newRevenue: moneySchema,
     policyCount: countSchema,
     retentionRate: rateSchema.nullable(),
     wonBackCount: countSchema,
-    wonBackRevenue: moneySchema,
   })
   .strict();
 
-const supportCompanyTargetsSchema = z
+const supportKpiReportingIssueSchema = z
   .object({
-    newPolicyCount: countSchema.nullable(),
-    newRevenue: moneySchema.nullable(),
-    retentionRate: rateSchema.nullable(),
+    month: z.number().int().min(1).max(12),
+    status: z.enum(["missing", "incomplete"]),
   })
   .strict();
 
-const supportCompanyMonthlySchema = z
+const supportKpiMonthlySchema = z
   .object({
-    agencyRevenue: moneySchema,
     month: z.number().int().min(1).max(12),
     newPolicyCount: countSchema,
     policyCount: countSchema,
+    reportingStatus: z.enum([
+      "complete",
+      "incomplete",
+      "missing",
+      "not_due",
+    ]),
   })
   .strict();
 
-export const supportCompanyNumbersSchema = z
+export const supportKpiCalculationSchema = z
   .object({
-    asOf: nullableTimestampSchema,
-    empty: z.boolean(),
-    monthly: z.array(supportCompanyMonthlySchema).max(12),
+    firstAnomalyMonth: z.number().int().min(1).max(12).nullable(),
+    lastSuccessfulCalculationAt: timestampSchema,
+    missingOrIncompletePeriods: z
+      .array(supportKpiReportingIssueSchema)
+      .max(12),
+    monthly: z.array(supportKpiMonthlySchema).max(12),
     period: kpiActualPeriodSchema,
+    reconciliationVariance: z.enum(["none", "detected"]),
+    recordsProcessed: countSchema,
     source: z.literal("closed_pay_sheets"),
-    targets: supportCompanyTargetsSchema,
-    totals: supportCompanyTotalsSchema,
+    status: z.enum(["healthy", "stale", "mismatched"]),
+    totals: supportKpiCalculationTotalsSchema,
     year: z.number().int().min(2000).max(9999),
   })
   .strict()
@@ -118,6 +122,22 @@ export const supportCompanyNumbersSchema = z
         code: z.ZodIssueCode.custom,
         message: "Support company months must match the selected period",
         path: ["monthly"],
+      });
+    }
+    const issues = value.monthly
+      .filter(
+        ({ reportingStatus }) =>
+          reportingStatus === "missing" || reportingStatus === "incomplete",
+      )
+      .map(({ month, reportingStatus }) => ({
+        month,
+        status: reportingStatus,
+      }));
+    if (JSON.stringify(issues) !== JSON.stringify(value.missingOrIncompletePeriods)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Support KPI reporting issues must match the monthly series",
+        path: ["missingOrIncompletePeriods"],
       });
     }
   });
@@ -271,10 +291,10 @@ export const operationalSupportDashboardSchema = z
     administrators: z.array(supportAdministratorRecoverySchema).max(100),
     auditActivity: supportAuditActivitySchema,
     backup: supportBackupSchema,
-    companyNumbers: supportCompanyNumbersSchema,
     environment: z.enum(["development", "test", "production"]),
     health: supportHealthSchema,
     integrity: supportIntegritySchema,
+    kpiCalculation: supportKpiCalculationSchema,
     loginSecurity: supportLoginSecuritySchema,
     migration: supportMigrationParitySchema,
     observedAt: timestampSchema,
@@ -290,8 +310,8 @@ export type OperationalSupportDashboard = z.output<
 >;
 export type SupportAuditActivity = z.output<typeof supportAuditActivitySchema>;
 export type SupportBackup = z.output<typeof supportBackupSchema>;
-export type SupportCompanyNumbers = z.output<typeof supportCompanyNumbersSchema>;
 export type SupportDashboardQuery = z.output<typeof supportDashboardQuerySchema>;
+export type SupportKpiCalculation = z.output<typeof supportKpiCalculationSchema>;
 export type SupportSentry = z.output<typeof supportSentrySchema>;
 export type SupportUptime = z.output<typeof supportUptimeSchema>;
 export type SupportAuditCategory = (typeof SUPPORT_AUDIT_CATEGORIES)[number];

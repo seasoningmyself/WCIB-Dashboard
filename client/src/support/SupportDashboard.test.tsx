@@ -35,8 +35,10 @@ test("support dashboard renders operational and aggregate-only fields", () => {
 
   for (const expected of [
     "Release and availability",
-    "Aggregate company numbers",
-    "\\$12,345.67",
+    "KPI calculation health",
+    "Records processed",
+    "Reconciliation variance",
+    "Monthly KPI calculation diagnostics",
     "Migration parity",
     "Backup freshness",
     "Data integrity",
@@ -50,9 +52,8 @@ test("support dashboard renders operational and aggregate-only fields", () => {
   ]) {
     assert.match(markup, new RegExp(expected));
   }
-  assert.match(markup, /Closed pay sheets only/);
-  assert.match(markup, /No producer, policy, insured, office, carrier, or MGA detail/);
-  assert.doesNotMatch(markup, /Manage Staff|Start Fresh|commission rate|producer payout|policy number/i);
+  assert.match(markup, /without exposing revenue, targets, pay-sheet records, policies, or people/);
+  assert.doesNotMatch(markup, /\$|agency revenue|new revenue|revenue target|Manage Staff|Start Fresh|commission rate|producer payout|policy number/i);
 });
 
 const supportUser: CurrentUser = {
@@ -111,31 +112,26 @@ function dashboardFixture(): OperationalSupportDashboard {
       provider: "digitalocean",
       status: "fresh",
     },
-    companyNumbers: {
-      asOf: timestamp,
-      empty: false,
+    kpiCalculation: {
+      firstAnomalyMonth: null,
+      lastSuccessfulCalculationAt: timestamp,
+      missingOrIncompletePeriods: [],
       monthly: Array.from({ length: 12 }, (_, index) => ({
-        agencyRevenue: index === 0 ? "12345.67" : "0.00",
         month: index + 1,
         newPolicyCount: index === 0 ? 2 : 0,
         policyCount: index === 0 ? 5 : 0,
+        reportingStatus: "complete" as const,
       })),
       period: "full",
+      reconciliationVariance: "none",
+      recordsProcessed: 5,
       source: "closed_pay_sheets",
-      targets: {
-        newPolicyCount: 40,
-        newRevenue: "100000.00",
-        retentionRate: "85.00",
-      },
+      status: "healthy",
       totals: {
-        agencyRevenue: "12345.67",
-        existingPolicyCount: 3,
         newPolicyCount: 2,
-        newRevenue: "4000.00",
         policyCount: 5,
         retentionRate: "60.00",
         wonBackCount: 1,
-        wonBackRevenue: "500.00",
       },
       year: 2026,
     },

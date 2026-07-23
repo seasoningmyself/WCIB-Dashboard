@@ -40,31 +40,26 @@ test("support dashboard contract is bounded and excludes diagnostic detail", () 
       provider: "digitalocean",
       status: "fresh",
     },
-    companyNumbers: {
-      asOf: NOW,
-      empty: false,
+    kpiCalculation: {
+      firstAnomalyMonth: null,
+      lastSuccessfulCalculationAt: NOW,
+      missingOrIncompletePeriods: [],
       monthly: [1, 2, 3].map((month) => ({
-        agencyRevenue: "100.00",
         month,
         newPolicyCount: 1,
         policyCount: 2,
+        reportingStatus: "complete",
       })),
       period: "Q1",
+      reconciliationVariance: "none",
+      recordsProcessed: 6,
       source: "closed_pay_sheets",
-      targets: {
-        newPolicyCount: 10,
-        newRevenue: "1000.00",
-        retentionRate: "80.00",
-      },
+      status: "healthy",
       totals: {
-        agencyRevenue: "300.00",
-        existingPolicyCount: 3,
         newPolicyCount: 3,
-        newRevenue: "150.00",
         policyCount: 6,
         retentionRate: "50.00",
         wonBackCount: 1,
-        wonBackRevenue: "50.00",
       },
       year: 2026,
     },
@@ -149,6 +144,16 @@ test("support dashboard contract is bounded and excludes diagnostic detail", () 
     operationalSupportDashboardSchema.safeParse({
       ...dashboard,
       rawAuditRows: [],
+    }).success,
+    false,
+  );
+  assert.equal(
+    operationalSupportDashboardSchema.safeParse({
+      ...dashboard,
+      kpiCalculation: {
+        ...dashboard.kpiCalculation,
+        agencyRevenue: "300.00",
+      },
     }).success,
     false,
   );

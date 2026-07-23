@@ -38,7 +38,7 @@ import type {
 } from "./sentry.js";
 import {
   loadSupportAuditActivity,
-  loadSupportCompanyNumbers,
+  loadSupportKpiCalculation,
 } from "./aggregates.js";
 import {
   SupportDashboardAccessDeniedError,
@@ -87,7 +87,7 @@ export async function loadOperationalSupportDashboard(
     telemetry,
     administrators,
     auditActivity,
-    companyNumbers,
+    kpiCalculation,
   ] =
     await Promise.all([
       loadReadiness(options.readinessCheck, now, timer),
@@ -98,14 +98,13 @@ export async function loadOperationalSupportDashboard(
       loadTelemetry(options, now),
       loadAdministratorRecovery(database),
       loadSupportAuditActivity(database, now),
-      loadSupportCompanyNumbers(database, rawQuery, now),
+      loadSupportKpiCalculation(database, rawQuery, now),
     ]);
 
   const source = operationalSupportDashboardSchema.parse({
     administrators,
     auditActivity,
     backup,
-    companyNumbers,
     environment: options.nodeEnv,
     health: {
       checkedAt: now.toISOString(),
@@ -113,6 +112,7 @@ export async function loadOperationalSupportDashboard(
       status: "ok",
     },
     integrity,
+    kpiCalculation,
     loginSecurity,
     migration,
     observedAt: now.toISOString(),

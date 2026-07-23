@@ -11,7 +11,6 @@ import { createDatabasePool } from "../db/client.js";
 import { withDisposableMigratedDatabase } from "../db/disposable-database-test-helper.js";
 import {
   auditEvents,
-  kpiTargets,
   loginThrottleBuckets,
   userCapabilities,
   userMfaMethods,
@@ -93,14 +92,6 @@ test("support dashboard exposes bounded diagnostics and audits access", async ()
             lastFailedAt: new Date(NOW.getTime() - 120_000),
           },
         ]);
-        await database.insert(kpiTargets).values({
-          newPolicyCountTarget: 12,
-          newRevenueTarget: "1200.00",
-          producerUserId: null,
-          retentionRateTarget: "80.00",
-          scopeType: "company",
-          year: 2026,
-        });
         await database.insert(auditEvents).values([
           {
             action: "user_password_changed",
@@ -142,12 +133,14 @@ test("support dashboard exposes bounded diagnostics and audits access", async ()
         assert.equal(dashboard.backup.status, "unavailable");
         assert.equal(dashboard.sentry.status, "unavailable");
         assert.equal(dashboard.integrity.status, "ok");
-        assert.deepEqual(dashboard.companyNumbers.targets, {
-          newPolicyCount: 12,
-          newRevenue: "1200.00",
-          retentionRate: "80.00",
-        });
-        assert.equal(dashboard.companyNumbers.empty, true);
+        assert.equal(dashboard.kpiCalculation.status, "stale");
+        assert.equal(dashboard.kpiCalculation.recordsProcessed, 0);
+        assert.equal(dashboard.kpiCalculation.reconciliationVariance, "none");
+        assert.equal(dashboard.kpiCalculation.firstAnomalyMonth, 1);
+        assert.equal(
+          dashboard.kpiCalculation.missingOrIncompletePeriods.length,
+          6,
+        );
         assert.equal(dashboard.auditActivity.totalEventCount, 2);
         assert.equal(
           dashboard.auditActivity.categories.find(
@@ -207,13 +200,16 @@ test("support dashboard exposes bounded diagnostics and audits access", async ()
         const serialized = JSON.stringify(dashboard);
         for (const forbidden of [
           "bucketHash",
+          "agencyRevenue",
           "commission",
+          "newRevenue",
           "passwordHash",
           "paySheet",
           "policyNumber",
           "recoveryCodes",
           "sessionVersion",
           "stackTrace",
+          "wonBackRevenue",
         ]) {
           assert.equal(serialized.includes(forbidden), false, forbidden);
         }

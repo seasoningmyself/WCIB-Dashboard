@@ -1,7 +1,11 @@
-import { and, eq, gte, lte, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import type { AuthDatabase } from "../auth/users.js";
 import { inActiveBusinessGeneration } from "../db/business-state.js";
-import { auditEvents, kpiTargets } from "../db/schema.js";
+import {
+  auditEvents,
+  paySheetPolicies,
+  paySheets,
+} from "../db/schema.js";
 import {
   listClosedKpiFacts,
   type ClosedKpiFact,
@@ -14,25 +18,19 @@ import {
 import {
   SUPPORT_AUDIT_CATEGORIES,
   supportAuditActivitySchema,
-  supportCompanyNumbersSchema,
   supportDashboardQuerySchema,
+  supportKpiCalculationSchema,
   type SupportAuditActivity,
   type SupportAuditCategory,
-  type SupportCompanyNumbers,
   type SupportDashboardQuery,
+  type SupportKpiCalculation,
 } from "../../shared/support-dashboard.js";
 import { SupportDashboardBoundsError } from "./errors.js";
 import type { AuditAction } from "../../shared/audit-events.js";
 
 const MAX_COMPANY_FACTS = 100_000;
+const MAX_REPORTING_PERIOD_ROWS = 24;
 const AUDIT_WINDOW_MS = 24 * 60 * 60 * 1_000;
-const moneyPattern = /^(0|[1-9][0-9]{0,11})\.([0-9]{2})$/;
-
-interface CompanyTarget {
-  newPolicyCount: number | null;
-  newRevenue: string | null;
-  retentionRate: string | null;
-}
 
 interface NormalizedSupportQuery {
   period: KpiActualPeriod;
@@ -40,9 +38,14 @@ interface NormalizedSupportQuery {
 }
 
 interface CompanyAggregateGroup {
-  agencyRevenueCents: bigint;
   newPolicyCount: number;
   policyCount: number;
+}
+
+interface CompanyReportingPeriodSource {
+  month: number;
+  recordCount: number;
+  status: "open" | "closed";
 }
 
 export const AUDIT_CATEGORY_BY_ACTION = {
@@ -109,38 +112,58 @@ export const AUDIT_CATEGORY_BY_ACTION = {
   office_location_reactivated: "system_maintenance",
 } as const satisfies Record<AuditAction, SupportAuditCategory>;
 
-export async function loadSupportCompanyNumbers(
+export async function loadSupportKpiCalculation(
   database: AuthDatabase,
   rawQuery: unknown,
   now: Date,
-): Promise<SupportCompanyNumbers> {
+): Promise<SupportKpiCalculation> {
   const query = normalizeQuery(supportDashboardQuerySchema.parse(rawQuery), now);
-  const [facts, targetRows] = await Promise.all([
-    listClosedKpiFacts(database as KpiFactDatabase, {
-      periodMonths: KPI_PERIOD_MONTHS[query.period],
-      scopeType: "company",
-      year: query.year,
-    }),
-    database
-      .select({
-        newPolicyCount: kpiTargets.newPolicyCountTarget,
-        newRevenue: kpiTargets.newRevenueTarget,
-        retentionRate: kpiTargets.retentionRateTarget,
-      })
-      .from(kpiTargets)
-      .where(
-        and(
-          eq(kpiTargets.scopeType, "company"),
-          eq(kpiTargets.year, query.year),
-          inActiveBusinessGeneration(kpiTargets.businessGenerationId),
-        ),
-      )
-      .limit(2),
-  ]);
-  if (facts.length > MAX_COMPANY_FACTS || targetRows.length > 1) {
+  const months = KPI_PERIOD_MONTHS[query.period];
+  const [facts, reportingPeriods] = await database.transaction(
+    async (transaction) =>
+      Promise.all([
+        listClosedKpiFacts(transaction as KpiFactDatabase, {
+          periodMonths: months,
+          scopeType: "company",
+          year: query.year,
+        }),
+        transaction
+          .select({
+            month: paySheets.periodMonth,
+            recordCount: sql<number>`count(${paySheetPolicies.id})::integer`,
+            status: paySheets.status,
+          })
+          .from(paySheets)
+          .leftJoin(
+            paySheetPolicies,
+            and(
+              eq(paySheetPolicies.paySheetId, paySheets.id),
+              inActiveBusinessGeneration(
+                paySheetPolicies.businessGenerationId,
+              ),
+            ),
+          )
+          .where(
+            and(
+              eq(paySheets.ownerType, "sophia"),
+              eq(paySheets.periodYear, query.year),
+              inArray(paySheets.periodMonth, months),
+              inActiveBusinessGeneration(paySheets.businessGenerationId),
+            ),
+          )
+          .groupBy(paySheets.id)
+          .orderBy(paySheets.periodMonth, paySheets.id)
+          .limit(MAX_REPORTING_PERIOD_ROWS + 1),
+      ]),
+    { accessMode: "read only", isolationLevel: "repeatable read" },
+  );
+  if (
+    facts.length > MAX_COMPANY_FACTS ||
+    reportingPeriods.length > MAX_REPORTING_PERIOD_ROWS
+  ) {
     throw new SupportDashboardBoundsError();
   }
-  return buildSupportCompanyNumbers(query, facts, targetRows[0] ?? null);
+  return buildSupportKpiCalculation(query, facts, reportingPeriods, now);
 }
 
 export async function loadSupportAuditActivity(
@@ -210,80 +233,133 @@ export async function loadSupportAuditActivity(
   });
 }
 
-export function buildSupportCompanyNumbers(
+export function buildSupportKpiCalculation(
   query: Readonly<NormalizedSupportQuery>,
   facts: readonly ClosedKpiFact[],
-  target: Readonly<CompanyTarget> | null,
-): SupportCompanyNumbers {
+  reportingPeriods: readonly CompanyReportingPeriodSource[],
+  calculatedAt: Date,
+): SupportKpiCalculation {
+  if (Number.isNaN(calculatedAt.getTime())) {
+    throw new SupportDashboardBoundsError();
+  }
   const months = KPI_PERIOD_MONTHS[query.period];
   const monthly = new Map<number, CompanyAggregateGroup>(
     months.map((month) => [
       month,
-      { agencyRevenueCents: 0n, newPolicyCount: 0, policyCount: 0 },
+      { newPolicyCount: 0, policyCount: 0 },
     ]),
   );
-  let agencyRevenueCents = 0n;
   let newPolicyCount = 0;
-  let newRevenueCents = 0n;
   let wonBackCount = 0;
-  let wonBackRevenueCents = 0n;
-  let asOf: Date | null = null;
 
   for (const fact of facts) {
     const group = monthly.get(fact.periodMonth);
     if (group === undefined || fact.periodYear !== query.year) {
       throw new SupportDashboardBoundsError();
     }
-    const revenueCents = parseMoney(fact.snapshot.agencyRevenue);
     const isNew = fact.snapshot.transactionType === "New";
-    agencyRevenueCents += revenueCents;
-    group.agencyRevenueCents += revenueCents;
     group.policyCount += 1;
     if (isNew) {
       newPolicyCount += 1;
-      newRevenueCents += revenueCents;
       group.newPolicyCount += 1;
     }
     if (fact.snapshot.transactionType === "Won Back") {
       wonBackCount += 1;
-      wonBackRevenueCents += revenueCents;
     }
-    if (asOf === null || fact.closedAt > asOf) asOf = fact.closedAt;
   }
 
+  const periodRows = new Map<number, CompanyReportingPeriodSource[]>();
+  for (const period of reportingPeriods) {
+    if (
+      !months.includes(period.month) ||
+      !Number.isInteger(period.recordCount) ||
+      period.recordCount < 0
+    ) {
+      throw new SupportDashboardBoundsError();
+    }
+    const rows = periodRows.get(period.month) ?? [];
+    rows.push(period);
+    periodRows.set(period.month, rows);
+  }
+
+  const mismatchedMonths = new Set<number>();
+  const monthlyResponse = months.map((month) => {
+    const group = monthly.get(month);
+    if (group === undefined) throw new SupportDashboardBoundsError();
+    const rows = periodRows.get(month) ?? [];
+    const closedRows = rows.filter(({ status }) => status === "closed");
+    const closedRecordCount = closedRows.reduce(
+      (total, row) => total + row.recordCount,
+      0,
+    );
+    if (rows.length > 1 || closedRecordCount !== group.policyCount) {
+      mismatchedMonths.add(month);
+    }
+    const due = isPastReportingPeriod(query.year, month, calculatedAt);
+    const reportingStatus =
+      rows.length === 1 && closedRows.length === 1
+        ? "complete"
+        : due
+          ? rows.length === 0
+            ? "missing"
+            : "incomplete"
+          : "not_due";
+    return {
+      month,
+      newPolicyCount: group.newPolicyCount,
+      policyCount: group.policyCount,
+      reportingStatus,
+    } as const;
+  });
+
   const policyCount = facts.length;
-  return supportCompanyNumbersSchema.parse({
-    asOf: asOf?.toISOString() ?? null,
-    empty: policyCount === 0,
-    monthly: months.map((month) => {
-      const group = monthly.get(month);
-      if (group === undefined) throw new SupportDashboardBoundsError();
-      return {
-        agencyRevenue: formatMoney(group.agencyRevenueCents),
-        month,
-        newPolicyCount: group.newPolicyCount,
-        policyCount: group.policyCount,
-      };
-    }),
+  if (
+    monthlyResponse.reduce((total, month) => total + month.policyCount, 0) !==
+      policyCount ||
+    monthlyResponse.reduce(
+      (total, month) => total + month.newPolicyCount,
+      0,
+    ) !== newPolicyCount
+  ) {
+    for (const month of months) mismatchedMonths.add(month);
+  }
+  const missingOrIncompletePeriods = monthlyResponse.flatMap((month) =>
+    month.reportingStatus === "missing" ||
+    month.reportingStatus === "incomplete"
+      ? [{ month: month.month, status: month.reportingStatus }]
+      : [],
+  );
+  const anomalyMonths = [
+    ...mismatchedMonths,
+    ...missingOrIncompletePeriods.map(({ month }) => month),
+  ].sort((left, right) => left - right);
+  const reconciliationVariance =
+    mismatchedMonths.size === 0 ? "none" : "detected";
+  const status =
+    reconciliationVariance === "detected"
+      ? "mismatched"
+      : missingOrIncompletePeriods.length > 0
+        ? "stale"
+        : "healthy";
+
+  return supportKpiCalculationSchema.parse({
+    firstAnomalyMonth: anomalyMonths[0] ?? null,
+    lastSuccessfulCalculationAt: calculatedAt.toISOString(),
+    missingOrIncompletePeriods,
+    monthly: monthlyResponse,
     period: query.period,
+    reconciliationVariance,
+    recordsProcessed: policyCount,
     source: "closed_pay_sheets",
-    targets: {
-      newPolicyCount: target?.newPolicyCount ?? null,
-      newRevenue: target?.newRevenue ?? null,
-      retentionRate: target?.retentionRate ?? null,
-    },
+    status,
     totals: {
-      agencyRevenue: formatMoney(agencyRevenueCents),
-      existingPolicyCount: policyCount - newPolicyCount,
       newPolicyCount,
-      newRevenue: formatMoney(newRevenueCents),
       policyCount,
       retentionRate:
         policyCount === 0
           ? null
           : formatRate(policyCount - newPolicyCount, policyCount),
       wonBackCount,
-      wonBackRevenue: formatMoney(wonBackRevenueCents),
     },
     year: query.year,
   });
@@ -299,17 +375,6 @@ function normalizeQuery(
   };
 }
 
-function parseMoney(value: string): bigint {
-  const match = moneyPattern.exec(value);
-  if (match === null) throw new SupportDashboardBoundsError();
-  return BigInt(match[1] ?? "0") * 100n + BigInt(match[2] ?? "0");
-}
-
-function formatMoney(cents: bigint): string {
-  if (cents < 0n) throw new SupportDashboardBoundsError();
-  return `${cents / 100n}.${(cents % 100n).toString().padStart(2, "0")}`;
-}
-
 function formatRate(numerator: number, denominator: number): string {
   const hundredths =
     (BigInt(numerator) * 10_000n + BigInt(Math.floor(denominator / 2))) /
@@ -317,6 +382,17 @@ function formatRate(numerator: number, denominator: number): string {
   return `${hundredths / 100n}.${(hundredths % 100n)
     .toString()
     .padStart(2, "0")}`;
+}
+
+function isPastReportingPeriod(
+  year: number,
+  month: number,
+  now: Date,
+): boolean {
+  return (
+    year < now.getUTCFullYear() ||
+    (year === now.getUTCFullYear() && month < now.getUTCMonth() + 1)
+  );
 }
 
 function normalizeTimestamp(value: Date | string): Date {

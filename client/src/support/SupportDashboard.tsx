@@ -103,12 +103,12 @@ export function SupportDashboardView({
       <PageHeader
         actions={<button onClick={onRefresh} type="button">Refresh status</button>}
         eyebrow="Engineering support"
-        status={<>Operational status and aggregate company facts as of <strong>{formatTimestamp(dashboard.observedAt)}</strong>.</>}
+        status={<>Operational status and calculation health as of <strong>{formatTimestamp(dashboard.observedAt)}</strong>.</>}
         title="Support"
         titleId="support-page-title"
       />
 
-      <section className="support-controls" aria-label="Aggregate company period">
+      <section className="support-controls" aria-label="KPI reporting period">
         <form onSubmit={onApplyYear}>
           <label htmlFor="support-year">
             <span>Year</span>
@@ -134,7 +134,7 @@ export function SupportDashboardView({
       </section>
 
       <OperationalSummary dashboard={dashboard} />
-      <CompanyNumbers dashboard={dashboard} />
+      <KpiCalculationHealth dashboard={dashboard} />
       <SystemDiagnostics dashboard={dashboard} />
       <SupportMfaRecovery api={api} user={user} />
       <OfficeLocationsSettings embedded user={user} />
@@ -164,38 +164,44 @@ function OperationalSummary({ dashboard }: { dashboard: OperationalSupportDashbo
   );
 }
 
-function CompanyNumbers({ dashboard }: { dashboard: OperationalSupportDashboard }) {
-  const numbers = dashboard.companyNumbers;
+function KpiCalculationHealth({ dashboard }: { dashboard: OperationalSupportDashboard }) {
+  const calculation = dashboard.kpiCalculation;
+  const issueSummary = calculation.missingOrIncompletePeriods.length === 0
+    ? "None"
+    : calculation.missingOrIncompletePeriods
+        .map(({ month, status }) => `${monthLabel(month)} ${status}`)
+        .join(", ");
   return (
     <section className="support-section" aria-labelledby="support-company-title">
       <SupportSectionHeading
-        eyebrow={`${numbers.year} ${numbers.period === "full" ? "full year" : numbers.period}`}
+        eyebrow={`${calculation.year} ${calculation.period === "full" ? "full year" : calculation.period}`}
         id="support-company-title"
-        title="Aggregate company numbers"
+        title="KPI calculation health"
       />
-      <p className="support-section-copy">Closed pay sheets only. No producer, policy, insured, office, carrier, or MGA detail is included.</p>
+      <p className="support-section-copy">Closed pay-sheet facts are checked without exposing revenue, targets, pay-sheet records, policies, or people.</p>
       <div className="support-stat-grid is-five">
-        <SupportStat label="Agency revenue" value={formatMoney(numbers.totals.agencyRevenue)} />
-        <SupportStat label="Policies" value={formatCount(numbers.totals.policyCount)} />
-        <SupportStat label="New policies" meta={`${formatMoney(numbers.totals.newRevenue)} revenue`} value={formatCount(numbers.totals.newPolicyCount)} />
-        <SupportStat label="Retention" value={formatRate(numbers.totals.retentionRate)} />
-        <SupportStat label="Won back" meta={`${formatMoney(numbers.totals.wonBackRevenue)} revenue`} value={formatCount(numbers.totals.wonBackCount)} />
+        <SupportStat label="Calculation" state={calculation.status === "healthy" ? "good" : "warning"} value={sentenceCase(calculation.status)} />
+        <SupportStat label="Policies" value={formatCount(calculation.totals.policyCount)} />
+        <SupportStat label="New policies" value={formatCount(calculation.totals.newPolicyCount)} />
+        <SupportStat label="Retention" value={formatRate(calculation.totals.retentionRate)} />
+        <SupportStat label="Won back" value={formatCount(calculation.totals.wonBackCount)} />
       </div>
       <dl className="support-targets">
-        <div><dt>New policy target</dt><dd>{nullableCount(numbers.targets.newPolicyCount)}</dd></div>
-        <div><dt>New revenue target</dt><dd>{nullableMoney(numbers.targets.newRevenue)}</dd></div>
-        <div><dt>Retention target</dt><dd>{formatRate(numbers.targets.retentionRate)}</dd></div>
-        <div><dt>Last closed activity</dt><dd>{formatTimestamp(numbers.asOf)}</dd></div>
+        <div><dt>Last successful calculation</dt><dd>{formatTimestamp(calculation.lastSuccessfulCalculationAt)}</dd></div>
+        <div><dt>Records processed</dt><dd>{formatCount(calculation.recordsProcessed)}</dd></div>
+        <div><dt>Reconciliation variance</dt><dd>{sentenceCase(calculation.reconciliationVariance)}</dd></div>
+        <div><dt>First detected anomaly</dt><dd>{calculation.firstAnomalyMonth === null ? "None" : monthLabel(calculation.firstAnomalyMonth)}</dd></div>
+        <div><dt>Missing or incomplete periods</dt><dd>{issueSummary}</dd></div>
       </dl>
       <div className="support-table-wrap">
         <table className="support-table">
-          <caption>Monthly aggregate company performance</caption>
-          <thead><tr><th scope="col">Month</th><th scope="col">Revenue</th><th scope="col">Policies</th><th scope="col">New</th></tr></thead>
+          <caption>Monthly KPI calculation diagnostics</caption>
+          <thead><tr><th scope="col">Month</th><th scope="col">Reporting status</th><th scope="col">Policies</th><th scope="col">New</th></tr></thead>
           <tbody>
-            {numbers.monthly.map((month) => (
+            {calculation.monthly.map((month) => (
               <tr key={month.month}>
                 <th scope="row">{monthLabel(month.month)}</th>
-                <td>{formatMoney(month.agencyRevenue)}</td>
+                <td>{sentenceCase(month.reportingStatus)}</td>
                 <td>{formatCount(month.policyCount)}</td>
                 <td>{formatCount(month.newPolicyCount)}</td>
               </tr>
@@ -342,23 +348,8 @@ function formatTimestamp(value: string | null): string {
   }).format(new Date(value));
 }
 
-function formatMoney(value: string): string {
-  return new Intl.NumberFormat(undefined, {
-    currency: "USD",
-    style: "currency",
-  }).format(Number(value));
-}
-
 function formatCount(value: number): string {
   return new Intl.NumberFormat().format(value);
-}
-
-function nullableCount(value: number | null): string {
-  return value === null ? "Not set" : formatCount(value);
-}
-
-function nullableMoney(value: string | null): string {
-  return value === null ? "Not set" : formatMoney(value);
 }
 
 function formatRate(value: string | null): string {

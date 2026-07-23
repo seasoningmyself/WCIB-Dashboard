@@ -6,48 +6,44 @@ import type { ClosedKpiFact } from "../kpi/closed-facts.js";
 import { buildPaySheetPolicySnapshot } from "../pay-sheets/snapshots.js";
 import {
   AUDIT_CATEGORY_BY_ACTION,
-  buildSupportCompanyNumbers,
+  buildSupportKpiCalculation,
 } from "./aggregates.js";
 import { SupportDashboardBoundsError } from "./errors.js";
 
-test("support company aggregates expose only approved closed-fact fields", () => {
-  const result = buildSupportCompanyNumbers(
+test("support KPI diagnostics expose counts and health without financial values", () => {
+  const result = buildSupportKpiCalculation(
     { period: "Q3", year: 2026 },
     [
       fact(7, "New", "150.00", "2026-07-31T12:00:00.000Z"),
       fact(7, "Won Back", "80.00", "2026-08-01T12:00:00.000Z"),
     ],
-    {
-      newPolicyCount: 12,
-      newRevenue: "1200.00",
-      retentionRate: "80.00",
-    },
+    [
+      { month: 7, recordCount: 2, status: "closed" },
+      { month: 8, recordCount: 0, status: "closed" },
+      { month: 9, recordCount: 0, status: "closed" },
+    ],
+    new Date("2026-10-01T12:00:00.000Z"),
   );
 
   assert.deepEqual(result, {
-    asOf: "2026-08-01T12:00:00.000Z",
-    empty: false,
+    firstAnomalyMonth: null,
+    lastSuccessfulCalculationAt: "2026-10-01T12:00:00.000Z",
+    missingOrIncompletePeriods: [],
     monthly: [
-      { agencyRevenue: "230.00", month: 7, newPolicyCount: 1, policyCount: 2 },
-      { agencyRevenue: "0.00", month: 8, newPolicyCount: 0, policyCount: 0 },
-      { agencyRevenue: "0.00", month: 9, newPolicyCount: 0, policyCount: 0 },
+      { month: 7, newPolicyCount: 1, policyCount: 2, reportingStatus: "complete" },
+      { month: 8, newPolicyCount: 0, policyCount: 0, reportingStatus: "complete" },
+      { month: 9, newPolicyCount: 0, policyCount: 0, reportingStatus: "complete" },
     ],
     period: "Q3",
+    reconciliationVariance: "none",
+    recordsProcessed: 2,
     source: "closed_pay_sheets",
-    targets: {
-      newPolicyCount: 12,
-      newRevenue: "1200.00",
-      retentionRate: "80.00",
-    },
+    status: "healthy",
     totals: {
-      agencyRevenue: "230.00",
-      existingPolicyCount: 1,
       newPolicyCount: 1,
-      newRevenue: "150.00",
       policyCount: 2,
       retentionRate: "50.00",
       wonBackCount: 1,
-      wonBackRevenue: "80.00",
     },
     year: 2026,
   });
@@ -59,16 +55,53 @@ test("support company aggregates expose only approved closed-fact fields", () =>
     "PRIVATE-POLICY",
     "Producer Person",
     "commissionAmount",
+    "agencyRevenue",
     "insuredName",
+    "newRevenue",
     "officeLocationId",
     "paySheetId",
     "policyNumber",
     "producerPayout",
     "producerUserId",
     "sophiaShare",
+    "wonBackRevenue",
   ]) {
     assert.equal(serialized.includes(forbidden), false, forbidden);
   }
+});
+
+test("support KPI diagnostics identify stale and mismatched reporting periods", () => {
+  const facts = [fact(7, "New", "150.00", "2026-07-31T12:00:00.000Z")];
+  const calculatedAt = new Date("2026-10-01T12:00:00.000Z");
+  const stale = buildSupportKpiCalculation(
+    { period: "Q3", year: 2026 },
+    facts,
+    [
+      { month: 7, recordCount: 1, status: "closed" },
+      { month: 8, recordCount: 0, status: "open" },
+    ],
+    calculatedAt,
+  );
+  assert.equal(stale.status, "stale");
+  assert.equal(stale.firstAnomalyMonth, 8);
+  assert.deepEqual(stale.missingOrIncompletePeriods, [
+    { month: 8, status: "incomplete" },
+    { month: 9, status: "missing" },
+  ]);
+
+  const mismatched = buildSupportKpiCalculation(
+    { period: "Q3", year: 2026 },
+    facts,
+    [
+      { month: 7, recordCount: 2, status: "closed" },
+      { month: 8, recordCount: 0, status: "closed" },
+      { month: 9, recordCount: 0, status: "closed" },
+    ],
+    calculatedAt,
+  );
+  assert.equal(mismatched.status, "mismatched");
+  assert.equal(mismatched.reconciliationVariance, "detected");
+  assert.equal(mismatched.firstAnomalyMonth, 7);
 });
 
 test("support aggregate category map is exhaustive and fixed", () => {
@@ -90,13 +123,14 @@ test("support aggregate category map is exhaustive and fixed", () => {
   );
 });
 
-test("support company aggregates reject facts outside the selected period", () => {
+test("support KPI diagnostics reject facts outside the selected period", () => {
   assert.throws(
     () =>
-      buildSupportCompanyNumbers(
+      buildSupportKpiCalculation(
         { period: "Q3", year: 2026 },
         [fact(6, "New", "10.00", "2026-06-30T12:00:00.000Z")],
-        null,
+        [],
+        new Date("2026-10-01T12:00:00.000Z"),
       ),
     SupportDashboardBoundsError,
   );
