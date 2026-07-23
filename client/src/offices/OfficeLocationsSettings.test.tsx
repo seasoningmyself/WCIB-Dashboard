@@ -107,6 +107,34 @@ test("support engineer can manage offices without receiving data-reset controls"
   assert.doesNotMatch(markup, /Office settings unavailable|Start Fresh|Business generations/);
 });
 
+test("agency office settings can render without duplicating data recovery", () => {
+  const admin: CurrentUser = {
+    allowedNavigation: ["settings"],
+    capabilities: ["admin"],
+    displayName: "Sophia",
+    email: "sophia@example.test",
+    id: OFFICE_A,
+    passwordChangeRequired: false,
+    role: "admin",
+  };
+  const markup = renderToStaticMarkup(
+    <ApiClientProvider
+      boundary={createSessionBoundary(() => {})}
+      client={{ async request() { return Response.json({}); } }}
+    >
+      <OfficeLocationsSettings
+        embedded
+        eyebrow="Agency settings"
+        includeBusinessState={false}
+        user={admin}
+      />
+    </ApiClientProvider>,
+  );
+
+  assert.match(markup, /Loading office locations/);
+  assert.doesNotMatch(markup, /Business Data Recovery|Loading recovery points/);
+});
+
 function fixture(): AdminOfficeManagementResponse {
   return {
     items: [

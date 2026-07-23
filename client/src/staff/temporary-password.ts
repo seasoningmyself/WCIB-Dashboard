@@ -44,7 +44,7 @@ export function generateTemporaryPassphrase(
       pick(SECOND_WORDS, randomIndex),
       pick(THIRD_WORDS, randomIndex),
       String(10 + randomIndex(90)),
-    ].join(" ");
+    ].join("-");
     if (isPasswordPolicySatisfied(passphrase)) return passphrase;
   }
   throw new Error("Unable to generate a policy-compliant temporary password");

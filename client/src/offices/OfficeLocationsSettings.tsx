@@ -33,9 +33,13 @@ type ActiveDialog = {
 
 export function OfficeLocationsSettings({
   embedded = false,
+  eyebrow,
+  includeBusinessState = true,
   user,
 }: {
   embedded?: boolean;
+  eyebrow?: string;
+  includeBusinessState?: boolean;
   user: CurrentUser;
 }) {
   const isAdmin = user.role === "admin" && user.capabilities.includes("admin");
@@ -46,16 +50,19 @@ export function OfficeLocationsSettings({
   return (
     <OfficeLocationsController
       embedded={embedded}
-      includeBusinessState={isAdmin}
+      eyebrow={eyebrow}
+      includeBusinessState={isAdmin && includeBusinessState}
     />
   );
 }
 
 function OfficeLocationsController({
   embedded,
+  eyebrow,
   includeBusinessState,
 }: {
   embedded: boolean;
+  eyebrow?: string;
   includeBusinessState: boolean;
 }) {
   const client = useApiClient();
@@ -118,6 +125,7 @@ function OfficeLocationsController({
     <>
       <OfficeLocationsView
         embedded={embedded}
+        eyebrow={eyebrow}
         notice={notice}
         onActive={(office, active, mode) => {
           setError(null);
@@ -182,6 +190,7 @@ function OfficeLocationsController({
 
 export function OfficeLocationsView({
   embedded = false,
+  eyebrow,
   notice,
   onActive,
   onAdd,
@@ -191,6 +200,7 @@ export function OfficeLocationsView({
   state,
 }: {
   embedded?: boolean;
+  eyebrow?: string;
   notice: string | null;
   onActive(
     office: AdminOfficeLocation,
@@ -214,7 +224,7 @@ export function OfficeLocationsView({
     <section className={`office-page${embedded ? " is-embedded" : ""}`} aria-labelledby={titleId}>
       <header className="office-page-header">
         <div>
-          <p>{embedded ? "Support operations" : "Settings"}</p>
+          <p>{eyebrow ?? (embedded ? "Support operations" : "Settings")}</p>
           <Title id={titleId}>Office Locations</Title>
         </div>
         <button className="office-primary-action" disabled={pending} onClick={onAdd} type="button">

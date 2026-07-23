@@ -27,6 +27,8 @@ test("login panel is a password-only account form with no role chooser", () => {
   assert.match(markup, /autoComplete="current-password"/i);
   assert.match(markup, /href="#\/reset-password"/);
   assert.match(markup, /type="submit"/);
+  assert.match(markup, /src="\/wcib-logo-transparent\.png"/);
+  assert.match(markup, /aria-label="West Coast Insurance Brokers"/);
   assert.doesNotMatch(markup, />\s*(Admin|Employee|Producer)\s*</i);
   assert.doesNotMatch(markup, /localStorage|role chooser|switch role/i);
 });

@@ -46,8 +46,6 @@ test("Manage Staff shows active staff, producer percentages, and recovery action
 
   for (const visible of [
     "Manage Staff",
-    "Assignment options",
-    "Vocabulary",
     "Kaylee Producer",
     "Former Producer",
     "Current producer rates",
@@ -69,7 +67,7 @@ test("Manage Staff shows active staff, producer percentages, and recovery action
   assert.doesNotMatch(markup, /Inactive Employee/);
   assert.doesNotMatch(
     markup,
-    /Staff account summary|Active accounts|Inactive accounts/,
+    /Staff account summary|Active accounts|Inactive accounts|Assignment options|Vocabulary/,
   );
   const neverProducerRow = staffRowMarkup(markup, "Mercedes Employee");
   assert.doesNotMatch(
@@ -244,7 +242,6 @@ function renderView(items: readonly AdminStaffRecord[]): string {
       notice={null}
       onActive={noOp}
       onAdd={noOp}
-      onAssignmentUpdate={noOp}
       onCompensation={noOp}
       onEdit={noOp}
       onTemporaryPassword={noOp}
@@ -262,7 +259,6 @@ function renderState(state: Parameters<typeof ManageStaffView>[0]["state"]): str
       notice={null}
       onActive={noOp}
       onAdd={noOp}
-      onAssignmentUpdate={noOp}
       onCompensation={noOp}
       onEdit={noOp}
       onTemporaryPassword={noOp}

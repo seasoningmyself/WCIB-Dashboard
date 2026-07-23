@@ -30,7 +30,7 @@ test("navigation maps only explicit server-issued identifiers", () => {
   ]);
 });
 
-test("navigation groups authorized pages in Coastal task order", () => {
+test("navigation groups work pages while account settings stay in the user menu", () => {
   const groups = groupAuthorizedNavigation(resolveAuthorizedNavigation([
     "settings",
     "my_commissions",
@@ -47,7 +47,6 @@ test("navigation groups authorized pages in Coastal task order", () => {
     [
       { id: "overview", items: ["my_commissions"], label: "Overview" },
       { id: "work", items: ["turn_in", "my_items"], label: "Work" },
-      { id: "team", items: ["settings"], label: "Account" },
     ],
   );
 });
@@ -79,7 +78,7 @@ test("admin navigation collapses help requests into the review queue", () => {
       },
       {
         id: "team",
-        items: ["manage_staff", "settings"],
+        items: ["manage_staff"],
         label: "Team",
       },
     ],
@@ -100,10 +99,7 @@ test("support navigation is isolated ahead of ordinary role groups", () => {
       items: items.map((item) => item.id),
       label,
     })),
-    [
-      { id: "support", items: ["support"], label: "Support" },
-      { id: "team", items: ["settings"], label: "Account" },
-    ],
+    [{ id: "support", items: ["support"], label: "Support" }],
   );
 });
 

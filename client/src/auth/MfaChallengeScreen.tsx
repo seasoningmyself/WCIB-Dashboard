@@ -2,6 +2,7 @@ import { startAuthentication } from "@simplewebauthn/browser";
 import React, { useEffect, useState, type FormEvent } from "react";
 import type { CurrentUser } from "../../../shared/current-user.js";
 import { totpCodeSchema } from "../../../shared/mfa-scaffold.js";
+import { AuthBrand } from "../ui/BrandIdentity.js";
 import { MfaApiError, type MfaApi } from "./mfa-api.js";
 
 export function MfaChallengeScreen({
@@ -68,10 +69,7 @@ export function MfaChallengeScreen({
   return (
     <main className="login-page">
       <section className="login-panel mfa-challenge-panel" aria-labelledby="mfa-challenge-title">
-        <div className="login-brand" aria-label="West Coast Insurance Brokers">
-          <span className="login-brand-mark">WCIB</span>
-          <span>West Coast Insurance Brokers</span>
-        </div>
+        <AuthBrand />
         <div className="login-heading">
           <h1 id="mfa-challenge-title">Verify it&apos;s you</h1>
           <p>Complete your second sign-in step for {user.email}.</p>
