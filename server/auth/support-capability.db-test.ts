@@ -9,6 +9,7 @@ import {
   setSupportCapability,
 } from "./admin-account-security.js";
 import type { AuthorizedRequestContext } from "./authorization.js";
+import { hashPassword } from "./password.js";
 import { issueStepUpAuthorization } from "./mfa-step-up.js";
 import { createUser } from "./users.js";
 import { listSupportAccountSecurityTargets } from "./support-account-security.js";
@@ -18,6 +19,8 @@ import {
   auditEvents,
   staffProfiles,
   userCapabilities,
+  userMfaMethods,
+  userMfaRecoveryCodes,
   userMfaSettings,
   users,
 } from "../db/schema.js";
@@ -58,6 +61,50 @@ test("admin grants support only to capability-only accounts with mandatory MFA",
           capability: "admin",
           userId: administrator.id,
         });
+        const lastLoginAt = new Date("2026-07-22T13:30:00.000Z");
+        const methodCreatedAt = new Date("2026-07-20T12:00:00.000Z");
+        await database
+          .update(users)
+          .set({ lastLoginAt })
+          .where(eq(users.id, administrator.id));
+        await database.insert(userMfaSettings).values({
+          enrollmentCompletedAt: methodCreatedAt,
+          enforcementEnabled: true,
+          recoveryCodesAcknowledgedAt: methodCreatedAt,
+          userId: administrator.id,
+        });
+        await database.insert(userMfaMethods).values([
+          {
+            createdAt: methodCreatedAt,
+            isPrimary: true,
+            label: "YubiKey 5 NFC",
+            lastUsedAt: lastLoginAt,
+            methodType: "webauthn",
+            userId: administrator.id,
+            verifiedAt: methodCreatedAt,
+          },
+          {
+            createdAt: new Date("2026-07-21T12:00:00.000Z"),
+            isPrimary: false,
+            label: "Microsoft Authenticator",
+            methodType: "totp",
+            userId: administrator.id,
+            verifiedAt: new Date("2026-07-21T12:00:00.000Z"),
+          },
+        ]);
+        const recoveryHash = await hashPassword("support recovery fixture");
+        await database.insert(userMfaRecoveryCodes).values([
+          {
+            codeHash: recoveryHash,
+            lookupPrefix: "ABCDEF1234",
+            userId: administrator.id,
+          },
+          {
+            codeHash: recoveryHash,
+            lookupPrefix: "ABCDEF5678",
+            userId: administrator.id,
+          },
+        ]);
         await database.insert(staffProfiles).values({
           role: "employee",
           userId: staff.id,
@@ -135,9 +182,49 @@ test("admin grants support only to capability-only accounts with mandatory MFA",
             "displayName",
             "email",
             "id",
-            "mfaEnrolled",
-            "mfaEnrollmentRequired",
+            "lastLoginAt",
+            "mfa",
           ]);
+        }
+        const administratorTarget = targets.find(
+          ({ id }) => id === administrator.id,
+        );
+        assert.deepEqual(administratorTarget, {
+          displayName: administrator.displayName,
+          email: administrator.email,
+          id: administrator.id,
+          lastLoginAt: lastLoginAt.toISOString(),
+          mfa: {
+            enrolled: true,
+            enrollmentRequired: false,
+            methods: [
+              {
+                createdAt: methodCreatedAt.toISOString(),
+                isPrimary: true,
+                label: "YubiKey 5 NFC",
+                lastUsedAt: lastLoginAt.toISOString(),
+                methodType: "webauthn",
+              },
+              {
+                createdAt: "2026-07-21T12:00:00.000Z",
+                isPrimary: false,
+                label: "Microsoft Authenticator",
+                lastUsedAt: null,
+                methodType: "totp",
+              },
+            ],
+            recoveryCodesRemaining: 2,
+          },
+        });
+        const serializedTarget = JSON.stringify(administratorTarget);
+        for (const forbidden of [
+          "codeHash",
+          "credentialId",
+          "encryptedSecret",
+          "publicKey",
+          "session",
+        ]) {
+          assert.equal(serializedTarget.includes(forbidden), false, forbidden);
         }
 
         const staffProof = await supportProof(

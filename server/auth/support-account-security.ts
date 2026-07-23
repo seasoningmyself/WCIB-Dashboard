@@ -41,6 +41,7 @@ export async function listSupportAccountSecurityTargets(
       displayName: users.displayName,
       email: users.email,
       id: users.id,
+      lastLoginAt: users.lastLoginAt,
       supportCapability: supportCapabilities.isActive,
     })
     .from(users)
@@ -73,8 +74,21 @@ export async function listSupportAccountSecurityTargets(
       displayName: account.displayName,
       email: account.email,
       id: account.id,
-      mfaEnrolled: mfa.enrolled,
-      mfaEnrollmentRequired: mfa.enrollmentRequired,
+      lastLoginAt: account.lastLoginAt?.toISOString() ?? null,
+      mfa: {
+        enrolled: mfa.enrolled,
+        enrollmentRequired: mfa.enrollmentRequired,
+        methods: mfa.methods.map(
+          ({ createdAt, isPrimary, label, lastUsedAt, methodType }) => ({
+            createdAt,
+            isPrimary,
+            label,
+            lastUsedAt,
+            methodType,
+          }),
+        ),
+        recoveryCodesRemaining: mfa.recoveryCodesRemaining,
+      },
     });
   }
   await database.transaction(async (transaction) => {

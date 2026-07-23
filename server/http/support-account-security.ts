@@ -4,6 +4,7 @@ import {
 } from "../../shared/admin-account-security.js";
 import { apiErrorCodes } from "../../shared/api-errors.js";
 import { supportAccountSecurityListResponseSchema } from "../../shared/support-account-security.js";
+import type { SupportAccountSecurityItem } from "../../shared/support-account-security.js";
 import {
   getAuthorizedRequestContext,
   type AuthorizationGuards,
@@ -31,15 +32,9 @@ export const SUPPORT_ACCOUNT_SECURITY_PATH = "/api/support/accounts";
 
 export interface RegisterSupportAccountSecurityRoutesOptions {
   authorization: AuthorizationGuards;
-  list(context: AuthorizedRequestContext): Promise<
-    Array<{
-      displayName: string;
-      email: string;
-      id: string;
-      mfaEnrolled: boolean;
-      mfaEnrollmentRequired: boolean;
-    }>
-  >;
+  list(
+    context: AuthorizedRequestContext,
+  ): Promise<SupportAccountSecurityItem[]>;
   resetMfa(
     context: AuthorizedRequestContext,
     userId: string,

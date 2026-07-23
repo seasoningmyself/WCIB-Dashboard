@@ -16,8 +16,19 @@ test("support API uses only dedicated support routes and binds reset proof", asy
             displayName: "Sophia",
             email: "sophia@example.test",
             id: TARGET_ID,
-            mfaEnrolled: true,
-            mfaEnrollmentRequired: false,
+            lastLoginAt: "2026-07-22T12:00:00.000Z",
+            mfa: {
+              enrolled: true,
+              enrollmentRequired: false,
+              methods: [{
+                createdAt: "2026-07-20T12:00:00.000Z",
+                isPrimary: true,
+                label: "YubiKey 5 NFC",
+                lastUsedAt: "2026-07-22T12:00:00.000Z",
+                methodType: "webauthn",
+              }],
+              recoveryCodesRemaining: 8,
+            },
           }],
         });
       }
@@ -49,8 +60,20 @@ test("support API rejects financial or credential fields in account targets", as
           displayName: "Producer",
           email: "producer@example.test",
           id: TARGET_ID,
-          mfaEnrolled: true,
-          mfaEnrollmentRequired: false,
+          lastLoginAt: null,
+          mfa: {
+            enrolled: true,
+            enrollmentRequired: false,
+            methods: [{
+              createdAt: "2026-07-20T12:00:00.000Z",
+              encryptedSecret: "credential-material",
+              isPrimary: true,
+              label: "Authenticator",
+              lastUsedAt: null,
+              methodType: "totp",
+            }],
+            recoveryCodesRemaining: 8,
+          },
         }],
       });
     },

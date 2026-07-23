@@ -2,13 +2,16 @@ import React, { useCallback, useEffect, useMemo, useState, type FormEvent } from
 import { resetAdminMfaRequestSchema } from "../../../shared/admin-account-security.js";
 import type { CurrentUser } from "../../../shared/current-user.js";
 import type { MfaStepUpDescriptor } from "../../../shared/mfa-scaffold.js";
-import type { SupportAccountSecurityItem } from "../../../shared/support-account-security.js";
+import type {
+  SupportAccountSecurityItem,
+  SupportMfaMethod,
+} from "../../../shared/support-account-security.js";
 import { useSensitiveSessionCleanup } from "../api/context.js";
 import { createMfaApi } from "../auth/mfa-api.js";
 import { MfaStepUpDialog } from "../auth/MfaStepUpDialog.js";
 import type { SupportApi } from "./api.js";
 
-interface ResetDraft {
+export interface ResetDraft {
   item: SupportAccountSecurityItem;
   reason: string;
 }
@@ -76,36 +79,17 @@ export function SupportMfaRecovery({
       ) : items.length === 0 ? (
         <p>No other accounts are available for recovery.</p>
       ) : (
-        <div className="support-account-list">
-          {items.map((item) => (
-            <article className="support-account-row" key={item.id}>
-              <div>
-                <strong>{item.displayName}</strong>
-                <span>{item.email}</span>
-              </div>
-              <span className={`status-badge${item.mfaEnrolled ? " is-active" : ""}`}>
-                {item.mfaEnrolled
-                  ? "MFA on"
-                  : item.mfaEnrollmentRequired
-                    ? "Enrollment required"
-                    : "MFA off"}
-              </span>
-              <button
-                onClick={() => {
-                  setError(null);
-                  setNotice(null);
-                  setDraft({ item, reason: "" });
-                }}
-                type="button"
-              >
-                Reset MFA
-              </button>
-            </article>
-          ))}
-        </div>
+        <SupportMfaAccountList
+          items={items}
+          onReset={(item) => {
+            setError(null);
+            setNotice(null);
+            setDraft({ item, reason: "" });
+          }}
+        />
       )}
       {draft === null ? null : (
-        <ResetReasonDialog
+        <SupportMfaResetDialog
           draft={draft}
           onCancel={() => setDraft(null)}
           onReason={(reason) => setDraft((current) => current === null ? null : { ...current, reason })}
@@ -140,7 +124,53 @@ export function SupportMfaRecovery({
   );
 }
 
-function ResetReasonDialog({
+export function SupportMfaAccountList({
+  items,
+  onReset,
+}: {
+  items: readonly SupportAccountSecurityItem[];
+  onReset(item: SupportAccountSecurityItem): void;
+}) {
+  return (
+    <div className="support-account-list">
+      {items.map((item) => (
+        <article className="support-account-row" key={item.id}>
+          <div className="support-account-identity">
+            <strong>{item.displayName}</strong>
+            <span>{item.email}</span>
+            <small>Last login {formatTimestamp(item.lastLoginAt)}</small>
+          </div>
+          <div className="support-account-mfa">
+            <span className={`status-badge${item.mfa.enrolled ? " is-active" : ""}`}>
+              {item.mfa.enrolled
+                ? "MFA on"
+                : item.mfa.enrollmentRequired
+                  ? "Enrollment required"
+                  : "MFA off"}
+            </span>
+            {item.mfa.methods.length === 0 ? (
+              <small>No active MFA methods</small>
+            ) : (
+              <ul className="support-factor-list">
+                {item.mfa.methods.map((method) => (
+                  <li key={`${method.methodType}:${method.label}:${method.createdAt}`}>
+                    <strong>{method.label}</strong>
+                    <span>{methodTypeLabel(method)}{method.isPrimary ? " / Primary" : ""}</span>
+                    <small>Added {formatTimestamp(method.createdAt)} / Last used {formatTimestamp(method.lastUsedAt)}</small>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <small>{item.mfa.recoveryCodesRemaining} recovery codes remaining</small>
+          </div>
+          <button onClick={() => onReset(item)} type="button">Reset MFA</button>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+export function SupportMfaResetDialog({
   draft,
   onCancel,
   onReason,
@@ -172,6 +202,23 @@ function ResetReasonDialog({
           <button onClick={onCancel} type="button">Close</button>
         </header>
         <form onSubmit={submit}>
+          <div className="support-reset-impact">
+            <p>
+              {draft.item.mfa.methods.length === 0
+                ? "No active MFA methods are registered. Sessions and recovery grants will still be revoked."
+                : `This reset will remove ${draft.item.mfa.methods.length} active ${draft.item.mfa.methods.length === 1 ? "method" : "methods"}:`}
+            </p>
+            {draft.item.mfa.methods.length === 0 ? null : (
+              <ul>
+                {draft.item.mfa.methods.map((method) => (
+                  <li key={`${method.methodType}:${method.label}:${method.createdAt}`}>
+                    {method.label} ({methodTypeLabel(method)}{method.isPrimary ? ", primary" : ""})
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p>{draft.item.mfa.recoveryCodesRemaining} recovery codes will be revoked.</p>
+          </div>
           <label className="staff-field">
             <span>Reason</span>
             <textarea
@@ -192,4 +239,16 @@ function ResetReasonDialog({
       </section>
     </div>
   );
+}
+
+function methodTypeLabel(method: Pick<SupportMfaMethod, "methodType">): string {
+  return method.methodType === "webauthn" ? "Passkey" : "Authenticator app";
+}
+
+function formatTimestamp(value: string | null): string {
+  if (value === null) return "Not available";
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
 }
