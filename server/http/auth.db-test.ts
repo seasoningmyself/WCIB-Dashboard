@@ -264,6 +264,22 @@ test("login endpoint creates WCIB sessions and returns scoped access summaries",
       },
     });
     const adminCookie = readCookie(adminLogin);
+    const loginTimestamps = await database
+      .select({ id: users.id, lastLoginAt: users.lastLoginAt })
+      .from(users)
+      .where(inArray(users.id, [employee.id, admin.id, disabled.id]));
+    assert.equal(
+      loginTimestamps.find(({ id }) => id === employee.id)?.lastLoginAt instanceof Date,
+      true,
+    );
+    assert.equal(
+      loginTimestamps.find(({ id }) => id === admin.id)?.lastLoginAt instanceof Date,
+      true,
+    );
+    assert.equal(
+      loginTimestamps.find(({ id }) => id === disabled.id)?.lastLoginAt,
+      null,
+    );
 
     const failure = {
       error: {

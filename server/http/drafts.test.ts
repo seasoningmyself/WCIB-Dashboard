@@ -1311,7 +1311,9 @@ test("submission withdrawal is explicitly guarded and fails closed without autho
 test("draft assignment options are explicitly guarded and projected to nonfinancial fields", async () => {
   const fixture = createFixture();
   const producerOption = {
+    bookEnabled: true,
     displayName: "Kaylee",
+    firstYearEnabled: true,
     userId: PRODUCER_ID,
     email: "must-not-leak@example.test",
     producerRate: "25.0000",
@@ -1376,7 +1378,14 @@ test("draft assignment options are explicitly guarded and projected to nonfinanc
     assert.equal(await response.completed, null);
     assert.deepEqual(response.result(), {
       body: {
-        producers: [{ displayName: "Kaylee", userId: PRODUCER_ID }],
+        producers: [
+          {
+            bookEnabled: true,
+            displayName: "Kaylee",
+            firstYearEnabled: true,
+            userId: PRODUCER_ID,
+          },
+        ],
       },
       headers: { "cache-control": "no-store" },
       status: 200,
@@ -1405,7 +1414,12 @@ test("draft assignment option projection fails closed when its guard is omitted"
   const handler = createDraftAssignmentOptionsHandler({
     async list() {
       calls += 1;
-      return [{ displayName: "Kaylee", userId: PRODUCER_ID }];
+      return [{
+        bookEnabled: true,
+        displayName: "Kaylee",
+        firstYearEnabled: true,
+        userId: PRODUCER_ID,
+      }];
     },
     logger,
   });

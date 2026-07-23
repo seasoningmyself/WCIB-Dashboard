@@ -15,7 +15,7 @@ import { employeeFixture, staffFixture, uuid } from "./test-fixture.js";
 
 const noOp = () => {};
 
-test("Manage Staff renders active and inactive identities with immutable rate history", () => {
+test("Manage Staff shows active staff, producer percentages, and recovery actions", () => {
   const producer = staffFixture();
   const producerWithoutRates = staffFixture({
     displayName: "Producer Missing Rates",
@@ -24,54 +24,65 @@ test("Manage Staff renders active and inactive identities with immutable rate hi
     userId: uuid(3),
   });
   const neverProducer = employeeFixture();
-  const inactive = employeeFixture({
-    displayName: "Long Historical Employee Name That Must Remain Readable",
-    email: "long.historical.employee.address@example.test",
-    isActive: false,
+  const formerProducer = employeeFixture({
+    displayName: "Former Producer",
     rateState: "dormant",
     rates: [producer.rates[0]!],
+    userId: uuid(4),
   });
-  const markup = renderView(
-    [producer, producerWithoutRates, neverProducer, inactive],
-    producer.userId,
-  );
+  const inactive = employeeFixture({
+    displayName: "Inactive Employee",
+    email: "inactive.employee@example.test",
+    isActive: false,
+    userId: uuid(5),
+  });
+  const markup = renderView([
+    producer,
+    producerWithoutRates,
+    neverProducer,
+    formerProducer,
+    inactive,
+  ]);
 
   for (const visible of [
     "Manage Staff",
+    "Assignment options",
+    "Vocabulary",
     "Kaylee Producer",
-    "Long Historical Employee Name That Must Remain Readable",
-    "Rate configured",
-    "⚠ No rates set, Pay Sheet will not calculate",
-    "Rate history dormant",
+    "Former Producer",
+    "Current producer rates",
+    "Former producer rates",
     "New commission",
+    "New broker",
+    "Renewal commission",
+    "Renewal broker",
     "26.00%",
-    "Locked",
-    "Unlocked",
-    "Read only",
-    "Correct",
-    "Add rate",
-    "Deactivate",
-    "Reactivate",
+    "No rates set. Pay Sheet will not calculate.",
+    "Compensation",
+    "Issue temporary password",
+    "Deactivate account",
+    "Show inactive (1)",
   ]) {
     assert.match(markup, new RegExp(escapeRegExp(visible)));
   }
+  assert.doesNotMatch(markup, /Rate configured/);
+  assert.doesNotMatch(markup, /Inactive Employee/);
   assert.doesNotMatch(
     markup,
     /Staff account summary|Active accounts|Inactive accounts/,
   );
-  assert.equal((markup.match(/>Correct</g) ?? []).length, 1);
   const neverProducerRow = staffRowMarkup(markup, "Mercedes Employee");
   assert.doesNotMatch(
     neverProducerRow,
-    /No producer rate|Rate history|Hide rates|Producer rate history/,
+    /No producer rate|Compensation|Current producer rates|Former producer rates/,
   );
   assert.match(
     staffRowMarkup(markup, "Producer Missing Rates"),
-    /⚠ No rates set, Pay Sheet will not calculate/,
+    /No rates set. Pay Sheet will not calculate./,
   );
   assert.match(
-    staffRowMarkup(markup, "Long Historical Employee Name That Must Remain Readable"),
-    /Rate history dormant|Hide rates/,
+    staffRowMarkup(markup, "Former Producer"),
+    /Former producer rates|Compensation/,
   );
   assert.doesNotMatch(markup, />Delete<|hard delete|localStorage/i);
 });
@@ -111,7 +122,7 @@ test("staff editor keeps temporary credentials masked and creation-only", () => 
   );
   const editing = renderToStaticMarkup(
     <StaffEditorDialog
-      dialog={{ kind: "edit", staff: staffFixture() }}
+      dialog={{ kind: "edit", panel: "profile", staff: staffFixture() }}
       error={null}
       onCancel={noOp}
       onCreate={noOp}
@@ -125,6 +136,8 @@ test("staff editor keeps temporary credentials masked and creation-only", () => 
   assert.doesNotMatch(creation, /ValidPassword|passwordHash/);
   assert.doesNotMatch(creation, /Pronoun|Her|His|Their/);
   assert.doesNotMatch(editing, /Temporary password|type="password"|passwordHash/);
+  assert.match(editing, /Profile/);
+  assert.match(editing, /Compensation/);
   assert.doesNotMatch(editing, /Pronoun|Her|His|Their/);
 });
 
@@ -132,7 +145,7 @@ test("staff editor manages office assignment and admin temporary-password recove
   const staff = staffFixture();
   const editor = renderToStaticMarkup(
     <StaffEditorDialog
-      dialog={{ kind: "edit", staff }}
+      dialog={{ kind: "edit", panel: "profile", staff }}
       error={null}
       officeOptions={[
         {
@@ -197,23 +210,45 @@ test("role and active dialogs explain dormant history and session invalidation",
   assert.doesNotMatch(producerRate, /Delete/);
 });
 
-function renderView(
-  items: readonly AdminStaffRecord[],
-  expandedUserId: string,
-): string {
+test("producer compensation is editable from the staff editor without mutating locked history", () => {
+  const staff = staffFixture();
+  const markup = renderToStaticMarkup(
+    <StaffEditorDialog
+      dialog={{ kind: "edit", panel: "compensation", staff }}
+      error={null}
+      onAddRate={noOp}
+      onCancel={noOp}
+      onCorrectRate={noOp}
+      onCreate={noOp}
+      onUpdate={noOp}
+      pending={false}
+    />,
+  );
+
+  assert.match(markup, /Producer compensation/);
+  assert.match(markup, /Add effective rate/);
+  assert.match(markup, /New commission/);
+  assert.match(markup, /New broker/);
+  assert.match(markup, /Renewal commission/);
+  assert.match(markup, /Renewal broker/);
+  assert.match(markup, /Locked/);
+  assert.match(markup, /Unlocked/);
+  assert.match(markup, /Read only/);
+  assert.equal((markup.match(/>Correct</g) ?? []).length, 1);
+});
+
+function renderView(items: readonly AdminStaffRecord[]): string {
   return renderToStaticMarkup(
     <ManageStaffView
       currentUserId={uuid(99)}
-      expandedUserId={expandedUserId}
       notice={null}
       onActive={noOp}
       onAdd={noOp}
-      onAddRate={noOp}
-      onCorrectRate={noOp}
+      onAssignmentUpdate={noOp}
+      onCompensation={noOp}
       onEdit={noOp}
       onTemporaryPassword={noOp}
       onRetry={noOp}
-      onToggle={noOp}
       pending={false}
       state={{ items, status: "ready" }}
     />,
@@ -224,16 +259,14 @@ function renderState(state: Parameters<typeof ManageStaffView>[0]["state"]): str
   return renderToStaticMarkup(
     <ManageStaffView
       currentUserId={uuid(99)}
-      expandedUserId={null}
       notice={null}
       onActive={noOp}
       onAdd={noOp}
-      onAddRate={noOp}
-      onCorrectRate={noOp}
+      onAssignmentUpdate={noOp}
+      onCompensation={noOp}
       onEdit={noOp}
       onTemporaryPassword={noOp}
       onRetry={noOp}
-      onToggle={noOp}
       pending={false}
       state={state}
     />,

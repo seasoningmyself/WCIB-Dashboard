@@ -73,9 +73,15 @@ export type ApprovalQueueState =
       work: ApprovalWorkListResponse;
     };
 
-export function ApprovalQueue({ user }: { user: CurrentUser }) {
+export function ApprovalQueue({
+  reviewNavigation,
+  user,
+}: {
+  reviewNavigation?: React.ReactNode;
+  user: CurrentUser;
+}) {
   return isApprovalAdmin(user) ? (
-    <AdminApprovalQueue user={user} />
+    <AdminApprovalQueue reviewNavigation={reviewNavigation} user={user} />
   ) : (
     <ApprovalMessage
       body="This page is not available for your account."
@@ -84,7 +90,13 @@ export function ApprovalQueue({ user }: { user: CurrentUser }) {
   );
 }
 
-function AdminApprovalQueue({ user }: { user: CurrentUser }) {
+function AdminApprovalQueue({
+  reviewNavigation,
+  user,
+}: {
+  reviewNavigation?: React.ReactNode;
+  user: CurrentUser;
+}) {
   const client = useApiClient();
   const api = useMemo(() => createApprovalApi(client), [client]);
   const ledgerApi = useMemo(() => createPolicyLedgerApi(client), [client]);
@@ -500,6 +512,7 @@ function AdminApprovalQueue({ user }: { user: CurrentUser }) {
           )
         }
         pending={pending}
+        reviewNavigation={reviewNavigation}
         selectedSubmissionIds={selectedSubmissionIds}
         state={state}
       />
@@ -674,6 +687,7 @@ export function ApprovalQueueView({
   onSelectSubmission,
   onSelectSubmissions,
   pending,
+  reviewNavigation,
   selectedSubmissionIds,
   state,
 }: {
@@ -698,6 +712,7 @@ export function ApprovalQueueView({
   onSelectSubmission(id: string, selected: boolean): void;
   onSelectSubmissions(selected: boolean): void;
   pending: boolean;
+  reviewNavigation?: React.ReactNode;
   selectedSubmissionIds: ReadonlySet<string>;
   state: ApprovalQueueState;
 }) {
@@ -706,6 +721,7 @@ export function ApprovalQueueView({
       <ApprovalMessage
         body="Retrieving submitted policies and help requests..."
         busy
+        reviewNavigation={reviewNavigation}
         title="Loading approvals"
       />
     );
@@ -715,6 +731,7 @@ export function ApprovalQueueView({
       <ApprovalMessage
         action={<button onClick={onRetry} type="button">Try again</button>}
         body="The approval queue could not be loaded."
+        reviewNavigation={reviewNavigation}
         title="Approvals unavailable"
       />
     );
@@ -723,6 +740,7 @@ export function ApprovalQueueView({
     return (
       <ApprovalMessage
         body="This page is not available for your account."
+        reviewNavigation={reviewNavigation}
         title="Approvals unavailable"
       />
     );
@@ -766,9 +784,11 @@ export function ApprovalQueueView({
             <strong>{total}</strong> {total === 1 ? "open item is" : "open items are"} waiting for review.
           </>
         )}
-        title="Approvals"
+        title="Review Queue"
         titleId="approval-page-title"
       />
+
+      {reviewNavigation}
 
       <div className="approval-toolbar" aria-label="Approval queue filter">
         {(["all", "pending", "flagged"] as const).map((value) => (
@@ -1158,11 +1178,13 @@ function ApprovalMessage({
   action,
   body,
   busy = false,
+  reviewNavigation,
   title,
 }: {
   action?: React.ReactNode;
   body: string;
   busy?: boolean;
+  reviewNavigation?: React.ReactNode;
   title: string;
 }) {
   return (
@@ -1170,6 +1192,7 @@ function ApprovalMessage({
       <h1 id="approval-message-title">{title}</h1>
       <p>{body}</p>
       {action}
+      {reviewNavigation}
     </section>
   );
 }

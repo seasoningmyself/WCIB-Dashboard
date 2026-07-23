@@ -122,6 +122,10 @@ test("turn-in validation enforces conditional invoice, commission, and IPFS fiel
   const valid = completeState();
   assert.deepEqual(validateTurnInForSubmit(valid), {});
 
+  const empty = validateTurnInForSubmit(createEmptyTurnInState());
+  assert.equal(empty.amountPaid, "Enter an amount collected greater than zero.");
+  assert.equal(empty.proposalTotal, "Enter a proposal total greater than zero.");
+
   const invalid = {
     ...valid,
     commissionConfirmed: false,
@@ -246,16 +250,49 @@ test("assignment choices match the v15 role boundaries", () => {
 
   assert.deepEqual(
     buildAssignmentChoices(user("employee", "Mercedes"), [
-      { displayName: "Kaylee", userId: OTHER_ID },
+      {
+        bookEnabled: true,
+        displayName: "Kaylee",
+        firstYearEnabled: true,
+        userId: OTHER_ID,
+      },
     ]).map(({ label }) => label),
     ["Sophia's account", "Kaylee's account"],
   );
 
   assert.deepEqual(
     buildAssignmentChoices(user("admin", "Sophia"), [
-      { displayName: "Kaylee", userId: OTHER_ID },
+      {
+        bookEnabled: true,
+        displayName: "Kaylee",
+        firstYearEnabled: true,
+        userId: OTHER_ID,
+      },
     ]).map(({ label }) => label),
     ["Sophia's account", "Kaylee's account", "1st-yr house - Kaylee"],
+  );
+});
+
+test("disabled producer assignment choices disappear without changing agency access", () => {
+  const options = [
+    {
+      bookEnabled: false,
+      displayName: "Kaylee",
+      firstYearEnabled: true,
+      userId: OTHER_ID,
+    },
+  ];
+  assert.deepEqual(
+    buildAssignmentChoices(user("admin", "Sophia"), options).map(
+      ({ label }) => label,
+    ),
+    ["Sophia's account", "1st-yr house - Kaylee"],
+  );
+  assert.deepEqual(
+    buildAssignmentChoices(user("employee", "Mercedes"), options).map(
+      ({ label }) => label,
+    ),
+    ["Sophia's account"],
   );
 });
 

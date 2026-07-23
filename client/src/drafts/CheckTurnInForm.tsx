@@ -18,6 +18,7 @@ import {
 } from "../vocabulary/InlineVocabularyPickers.js";
 import { useVocabulary } from "../vocabulary/context.js";
 import { OfficeLocationPicker } from "../vocabulary/pickers.js";
+import { VocabularyPicker } from "../vocabulary/VocabularyPicker.js";
 import { normalizeTurnInOfficeSelection } from "../offices/turn-in-office.js";
 import { createDraftApi, DraftApiError } from "./api.js";
 import { createAutomaticSaveQueue } from "./autosave.js";
@@ -753,6 +754,10 @@ export function CheckTurnInFormView({
   const summary = calculateTurnInSummary(form);
   const wording = getTurnInWording(form.transactionType);
   const paymentGuidance = getTurnInPaymentGuidance(form);
+  const validationSummaryErrors = useMemo(
+    () => ({ ...validateTurnInForSubmit(form), ...errors }),
+    [errors, form],
+  );
   const pending = saveState === "saving";
   const completed = draft !== null && !isEditableDraft(draft);
   const sentBack = draft?.status === "sent_back";
@@ -968,15 +973,25 @@ export function CheckTurnInFormView({
 
         <FormSection title="Policy information">
           <div className="turn-in-grid turn-in-grid-three">
-            <TextField error={errors.insuredName} field="insuredName" label="Insured name" onChange={(value) => onFieldChange("insuredName", value)} required value={form.insuredName} />
+            <TextField
+              error={errors.insuredName}
+              field="insuredName"
+              label="Insured name"
+              onChange={(value) => onFieldChange("insuredName", value)}
+              placeholder="Full legal name of insured"
+              required
+              value={form.insuredName}
+            />
             <TextField
               field="companyName"
               label="Company name"
               onChange={(value) => onFieldChange("companyName", value)}
+              placeholder="DBA or company name"
               value={form.companyName}
             />
             <FormField error={errors.policyTypeId} field="policyTypeId">
               <InlinePolicyTypePicker
+                allowCreate={false}
                 disabled={pending}
                 id={fieldId("policyTypeId")}
                 onChange={(value) => onFieldChange("policyTypeId", value)}
@@ -1039,6 +1054,7 @@ export function CheckTurnInFormView({
           <div className="turn-in-grid turn-in-grid-three">
             <FormField error={errors.carrierId} field="carrierId">
               <InlineCarrierPicker
+                allowCreate={false}
                 disabled={pending}
                 id={fieldId("carrierId")}
                 onChange={(value) => onFieldChange("carrierId", value)}
@@ -1050,6 +1066,7 @@ export function CheckTurnInFormView({
             </FormField>
             <FormField error={errors.mgaId} field="mgaId">
               <InlineMgaPicker
+                allowCreate={false}
                 disabled={pending}
                 id={fieldId("mgaId")}
                 onChange={(value) => onFieldChange("mgaId", value)}
@@ -1072,8 +1089,8 @@ export function CheckTurnInFormView({
             onChange={(value) => onFieldChange("commissionMode", value as TurnInFormState["commissionMode"])}
             options={[
               { label: "Percentage", value: "pct" },
-              { label: "TBD", value: "tbd" },
-              { label: "N/A", value: "na" },
+              { label: "TBD — paid later by carrier", value: "tbd" },
+              { label: "N/A — broker fee only", value: "na" },
             ]}
             value={form.commissionMode}
           />
@@ -1111,7 +1128,7 @@ export function CheckTurnInFormView({
             <MoneyField field="basePremium" label="Base premium" onChange={(value) => onFieldChange("basePremium", value)} value={form.basePremium} />
             <MoneyField field="taxes" label="Taxes" onChange={(value) => onFieldChange("taxes", value)} value={form.taxes} />
             <MoneyField field="mgaFee" label="MGA fee" onChange={(value) => onFieldChange("mgaFee", value)} value={form.mgaFee} />
-            <MoneyField error={errors.brokerFee} field="brokerFee" label="Broker fee" onChange={(value) => onFieldChange("brokerFee", value)} required value={form.brokerFee} />
+            <MoneyField error={errors.brokerFee} field="brokerFee" label="Broker fee (our fee)" onChange={(value) => onFieldChange("brokerFee", value)} required value={form.brokerFee} />
             <ReadOnlyAmount label={wording.calculatedTotalLabel} value={summary.proposalTotal} />
           </div>
           {form.commissionMode === "pct" ? (
@@ -1143,8 +1160,8 @@ export function CheckTurnInFormView({
             onChange={(value) => onFieldChange("paymentMode", value as TurnInFormState["paymentMode"])}
             options={[
               { label: "Paid in full", value: "full" },
-              { label: "Deposit", value: "deposit" },
-              { label: "Direct bill", value: "direct" },
+              { label: "Deposit — financing may apply", value: "deposit" },
+              { label: "Direct bill — not financed", value: "direct" },
             ]}
             value={form.paymentMode}
           />
@@ -1216,7 +1233,7 @@ export function CheckTurnInFormView({
         </FormSection>
         </fieldset>
 
-        <TurnInValidationSummary errors={errors} />
+        <TurnInValidationSummary errors={validationSummaryErrors} />
 
         <footer className="turn-in-actions">
           <div aria-live="polite" className="turn-in-action-status">
@@ -1363,86 +1380,32 @@ function TransactionTypeField({
   pending: boolean;
   value: string;
 }) {
-  const [addingCustom, setAddingCustom] = useState(false);
-  const [customValue, setCustomValue] = useState("");
-  const customSelected = value !== "" && !isStandardTurnInTransactionType(value);
-  const addCustom = () => {
-    const normalized = customValue.trim();
-    if (normalized === "") {
-      return;
-    }
-    onChange(normalized);
-    setCustomValue("");
-    setAddingCustom(false);
-  };
+  const options = useMemo(
+    () => [
+      ...TURN_IN_TRANSACTION_TYPES.map((type) => ({ id: type, name: type })),
+      ...(value !== "" && !isStandardTurnInTransactionType(value)
+        ? [{ id: value, name: value }]
+        : []),
+    ],
+    [value],
+  );
 
   return (
     <div className="turn-in-field turn-in-wide">
-      <label htmlFor={fieldId("transactionType")}>
-        Transaction type<span aria-hidden="true"> *</span>
-      </label>
       <div className="turn-in-transaction-layout">
         <div className="turn-in-transaction-control">
-          <div className="turn-in-select-add">
-            <select
-              aria-describedby={fieldErrorId("transactionType", error)}
-              aria-invalid={error !== undefined}
-              aria-required="true"
-              disabled={pending}
-              id={fieldId("transactionType")}
-              onChange={(event) => onChange(event.currentTarget.value)}
-              value={value}
-            >
-              <option value="">Select transaction type</option>
-              {TURN_IN_TRANSACTION_TYPES.map((type) => <option key={type}>{type}</option>)}
-              {customSelected ? <option>{value}</option> : null}
-            </select>
-            <button
-              aria-expanded={addingCustom}
-              aria-label="Add custom transaction type"
-              className="turn-in-icon-button"
-              disabled={pending}
-              onClick={() => setAddingCustom((current) => !current)}
-              title="Add custom transaction type"
-              type="button"
-            >
-              +
-            </button>
-            {customSelected ? (
-              <button
-                aria-label="Remove custom transaction type"
-                className="turn-in-icon-button is-remove"
-                disabled={pending}
-                onClick={() => onChange("")}
-                title="Remove this custom transaction type"
-                type="button"
-              >
-                ×
-              </button>
-            ) : null}
-          </div>
-          {addingCustom ? (
-            <div className="turn-in-custom-transaction">
-              <input
-                aria-label="Custom transaction type"
-                autoFocus
-                disabled={pending}
-                maxLength={100}
-                onChange={(event) => setCustomValue(event.currentTarget.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    addCustom();
-                  }
-                }}
-                placeholder="Enter custom transaction type"
-                value={customValue}
-              />
-              <button disabled={pending || customValue.trim() === ""} onClick={addCustom} type="button">
-                Add
-              </button>
-            </div>
-          ) : null}
+          <VocabularyPicker
+            disabled={pending}
+            helpText="Search and choose a standard transaction type."
+            id={fieldId("transactionType")}
+            label="Transaction type"
+            loadStatus="ready"
+            onChange={(option) => onChange(option?.id ?? "")}
+            options={options}
+            placeholder="Search transaction types"
+            required
+            value={value === "" ? null : value}
+          />
           <FieldError error={error} field="transactionType" />
         </div>
         <ul className="turn-in-transaction-key">
@@ -1473,14 +1436,22 @@ function TurnInValidationSummary({ errors }: { errors: TurnInValidationErrors })
   if (issues.length === 0) {
     return null;
   }
+  const hasInvalidValue = issues.some(([, message]) =>
+    validationIssueTone(message) === "error"
+  );
   return (
-    <section aria-labelledby="turn-in-validation-title" className="turn-in-validation" role="alert">
-      <h2 id="turn-in-validation-title">
-        {issues.length} {issues.length === 1 ? "issue" : "issues"} to fix before submitting
-      </h2>
+    <section
+      aria-atomic="false"
+      aria-labelledby="turn-in-validation-title"
+      aria-live="polite"
+      className={`turn-in-validation ${hasInvalidValue ? "is-error" : "is-warning"}`}
+      role="status"
+    >
+      <h2 id="turn-in-validation-title">Issues to fix before submitting</h2>
+      <p>{issues.length} {issues.length === 1 ? "item needs" : "items need"} attention.</p>
       <ul>
         {issues.map(([field, message]) => (
-          <li key={field}>
+          <li className={`is-${validationIssueTone(message)}`} key={field}>
             <button onClick={() => focusTurnInField(field)} title="Go to this field" type="button">
               <span>{message}</span>
               <strong>Fix →</strong>
@@ -1490,6 +1461,12 @@ function TurnInValidationSummary({ errors }: { errors: TurnInValidationErrors })
       </ul>
     </section>
   );
+}
+
+function validationIssueTone(message: string): "error" | "warning" {
+  return /\b(cannot|exceed|must match|negative)\b/i.test(message)
+    ? "error"
+    : "warning";
 }
 
 function FormField({ children, error, field, label, required = false }: {
@@ -1510,18 +1487,19 @@ function FormField({ children, error, field, label, required = false }: {
   );
 }
 
-function TextField({ error, field, label, onChange, required = false, type = "text", value }: {
+function TextField({ error, field, label, onChange, placeholder, required = false, type = "text", value }: {
   error?: string;
   field: keyof TurnInFormState;
   label: string;
   onChange(value: string): void;
+  placeholder?: string;
   required?: boolean;
   type?: "email" | "text";
   value: string;
 }) {
   return (
     <FormField error={error} field={field} label={label} required={required}>
-      <input aria-describedby={fieldErrorId(field, error)} aria-invalid={error !== undefined} aria-required={required} id={fieldId(field)} maxLength={maxLengthForField(field)} onChange={(event) => onChange(event.currentTarget.value)} type={type} value={value} />
+      <input aria-describedby={fieldErrorId(field, error)} aria-invalid={error !== undefined} aria-required={required} id={fieldId(field)} maxLength={maxLengthForField(field)} onChange={(event) => onChange(event.currentTarget.value)} placeholder={placeholder} type={type} value={value} />
     </FormField>
   );
 }

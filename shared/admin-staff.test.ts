@@ -72,4 +72,20 @@ test("rate and staff update allowlists reject malformed or empty input", () => {
       .success,
     true,
   );
+  assert.deepEqual(
+    updateAdminStaffRequestSchema.parse({
+      bookAssignmentEnabled: false,
+      firstYearAssignmentEnabled: true,
+    }),
+    {
+      bookAssignmentEnabled: false,
+      firstYearAssignmentEnabled: true,
+    },
+  );
+  assert.equal(
+    updateAdminStaffRequestSchema.safeParse({
+      agencyAssignmentLabel: "Hidden custom value",
+    }).success,
+    false,
+  );
 });

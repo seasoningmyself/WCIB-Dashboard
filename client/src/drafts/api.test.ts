@@ -29,7 +29,14 @@ test("draft API uses documented create, edit, discard, flag, withdrawal, list, s
     }),
     Response.json({ drafts: [draftResponse()] }),
     Response.json({
-      producers: [{ displayName: "Kaylee", userId: PRODUCER_ID }],
+      producers: [
+        {
+          bookEnabled: true,
+          displayName: "Kaylee",
+          firstYearEnabled: true,
+          userId: PRODUCER_ID,
+        },
+      ],
     }),
     Response.json({ request: changeRequestResponse() }, { status: 201 }),
     Response.json({ requests: [changeRequestResponse()] }),
@@ -56,7 +63,14 @@ test("draft API uses documented create, edit, discard, flag, withdrawal, list, s
   await api.submit(DRAFT_ID);
   assert.equal((await api.list()).drafts.length, 1);
   assert.deepEqual(await api.listAssignmentOptions(), {
-    producers: [{ displayName: "Kaylee", userId: PRODUCER_ID }],
+    producers: [
+      {
+        bookEnabled: true,
+        displayName: "Kaylee",
+        firstYearEnabled: true,
+        userId: PRODUCER_ID,
+      },
+    ],
   });
   await api.createChangeRequest(POLICY_ID, {
     reason: "  Please review the insured name.  ",

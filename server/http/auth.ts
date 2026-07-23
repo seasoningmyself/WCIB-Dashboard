@@ -24,6 +24,7 @@ import { loadMfaAccessState, type MfaAccessState } from "../auth/mfa-state.js";
 import {
   findUserCredentialsByEmail,
   opportunisticallyUpgradePasswordHash,
+  recordCompletedLogin,
   type AuthDatabase,
   type UserAccount,
 } from "../auth/users.js";
@@ -47,9 +48,11 @@ export interface LoginHandlerDependencies {
   loadMfaState?(
     userId: string,
     isAdmin: boolean,
+    isSupportEngineer: boolean,
   ): Promise<MfaAccessState>;
   loadPrincipal(userId: string): Promise<AccessPrincipal | null>;
   logger: AppLogger;
+  recordCompletedLogin?(userId: string): Promise<void>;
   throttle?: LoginThrottle;
   upgradePasswordHash?(
     userId: string,
@@ -146,6 +149,7 @@ export function createLoginHandler(
         : await dependencies.loadMfaState(
             user.id,
             principal.capabilities.includes("admin"),
+            principal.capabilities.includes("support_engineer"),
           );
     const mfaSessionState = user.passwordChangeRequiredAt !== null
       ? null
@@ -163,6 +167,9 @@ export function createLoginHandler(
     } else {
       await throttle.clearAccount(throttleKeys.account);
       await dependencies.establishSession(req, user);
+      if (user.passwordChangeRequiredAt === null) {
+        await recordCompletedLoginSafely(dependencies, user.id);
+      }
     }
     const response: LoginResponse = {
       authenticationState:
@@ -232,16 +239,19 @@ export function registerAuthRoutes(
       }),
     establishSession: establishAuthenticatedSession,
     establishMfaSession,
-    loadMfaState: (userId, isAdmin) =>
+    loadMfaState: (userId, isAdmin, isSupportEngineer) =>
       loadMfaAccessState(options.database, userId, {
         adminEnforcementEnabled:
           options.adminMfaEnforcementEnabled === true,
         allUsersEnforcementEnabled:
           options.allUsersMfaEnforcementEnabled === true,
         isAdmin,
+        isSupportEngineer,
       }),
     loadPrincipal: (userId) => loadAccessPrincipal(options.database, userId),
     logger: options.logger,
+    recordCompletedLogin: (userId) =>
+      recordCompletedLogin(options.database, userId),
     throttle,
     upgradePasswordHash: (userId, password, currentPasswordHash) =>
       opportunisticallyUpgradePasswordHash(
@@ -278,6 +288,22 @@ export function registerAuthRoutes(
     delivery: options.passwordResetDelivery,
     logger: options.logger,
   });
+}
+
+async function recordCompletedLoginSafely(
+  dependencies: LoginHandlerDependencies,
+  userId: string,
+): Promise<void> {
+  if (dependencies.recordCompletedLogin === undefined) return;
+  try {
+    await dependencies.recordCompletedLogin(userId);
+  } catch {
+    dependencies.logger.warn("Last-login status update deferred", {
+      component: "auth",
+      event: "last_login_update_deferred",
+      userId,
+    });
+  }
 }
 
 function invalidCredentialsError(): HttpError {

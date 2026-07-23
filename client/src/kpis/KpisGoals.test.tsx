@@ -27,7 +27,7 @@ test("KPI screen renders server totals directly with UUID scope and exact decima
   });
   const markup = renderReady(actuals);
 
-  assert.match(markup, /KPIs &amp; Goals/);
+  assert.match(markup, /Agency Overview/);
   assert.match(markup, new RegExp(`value="producer:${PRODUCER_ID}"`));
   assert.match(markup, />Kaylee Producer</);
   assert.match(markup, /\$999,999\.99/);

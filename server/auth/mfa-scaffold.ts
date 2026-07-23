@@ -44,6 +44,8 @@ export async function getAdminMfaScaffold(
     adminEnforcementEnabled: false,
     allUsersEnforcementEnabled: false,
     isAdmin: principal.capabilities.includes("admin"),
+    isSupportEngineer:
+      principal.capabilities.includes("support_engineer"),
   });
   return {
     enforcementEnabled: state.enrolled,

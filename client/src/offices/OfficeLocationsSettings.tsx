@@ -31,14 +31,33 @@ type ActiveDialog = {
   office: AdminOfficeLocation;
 };
 
-export function OfficeLocationsSettings({ user }: { user: CurrentUser }) {
-  if (user.role !== "admin" || !user.capabilities.includes("admin")) {
+export function OfficeLocationsSettings({
+  embedded = false,
+  user,
+}: {
+  embedded?: boolean;
+  user: CurrentUser;
+}) {
+  const isAdmin = user.role === "admin" && user.capabilities.includes("admin");
+  const isSupportEngineer = user.capabilities.includes("support_engineer");
+  if (!isAdmin && !isSupportEngineer) {
     return <OfficeMessage kind="denied" />;
   }
-  return <OfficeLocationsController />;
+  return (
+    <OfficeLocationsController
+      embedded={embedded}
+      includeBusinessState={isAdmin}
+    />
+  );
 }
 
-function OfficeLocationsController() {
+function OfficeLocationsController({
+  embedded,
+  includeBusinessState,
+}: {
+  embedded: boolean;
+  includeBusinessState: boolean;
+}) {
   const client = useApiClient();
   const api = useMemo(() => createAdminOfficeApi(client), [client]);
   const [state, setState] = useState<OfficeState>({ status: "loading" });
@@ -98,6 +117,7 @@ function OfficeLocationsController() {
   return (
     <>
       <OfficeLocationsView
+        embedded={embedded}
         notice={notice}
         onActive={(office, active, mode) => {
           setError(null);
@@ -115,7 +135,7 @@ function OfficeLocationsController() {
         pending={pending}
         state={state}
       />
-      <BusinessStateSettings />
+      {includeBusinessState ? <BusinessStateSettings /> : null}
       <OfficeEditorDialog
         dialog={editor}
         error={error}
@@ -161,6 +181,7 @@ function OfficeLocationsController() {
 }
 
 export function OfficeLocationsView({
+  embedded = false,
   notice,
   onActive,
   onAdd,
@@ -169,6 +190,7 @@ export function OfficeLocationsView({
   pending,
   state,
 }: {
+  embedded?: boolean;
   notice: string | null;
   onActive(
     office: AdminOfficeLocation,
@@ -186,12 +208,14 @@ export function OfficeLocationsView({
   }
   const active = state.items.filter((item) => item.isActive);
   const inactive = state.items.filter((item) => !item.isActive);
+  const titleId = embedded ? "support-office-title" : "office-page-title";
+  const Title = embedded ? "h2" : "h1";
   return (
-    <section className="office-page" aria-labelledby="office-page-title">
+    <section className={`office-page${embedded ? " is-embedded" : ""}`} aria-labelledby={titleId}>
       <header className="office-page-header">
         <div>
-          <p>Settings</p>
-          <h1 id="office-page-title">Office Locations</h1>
+          <p>{embedded ? "Support operations" : "Settings"}</p>
+          <Title id={titleId}>Office Locations</Title>
         </div>
         <button className="office-primary-action" disabled={pending} onClick={onAdd} type="button">
           Add location
@@ -394,7 +418,7 @@ function OfficeMessage({ kind, onRetry }: { kind: "denied" | "error" | "loading"
     return <section className="office-message"><h1>Loading office locations</h1></section>;
   }
   if (kind === "denied") {
-    return <section className="office-message"><h1>Office settings unavailable</h1><p>This workspace is restricted to administrators.</p></section>;
+    return <section className="office-message"><h1>Office settings unavailable</h1><p>This workspace requires office-management access.</p></section>;
   }
   return <section className="office-message"><h1>Office locations unavailable</h1><p>The current configuration could not be loaded.</p><button onClick={onRetry} type="button">Try again</button></section>;
 }

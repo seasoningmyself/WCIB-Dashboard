@@ -24,7 +24,7 @@ test("dedicated Help Requests renders v15 context and the shared resolution acti
   );
 
   for (const value of [
-    "Help Requests",
+    "Review Queue",
     "Mercedes",
     "3h old",
     "Need help with financing",

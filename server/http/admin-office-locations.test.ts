@@ -20,7 +20,7 @@ import type { RouteAccessDeclaration, RouteRegistrar } from "./routes.js";
 
 const logger: AppLogger = { error() {}, info() {}, warn() {} };
 
-test("office management routes are explicitly admin-only and have no delete path", async () => {
+test("office management routes allow only admin or support and have no delete path", async () => {
   let called = 0;
   const registrations: Array<{
     access: RouteAccessDeclaration;
@@ -68,7 +68,9 @@ test("office management routes are explicitly admin-only and have no delete path
     setActive: fail,
   });
 
-  assert.deepEqual(requirement, { capabilities: ["admin"] });
+  assert.deepEqual(requirement, {
+    capabilities: ["admin", "support_engineer"],
+  });
   assert.deepEqual(
     registrations.map(({ method, path }) => `${method} ${path}`),
     [

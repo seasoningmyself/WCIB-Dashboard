@@ -280,7 +280,13 @@ test("adjustment dialogs render only owner-valid financial controls", () => {
     { classTag: "Commercial" as const, id: uuid(50), name: "General Liability" },
   ];
   const producers = [
-    { displayName: "Kaylee", role: "producer" as const, userId: uuid(2) },
+    {
+      bookEnabled: true,
+      displayName: "Kaylee",
+      firstYearEnabled: true,
+      role: "producer" as const,
+      userId: uuid(2),
+    },
   ];
   const direct = renderToStaticMarkup(
     <PaySheetAdjustmentDialog

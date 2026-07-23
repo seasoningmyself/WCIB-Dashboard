@@ -13,19 +13,19 @@ import type { AuthDatabase } from "./users.js";
 
 const NAVIGATION_BY_ROLE = {
   admin: [
+    "kpis",
     "approvals",
     "help_requests",
     "policy_ledger",
     "mga_payables",
     "pay_sheets",
-    "kpis",
     "manage_staff",
     "settings",
     "turn_in",
     "my_items",
   ],
   employee: ["turn_in", "my_items", "settings"],
-  producer: ["turn_in", "my_items", "my_commissions", "settings"],
+  producer: ["my_commissions", "turn_in", "my_items", "settings"],
 } as const satisfies Readonly<
   Record<CurrentUserRole, readonly AppNavigationId[]>
 >;
@@ -52,6 +52,7 @@ export async function loadCurrentUserIdentity(
     adminEnforcementEnabled: boolean;
     allUsersEnforcementEnabled?: boolean;
     isAdmin: boolean;
+    isSupportEngineer?: boolean;
   },
 ): Promise<CurrentUserIdentity | null> {
   const [identity] = await database
@@ -93,9 +94,9 @@ export function projectCurrentUser(
     user: {
       authenticationState,
       allowedNavigation:
-        role === null || !workspaceAvailable
+        !workspaceAvailable
           ? []
-          : [...NAVIGATION_BY_ROLE[role]],
+          : [...allowedNavigationForPrincipal(principal)],
       capabilities: [...principal.capabilities].sort(),
       displayName: identity.displayName,
       email: identity.email,
@@ -114,7 +115,15 @@ export function allowedNavigationForPrincipal(
     return [];
   }
   const role = currentUserRole(principal);
-  return role === null ? [] : [...NAVIGATION_BY_ROLE[role]];
+  const roleNavigation = role === null ? [] : [...NAVIGATION_BY_ROLE[role]];
+  if (!principal.capabilities.includes("support_engineer")) {
+    return roleNavigation;
+  }
+  return [
+    "support",
+    ...roleNavigation.filter((identifier) => identifier !== "settings"),
+    "settings",
+  ];
 }
 
 function currentUserRole(

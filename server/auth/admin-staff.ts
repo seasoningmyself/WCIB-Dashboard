@@ -48,7 +48,10 @@ export const ADMIN_STAFF_ACCESS = {
 
 const STAFF_AUDIT_FIELDS = [
   "active",
+  "assignmentOptionsChanged",
+  "bookAssignmentEnabled",
   "changeKind",
+  "firstYearAssignmentEnabled",
   "identityChanged",
   "officeAssignmentChanged",
   "role",
@@ -66,6 +69,8 @@ interface AdminStaffSource {
     sessionVersion: number;
   };
   profile: {
+    bookAssignmentEnabled: boolean;
+    firstYearAssignmentEnabled: boolean;
     isActive: boolean;
     officeLocation: {
       id: string;
@@ -119,9 +124,11 @@ export async function listAdminStaffSources(
   requireAdminStaffAccess(context);
   const rows = await database
     .select({
+      bookAssignmentEnabled: staffProfiles.bookAssignmentEnabled,
       createdAt: users.createdAt,
       displayName: users.displayName,
       email: users.email,
+      firstYearAssignmentEnabled: staffProfiles.firstYearAssignmentEnabled,
       isAccountActive: users.isActive,
       isProfileActive: staffProfiles.isActive,
       officeId: officeLocations.id,
@@ -289,6 +296,22 @@ export async function updateAdminStaff(
         request.officeLocationId !== undefined &&
         request.officeLocationId !==
           (current.profile.officeLocation?.id ?? null);
+      const assignmentOptionsChanged =
+        (request.bookAssignmentEnabled !== undefined &&
+          request.bookAssignmentEnabled !==
+            current.profile.bookAssignmentEnabled) ||
+        (request.firstYearAssignmentEnabled !== undefined &&
+          request.firstYearAssignmentEnabled !==
+            current.profile.firstYearAssignmentEnabled);
+      if (
+        (request.bookAssignmentEnabled !== undefined ||
+          request.firstYearAssignmentEnabled !== undefined) &&
+        nextRole !== "producer"
+      ) {
+        throw new AdminStaffConflictError(
+          "Assignment options can only be changed for a producer",
+        );
+      }
       if (emailChanged || roleChanged) {
         if (proof === undefined) throw new StepUpRequiredError();
         await consumeStepUpAuthorization(
@@ -329,6 +352,15 @@ export async function updateAdminStaff(
       await transaction
         .update(staffProfiles)
         .set({
+          ...(request.bookAssignmentEnabled === undefined
+            ? {}
+            : { bookAssignmentEnabled: request.bookAssignmentEnabled }),
+          ...(request.firstYearAssignmentEnabled === undefined
+            ? {}
+            : {
+                firstYearAssignmentEnabled:
+                  request.firstYearAssignmentEnabled,
+              }),
           ...(request.officeLocationId === undefined
             ? {}
             : { officeLocationId: request.officeLocationId }),
@@ -343,6 +375,15 @@ export async function updateAdminStaff(
         current.account.isActive && current.profile.isActive,
         identityChanged,
         officeAssignmentChanged,
+        assignmentOptionsChanged
+          ? {
+              assignmentOptionsChanged: true,
+              bookAssignmentEnabled:
+                current.profile.bookAssignmentEnabled,
+              firstYearAssignmentEnabled:
+                current.profile.firstYearAssignmentEnabled,
+            }
+          : undefined,
       );
       const after = staffAuditSource(
         "updated",
@@ -350,9 +391,23 @@ export async function updateAdminStaff(
         current.account.isActive && current.profile.isActive,
         identityChanged,
         officeAssignmentChanged,
+        assignmentOptionsChanged
+          ? {
+              assignmentOptionsChanged: true,
+              bookAssignmentEnabled:
+                request.bookAssignmentEnabled ??
+                current.profile.bookAssignmentEnabled,
+              firstYearAssignmentEnabled:
+                request.firstYearAssignmentEnabled ??
+                current.profile.firstYearAssignmentEnabled,
+            }
+          : undefined,
       );
       if (
-        identityChanged || roleChanged || officeAssignmentChanged
+        identityChanged ||
+        roleChanged ||
+        officeAssignmentChanged ||
+        assignmentOptionsChanged
       ) {
         await writeStaffAudit(
           transaction,
@@ -657,9 +712,12 @@ export function projectAdminStaffSource(
   }
   const active = source.account.isActive && source.profile.isActive;
   return {
+    bookAssignmentEnabled: source.profile.bookAssignmentEnabled,
     createdAt: source.account.createdAt.toISOString(),
     displayName: source.account.displayName,
     email: source.account.email,
+    firstYearAssignmentEnabled:
+      source.profile.firstYearAssignmentEnabled,
     isActive: active,
     officeLocation: source.profile.officeLocation,
     passwordChangeRequired:
@@ -703,9 +761,11 @@ async function loadAdminStaffSource(
 ): Promise<AdminStaffSource | null> {
   let query = database
     .select({
+      bookAssignmentEnabled: staffProfiles.bookAssignmentEnabled,
       createdAt: users.createdAt,
       displayName: users.displayName,
       email: users.email,
+      firstYearAssignmentEnabled: staffProfiles.firstYearAssignmentEnabled,
       isAccountActive: users.isActive,
       isProfileActive: staffProfiles.isActive,
       officeId: officeLocations.id,
@@ -750,9 +810,11 @@ async function requireLoadedSource(
 
 function sourceFromRow(
   row: {
+    bookAssignmentEnabled: boolean;
     createdAt: Date;
     displayName: string;
     email: string;
+    firstYearAssignmentEnabled: boolean;
     isAccountActive: boolean;
     isProfileActive: boolean;
     officeId: string | null;
@@ -776,6 +838,8 @@ function sourceFromRow(
       sessionVersion: row.sessionVersion,
     },
     profile: {
+      bookAssignmentEnabled: row.bookAssignmentEnabled,
+      firstYearAssignmentEnabled: row.firstYearAssignmentEnabled,
       isActive: row.isProfileActive,
       officeLocation:
         row.officeId === null ||
@@ -896,9 +960,15 @@ function staffAuditSource(
   active: boolean,
   identityChanged: boolean,
   officeAssignmentChanged = false,
+  assignment?: {
+    assignmentOptionsChanged: boolean;
+    bookAssignmentEnabled: boolean;
+    firstYearAssignmentEnabled: boolean;
+  },
 ): Record<string, unknown> {
   return {
     active,
+    ...assignment,
     changeKind,
     identityChanged,
     officeAssignmentChanged,

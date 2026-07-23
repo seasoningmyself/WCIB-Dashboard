@@ -195,12 +195,12 @@ test("GET /api/me returns exact server-derived role navigation", async () => {
   assert.deepEqual(admin.body, {
     user: {
       allowedNavigation: [
+        "kpis",
         "approvals",
         "help_requests",
         "policy_ledger",
         "mga_payables",
         "pay_sheets",
-        "kpis",
         "manage_staff",
         "settings",
         "turn_in",
@@ -218,7 +218,7 @@ test("GET /api/me returns exact server-derived role navigation", async () => {
   assert.deepEqual(
     (producer.body as { user: { allowedNavigation: string[] } }).user
       .allowedNavigation,
-    ["turn_in", "my_items", "my_commissions", "settings"],
+    ["my_commissions", "turn_in", "my_items", "settings"],
   );
   assert.deepEqual(
     (employee.body as { user: { allowedNavigation: string[] } }).user

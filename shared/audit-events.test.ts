@@ -59,6 +59,12 @@ test("audit vocabulary covers every named sensitive mutation contract", () => {
     "user_mfa_disabled",
     "user_mfa_reset",
     "user_admin_capability_changed",
+    "user_support_capability_changed",
+    "support_surface_viewed",
+    "office_location_created",
+    "office_location_renamed",
+    "office_location_deactivated",
+    "office_location_reactivated",
   ] as const;
 
   assert.deepEqual(AUDIT_ACTIONS, expectedActions);
@@ -80,6 +86,7 @@ test("audit vocabulary covers every named sensitive mutation contract", () => {
     "mga",
     "policy_change_request",
     "business_state_generation",
+    "office_location",
     "user",
   ]) {
     assert.equal(

@@ -2,7 +2,9 @@ import { z } from "zod";
 
 export const draftAssignmentOptionSchema = z
   .object({
+    bookEnabled: z.boolean(),
     displayName: z.string().trim().min(1),
+    firstYearEnabled: z.boolean(),
     userId: z.string().uuid(),
   })
   .strict();

@@ -1,4 +1,3 @@
-import type { Request } from "express";
 import {
   adminAccountSecurityListResponseSchema,
   adminAccountSecurityParamsSchema,
@@ -21,10 +20,13 @@ import { StepUpRequiredError, type StepUpProof } from "../auth/mfa-step-up.js";
 import { projectAuthorizedFields } from "../security/field-projection.js";
 import { asyncRoute, HttpError } from "./errors.js";
 import type { RouteRegistrar } from "./routes.js";
+import { readStepUpProof } from "./step-up-proof.js";
 
 export const ADMIN_ACCOUNT_SECURITY_PATH = "/api/admin/account-security";
 export const ADMIN_ACCOUNT_SECURITY_CAPABILITY_PATH =
   "/api/admin/account-security/:userId/admin-capability";
+export const ADMIN_ACCOUNT_SECURITY_SUPPORT_CAPABILITY_PATH =
+  "/api/admin/account-security/:userId/support-capability";
 export const ADMIN_ACCOUNT_SECURITY_EMAIL_PATH =
   "/api/admin/account-security/:userId/email";
 export const ADMIN_ACCOUNT_SECURITY_MFA_RESET_PATH =
@@ -38,6 +40,7 @@ interface AccountSecuritySource {
   isActive: boolean;
   mfa: object;
   staffRole: string | null;
+  supportCapability: boolean;
 }
 
 export interface RegisterAdminAccountSecurityRoutesOptions {
@@ -50,6 +53,12 @@ export interface RegisterAdminAccountSecurityRoutesOptions {
     proof: StepUpProof,
   ): Promise<void>;
   setAdminCapability(
+    context: AuthorizedRequestContext,
+    userId: string,
+    input: unknown,
+    proof: StepUpProof,
+  ): Promise<void>;
+  setSupportCapability(
     context: AuthorizedRequestContext,
     userId: string,
     input: unknown,
@@ -101,9 +110,31 @@ export function registerAdminAccountSecurityRoutes(
           context,
           userId,
           input,
-          stepUpProof(req, {
+          readStepUpProof(req, {
             action: "admin_capability_change",
             mutation: input,
+            targetUserId: userId,
+          }),
+        ),
+      );
+      res.status(204).end();
+    }),
+  );
+  routes.patch(
+    ADMIN_ACCOUNT_SECURITY_SUPPORT_CAPABILITY_PATH,
+    access,
+    asyncRoute(async (req, res) => {
+      const context = getAuthorizedRequestContext(res);
+      const { userId } = adminAccountSecurityParamsSchema.parse(req.params);
+      const input = updateAdminCapabilityRequestSchema.parse(req.body);
+      await runMutation(() =>
+        options.setSupportCapability(
+          context,
+          userId,
+          input,
+          readStepUpProof(req, {
+            action: "admin_capability_change",
+            mutation: { capability: "support_engineer", ...input },
             targetUserId: userId,
           }),
         ),
@@ -123,7 +154,7 @@ export function registerAdminAccountSecurityRoutes(
           context,
           userId,
           input,
-          stepUpProof(req, {
+          readStepUpProof(req, {
             action: "admin_staff_update",
             mutation: input,
             targetUserId: userId,
@@ -145,7 +176,7 @@ export function registerAdminAccountSecurityRoutes(
           context,
           userId,
           input,
-          stepUpProof(req, {
+          readStepUpProof(req, {
             action: "mfa_reset",
             mutation: input,
             targetUserId: userId,
@@ -155,22 +186,6 @@ export function registerAdminAccountSecurityRoutes(
       res.status(204).end();
     }),
   );
-}
-
-function stepUpProof(
-  req: Request,
-  descriptor: StepUpProof["descriptor"],
-): StepUpProof {
-  const sessionVersion = req.session.sessionVersion;
-  if (!Number.isInteger(sessionVersion) || (sessionVersion ?? -1) < 0) {
-    throw new HttpError(401, apiErrorCodes.unauthorized, "Authentication required");
-  }
-  return {
-    descriptor,
-    sessionId: req.sessionID,
-    sessionVersion: sessionVersion as number,
-    token: req.header("X-WCIB-Step-Up")?.trim() || undefined,
-  };
 }
 
 async function runMutation(mutate: () => Promise<void>): Promise<void> {

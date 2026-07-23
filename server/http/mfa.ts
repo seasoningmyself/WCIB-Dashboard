@@ -76,7 +76,12 @@ import {
   continueMfaSession,
   establishMfaSession,
 } from "../auth/sessions.js";
-import { findUserById, type AuthDatabase, type UserAccount } from "../auth/users.js";
+import {
+  findUserById,
+  recordCompletedLogin,
+  type AuthDatabase,
+  type UserAccount,
+} from "../auth/users.js";
 import type { AppLogger } from "../logging/logger.js";
 import { projectAuthorizedFields } from "../security/field-projection.js";
 import { asyncRoute, HttpError } from "./errors.js";
@@ -393,6 +398,9 @@ export function registerMfaRoutes(
         options.logger,
       );
       await establishMfaSession(req, user, "authenticated");
+      if (context.authentication?.state !== "authenticated") {
+        await recordCompletedLoginSafely(options, user.id);
+      }
       res.status(204).end();
     }),
   );
@@ -757,7 +765,25 @@ async function completeMfaLogin(
     user,
     state.enrollmentIncomplete ? "mfa_enrollment" : "authenticated",
   );
+  if (!state.enrollmentIncomplete) {
+    await recordCompletedLoginSafely(options, user.id);
+  }
   res.json(mfaChallengeResultSchema.parse({ userId: user.id }));
+}
+
+async function recordCompletedLoginSafely(
+  options: RegisterMfaRoutesOptions,
+  userId: string,
+): Promise<void> {
+  try {
+    await recordCompletedLogin(options.database, userId);
+  } catch {
+    options.logger.warn("Last-login status update deferred", {
+      component: "auth",
+      event: "last_login_update_deferred",
+      userId,
+    });
+  }
 }
 
 async function respondWithMfaState(
@@ -823,6 +849,8 @@ function policyOptions(
     adminEnforcementEnabled: options.config.adminEnforcementEnabled,
     allUsersEnforcementEnabled: options.config.allUsersEnforcementEnabled,
     isAdmin: context.principal.capabilities.includes("admin"),
+    isSupportEngineer:
+      context.principal.capabilities.includes("support_engineer"),
   };
 }
 

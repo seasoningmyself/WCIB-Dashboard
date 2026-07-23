@@ -20,6 +20,7 @@ export interface AccountSecurityApi {
   list(): Promise<AdminAccountSecurityItem[]>;
   resetMfa(userId: string, reason: string, stepUpToken: string): Promise<void>;
   setAdminCapability(userId: string, enabled: boolean, stepUpToken: string): Promise<void>;
+  setSupportCapability(userId: string, enabled: boolean, stepUpToken: string): Promise<void>;
   updateEmail(userId: string, email: string, stepUpToken: string): Promise<void>;
 }
 
@@ -42,6 +43,11 @@ export function createAccountSecurityApi(client: ApiClient): AccountSecurityApi 
       const params = parseInput(adminAccountSecurityParamsSchema, { userId });
       const body = parseInput(updateAdminCapabilityRequestSchema, { enabled });
       await mutate(client, `/admin/account-security/${encodeURIComponent(params.userId)}/admin-capability`, "PATCH", body, stepUpToken);
+    },
+    async setSupportCapability(userId, enabled, stepUpToken) {
+      const params = parseInput(adminAccountSecurityParamsSchema, { userId });
+      const body = parseInput(updateAdminCapabilityRequestSchema, { enabled });
+      await mutate(client, `/admin/account-security/${encodeURIComponent(params.userId)}/support-capability`, "PATCH", body, stepUpToken);
     },
     async updateEmail(userId, email, stepUpToken) {
       const params = parseInput(adminAccountSecurityParamsSchema, { userId });

@@ -23,9 +23,15 @@ export type HelpRequestsState =
   | { status: "loading" }
   | { items: HelpRequest[]; status: "ready" };
 
-export function HelpRequests({ user }: { user: CurrentUser }) {
+export function HelpRequests({
+  reviewNavigation,
+  user,
+}: {
+  reviewNavigation?: React.ReactNode;
+  user: CurrentUser;
+}) {
   return isApprovalAdmin(user) ? (
-    <AdminHelpRequests user={user} />
+    <AdminHelpRequests reviewNavigation={reviewNavigation} user={user} />
   ) : (
     <HelpRequestsMessage
       body="This page is not available for your account."
@@ -34,7 +40,13 @@ export function HelpRequests({ user }: { user: CurrentUser }) {
   );
 }
 
-function AdminHelpRequests({ user }: { user: CurrentUser }) {
+function AdminHelpRequests({
+  reviewNavigation,
+  user,
+}: {
+  reviewNavigation?: React.ReactNode;
+  user: CurrentUser;
+}) {
   const client = useApiClient();
   const api = useMemo(() => createApprovalApi(client), [client]);
   const ledgerApi = useMemo(() => createPolicyLedgerApi(client), [client]);
@@ -173,6 +185,7 @@ function AdminHelpRequests({ user }: { user: CurrentUser }) {
         onOpenFix={(item) => void openFix(item)}
         onRetry={() => void load()}
         pending={pending}
+        reviewNavigation={reviewNavigation}
         state={state}
       />
       <ApprovalDialogs
@@ -209,6 +222,7 @@ export function HelpRequestsView({
   onOpenFix,
   onRetry,
   pending,
+  reviewNavigation,
   state,
 }: {
   mgaNames: ReadonlyMap<string, string>;
@@ -218,16 +232,25 @@ export function HelpRequestsView({
   onOpenFix(item: HelpRequest): void;
   onRetry(): void;
   pending: boolean;
+  reviewNavigation?: React.ReactNode;
   state: HelpRequestsState;
 }) {
   if (state.status === "loading") {
-    return <HelpRequestsMessage body="Retrieving flagged turn-ins..." busy title="Loading Help Requests" />;
+    return (
+      <HelpRequestsMessage
+        body="Retrieving flagged turn-ins..."
+        busy
+        reviewNavigation={reviewNavigation}
+        title="Loading Help Requests"
+      />
+    );
   }
   if (state.status === "error") {
     return (
       <HelpRequestsMessage
         action={<button onClick={onRetry} type="button">Try again</button>}
         body="Help Requests could not be loaded."
+        reviewNavigation={reviewNavigation}
         title="Help Requests unavailable"
       />
     );
@@ -236,6 +259,7 @@ export function HelpRequestsView({
     return (
       <HelpRequestsMessage
         body="This page is not available for your account."
+        reviewNavigation={reviewNavigation}
         title="Help Requests unavailable"
       />
     );
@@ -250,9 +274,11 @@ export function HelpRequestsView({
             <strong>{state.items.length}</strong> open {state.items.length === 1 ? "request needs" : "requests need"} resolution.
           </>
         )}
-        title="Help Requests"
+        title="Review Queue"
         titleId="help-requests-title"
       />
+
+      {reviewNavigation}
 
       {notice === null ? null : <div className="approval-notice" role="status">{notice}</div>}
       {state.items.length === 0 ? (
@@ -341,10 +367,17 @@ export function formatHelpRequestAge(value: string, now = new Date()): string {
   return `${days}d old`;
 }
 
-function HelpRequestsMessage({ action, body, busy = false, title }: {
+function HelpRequestsMessage({
+  action,
+  body,
+  busy = false,
+  reviewNavigation,
+  title,
+}: {
   action?: React.ReactNode;
   body: string;
   busy?: boolean;
+  reviewNavigation?: React.ReactNode;
   title: string;
 }) {
   return (
@@ -352,6 +385,7 @@ function HelpRequestsMessage({ action, body, busy = false, title }: {
       <h1 id="help-requests-message-title">{title}</h1>
       <p>{body}</p>
       {action}
+      {reviewNavigation}
     </section>
   );
 }

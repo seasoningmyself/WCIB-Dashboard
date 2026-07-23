@@ -8,9 +8,11 @@ export function staffFixture(
   overrides: Partial<AdminStaffRecord> = {},
 ): AdminStaffRecord {
   return {
+    bookAssignmentEnabled: true,
     createdAt: "2026-01-02T12:00:00.000Z",
     displayName: "Kaylee Producer",
     email: "kaylee@example.test",
+    firstYearAssignmentEnabled: true,
     isActive: true,
     officeLocation: null,
     passwordChangeRequired: false,

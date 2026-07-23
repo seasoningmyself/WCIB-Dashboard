@@ -18,6 +18,7 @@ export const APP_NAVIGATION_IDS = [
   "turn_in",
   "my_items",
   "my_commissions",
+  "support",
 ] as const;
 
 export type AppNavigationId = (typeof APP_NAVIGATION_IDS)[number];

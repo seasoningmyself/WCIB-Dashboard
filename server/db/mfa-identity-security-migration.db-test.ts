@@ -16,7 +16,11 @@ test("MFA identity security rolls back and reapplies transactionally", async () 
   const migration = loadMigrationPlan().find(
     ({ tag }) => tag === "0053_mfa_identity_security",
   );
+  const nextMigration = loadMigrationPlan().find(
+    ({ tag }) => tag === "0054_support_engineer_capability",
+  );
   assert.ok(migration);
+  assert.ok(nextMigration);
 
   await withDisposableMigratedDatabase(
     databaseUrl,
@@ -26,6 +30,9 @@ test("MFA identity security rolls back and reapplies transactionally", async () 
       await client.connect();
       try {
         await client.query("BEGIN");
+        for (const statement of nextMigration.backoutStatements) {
+          await client.query(statement);
+        }
         assert.deepEqual(await readMfaSchema(client), currentSchemaState());
         assert.deepEqual(await readGenerationContract(client), {
           fingerprint: currentFingerprint,

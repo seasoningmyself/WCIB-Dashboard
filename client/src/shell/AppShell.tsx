@@ -11,6 +11,7 @@ import { CheckTurnInForm } from "../drafts/CheckTurnInForm.js";
 import { MyDrafts } from "../drafts/MyDrafts.js";
 import { ApprovalQueue } from "../approvals/ApprovalQueue.js";
 import { HelpRequests } from "../approvals/HelpRequests.js";
+import { ReviewQueueTabs } from "../approvals/ReviewQueueTabs.js";
 import { PolicyLedger } from "../ledger/PolicyLedger.js";
 import { MgaPayables } from "../mga-payables/MgaPayables.js";
 import { PaySheets } from "../pay-sheets/PaySheets.js";
@@ -19,10 +20,12 @@ import { MyItems } from "../my-items/MyItems.js";
 import { ManageStaff } from "../staff/ManageStaff.js";
 import { SettingsSurface } from "../settings/AccountSettings.js";
 import { KpisGoals } from "../kpis/KpisGoals.js";
+import { SupportDashboard } from "../support/SupportDashboard.js";
 import { PageHeader } from "../ui/PageHeader.js";
 import { resolveDraftSelection } from "../drafts/my-drafts-state.js";
 import { VocabularyProvider } from "../vocabulary/context.js";
 import {
+  activeNavigationId,
   groupAuthorizedNavigation,
   resolveAuthorizedNavigation,
   resolveShellRoute,
@@ -31,6 +34,7 @@ import {
 } from "./navigation.js";
 import {
   loadNavigationCounts,
+  reviewQueueNavigationCount,
   visibleNavigationCount,
   type NavigationCounts,
 } from "./navigation-counts.js";
@@ -125,7 +129,10 @@ export function AppShellView({
   const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
   const mobilePanelRef = useRef<HTMLDivElement>(null);
   const route = resolveShellRoute(currentPath, navigation);
-  const activeId = route.status === "ready" ? route.item.id : null;
+  const activeId =
+    route.status === "ready"
+      ? activeNavigationId(route.item.id, navigation)
+      : null;
   const name = user.displayName ?? user.email;
 
   useEffect(() => {
@@ -175,7 +182,7 @@ export function AppShellView({
           groups={navigationGroups}
           label="Primary navigation"
         />
-        <WorkspaceUser name={name} onLogout={onLogout} role={user.role} />
+        <WorkspaceUser capabilities={user.capabilities} name={name} onLogout={onLogout} role={user.role} />
       </aside>
 
       <div className="workspace-main">
@@ -225,7 +232,7 @@ export function AppShellView({
                   onNavigate?.(path);
                 }}
               />
-              <WorkspaceUser name={name} onLogout={onLogout} role={user.role} />
+              <WorkspaceUser capabilities={user.capabilities} name={name} onLogout={onLogout} role={user.role} />
             </div>
           </>
         ) : null}
@@ -238,6 +245,8 @@ export function AppShellView({
         >
           <ShellContent
             currentPath={currentPath}
+            navigation={navigation}
+            navigationCounts={navigationCounts}
             onUserChanged={onUserChanged}
             route={route}
             user={user}
@@ -267,7 +276,10 @@ function GroupedNavigation({
         <section className="workspace-nav-group" key={group.id}>
           <h2>{group.label}</h2>
           {group.items.map((item) => {
-            const count = visibleNavigationCount(counts, item.id);
+            const count =
+              item.id === "approvals"
+                ? reviewQueueNavigationCount(counts)
+                : visibleNavigationCount(counts, item.id);
             return (
               <a
                 aria-current={activeId === item.id ? "page" : undefined}
@@ -304,10 +316,12 @@ function WorkspaceBrand() {
 }
 
 function WorkspaceUser({
+  capabilities,
   name,
   onLogout,
   role,
 }: {
+  capabilities: CurrentUser["capabilities"];
   name: string;
   onLogout(): void;
   role: CurrentUser["role"];
@@ -317,7 +331,7 @@ function WorkspaceUser({
       <span className="workspace-avatar" aria-hidden="true">{initials(name)}</span>
       <span className="workspace-user-copy">
         <strong>{name}</strong>
-        <span>{roleLabel(role)}</span>
+        <span>{roleLabel(role, capabilities)}</span>
       </span>
       <button className="workspace-logout" onClick={onLogout} type="button">
         Sign out
@@ -328,27 +342,49 @@ function WorkspaceUser({
 
 function ShellContent({
   currentPath,
+  navigation,
+  navigationCounts,
   onUserChanged,
   route,
   user,
 }: {
   currentPath: string;
+  navigation: readonly ShellNavigationItem[];
+  navigationCounts: NavigationCounts;
   onUserChanged?(user: CurrentUser): void;
   route: ReturnType<typeof resolveShellRoute>;
   user: CurrentUser;
 }) {
   if (route.status === "ready") {
+    const hasCompleteReviewQueue =
+      navigation.some(({ id }) => id === "approvals") &&
+      navigation.some(({ id }) => id === "help_requests");
+    const reviewNavigation =
+      hasCompleteReviewQueue &&
+      (route.item.id === "approvals" || route.item.id === "help_requests") ? (
+        <ReviewQueueTabs
+          active={route.item.id}
+          approvalCount={navigationCounts.approvals}
+          helpRequestCount={navigationCounts.help_requests}
+        />
+      ) : undefined;
     if (route.item.id === "approvals") {
       return (
         <VocabularyProvider>
-          <ApprovalQueue user={user} />
+          <ApprovalQueue
+            reviewNavigation={reviewNavigation}
+            user={user}
+          />
         </VocabularyProvider>
       );
     }
     if (route.item.id === "help_requests") {
       return (
         <VocabularyProvider>
-          <HelpRequests user={user} />
+          <HelpRequests
+            reviewNavigation={reviewNavigation}
+            user={user}
+          />
         </VocabularyProvider>
       );
     }
@@ -407,6 +443,9 @@ function ShellContent({
     if (route.item.id === "kpis") {
       return <KpisGoals user={user} />;
     }
+    if (route.item.id === "support") {
+      return <SupportDashboard user={user} />;
+    }
     return (
       <section className="workspace-page" aria-labelledby="workspace-page-title">
         <PageHeader
@@ -451,7 +490,13 @@ function initials(name: string): string {
     .join("") || "W";
 }
 
-function roleLabel(role: CurrentUser["role"]): string {
+function roleLabel(
+  role: CurrentUser["role"],
+  capabilities: CurrentUser["capabilities"],
+): string {
+  if (capabilities.includes("support_engineer") && role === null) {
+    return "Support engineer";
+  }
   switch (role) {
     case "admin":
       return "Administrator";

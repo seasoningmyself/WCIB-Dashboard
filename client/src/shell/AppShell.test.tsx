@@ -22,12 +22,12 @@ test("shell renders the exact admin navigation supplied by /api/me", () => {
   const markup = shellMarkup({
     ...baseUser,
     allowedNavigation: [
+      "kpis",
       "approvals",
       "help_requests",
       "policy_ledger",
       "mga_payables",
       "pay_sheets",
-      "kpis",
       "manage_staff",
       "settings",
       "turn_in",
@@ -39,12 +39,11 @@ test("shell renders the exact admin navigation supplied by /api/me", () => {
   });
 
   for (const label of [
-    "Approvals",
-    "Help Requests",
+    "Review Queue",
     "Policy Ledger",
     "MGA Payables",
     "Pay Sheets",
-    "KPIs &amp; Goals",
+    "Agency Overview",
     "Manage Staff",
     "Settings",
     "Check Turn-In",
@@ -53,9 +52,12 @@ test("shell renders the exact admin navigation supplied by /api/me", () => {
     assert.match(markup, new RegExp(`>${label}<`));
   }
   assert.match(markup, /aria-label="Primary navigation"/);
-  assert.match(markup, />Daily<\/h2>/);
-  assert.match(markup, />Money<\/h2>/);
-  assert.match(markup, />Setup<\/h2>/);
+  assert.match(markup, />Overview<\/h2>/);
+  assert.match(markup, />Work<\/h2>/);
+  assert.match(markup, />Records &amp; Money<\/h2>/);
+  assert.match(markup, />Team<\/h2>/);
+  assert.doesNotMatch(markup, /class="workspace-nav-link" href="#\/help-requests"/);
+  assert.match(markup, /<h1 id="kpi-message-title">Loading KPIs<\/h1>/);
   assert.match(markup, /<main[^>]*tabindex="-1"/i);
   assert.match(markup, /<button[^>]*>Sign out<\/button>/);
   assert.match(markup, /aria-controls="workspace-mobile-panel"/);
@@ -65,7 +67,7 @@ test("shell renders the exact admin navigation supplied by /api/me", () => {
 test("producer and employee shells degrade grouped navigation by authorization", () => {
   const producer = shellMarkup({
     ...baseUser,
-    allowedNavigation: ["turn_in", "my_items", "my_commissions", "settings"],
+    allowedNavigation: ["my_commissions", "turn_in", "my_items", "settings"],
     displayName: "Kaylee",
     role: "producer",
   });
@@ -79,18 +81,35 @@ test("producer and employee shells degrade grouped navigation by authorization",
   assert.match(producer, />Check Turn-In</);
   assert.match(producer, />My Drafts</);
   assert.match(producer, />My Commissions</);
-  assert.match(producer, />Daily<\/h2>/);
-  assert.match(producer, />Money<\/h2>/);
-  assert.match(producer, />Setup<\/h2>/);
+  assert.match(producer, />Overview<\/h2>/);
+  assert.match(producer, />Work<\/h2>/);
+  assert.match(producer, />Account<\/h2>/);
+  assert.match(producer, /Loading commissions/);
   assert.doesNotMatch(producer, />Pay Sheets</);
 
   assert.match(employee, />Check Turn-In</);
   assert.match(employee, />My Drafts</);
-  assert.match(employee, />Daily<\/h2>/);
-  assert.match(employee, />Setup<\/h2>/);
-  assert.doesNotMatch(employee, />Money<\/h2>/);
+  assert.match(employee, />Work<\/h2>/);
+  assert.match(employee, />Account<\/h2>/);
+  assert.doesNotMatch(employee, />Overview<\/h2>/);
   assert.doesNotMatch(employee, />My Commissions</);
   assert.doesNotMatch(employee, />Policy Ledger</);
+});
+
+test("support-only shell exposes Support and Settings without admin workspaces", () => {
+  const markup = shellMarkup({
+    ...baseUser,
+    allowedNavigation: ["support", "settings"],
+    capabilities: ["support_engineer"],
+    displayName: "Ennis",
+    role: null,
+  });
+
+  assert.match(markup, />Support<\/span>/);
+  assert.match(markup, />Settings<\/span>/);
+  assert.match(markup, /Support engineer/);
+  assert.match(markup, /Loading support status/);
+  assert.doesNotMatch(markup, />Manage Staff<|>Review Queue<|>Pay Sheets<|>Agency Overview</);
 });
 
 test("shell renders count badges only for positive projected counts", () => {
@@ -100,7 +119,7 @@ test("shell renders count badges only for positive projected counts", () => {
         currentPath="/approvals"
         navigationCounts={{
           approvals: 3,
-          help_requests: 0,
+          help_requests: 2,
           mga_payables: 7,
           pay_sheets: 2,
         }}
@@ -120,7 +139,10 @@ test("shell renders count badges only for positive projected counts", () => {
     ),
   );
 
-  assert.match(markup, /aria-label="3 items need attention"[^>]*>3</);
+  assert.match(markup, /aria-label="5 items need attention"[^>]*>5</);
+  assert.match(markup, /aria-label="Review queue sections"/);
+  assert.match(markup, />Approvals<\/span><small>3<\/small>/);
+  assert.match(markup, />Help Requests<\/span><small>2<\/small>/);
   assert.doesNotMatch(markup, /0 items need attention/);
   assert.doesNotMatch(markup, /<select|<option|<optgroup/);
 });

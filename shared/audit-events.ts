@@ -54,6 +54,12 @@ export const AUDIT_ACTIONS = [
   "user_mfa_disabled",
   "user_mfa_reset",
   "user_admin_capability_changed",
+  "user_support_capability_changed",
+  "support_surface_viewed",
+  "office_location_created",
+  "office_location_renamed",
+  "office_location_deactivated",
+  "office_location_reactivated",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -74,6 +80,7 @@ export const AUDIT_ENTITY_TYPES = [
   "mga",
   "policy_change_request",
   "business_state_generation",
+  "office_location",
   "user",
 ] as const;
 

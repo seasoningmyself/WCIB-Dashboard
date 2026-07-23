@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { readPostgresUrl } from "./postgres-url.js";
 import { readMfaConfig, type MfaConfig } from "./mfa.js";
+import { readSupportConfig, type SupportConfig } from "./support.js";
 
 const DEFAULT_PORT = 5000;
 const MINIMUM_SESSION_SECRET_LENGTH = 32;
@@ -15,6 +16,7 @@ export interface AppConfig {
   readonly nodeEnv: NodeEnvironment;
   readonly port: number;
   readonly sessionSecret: string;
+  readonly support: SupportConfig;
 }
 
 function readNodeEnvironment(value: string | undefined): NodeEnvironment {
@@ -87,5 +89,6 @@ export function loadConfig(
     nodeEnv,
     port: readPort(env.PORT),
     sessionSecret,
+    support: readSupportConfig(env),
   });
 }

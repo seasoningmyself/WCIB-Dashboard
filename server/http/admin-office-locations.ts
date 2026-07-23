@@ -13,11 +13,11 @@ import {
 } from "../auth/authorization.js";
 import type { AppLogger } from "../logging/logger.js";
 import {
-  ADMIN_OFFICE_ACCESS,
   AdminOfficeAccessDeniedError,
   AdminOfficeBoundsError,
   AdminOfficeConflictError,
   AdminOfficeNotFoundError,
+  OFFICE_MANAGEMENT_ACCESS,
   projectAdminOfficeManagementSource,
   type AdminOfficeManagementSource,
 } from "../offices/admin.js";
@@ -143,7 +143,7 @@ export function registerAdminOfficeRoutes(
   options: RegisterAdminOfficeRoutesOptions,
 ): void {
   const access = {
-    authorization: options.authorization.require(ADMIN_OFFICE_ACCESS),
+    authorization: options.authorization.require(OFFICE_MANAGEMENT_ACCESS),
   } as const;
   routes.get(
     ADMIN_OFFICE_LOCATIONS_PATH,

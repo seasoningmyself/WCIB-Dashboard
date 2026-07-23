@@ -153,11 +153,13 @@ owners, not every transitive predecessor.
 | `0051_remove_staff_pronoun` | Removes the unused staff pronoun column and enum; advances the generation schema contract | `0002`, `0047`, `0050` | Recreates the enum and column with the neutral default; removed pronoun values are intentionally not recoverable |
 | `0052_security_first_login_settings` | Canonical user display names, mandatory first-login replacement, optional staff office assignment, and persistent login throttles; advances the generation schema contract | `0001`-`0004`, `0008`, `0017`, `0047`, `0051` | Refuses backout after password/security audit, office-assignment, or throttle state is in use; forward-fix after production use |
 | `0053_mfa_identity_security` | Optional passkey/TOTP MFA, hashed recovery codes and challenges, exact-action step-up authorizations, and deferred admin enforcement; advances the generation schema contract | `0001`, `0002`, `0005`, `0018`, `0047`, `0052` | Refuses backout after any MFA method, credential, recovery, challenge, step-up, policy, or audit history exists; forward-fix after production use |
+| `0054_support_engineer_capability` | Exact scoped-support capability, completed-login diagnostics, and audited support/office vocabulary; advances the generation schema contract | `0001`, `0002`, `0017`, `0018`, `0047`, `0053` | Refuses backout after support capability or owned audit history exists; forward-fix after production use |
+| `0055_staff_assignment_options` | Admin-managed producer book and first-year assignment availability on the surviving staff profile; advances the generation schema contract | `0002`, `0018`, `0047`, `0054` | Refuses backout after either assignment option is disabled; preserve the configuration and forward-fix |
 
 ## Dependency-safe full reverse order
 
 For a disposable or confirmed-empty database only, execute backouts from
-`0053` down through `0000`, deleting the matching Drizzle history row in the
+`0055` down through `0000`, deleting the matching Drizzle history row in the
 same transaction as each backout. The automated verifier is the reference
 implementation. There is intentionally no production `db:rollback` command:
 an operator must make and document the recovery decision rather than invoke a

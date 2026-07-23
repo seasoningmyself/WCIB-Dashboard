@@ -183,13 +183,29 @@ import {
   listAdminAccountSecurity,
   resetAdminMfa,
   setAdminCapability,
+  setSupportCapability,
   updateAdminAccountEmail,
 } from "./auth/admin-account-security.js";
+import { resetUserMfa } from "./auth/mfa-reset.js";
+import { registerSupportAccountSecurityRoutes } from "./http/support-account-security.js";
+import { listSupportAccountSecurityTargets } from "./auth/support-account-security.js";
+import { createDigitalOceanBackupProvider } from "./support/digitalocean-backups.js";
+import { createSentrySupportProvider } from "./support/sentry.js";
+import { loadOperationalSupportDashboard } from "./support/operational.js";
+import { registerSupportDashboardRoutes } from "./http/support-dashboard.js";
+import { recordCompletedLogin } from "./auth/users.js";
 
 const config = loadConfig();
 const logger = new StructuredLogger();
 const pool = createDatabasePool(config.databaseUrl);
 const database = drizzle(pool, { schema: databaseSchema });
+const supportBackupProvider = createDigitalOceanBackupProvider(
+  config.support.digitalOceanBackup,
+  config.support.backupFreshnessThresholdHours,
+);
+const supportTelemetryProvider = createSentrySupportProvider(
+  config.support.sentry,
+);
 const authorization = createDatabaseAuthorizationGuards(database, logger, {
   adminMfaEnforcementEnabled: config.mfa.adminEnforcementEnabled,
   allUsersMfaEnforcementEnabled: config.mfa.allUsersEnforcementEnabled,
@@ -200,6 +216,18 @@ const app = createApp({
   logger,
   readinessCheck: () => checkDatabaseConnection(pool),
   registerRoutes: (routes) => {
+    registerSupportDashboardRoutes(routes, {
+      authorization,
+      load: (context, query) =>
+        loadOperationalSupportDashboard(database, context, {
+          backupProvider: supportBackupProvider,
+          config: config.support,
+          logger,
+          nodeEnv: config.nodeEnv,
+          readinessCheck: () => checkDatabaseConnection(pool),
+          telemetryProvider: supportTelemetryProvider,
+        }, query),
+    });
     registerAuthRoutes(routes, {
       adminMfaEnforcementEnabled: config.mfa.adminEnforcementEnabled,
       allUsersMfaEnforcementEnabled: config.mfa.allUsersEnforcementEnabled,
@@ -209,11 +237,16 @@ const app = createApp({
     });
     registerCurrentUserRoute(routes, {
       authorization,
-      loadIdentity: (userId, isAdmin = false) =>
+      loadIdentity: (
+        userId,
+        isAdmin = false,
+        isSupportEngineer = false,
+      ) =>
         loadCurrentUserIdentity(database, userId, {
           adminEnforcementEnabled: config.mfa.adminEnforcementEnabled,
           allUsersEnforcementEnabled: config.mfa.allUsersEnforcementEnabled,
           isAdmin,
+          isSupportEngineer,
         }),
     });
     registerRequiredPasswordChangeRoute(routes, {
@@ -229,16 +262,30 @@ const app = createApp({
           adminEnforcementEnabled: config.mfa.adminEnforcementEnabled,
           allUsersEnforcementEnabled: config.mfa.allUsersEnforcementEnabled,
           isAdmin: principal.capabilities.includes("admin"),
+          isSupportEngineer:
+            principal.capabilities.includes("support_engineer"),
         });
+        const authenticationState = mfa.requiresMfaLogin
+          ? "mfa_challenge"
+          : mfa.policyRequired || mfa.enrollmentIncomplete
+            ? "mfa_enrollment"
+            : "authenticated";
         await establishMfaSession(
           req,
           user,
-          mfa.requiresMfaLogin
-            ? "mfa_challenge"
-            : mfa.policyRequired || mfa.enrollmentIncomplete
-              ? "mfa_enrollment"
-              : "authenticated",
+          authenticationState,
         );
+        if (authenticationState === "authenticated") {
+          try {
+            await recordCompletedLogin(database, user.id);
+          } catch {
+            logger.warn("Last-login status update deferred", {
+              component: "auth",
+              event: "last_login_update_deferred",
+              userId: user.id,
+            });
+          }
+        }
       },
       logger,
     });
@@ -656,8 +703,39 @@ const app = createApp({
           config.mfa.adminEnforcementEnabled,
           logger,
         ),
+      setSupportCapability: (context, userId, input, proof) =>
+        setSupportCapability(
+          database,
+          context,
+          userId,
+          input,
+          proof,
+          config.mfa.adminEnforcementEnabled,
+          config.mfa.allUsersEnforcementEnabled,
+          logger,
+        ),
       updateEmail: (context, userId, input, proof) =>
         updateAdminAccountEmail(
+          database,
+          context,
+          userId,
+          input,
+          proof,
+          logger,
+        ),
+    });
+    registerSupportAccountSecurityRoutes(routes, {
+      authorization,
+      list: (context) =>
+        listSupportAccountSecurityTargets(
+          database,
+          context,
+          config.mfa.adminEnforcementEnabled,
+          config.mfa.allUsersEnforcementEnabled,
+          logger,
+        ),
+      resetMfa: (context, userId, input, proof) =>
+        resetUserMfa(
           database,
           context,
           userId,

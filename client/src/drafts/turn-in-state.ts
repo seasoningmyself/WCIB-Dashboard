@@ -571,13 +571,19 @@ export function validateTurnInForSubmit(
   }
   if (
     input.proposalTotal == null ||
-    compareMoney(input.proposalTotal, "0.00") !== 1 ||
+    compareMoney(input.proposalTotal, "0.00") !== 1
+  ) {
+    errors.proposalTotal = "Enter a proposal total greater than zero.";
+  } else if (
     summary.proposalTotal === null ||
     !proposalTotalsMatch(input.proposalTotal, summary.proposalTotal)
   ) {
     errors.proposalTotal = "Proposal total must match premium, taxes, MGA fee, and broker fee.";
   }
-  if (summary.netDue === null || compareMoney(summary.netDue, "0.00") === -1) {
+  if (
+    summary.netDue !== null &&
+    compareMoney(summary.netDue, "0.00") === -1
+  ) {
     errors.amountPaid = "Net due to the MGA cannot be negative.";
   }
   if (state.paymentMode === "deposit") {
@@ -603,16 +609,35 @@ export function buildAssignmentChoices(
 ): AssignmentChoice[] {
   if (user.role === "producer") {
     const name = user.displayName ?? user.email;
+    const ownSettings = producers.find(({ userId }) => userId === user.id);
     return [
       assignmentChoice("none", null, accountAssignmentLabel("none", null, "account")),
-      assignmentChoice("book", user.id, accountAssignmentLabel("book", name, "account")),
-      assignmentChoice("house", user.id, accountAssignmentLabel("house", name, "account")),
+      ...(ownSettings?.bookEnabled === false
+        ? []
+        : [
+            assignmentChoice(
+              "book",
+              user.id,
+              accountAssignmentLabel("book", name, "account"),
+            ),
+          ]),
+      ...(ownSettings?.firstYearEnabled === false
+        ? []
+        : [
+            assignmentChoice(
+              "house",
+              user.id,
+              accountAssignmentLabel("house", name, "account"),
+            ),
+          ]),
     ];
   }
   if (user.role === "employee") {
     return [
       assignmentChoice("none", null, accountAssignmentLabel("none", null, "account")),
-      ...producers.map(({ displayName, userId }) =>
+      ...producers
+        .filter(({ bookEnabled }) => bookEnabled)
+        .map(({ displayName, userId }) =>
         assignmentChoice(
           "book",
           userId,
@@ -623,18 +648,28 @@ export function buildAssignmentChoices(
   }
   return [
     assignmentChoice("none", null, accountAssignmentLabel("none", null, "account")),
-    ...producers.flatMap(({ displayName, userId }) => [
-      assignmentChoice(
-        "book",
-        userId,
-        accountAssignmentLabel("book", displayName, "account"),
-      ),
-      assignmentChoice(
-        "house",
-        userId,
-        accountAssignmentLabel("house", displayName, "account"),
-      ),
-    ]),
+    ...producers.flatMap(
+      ({ bookEnabled, displayName, firstYearEnabled, userId }) => [
+        ...(bookEnabled
+          ? [
+              assignmentChoice(
+                "book",
+                userId,
+                accountAssignmentLabel("book", displayName, "account"),
+              ),
+            ]
+          : []),
+        ...(firstYearEnabled
+          ? [
+              assignmentChoice(
+                "house",
+                userId,
+                accountAssignmentLabel("house", displayName, "account"),
+              ),
+            ]
+          : []),
+      ],
+    ),
   ];
 }
 

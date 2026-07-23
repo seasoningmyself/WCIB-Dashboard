@@ -117,3 +117,17 @@ export function visibleNavigationCount(
     ? null
     : count;
 }
+
+export function reviewQueueNavigationCount(
+  counts: NavigationCounts,
+): number | null {
+  const values = [counts.approvals, counts.help_requests].filter(
+    (value): value is number =>
+      value !== undefined && Number.isSafeInteger(value) && value >= 0,
+  );
+  if (values.length === 0) {
+    return null;
+  }
+  const total = values.reduce((sum, value) => sum + value, 0);
+  return total > 0 ? total : null;
+}

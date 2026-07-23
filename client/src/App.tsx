@@ -101,14 +101,14 @@ export function App({
     (user: CurrentUser, authenticatedPassword?: string) => {
       const returnPath =
         auth.status === "signed_out" ? auth.returnPath : null;
-      if (returnPath !== null) {
-        const navigation = resolveAuthorizedNavigation(
-          user.allowedNavigation,
-        );
-        window.location.hash =
-          resolveShellRoute(returnPath, navigation).status === "ready"
-            ? returnPath
-            : "/";
+      const currentPath = currentHashPath();
+      const nextPath = resolveAuthenticatedPath(
+        user,
+        currentPath,
+        returnPath,
+      );
+      if (nextPath !== currentPath) {
+        window.location.hash = nextPath;
       }
       boundary.beginSession();
       setMfaPromptDismissed(false);
@@ -260,4 +260,16 @@ function currentHashPath(): string {
   }
   const path = window.location.hash.slice(1);
   return path === "" ? "/" : path;
+}
+
+export function resolveAuthenticatedPath(
+  user: Readonly<CurrentUser>,
+  currentPath: string,
+  returnPath: string | null,
+): string {
+  const candidate = returnPath ?? currentPath;
+  const navigation = resolveAuthorizedNavigation(user.allowedNavigation);
+  return resolveShellRoute(candidate, navigation).status === "ready"
+    ? candidate
+    : "/";
 }

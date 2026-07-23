@@ -19,6 +19,7 @@ export interface CurrentUserHandlerDependencies {
   loadIdentity(
     userId: string,
     isAdmin?: boolean,
+    isSupportEngineer?: boolean,
   ): Promise<CurrentUserIdentity | null>;
 }
 
@@ -27,6 +28,7 @@ export interface RegisterCurrentUserRouteOptions {
   loadIdentity(
     userId: string,
     isAdmin?: boolean,
+    isSupportEngineer?: boolean,
   ): Promise<CurrentUserIdentity | null>;
 }
 
@@ -38,6 +40,7 @@ export function createCurrentUserHandler(
     const identity = await dependencies.loadIdentity(
       principal.userId,
       principal.capabilities.includes("admin"),
+      principal.capabilities.includes("support_engineer"),
     );
     if (identity === null) {
       throw new HttpError(403, apiErrorCodes.forbidden, "Forbidden");

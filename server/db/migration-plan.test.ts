@@ -7,14 +7,15 @@ import {
   findNontransactionalStatement,
   loadMigrationPlan,
 } from "./migration-plan.js";
+import { approvedCoreMigrationCount } from "./core-schema-contract.js";
 
 test("every journaled migration has ordered forward and backout SQL", () => {
   const plan = loadMigrationPlan();
 
-  assert.equal(plan.length, 54);
+  assert.equal(plan.length, approvedCoreMigrationCount);
   assert.deepEqual(
     plan.map((entry) => entry.idx),
-    Array.from({ length: 54 }, (_, index) => index),
+    Array.from({ length: approvedCoreMigrationCount }, (_, index) => index),
   );
   for (const entry of plan) {
     assert.equal(basename(entry.forwardPath), `${entry.tag}.sql`);

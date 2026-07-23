@@ -1,7 +1,80 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 21, 2026 (Optional MFA, recovery, and exact-action step-up security.)
+**Last updated:** July 23, 2026 (Staff and turn-in administration UX.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
+
+---
+
+## July 23, 2026 — Navigation and home views follow the user's job
+
+The shell presents role-specific starting views without creating a separate
+authorization model. Administrators start on Agency Overview, producers start
+on My Commissions, employees start on Check Turn-In, and support engineers
+start on Support. The server-issued navigation order remains the source of
+truth for the `/` route.
+
+Administrator navigation groups Agency Overview, work requiring action,
+financial records, and team setup. Approvals and Help Requests remain separate
+authorized routes over their existing audited workflows, but the sidebar
+presents them as one Review Queue with internal tabs and a combined attention
+count. A user authorized for only one route still sees only that route.
+
+Managed carriers, MGAs, and policy types use one explicit search-or-add field.
+Typing filters immediately; creation remains a separate button and is
+suppressed when an active or inactive entry already matches exactly. Existing
+vocabulary creation, duplicate confirmation, deactivation, generation scope,
+and audit behavior are unchanged.
+
+---
+
+## July 23, 2026 — Assignment choices are staff configuration
+
+Administrators manage whether each active producer offers a named book option,
+a first-year house option, or both from Manage Staff. The agency assignment
+remains `Sophia's account` and is always available. Disabling a producer option
+removes it only from new turn-in choices; it does not rewrite policies,
+submitted snapshots, pay sheets, exports, or audit history.
+
+The availability flags live on the producer's surviving staff profile because
+they describe staff configuration, not transactional business facts. They
+therefore survive Start Fresh with the roster and rate history. Mutations use
+the existing admin-only staff endpoint and `staff_account_changed` audit path.
+Migration 0055 advances the generation schema contract from 55 to 56 and is
+local-only until explicitly applied to managed PostgreSQL.
+
+---
+
+## July 22, 2026 — Engineering support is an exact scoped capability
+
+Engineering support uses the exact `support_engineer` capability rather than
+full administrator access. Administrator capability does not implicitly grant
+the Support dashboard. A support account has no staff profile, appears in
+Account Security rather than Manage Staff, and may manage only office-location
+vocabulary plus its own Settings and MFA. Its only user-targeting mutation is
+resetting another user's MFA after the engineer completes an exact-action
+password-and-factor step-up and supplies a written reason. It cannot reset
+itself.
+
+The support account cannot manage staff, roles, commission rates, approvals,
+policies, pay sheets, payment state, settings outside offices, Start Fresh, or
+any business record. It cannot read individual compensation, pay sheets,
+policies, insureds, carrier/MGA detail, assignments, or named financial data.
+Company numbers are a dedicated aggregate-only projection with no producer
+payout or split fields. Audit diagnostics expose only a time window, total,
+and fixed-category counts and last-occurrence timestamps; actors, targets,
+entities, reasons, raw actions, and before/after values remain inaccessible.
+
+MFA is mandatory for `support_engineer`. A support account may rotate methods
+only while retaining at least one verified factor; complete MFA removal requires
+a different administrator. Support-surface access and MFA resets are audited
+without diagnostic payloads or credential material.
+
+The production downgrade of `salam@shieldstonelabs.com` remains gated. Sophia
+and Earl must each complete first-login password replacement, enroll MFA, and
+prove step-up authentication before Ennis loses administrator access. Until
+that recovery prerequisite is observed, no production capability change is
+permitted. Migration 0054 advances the generation schema contract from 54 to
+55 and remains local-only until explicitly applied to managed PostgreSQL.
 
 ---
 

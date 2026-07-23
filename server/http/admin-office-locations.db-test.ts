@@ -10,12 +10,16 @@ import { test } from "node:test";
 import { adminOfficeManagementResponseSchema } from "../../shared/admin-office-locations.js";
 import { activeVocabularyResponseSchema } from "../../shared/vocabulary.js";
 import { createApp } from "../app.js";
-import { createDatabaseAuthorizationGuards } from "../auth/authorization.js";
+import {
+  createDatabaseAuthorizationGuards,
+  type AuthorizedRequestContext,
+} from "../auth/authorization.js";
 import { createSessionMiddleware } from "../auth/sessions.js";
 import { createUser } from "../auth/users.js";
 import { createDatabasePool } from "../db/client.js";
 import { withDisposableMigratedDatabase } from "../db/disposable-database-test-helper.js";
 import {
+  auditEvents,
   drafts,
   officeLocations,
   staffProfiles,
@@ -77,6 +81,23 @@ test("office management preserves history and canonical form mode", async () => 
           capability: "admin",
           userId: admin.id,
         });
+        const support = await createUser(database, {
+          displayName: `STONE 161 Support ${randomUUID()}`,
+          email: `stone161-support-${randomUUID()}@example.test`,
+          password: PASSWORD,
+        });
+        await database.insert(userCapabilities).values({
+          capability: "support_engineer",
+          userId: support.id,
+        });
+        const supportContext: AuthorizedRequestContext = {
+          principal: {
+            capabilities: ["support_engineer"],
+            staffRole: null,
+            userActive: true,
+            userId: support.id,
+          },
+        };
         const employee = await createUser(database, {
           displayName: `STONE 129 Employee ${randomUUID()}`,
           email: `stone129-employee-${randomUUID()}@example.test`,
@@ -347,12 +368,89 @@ test("office management preserves history and canonical form mode", async () => 
           [initialOffice.id, secondOffice.id].sort(),
         );
 
+        const supportOfficeName = `STONE 161 Support ${randomUUID()}`;
+        const supportCreated = await createAdminOfficeLocation(
+          database,
+          supportContext,
+          { name: supportOfficeName },
+          logger,
+        );
+        const supportOffice = supportCreated.items.find(
+          ({ name }) => name === supportOfficeName,
+        );
+        assert.ok(supportOffice);
+        const supportRenamedName = `STONE 161 Renamed ${randomUUID()}`;
+        await renameAdminOfficeLocation(
+          database,
+          supportContext,
+          supportOffice.id,
+          { name: supportRenamedName },
+          logger,
+        );
+        await setAdminOfficeLocationActive(
+          database,
+          supportContext,
+          supportOffice.id,
+          false,
+          logger,
+        );
+        await setAdminOfficeLocationActive(
+          database,
+          supportContext,
+          supportOffice.id,
+          true,
+          logger,
+        );
+        const supportAudit = await database
+          .select({
+            action: auditEvents.action,
+            actorUserId: auditEvents.actorUserId,
+            afterSummary: auditEvents.afterSummary,
+            beforeSummary: auditEvents.beforeSummary,
+            entityId: auditEvents.entityId,
+          })
+          .from(auditEvents)
+          .where(eq(auditEvents.actorUserId, support.id))
+          .orderBy(auditEvents.occurredAt, auditEvents.id);
+        assert.deepEqual(
+          supportAudit.map(({ action }) => action),
+          [
+            "office_location_created",
+            "office_location_renamed",
+            "office_location_deactivated",
+            "office_location_reactivated",
+          ],
+        );
+        assert.equal(
+          supportAudit.every(
+            ({ actorUserId, entityId }) =>
+              actorUserId === support.id && entityId === supportOffice.id,
+          ),
+          true,
+        );
+        assert.deepEqual(supportAudit[0]?.afterSummary, {
+          isActive: true,
+          name: supportOfficeName,
+        });
+        assert.deepEqual(supportAudit[1]?.beforeSummary, {
+          name: supportOfficeName,
+        });
+        assert.deepEqual(supportAudit[1]?.afterSummary, {
+          name: supportRenamedName,
+        });
+        assert.deepEqual(supportAudit[2]?.beforeSummary, { isActive: true });
+        assert.deepEqual(supportAudit[2]?.afterSummary, { isActive: false });
+        assert.deepEqual(supportAudit[3]?.beforeSummary, { isActive: false });
+        assert.deepEqual(supportAudit[3]?.afterSummary, { isActive: true });
+
         const logs = logLines.join("\n");
         for (const forbidden of [
           initialOfficeName,
           secondName,
           renamedName,
           concurrentName,
+          supportOfficeName,
+          supportRenamedName,
         ]) {
           assert.equal(logs.toLowerCase().includes(forbidden.toLowerCase()), false);
         }

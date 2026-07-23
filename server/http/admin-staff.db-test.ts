@@ -208,9 +208,11 @@ test("admin staff endpoints preserve identity history and rate integrity", async
         assert.equal(employeeCreate.statusCode, 201);
         const employee = (employeeCreate.body as any).staff;
         assert.deepEqual(Object.keys(employee), [
+          "bookAssignmentEnabled",
           "createdAt",
           "displayName",
           "email",
+          "firstYearAssignmentEnabled",
           "isActive",
           "officeLocation",
           "passwordChangeRequired",
@@ -266,7 +268,31 @@ test("admin staff endpoints preserve identity history and rate integrity", async
         const producer = (producerCreate.body as any).staff;
         assert.equal(producer.rateState, "configured");
         assert.equal(producer.rates.length, 1);
+        assert.equal(producer.bookAssignmentEnabled, true);
+        assert.equal(producer.firstYearAssignmentEnabled, true);
         const firstRateId = producer.rates[0].id as string;
+        const assignmentUpdate = await request(running.baseUrl, {
+          body: { bookAssignmentEnabled: false },
+          cookie: adminCookie,
+          method: "PATCH",
+          path: ADMIN_STAFF_DETAIL_PATH.replace(":userId", producer.userId),
+        });
+        assert.equal(assignmentUpdate.statusCode, 200);
+        assert.equal(
+          (assignmentUpdate.body as any).staff.bookAssignmentEnabled,
+          false,
+        );
+        assert.equal(
+          (assignmentUpdate.body as any).staff.firstYearAssignmentEnabled,
+          true,
+        );
+        const employeeAssignmentUpdate = await request(running.baseUrl, {
+          body: { bookAssignmentEnabled: false },
+          cookie: adminCookie,
+          method: "PATCH",
+          path: ADMIN_STAFF_DETAIL_PATH.replace(":userId", employee.userId),
+        });
+        assert.equal(employeeAssignmentUpdate.statusCode, 409);
 
         for (const body of [
           {
@@ -657,6 +683,18 @@ test("admin staff endpoints preserve identity history and rate integrity", async
             ]),
           );
         assert.ok(relevantAudits.some(({ action }) => action === "staff_account_changed"));
+        assert.ok(
+          relevantAudits.some(
+            ({ action, afterSummary }) => {
+              const summary = afterSummary as Record<string, unknown> | null;
+              return (
+                action === "staff_account_changed" &&
+                summary?.assignmentOptionsChanged === true &&
+                summary.bookAssignmentEnabled === false
+              );
+            },
+          ),
+        );
         assert.ok(relevantAudits.some(({ action }) => action === "producer_rate_changed"));
         assert.ok(
           relevantAudits.some(

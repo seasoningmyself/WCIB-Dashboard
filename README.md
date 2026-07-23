@@ -847,8 +847,38 @@ sensitive context by mistake.
 Unexpected exceptions are represented locally by error type only. The logger
 has a Sentry-shaped `captureException(error, { level, tags, extra })` adapter
 boundary so later integration will not require route-handler changes. Foundation
-uses a no-op adapter: there is no Sentry SDK, DSN, initialization, release
-metadata, event shipping, or other telemetry dependency in this milestone.
+uses a no-op adapter: there is no Sentry SDK, DSN, initialization, or event
+shipping in this milestone. The scoped support dashboard can separately read
+bounded issue summaries and uptime aggregates through a server-only Sentry API
+token when configured.
+
+## Scoped support diagnostics
+
+`GET /api/support/dashboard` requires the exact `support_engineer` capability;
+administrator status does not imply access. The response is a strict projection
+of release identity, process/database status, code-versus-managed schema-control
+parity, backup freshness, aggregate login throttling, integrity warning counts,
+Sentry summaries, uptime, and administrator recovery readiness. Every successful
+read writes a `support_surface_viewed` audit event.
+
+The runtime never reads or returns the migration ledger. Managed migration state
+comes from the single bounded `business_state_control` row and is compared with
+the count and fingerprint compiled into the verified application image. Backup
+metadata comes from DigitalOcean's read-only backups API; Sentry details are
+limited to scrubbed issue titles, counts, timestamps, and direct Sentry links.
+Provider tokens, backup sizes, stack traces, event bodies, IPs, bucket hashes,
+MFA method detail, and raw audit records are never serialized.
+
+Company numbers on this route are computed by a dedicated support projection
+from active-generation, closed company pay-sheet facts. The allowlist is limited
+to the selected year/period, latest close timestamp, agency-level revenue and
+policy counts, won-back and retention totals, company targets, and monthly
+company totals. It does not reuse the administrator KPI DTO and never exposes
+producer payouts or splits, names, offices, pay sheets, policies, insureds,
+carriers, MGAs, transactions, or assignments. Audit diagnostics are likewise
+limited to a rolling 24-hour total plus counts and last-occurrence timestamps for
+six fixed categories; raw actions, actors, targets, entity IDs, reasons, and
+before/after summaries remain inaccessible.
 
 ## Module rules
 

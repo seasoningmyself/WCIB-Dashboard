@@ -124,7 +124,7 @@ export async function consumeStepUpAuthorization(
   context: AuthorizedRequestContext,
   proof: StepUpProof,
   now = new Date(),
-): Promise<void> {
+): Promise<ActiveMfaMethodType> {
   const descriptor = mfaStepUpDescriptorSchema.parse(proof.descriptor);
   if (proof.token === undefined || proof.token.length === 0) {
     throw new StepUpRequiredError();
@@ -151,8 +151,12 @@ export async function consumeStepUpAuthorization(
         sql`${mfaStepUpAuthorizations.expiresAt} > ${now}`,
       ),
     )
-    .returning({ id: mfaStepUpAuthorizations.id });
+    .returning({ method: mfaStepUpAuthorizations.methodType });
   if (consumed === undefined) throw new StepUpRequiredError();
+  if (consumed.method !== "totp" && consumed.method !== "webauthn") {
+    throw new StepUpRequiredError();
+  }
+  return consumed.method;
 }
 
 export function mutationDigest(mutation: Readonly<Record<string, unknown>>): string {

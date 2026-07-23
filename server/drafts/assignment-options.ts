@@ -12,7 +12,9 @@ export async function listDraftAssignmentOptions(
 ): Promise<DraftAssignmentOption[]> {
   return database
     .select({
+      bookEnabled: staffProfiles.bookAssignmentEnabled,
       displayName: users.displayName,
+      firstYearEnabled: staffProfiles.firstYearAssignmentEnabled,
       userId: staffProfiles.userId,
     })
     .from(staffProfiles)
@@ -43,9 +45,13 @@ export function projectDraftAssignmentOptions(
     return null;
   }
   return {
-    producers: producers.map(({ displayName, userId }) => ({
+    producers: producers.map(
+      ({ bookEnabled, displayName, firstYearEnabled, userId }) => ({
+      bookEnabled,
       displayName,
+      firstYearEnabled,
       userId,
-    })),
+      }),
+    ),
   };
 }

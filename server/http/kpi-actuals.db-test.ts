@@ -110,6 +110,7 @@ test("KPI endpoint reads only closed snapshots across company and producer scope
               commissionConfirmed: true,
               commissionMode: "pct",
               commissionRate: "10.0000",
+              createdAt,
               kayleeSplit: "book",
               netDue: "850.00",
               policyNumber: "STONE-134-NEW",
@@ -117,6 +118,7 @@ test("KPI endpoint reads only closed snapshots across company and producer scope
               proposalTotal: "1050.00",
               sourceDraftId: null,
               transactionType: "New",
+              updatedAt: createdAt,
             }),
             policyTestInput(references, {
               amountPaid: "500.00",
@@ -126,6 +128,7 @@ test("KPI endpoint reads only closed snapshots across company and producer scope
               commissionConfirmed: true,
               commissionMode: "pct",
               commissionRate: "12.0000",
+              createdAt,
               kayleeSplit: "house",
               netDue: "420.00",
               policyNumber: "STONE-134-WON-BACK",
@@ -133,6 +136,7 @@ test("KPI endpoint reads only closed snapshots across company and producer scope
               proposalTotal: "520.00",
               sourceDraftId: null,
               transactionType: "Won Back",
+              updatedAt: createdAt,
             }),
           ])
           .returning();
