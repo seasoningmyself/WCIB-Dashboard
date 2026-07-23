@@ -17,11 +17,22 @@ import {
 import type { AdminOfficeLocation } from "../../../shared/admin-office-locations.js";
 import { issueTemporaryPasswordRequestSchema } from "../../../shared/admin-staff.js";
 import { PasswordRequirements } from "../auth/PasswordRequirements.js";
-import { staffRoleLabel } from "./view-state.js";
+import { generateTemporaryPassphrase } from "./temporary-password.js";
+import {
+  formatRate,
+  formatStaffDate,
+  formatStaffTimestamp,
+  newestRatesFirst,
+  staffRoleLabel,
+} from "./view-state.js";
 
 export type StaffDialogState =
   | { kind: "create" }
-  | { kind: "edit"; staff: AdminStaffRecord };
+  | {
+      kind: "edit";
+      panel: "compensation" | "profile";
+      staff: AdminStaffRecord;
+    };
 
 export type RateDialogState =
   | { kind: "create"; staff: AdminStaffRecord }
@@ -52,6 +63,8 @@ export function StaffEditorDialog({
   dialog,
   error,
   onCancel,
+  onAddRate,
+  onCorrectRate,
   onCreate,
   onUpdate,
   officeOptions = [],
@@ -60,6 +73,11 @@ export function StaffEditorDialog({
   dialog: StaffDialogState | null;
   error: string | null;
   onCancel(): void;
+  onAddRate?(staff: AdminStaffRecord): void;
+  onCorrectRate?(
+    staff: AdminStaffRecord,
+    rate: AdminStaffRate,
+  ): void;
   onCreate(input: CreateAdminStaffRequest): void;
   onUpdate(userId: string, input: UpdateAdminStaffRequest): void;
   officeOptions?: readonly AdminOfficeLocation[];
@@ -71,6 +89,11 @@ export function StaffEditorDialog({
   );
   const [initialRate, setInitialRate] = useState<ProducerRateInput>(EMPTY_RATE);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [panel, setPanel] = useState<"compensation" | "profile">(
+    dialog?.kind === "edit" ? dialog.panel : "profile",
+  );
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [copyNotice, setCopyNotice] = useState<string | null>(null);
   const secretRef = useRef(values.temporaryPassword);
 
   useEffect(
@@ -145,6 +168,24 @@ export function StaffEditorDialog({
     setValues((current) => ({ ...current, temporaryPassword: "" }));
   };
 
+  const setTemporaryPassword = (temporaryPassword: string) => {
+    secretRef.current = temporaryPassword;
+    setValues((current) => ({ ...current, temporaryPassword }));
+    setCopyNotice(null);
+  };
+
+  const copyTemporaryPassword = async () => {
+    try {
+      await navigator.clipboard.writeText(values.temporaryPassword);
+      setCopyNotice("Temporary password copied.");
+    } catch {
+      setCopyNotice("Copy failed. Select the password and copy it manually.");
+    }
+  };
+
+  const hasCompensation =
+    dialog.kind === "edit" && dialog.staff.rateState !== "not_applicable";
+
   return (
     <div className="staff-dialog-backdrop" role="presentation">
       <section
@@ -164,6 +205,40 @@ export function StaffEditorDialog({
             Close
           </button>
         </header>
+        {dialog.kind === "edit" && hasCompensation ? (
+          <div
+            aria-label="Staff editor sections"
+            className="staff-dialog-tabs"
+            role="tablist"
+          >
+            <button
+              aria-selected={panel === "profile"}
+              className={panel === "profile" ? "is-active" : undefined}
+              onClick={() => setPanel("profile")}
+              role="tab"
+              type="button"
+            >
+              Profile
+            </button>
+            <button
+              aria-selected={panel === "compensation"}
+              className={panel === "compensation" ? "is-active" : undefined}
+              onClick={() => setPanel("compensation")}
+              role="tab"
+              type="button"
+            >
+              Compensation
+            </button>
+          </div>
+        ) : null}
+        {dialog.kind === "edit" && panel === "compensation" ? (
+          <StaffCompensationPanel
+            onAddRate={onAddRate}
+            onCorrectRate={onCorrectRate}
+            pending={pending}
+            staff={dialog.staff}
+          />
+        ) : (
         <form onSubmit={submit}>
           <div className="staff-form-grid">
             <label className="staff-field">
@@ -181,6 +256,40 @@ export function StaffEditorDialog({
                 }}
                 required
                 value={values.displayName}
+              />
+            </label>
+            <label className="staff-field">
+              <span>Role</span>
+              <select
+                disabled={pending}
+                onChange={(event) => {
+                  const role = event.currentTarget.value as AdminStaffRecord["role"];
+                  setValues((current) => ({
+                    ...current,
+                    role,
+                  }));
+                }}
+                value={values.role}
+              >
+                <option value="employee">Employee</option>
+                <option value="producer">Producer</option>
+              </select>
+            </label>
+            <label className="staff-field">
+              <span>Email</span>
+              <input
+                autoComplete="off"
+                disabled={pending}
+                onChange={(event) => {
+                  const email = event.currentTarget.value;
+                  setValues((current) => ({
+                    ...current,
+                    email,
+                  }));
+                }}
+                required
+                type="email"
+                value={values.email}
               />
             </label>
             <label className="staff-field">
@@ -210,59 +319,53 @@ export function StaffEditorDialog({
                   ))}
               </select>
             </label>
-            <label className="staff-field">
-              <span>Email</span>
-              <input
-                autoComplete="off"
-                disabled={pending}
-                onChange={(event) => {
-                  const email = event.currentTarget.value;
-                  setValues((current) => ({
-                    ...current,
-                    email,
-                  }));
-                }}
-                required
-                type="email"
-                value={values.email}
-              />
-            </label>
-            <label className="staff-field">
-              <span>Role</span>
-              <select
-                disabled={pending}
-                onChange={(event) => {
-                  const role = event.currentTarget.value as AdminStaffRecord["role"];
-                  setValues((current) => ({
-                    ...current,
-                    role,
-                  }));
-                }}
-                value={values.role}
-              >
-                <option value="employee">Employee</option>
-                <option value="producer">Producer</option>
-              </select>
-            </label>
             {dialog.kind === "create" ? (
               <label className="staff-field is-wide">
                 <span>Temporary password</span>
-                <input
-                  autoComplete="new-password"
-                  disabled={pending}
-                  maxLength={256}
-                  onChange={(event) => {
-                    const value = event.currentTarget.value;
-                    secretRef.current = value;
-                    setValues((current) => ({
-                      ...current,
-                      temporaryPassword: value,
-                    }));
-                  }}
-                  required
-                  type="password"
-                  value={values.temporaryPassword}
-                />
+                <div className="staff-password-control">
+                  <input
+                    autoComplete="new-password"
+                    disabled={pending}
+                    maxLength={128}
+                    onChange={(event) =>
+                      setTemporaryPassword(event.currentTarget.value)}
+                    required
+                    type={passwordVisible ? "text" : "password"}
+                    value={values.temporaryPassword}
+                  />
+                  <button
+                    aria-label={
+                      passwordVisible
+                        ? "Hide temporary password"
+                        : "Show temporary password"
+                    }
+                    disabled={pending}
+                    onClick={() => setPasswordVisible((current) => !current)}
+                    type="button"
+                  >
+                    {passwordVisible ? "Hide" : "Show"}
+                  </button>
+                </div>
+                <div className="staff-password-actions">
+                  <button
+                    disabled={pending}
+                    onClick={() =>
+                      setTemporaryPassword(generateTemporaryPassphrase())}
+                    type="button"
+                  >
+                    Generate another
+                  </button>
+                  <button
+                    disabled={pending || values.temporaryPassword === ""}
+                    onClick={() => void copyTemporaryPassword()}
+                    type="button"
+                  >
+                    Copy
+                  </button>
+                  {copyNotice === null ? null : (
+                    <span role="status">{copyNotice}</span>
+                  )}
+                </div>
                 <PasswordRequirements password={values.temporaryPassword} />
               </label>
             ) : null}
@@ -298,8 +401,110 @@ export function StaffEditorDialog({
             </button>
           </footer>
         </form>
+        )}
       </section>
     </div>
+  );
+}
+
+function StaffCompensationPanel({
+  onAddRate,
+  onCorrectRate,
+  pending,
+  staff,
+}: {
+  onAddRate?(staff: AdminStaffRecord): void;
+  onCorrectRate?(staff: AdminStaffRecord, rate: AdminStaffRate): void;
+  pending: boolean;
+  staff: AdminStaffRecord;
+}) {
+  const rates = newestRatesFirst(staff.rates);
+  return (
+    <section
+      aria-label={`${staff.displayName} producer compensation`}
+      className="staff-compensation-panel"
+      role="tabpanel"
+    >
+      <header>
+        <div>
+          <h3>Producer compensation</h3>
+          <p>
+            {staff.role === "producer"
+              ? "Add a new effective rate when compensation changes. Only unlocked history can be corrected."
+              : "This rate history is dormant while the account remains an employee."}
+          </p>
+        </div>
+        {staff.role === "producer" && onAddRate !== undefined ? (
+          <button
+            className="is-primary"
+            disabled={pending}
+            onClick={() => onAddRate(staff)}
+            type="button"
+          >
+            Add effective rate
+          </button>
+        ) : null}
+      </header>
+      {rates.length === 0 ? (
+        <p className="staff-rates-empty">
+          No rate is configured. Add an effective rate before pay-sheet work.
+        </p>
+      ) : (
+        <div className="staff-rate-table-wrap">
+          <table className="staff-rate-table">
+            <thead>
+              <tr>
+                <th>Effective</th>
+                <th>New commission</th>
+                <th>New broker</th>
+                <th>Renewal commission</th>
+                <th>Renewal broker</th>
+                <th>State</th>
+                <th><span className="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rates.map((rate) => (
+                <tr key={rate.id}>
+                  <td>{formatStaffDate(rate.effectiveDate)}</td>
+                  <td>{formatRate(rate.newCommissionRate)}</td>
+                  <td>{formatRate(rate.newBrokerRate)}</td>
+                  <td>{formatRate(rate.renewalCommissionRate)}</td>
+                  <td>{formatRate(rate.renewalBrokerRate)}</td>
+                  <td>
+                    {rate.lockedAt === null ? (
+                      <span className="staff-rate-state is-open">Unlocked</span>
+                    ) : (
+                      <span
+                        className="staff-rate-state is-locked"
+                        title={`Locked ${formatStaffTimestamp(rate.lockedAt)}`}
+                      >
+                        Locked
+                      </span>
+                    )}
+                  </td>
+                  <td>
+                    {rate.lockedAt === null &&
+                    staff.role === "producer" &&
+                    onCorrectRate !== undefined ? (
+                      <button
+                        disabled={pending}
+                        onClick={() => onCorrectRate(staff, rate)}
+                        type="button"
+                      >
+                        Correct
+                      </button>
+                    ) : (
+                      <span className="staff-rate-immutable">Read only</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -450,7 +655,11 @@ export function TemporaryPasswordDialog({
   onConfirm(temporaryPassword: string): void;
   pending: boolean;
 }) {
-  const [temporaryPassword, setTemporaryPassword] = useState("");
+  const [temporaryPassword, setTemporaryPassword] = useState(
+    generateTemporaryPassphrase,
+  );
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [copyNotice, setCopyNotice] = useState<string | null>(null);
   const parsed = issueTemporaryPasswordRequestSchema.safeParse({
     temporaryPassword,
   });
@@ -482,15 +691,63 @@ export function TemporaryPasswordDialog({
           </p>
           <label className="staff-field">
             <span>Temporary password</span>
-            <input
-              autoComplete="new-password"
-              disabled={pending}
-              maxLength={256}
-              onChange={(event) => setTemporaryPassword(event.currentTarget.value)}
-              required
-              type="password"
-              value={temporaryPassword}
-            />
+            <div className="staff-password-control">
+              <input
+                autoComplete="new-password"
+                disabled={pending}
+                maxLength={128}
+                onChange={(event) => {
+                  setTemporaryPassword(event.currentTarget.value);
+                  setCopyNotice(null);
+                }}
+                required
+                type={passwordVisible ? "text" : "password"}
+                value={temporaryPassword}
+              />
+              <button
+                aria-label={
+                  passwordVisible
+                    ? "Hide temporary password"
+                    : "Show temporary password"
+                }
+                disabled={pending}
+                onClick={() => setPasswordVisible((current) => !current)}
+                type="button"
+              >
+                {passwordVisible ? "Hide" : "Show"}
+              </button>
+            </div>
+            <div className="staff-password-actions">
+              <button
+                disabled={pending}
+                onClick={() => {
+                  setTemporaryPassword(generateTemporaryPassphrase());
+                  setCopyNotice(null);
+                }}
+                type="button"
+              >
+                Generate another
+              </button>
+              <button
+                disabled={pending}
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(temporaryPassword);
+                    setCopyNotice("Temporary password copied.");
+                  } catch {
+                    setCopyNotice(
+                      "Copy failed. Select the password and copy it manually.",
+                    );
+                  }
+                }}
+                type="button"
+              >
+                Copy
+              </button>
+              {copyNotice === null ? null : (
+                <span role="status">{copyNotice}</span>
+              )}
+            </div>
           </label>
           <PasswordRequirements
             password={temporaryPassword}
@@ -581,7 +838,8 @@ function initialStaffValues(staff: AdminStaffRecord | null): StaffFormValues {
     email: staff?.email ?? "",
     officeLocationId: staff?.officeLocation?.id ?? "",
     role: staff?.role ?? "employee",
-    temporaryPassword: "",
+    temporaryPassword:
+      staff === null ? generateTemporaryPassphrase() : "",
   };
 }
 

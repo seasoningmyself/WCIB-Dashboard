@@ -32,12 +32,10 @@ import { VocabularyManagement } from "./VocabularyManagement.js";
 import { createMfaApi } from "../auth/mfa-api.js";
 import { MfaStepUpDialog } from "../auth/MfaStepUpDialog.js";
 import {
-  formatRate,
   formatStaffDate,
-  formatStaffTimestamp,
   isManageStaffAdmin,
   newestRatesFirst,
-  staffRateStateLabel,
+  formatRate,
   staffRoleLabel,
 } from "./view-state.js";
 
@@ -77,7 +75,6 @@ function AdminManageStaff({ user }: { user: CurrentUser }) {
   const mfaApi = useMemo(() => createMfaApi(), []);
   const officeApi = useMemo(() => createAdminOfficeApi(client), [client]);
   const [state, setState] = useState<ManageStaffState>({ status: "loading" });
-  const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [staffDialog, setStaffDialog] = useState<StaffDialogState | null>(null);
   const [rateDialog, setRateDialog] = useState<RateDialogState | null>(null);
   const [activeDialog, setActiveDialog] = useState<ActiveDialogState | null>(null);
@@ -129,7 +126,6 @@ function AdminManageStaff({ user }: { user: CurrentUser }) {
     pendingRef.current = false;
     setPending(false);
     setState({ status: "loading" });
-    setExpandedUserId(null);
     setStaffDialog(null);
     setRateDialog(null);
     setActiveDialog(null);
@@ -290,7 +286,6 @@ function AdminManageStaff({ user }: { user: CurrentUser }) {
   return (
     <>
       <ManageStaffView
-        expandedUserId={expandedUserId}
         notice={notice}
         onActive={(staff, active) => {
           setDialogError(null);
@@ -300,26 +295,19 @@ function AdminManageStaff({ user }: { user: CurrentUser }) {
           setDialogError(null);
           setStaffDialog({ kind: "create" });
         }}
-        onAddRate={(staff) => {
+        onCompensation={(staff) => {
           setDialogError(null);
-          setRateDialog({ kind: "create", staff });
-        }}
-        onCorrectRate={(staff, rate) => {
-          setDialogError(null);
-          setRateDialog({ kind: "edit", rate, staff });
+          setStaffDialog({ kind: "edit", panel: "compensation", staff });
         }}
         onEdit={(staff) => {
           setDialogError(null);
-          setStaffDialog({ kind: "edit", staff });
+          setStaffDialog({ kind: "edit", panel: "profile", staff });
         }}
         onTemporaryPassword={(staff) => {
           setDialogError(null);
           setTemporaryPasswordDialog({ staff });
         }}
         onRetry={() => void load()}
-        onToggle={(userId) =>
-          setExpandedUserId((current) => (current === userId ? null : userId))
-        }
         pending={pending}
         currentUserId={currentUserId}
         state={state}
@@ -340,6 +328,16 @@ function AdminManageStaff({ user }: { user: CurrentUser }) {
             setStaffDialog(null);
             setDialogError(null);
           }
+        }}
+        onAddRate={(staff) => {
+          setStaffDialog(null);
+          setDialogError(null);
+          setRateDialog({ kind: "create", staff });
+        }}
+        onCorrectRate={(staff, rate) => {
+          setStaffDialog(null);
+          setDialogError(null);
+          setRateDialog({ kind: "edit", rate, staff });
         }}
         onCreate={(input) => void createStaff(input)}
         onUpdate={(userId, input) => {
@@ -453,36 +451,31 @@ function staffMutationDescriptor(
 }
 
 export function ManageStaffView({
-  expandedUserId,
   notice,
   onActive,
   onAdd,
-  onAddRate,
-  onCorrectRate,
+  onCompensation,
   onEdit,
   onTemporaryPassword,
   onRetry,
-  onToggle,
   pending,
   state,
   vocabulary,
   currentUserId,
 }: {
-  expandedUserId: string | null;
   notice: string | null;
   onActive(staff: AdminStaffRecord, active: boolean): void;
   onAdd(): void;
-  onAddRate(staff: AdminStaffRecord): void;
-  onCorrectRate(staff: AdminStaffRecord, rate: AdminStaffRecord["rates"][number]): void;
+  onCompensation(staff: AdminStaffRecord): void;
   onEdit(staff: AdminStaffRecord): void;
   onTemporaryPassword(staff: AdminStaffRecord): void;
   onRetry(): void;
-  onToggle(userId: string): void;
   pending: boolean;
   state: ManageStaffState;
   vocabulary?: React.ReactNode;
   currentUserId: string;
 }) {
+  const [showInactive, setShowInactive] = useState(false);
   if (state.status === "loading") {
     return <StaffMessage body="Retrieving staff accounts and rate history..." busy title="Loading staff" />;
   }
@@ -504,6 +497,10 @@ export function ManageStaffView({
     );
   }
 
+  const activeItems = state.items.filter(({ isActive }) => isActive);
+  const inactiveItems = state.items.filter(({ isActive }) => !isActive);
+  const visibleItems = showInactive ? state.items : activeItems;
+
   return (
     <section className="staff-page" aria-labelledby="staff-page-title">
       <PageHeader
@@ -515,7 +512,13 @@ export function ManageStaffView({
         eyebrow="Account administration"
         status={(
           <>
-            <strong>{state.items.length}</strong> {state.items.length === 1 ? "staff account is" : "staff accounts are"} in the roster.
+            <strong>{activeItems.length}</strong>{" "}
+            {activeItems.length === 1 ? "active account" : "active accounts"}
+            {inactiveItems.length === 0
+              ? " in the roster."
+              : ` in the roster; ${inactiveItems.length} inactive ${
+                  inactiveItems.length === 1 ? "account is" : "accounts are"
+                } hidden.`}
           </>
         )}
         title="Manage Staff"
@@ -532,158 +535,169 @@ export function ManageStaffView({
           heading="No staff accounts"
         />
       ) : (
-        <div className="staff-roster" role="list">
-          {state.items.map((staff) => {
-            const expanded = expandedUserId === staff.userId;
-            return (
+        <>
+          <div className="staff-roster-toolbar">
+            <p>
+              Showing {showInactive ? "all staff" : "active staff"}
+            </p>
+            {inactiveItems.length === 0 ? null : (
+              <button
+                aria-pressed={showInactive}
+                disabled={pending}
+                onClick={() => setShowInactive((current) => !current)}
+                type="button"
+              >
+                {showInactive
+                  ? "Hide inactive"
+                  : `Show inactive (${inactiveItems.length})`}
+              </button>
+            )}
+          </div>
+          {visibleItems.length === 0 ? (
+            <EmptyState
+              body="No active staff accounts are shown. Use Show inactive to review deactivated accounts."
+              className="staff-empty is-compact"
+              heading="No active staff"
+            />
+          ) : (
+          <div className="staff-roster" role="list">
+          {visibleItems.map((staff) => (
               <article className={`staff-row${staff.isActive ? "" : " is-inactive"}`} key={staff.userId} role="listitem">
                 <div className="staff-row-main">
-                  <div className="staff-identity">
-                    <span className="staff-initials" aria-hidden="true">{initials(staff.displayName)}</span>
-                    <div>
-                      <h2>{staff.displayName}</h2>
-                      <p>{staff.email}</p>
-                      <p className="staff-office-assignment">
-                        {staff.officeLocation?.name ?? "Not assigned"}
-                      </p>
+                  <header className="staff-card-header">
+                    <div className="staff-identity">
+                      <span className="staff-initials" aria-hidden="true">{initials(staff.displayName)}</span>
+                      <div>
+                        <h2>{staff.displayName}</h2>
+                        <p>{staff.email}</p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="staff-badges" aria-label="Account classification">
-                    <span>{staffRoleLabel(staff.role)}</span>
-                    <span className={staff.isActive ? "is-active" : "is-inactive"}>
-                      {staff.isActive ? "Active" : "Inactive"}
-                    </span>
-                    {staff.passwordChangeRequired ? (
-                      <span className="is-password-required">Password change required</span>
-                    ) : null}
-                    {staff.rateState === "not_applicable" ? null : (
-                      <span className={`is-rate-${staff.rateState}`}>
-                        {staffRateStateLabel(staff.rateState)}
+                    <div className="staff-badges" aria-label="Account classification">
+                      <span className="is-role">{staffRoleLabel(staff.role)}</span>
+                      <span className={staff.isActive ? "is-active" : "is-inactive"}>
+                        {staff.isActive ? "Active" : "Inactive"}
                       </span>
-                    )}
+                    </div>
+                  </header>
+                  <div className="staff-card-details">
+                    <div className="staff-card-detail">
+                      <span>Office</span>
+                      <strong>{staff.officeLocation?.name ?? "Not assigned"}</strong>
+                    </div>
+                    <StaffRateSummary staff={staff} />
+                    {staff.passwordChangeRequired ? (
+                      <p className="staff-password-state">
+                        Password change required at next sign-in
+                      </p>
+                    ) : null}
                   </div>
                   <div className="staff-row-actions">
                     <button disabled={pending} onClick={() => onEdit(staff)} type="button">Edit</button>
-                    <button disabled={pending} onClick={() => onActive(staff, !staff.isActive)} type="button">
-                      {staff.isActive ? "Deactivate" : "Reactivate"}
-                    </button>
-                    {staff.userId === currentUserId ? null : (
-                      <button
-                        disabled={pending}
-                        onClick={() => onTemporaryPassword(staff)}
-                        type="button"
-                      >
-                        Issue temporary password
-                      </button>
-                    )}
                     {staff.rateState === "not_applicable" ? null : (
                       <button
-                        aria-expanded={expanded}
                         disabled={pending}
-                        onClick={() => onToggle(staff.userId)}
+                        onClick={() => onCompensation(staff)}
                         type="button"
                       >
-                        {expanded ? "Hide rates" : "Rate history"}
+                        Compensation
                       </button>
                     )}
+                    <details className="staff-more-menu">
+                      <summary>More</summary>
+                      <div>
+                        <button
+                          disabled={pending}
+                          onClick={() => onActive(staff, !staff.isActive)}
+                          type="button"
+                        >
+                          {staff.isActive ? "Deactivate account" : "Reactivate account"}
+                        </button>
+                        {staff.userId === currentUserId ? null : (
+                          <button
+                            disabled={pending}
+                            onClick={() => onTemporaryPassword(staff)}
+                            type="button"
+                          >
+                            Issue temporary password
+                          </button>
+                        )}
+                      </div>
+                    </details>
                   </div>
                 </div>
-                {expanded && staff.rateState !== "not_applicable" ? (
-                  <RateHistory
-                    onAdd={() => onAddRate(staff)}
-                    onCorrect={(rate) => onCorrectRate(staff, rate)}
-                    pending={pending}
-                    staff={staff}
-                  />
-                ) : null}
               </article>
-            );
-          })}
-        </div>
+          ))}
+          </div>
+          )}
+        </>
       )}
       {vocabulary}
     </section>
   );
 }
 
-function RateHistory({
-  onAdd,
-  onCorrect,
-  pending,
+function StaffRateSummary({
   staff,
 }: {
-  onAdd(): void;
-  onCorrect(rate: AdminStaffRecord["rates"][number]): void;
-  pending: boolean;
   staff: AdminStaffRecord;
 }) {
-  const rates = newestRatesFirst(staff.rates);
+  if (staff.rateState === "not_applicable") return null;
+  if (staff.rateState === "missing") {
+    return (
+      <p className="staff-rate-warning">
+        No rates set. Pay Sheet will not calculate.
+      </p>
+    );
+  }
+  const rate = rateForCard(staff.rates);
+  if (rate === null) return null;
   return (
-    <section className="staff-rates" aria-label={`${staff.displayName} producer rate history`}>
-      <header>
-        <div>
-          <h3>Producer rate history</h3>
-          <p>
-            {staff.role === "producer"
-              ? "New rows become immutable after a closed pay sheet snapshots them."
-              : "This history is dormant while the account remains an employee."}
-          </p>
-        </div>
-        {staff.role === "producer" ? (
-          <button disabled={pending} onClick={onAdd} type="button">Add rate</button>
-        ) : null}
-      </header>
-      {rates.length === 0 ? (
-        <p className="staff-rates-empty">
-          {staff.role === "producer"
-            ? "No rate configured. Add an explicit effective rate before payout work."
-            : "No producer rate history."}
-        </p>
-      ) : (
-        <div className="staff-rate-table-wrap">
-          <table className="staff-rate-table">
-            <thead>
-              <tr>
-                <th>Effective</th>
-                <th>New commission</th>
-                <th>New broker</th>
-                <th>Renewal commission</th>
-                <th>Renewal broker</th>
-                <th>State</th>
-                <th><span className="sr-only">Actions</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rates.map((rate) => (
-                <tr key={rate.id}>
-                  <td>{formatStaffDate(rate.effectiveDate)}</td>
-                  <td>{formatRate(rate.newCommissionRate)}</td>
-                  <td>{formatRate(rate.newBrokerRate)}</td>
-                  <td>{formatRate(rate.renewalCommissionRate)}</td>
-                  <td>{formatRate(rate.renewalBrokerRate)}</td>
-                  <td>
-                    {rate.lockedAt === null ? (
-                      <span className="staff-rate-state is-open">Unlocked</span>
-                    ) : (
-                      <span className="staff-rate-state is-locked" title={`Locked ${formatStaffTimestamp(rate.lockedAt)}`}>
-                        Locked
-                      </span>
-                    )}
-                  </td>
-                  <td>
-                    {rate.lockedAt === null && staff.role === "producer" ? (
-                      <button disabled={pending} onClick={() => onCorrect(rate)} type="button">Correct</button>
-                    ) : (
-                      <span className="staff-rate-immutable">Read only</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
+    <div
+      aria-label={`${staff.displayName} ${
+        staff.rateState === "dormant" ? "dormant" : "current"
+      } producer rates`}
+      className={`staff-rate-summary${
+        staff.rateState === "dormant" ? " is-dormant" : ""
+      }`}
+    >
+      <div className="staff-rate-summary-heading">
+        <span>
+          {staff.rateState === "dormant"
+            ? "Former producer rates"
+            : "Current producer rates"}
+        </span>
+        <small>Effective {formatStaffDate(rate.effectiveDate)}</small>
+      </div>
+      <RateValue label="New commission" value={rate.newCommissionRate} />
+      <RateValue label="New broker" value={rate.newBrokerRate} />
+      <RateValue
+        label="Renewal commission"
+        value={rate.renewalCommissionRate}
+      />
+      <RateValue label="Renewal broker" value={rate.renewalBrokerRate} />
+    </div>
+  );
+}
+
+function RateValue({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <span>{label}</span>
+      <strong>{formatRate(value)}</strong>
+    </div>
+  );
+}
+
+function rateForCard(
+  rates: readonly AdminStaffRecord["rates"][number][],
+): AdminStaffRecord["rates"][number] | null {
+  if (rates.length === 0) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  const sorted = newestRatesFirst(rates);
+  return (
+    sorted.find(({ effectiveDate }) => effectiveDate <= today) ??
+    [...sorted].reverse()[0] ??
+    null
   );
 }
 
