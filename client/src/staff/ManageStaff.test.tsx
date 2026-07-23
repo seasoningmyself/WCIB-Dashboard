@@ -46,6 +46,8 @@ test("Manage Staff shows active staff, producer percentages, and recovery action
 
   for (const visible of [
     "Manage Staff",
+    "Assignment options",
+    "Vocabulary",
     "Kaylee Producer",
     "Former Producer",
     "Current producer rates",
@@ -242,6 +244,7 @@ function renderView(items: readonly AdminStaffRecord[]): string {
       notice={null}
       onActive={noOp}
       onAdd={noOp}
+      onAssignmentUpdate={noOp}
       onCompensation={noOp}
       onEdit={noOp}
       onTemporaryPassword={noOp}
@@ -259,6 +262,7 @@ function renderState(state: Parameters<typeof ManageStaffView>[0]["state"]): str
       notice={null}
       onActive={noOp}
       onAdd={noOp}
+      onAssignmentUpdate={noOp}
       onCompensation={noOp}
       onEdit={noOp}
       onTemporaryPassword={noOp}

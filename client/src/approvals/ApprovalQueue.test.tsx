@@ -199,7 +199,12 @@ test("dialogs expose bounded confirmation, reason, override, and full fix forms"
     user: admin(),
   };
   const assignmentOptions = [
-    { displayName: "Kaylee", userId: PRODUCER_ID },
+    {
+      bookEnabled: true,
+      displayName: "Kaylee",
+      firstYearEnabled: true,
+      userId: PRODUCER_ID,
+    },
   ];
 
   const approve = renderToStaticMarkup(

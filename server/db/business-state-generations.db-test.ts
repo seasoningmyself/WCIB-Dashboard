@@ -52,6 +52,7 @@ import {
   policies,
   producerRateHistory,
   sessions,
+  staffProfiles,
   userCapabilities,
   userMfaMethods,
   userMfaRecoveryCodes,
@@ -456,6 +457,10 @@ async function createCompleteGeneration(database: TestDatabase): Promise<Generat
     renewalBrokerRate: "25.00",
     renewalCommissionRate: "25.00",
   });
+  await database
+    .update(staffProfiles)
+    .set({ firstYearAssignmentEnabled: false })
+    .where(eq(staffProfiles.userId, references.producerUserId));
   const sessionId = `state-session-${randomUUID()}`;
   await database.insert(sessions).values({
     expire: new Date("2027-01-01T00:00:00.000Z"),

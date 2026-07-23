@@ -26,7 +26,16 @@ test("policy ledger API uses the real list, detail, assignment, and correction p
   const responses = [
     Response.json(ledgerListFixture()),
     Response.json({ item }),
-    Response.json({ producers: [{ displayName: "Kaylee", userId: uuid(5) }] }),
+    Response.json({
+      producers: [
+        {
+          bookEnabled: true,
+          displayName: "Kaylee",
+          firstYearEnabled: true,
+          userId: uuid(5),
+        },
+      ],
+    }),
     Response.json({ policy: item.policy }),
     Response.json({ items: [deletedItem] }),
     Response.json({ changed: true, detachedOpenSheetCount: 2, item: deletedItem }),

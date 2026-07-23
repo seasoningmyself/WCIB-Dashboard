@@ -76,18 +76,23 @@ test("draft assignments list only active producer identities in display order", 
     );
     assert.deepEqual(options, [
       {
+        bookEnabled: true,
         displayName: `STONE-99 ${runId} alpha Producer`,
+        firstYearEnabled: true,
         userId: idFor("alpha Producer"),
       },
       {
+        bookEnabled: true,
         displayName: `STONE-99 ${runId} Zeta Producer`,
+        firstYearEnabled: true,
         userId: idFor("Zeta Producer"),
       },
     ]);
     assert.equal(
       options.every(
         (option) =>
-          Object.keys(option).sort().join(",") === "displayName,userId",
+          Object.keys(option).sort().join(",") ===
+          "bookEnabled,displayName,firstYearEnabled,userId",
       ),
       true,
     );

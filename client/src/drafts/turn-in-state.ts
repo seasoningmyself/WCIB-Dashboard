@@ -603,16 +603,35 @@ export function buildAssignmentChoices(
 ): AssignmentChoice[] {
   if (user.role === "producer") {
     const name = user.displayName ?? user.email;
+    const ownSettings = producers.find(({ userId }) => userId === user.id);
     return [
       assignmentChoice("none", null, accountAssignmentLabel("none", null, "account")),
-      assignmentChoice("book", user.id, accountAssignmentLabel("book", name, "account")),
-      assignmentChoice("house", user.id, accountAssignmentLabel("house", name, "account")),
+      ...(ownSettings?.bookEnabled === false
+        ? []
+        : [
+            assignmentChoice(
+              "book",
+              user.id,
+              accountAssignmentLabel("book", name, "account"),
+            ),
+          ]),
+      ...(ownSettings?.firstYearEnabled === false
+        ? []
+        : [
+            assignmentChoice(
+              "house",
+              user.id,
+              accountAssignmentLabel("house", name, "account"),
+            ),
+          ]),
     ];
   }
   if (user.role === "employee") {
     return [
       assignmentChoice("none", null, accountAssignmentLabel("none", null, "account")),
-      ...producers.map(({ displayName, userId }) =>
+      ...producers
+        .filter(({ bookEnabled }) => bookEnabled)
+        .map(({ displayName, userId }) =>
         assignmentChoice(
           "book",
           userId,
@@ -623,18 +642,28 @@ export function buildAssignmentChoices(
   }
   return [
     assignmentChoice("none", null, accountAssignmentLabel("none", null, "account")),
-    ...producers.flatMap(({ displayName, userId }) => [
-      assignmentChoice(
-        "book",
-        userId,
-        accountAssignmentLabel("book", displayName, "account"),
-      ),
-      assignmentChoice(
-        "house",
-        userId,
-        accountAssignmentLabel("house", displayName, "account"),
-      ),
-    ]),
+    ...producers.flatMap(
+      ({ bookEnabled, displayName, firstYearEnabled, userId }) => [
+        ...(bookEnabled
+          ? [
+              assignmentChoice(
+                "book",
+                userId,
+                accountAssignmentLabel("book", displayName, "account"),
+              ),
+            ]
+          : []),
+        ...(firstYearEnabled
+          ? [
+              assignmentChoice(
+                "house",
+                userId,
+                accountAssignmentLabel("house", displayName, "account"),
+              ),
+            ]
+          : []),
+      ],
+    ),
   ];
 }
 

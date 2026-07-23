@@ -55,8 +55,10 @@ export const createAdminStaffRequestSchema = z
 
 export const updateAdminStaffRequestSchema = z
   .object({
+    bookAssignmentEnabled: z.boolean().optional(),
     displayName: displayNameSchema.optional(),
     email: userEmailSchema.optional(),
+    firstYearAssignmentEnabled: z.boolean().optional(),
     initialRate: producerRateInputSchema.optional(),
     officeLocationId: uuidSchema.nullable().optional(),
     role: z.enum(STAFF_ROLES).optional(),
@@ -85,9 +87,11 @@ export const adminStaffRateSchema = producerRateInputSchema
 
 export const adminStaffRecordSchema = z
   .object({
+    bookAssignmentEnabled: z.boolean(),
     createdAt: timestampSchema,
     displayName: z.string().min(1),
     email: userEmailSchema,
+    firstYearAssignmentEnabled: z.boolean(),
     isActive: z.boolean(),
     officeLocation: z
       .object({

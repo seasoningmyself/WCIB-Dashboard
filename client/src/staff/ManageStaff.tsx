@@ -29,6 +29,7 @@ import {
 import { AdminStaffApiError, createAdminStaffApi } from "./api.js";
 import { createAdminOfficeApi } from "../offices/api.js";
 import { VocabularyManagement } from "./VocabularyManagement.js";
+import { AssignmentManagement } from "./AssignmentManagement.js";
 import { createMfaApi } from "../auth/mfa-api.js";
 import { MfaStepUpDialog } from "../auth/MfaStepUpDialog.js";
 import {
@@ -295,6 +296,8 @@ function AdminManageStaff({ user }: { user: CurrentUser }) {
           setDialogError(null);
           setStaffDialog({ kind: "create" });
         }}
+        onAssignmentUpdate={(staff, input) =>
+          void updateStaff(staff.userId, input)}
         onCompensation={(staff) => {
           setDialogError(null);
           setStaffDialog({ kind: "edit", panel: "compensation", staff });
@@ -454,6 +457,7 @@ export function ManageStaffView({
   notice,
   onActive,
   onAdd,
+  onAssignmentUpdate,
   onCompensation,
   onEdit,
   onTemporaryPassword,
@@ -466,6 +470,10 @@ export function ManageStaffView({
   notice: string | null;
   onActive(staff: AdminStaffRecord, active: boolean): void;
   onAdd(): void;
+  onAssignmentUpdate(
+    staff: AdminStaffRecord,
+    input: UpdateAdminStaffRequest,
+  ): void;
   onCompensation(staff: AdminStaffRecord): void;
   onEdit(staff: AdminStaffRecord): void;
   onTemporaryPassword(staff: AdminStaffRecord): void;
@@ -476,6 +484,9 @@ export function ManageStaffView({
   currentUserId: string;
 }) {
   const [showInactive, setShowInactive] = useState(false);
+  const [workspace, setWorkspace] = useState<
+    "assignments" | "staff" | "vocabulary"
+  >("staff");
   if (state.status === "loading") {
     return <StaffMessage body="Retrieving staff accounts and rate history..." busy title="Loading staff" />;
   }
@@ -504,7 +515,7 @@ export function ManageStaffView({
   return (
     <section className="staff-page" aria-labelledby="staff-page-title">
       <PageHeader
-        actions={state.items.length === 0 ? undefined : (
+        actions={workspace !== "staff" || state.items.length === 0 ? undefined : (
           <button className="staff-primary-action" disabled={pending} onClick={onAdd} type="button">
             Add staff
           </button>
@@ -525,9 +536,42 @@ export function ManageStaffView({
         titleId="staff-page-title"
       />
 
+      <div
+        aria-label="Manage Staff sections"
+        className="staff-workspace-tabs"
+        role="tablist"
+      >
+        {(
+          [
+            ["staff", "Staff"],
+            ["assignments", "Assignment options"],
+            ["vocabulary", "Vocabulary"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            aria-selected={workspace === value}
+            className={workspace === value ? "is-active" : undefined}
+            key={value}
+            onClick={() => setWorkspace(value)}
+            role="tab"
+            type="button"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {notice !== null ? <p className="staff-notice" role="status">{notice}</p> : null}
 
-      {state.items.length === 0 ? (
+      {workspace === "assignments" ? (
+        <AssignmentManagement
+          onUpdate={onAssignmentUpdate}
+          pending={pending}
+          staff={state.items}
+        />
+      ) : workspace === "vocabulary" ? (
+        vocabulary
+      ) : state.items.length === 0 ? (
         <EmptyState
           action={<button className="staff-primary-action" disabled={pending} onClick={onAdd} type="button">Add staff</button>}
           body="Add the people who need access, then assign their roles, offices, and producer rates."
@@ -631,7 +675,6 @@ export function ManageStaffView({
           )}
         </>
       )}
-      {vocabulary}
     </section>
   );
 }

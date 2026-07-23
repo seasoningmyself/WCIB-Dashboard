@@ -1,7 +1,24 @@
 # WCIB Dashboard — Decisions Log
 **Purpose:** Permanent record of non-obvious decisions Sophia made, so future threads don't re-ask or accidentally reverse them.
-**Last updated:** July 22, 2026 (Scoped engineering support authority.)
+**Last updated:** July 23, 2026 (Staff and turn-in administration UX.)
 **Backups:** `backups/wcib_dashboard_v14_2026-06-26_session-end.html` (code); live data in browser storage + original `WCIB-data-merged.json`.
+
+---
+
+## July 23, 2026 — Assignment choices are staff configuration
+
+Administrators manage whether each active producer offers a named book option,
+a first-year house option, or both from Manage Staff. The agency assignment
+remains `Sophia's account` and is always available. Disabling a producer option
+removes it only from new turn-in choices; it does not rewrite policies,
+submitted snapshots, pay sheets, exports, or audit history.
+
+The availability flags live on the producer's surviving staff profile because
+they describe staff configuration, not transactional business facts. They
+therefore survive Start Fresh with the roster and rate history. Mutations use
+the existing admin-only staff endpoint and `staff_account_changed` audit path.
+Migration 0055 advances the generation schema contract from 55 to 56 and is
+local-only until explicitly applied to managed PostgreSQL.
 
 ---
 

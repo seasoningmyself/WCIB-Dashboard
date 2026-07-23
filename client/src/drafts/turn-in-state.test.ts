@@ -246,16 +246,49 @@ test("assignment choices match the v15 role boundaries", () => {
 
   assert.deepEqual(
     buildAssignmentChoices(user("employee", "Mercedes"), [
-      { displayName: "Kaylee", userId: OTHER_ID },
+      {
+        bookEnabled: true,
+        displayName: "Kaylee",
+        firstYearEnabled: true,
+        userId: OTHER_ID,
+      },
     ]).map(({ label }) => label),
     ["Sophia's account", "Kaylee's account"],
   );
 
   assert.deepEqual(
     buildAssignmentChoices(user("admin", "Sophia"), [
-      { displayName: "Kaylee", userId: OTHER_ID },
+      {
+        bookEnabled: true,
+        displayName: "Kaylee",
+        firstYearEnabled: true,
+        userId: OTHER_ID,
+      },
     ]).map(({ label }) => label),
     ["Sophia's account", "Kaylee's account", "1st-yr house - Kaylee"],
+  );
+});
+
+test("disabled producer assignment choices disappear without changing agency access", () => {
+  const options = [
+    {
+      bookEnabled: false,
+      displayName: "Kaylee",
+      firstYearEnabled: true,
+      userId: OTHER_ID,
+    },
+  ];
+  assert.deepEqual(
+    buildAssignmentChoices(user("admin", "Sophia"), options).map(
+      ({ label }) => label,
+    ),
+    ["Sophia's account", "1st-yr house - Kaylee"],
+  );
+  assert.deepEqual(
+    buildAssignmentChoices(user("employee", "Mercedes"), options).map(
+      ({ label }) => label,
+    ),
+    ["Sophia's account"],
   );
 });
 

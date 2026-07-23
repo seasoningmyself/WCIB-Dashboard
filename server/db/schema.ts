@@ -756,6 +756,12 @@ export const staffProfiles = pgTable(
       (): AnyPgColumn => officeLocations.id,
       { onDelete: "restrict" },
     ),
+    bookAssignmentEnabled: boolean("book_assignment_enabled")
+      .notNull()
+      .default(true),
+    firstYearAssignmentEnabled: boolean("first_year_assignment_enabled")
+      .notNull()
+      .default(true),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
