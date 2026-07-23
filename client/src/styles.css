@@ -348,9 +348,9 @@
   min-height: 44px;
   flex: 0 0 auto;
   border: 0;
-  border-bottom: var(--border-width-strong) solid transparent;
-  border-radius: 0;
-  background: transparent;
+  border-bottom: var(--border-width-strong) solid var(--transparent);
+  border-radius: var(--radius-none);
+  background: var(--transparent);
   padding-right: var(--space-0);
   padding-left: var(--space-0);
   color: var(--text-muted);
@@ -363,7 +363,7 @@
 
 .staff-workspace-tabs button:hover:not(:disabled) {
   border-bottom-color: var(--accent-border);
-  background: transparent;
+  background: var(--transparent);
 }
 
 .staff-roster {
@@ -877,9 +877,9 @@
   min-height: 44px;
   flex: 0 0 auto;
   border: 0;
-  border-bottom: var(--border-width-strong) solid transparent;
-  border-radius: 0;
-  background: transparent;
+  border-bottom: var(--border-width-strong) solid var(--transparent);
+  border-radius: var(--radius-none);
+  background: var(--transparent);
   padding-right: var(--space-0);
   padding-left: var(--space-0);
   color: var(--text-muted);
@@ -894,7 +894,7 @@
 .staff-vocabulary-tabs button:hover:not(:disabled),
 .staff-vocabulary-state-tabs button:hover:not(:disabled) {
   border-bottom-color: var(--accent-border);
-  background: transparent;
+  background: var(--transparent);
 }
 
 .staff-vocabulary-section {
@@ -1168,9 +1168,9 @@
 .staff-dialog-tabs button {
   min-height: 44px;
   border: 0;
-  border-bottom: var(--border-width-strong) solid transparent;
-  border-radius: 0;
-  background: transparent;
+  border-bottom: var(--border-width-strong) solid var(--transparent);
+  border-radius: var(--radius-none);
+  background: var(--transparent);
   padding-right: var(--space-0);
   padding-left: var(--space-0);
   color: var(--text-muted);
@@ -1183,7 +1183,7 @@
 
 .staff-dialog-tabs button:hover:not(:disabled) {
   border-bottom-color: var(--accent-border);
-  background: transparent;
+  background: var(--transparent);
 }
 
 .staff-compensation-panel {
