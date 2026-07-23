@@ -6,7 +6,10 @@ import React, {
   useState,
   type FormEvent,
 } from "react";
-import type { PolicyTypeClass } from "../../../shared/policy-types.js";
+import {
+  policyTypeClassLabel,
+  type PolicyTypeClass,
+} from "../../../shared/policy-types.js";
 import type {
   AdminPolicyTypeItem,
   AdminVocabularyItem,
@@ -469,7 +472,7 @@ function VocabularySection({
                 <strong>{item.name}</strong>
                 {"classTag" in item ? (
                   <span className={`staff-vocabulary-class is-${item.classTag.toLowerCase()}`}>
-                    {item.classTag}
+                    {policyTypeClassLabel(item.classTag)}
                   </span>
                 ) : null}
               </div>
@@ -578,7 +581,7 @@ function PolicyTypeAddForm({
       >
         <option value="Personal">Personal</option>
         <option value="Commercial">Commercial</option>
-        <option value="Life-Health">Life-Health</option>
+        <option value="Life-Health">Health</option>
       </select>
       <button disabled={disabled || name.trim() === ""} type="submit">Add type</button>
     </form>

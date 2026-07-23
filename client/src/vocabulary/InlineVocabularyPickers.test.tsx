@@ -58,6 +58,8 @@ test("policy-type creation requires an explicit approved class", () => {
     role: "producer",
   });
   assert.match(missing, /aria-label="Policy class"/);
+  assert.match(missing, /<option value="Life-Health">Health<\/option>/);
+  assert.doesNotMatch(missing, />Life-Health<\/option>/);
   assert.match(missing, /<button[^>]*disabled=""[^>]*>Add policy type/);
   assert.match(selected, /<option value="Commercial" selected=""/);
   assert.doesNotMatch(selected, /<button[^>]*disabled/);

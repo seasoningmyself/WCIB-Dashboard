@@ -3,6 +3,7 @@ import type { CurrentUserRole } from "../../../shared/current-user.js";
 import {
   isPolicyTypeClass,
   POLICY_TYPE_CLASSES,
+  policyTypeClassLabel,
   type PolicyTypeClass,
 } from "../../../shared/policy-types.js";
 import type {
@@ -461,7 +462,7 @@ export function InlineVocabularyAction(props: InlineVocabularyActionProps) {
             <option value="">Choose class</option>
             {POLICY_TYPE_CLASSES.map((value) => (
               <option key={value} value={value}>
-                {value}
+                {policyTypeClassLabel(value)}
               </option>
             ))}
           </select>

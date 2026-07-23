@@ -1,4 +1,5 @@
 import React, { type ReactNode } from "react";
+import { policyTypeClassLabel } from "../../../shared/policy-types.js";
 import type {
   PolicyTypeOption,
   VocabularyOption,
@@ -95,7 +96,7 @@ export function PolicyTypePicker({
   return (
     <VocabularyPicker
       {...props}
-      getMeta={(option) => option.classTag}
+      getMeta={(option) => policyTypeClassLabel(option.classTag)}
       helpText="Select an active policy type."
       label={label}
       loadStatus={vocabulary.state.status}
