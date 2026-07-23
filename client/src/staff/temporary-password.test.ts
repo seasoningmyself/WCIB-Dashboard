@@ -12,7 +12,8 @@ test("temporary passphrases are readable, editable policy-compliant defaults", (
     return value % upperBound;
   });
 
-  assert.equal(generated, "Harbor Cedar Horizon 42");
+  assert.equal(generated, "Harbor-Cedar-Horizon-42");
   assert.equal(isPasswordPolicySatisfied(generated), true);
+  assert.doesNotMatch(generated, /\s/);
   assert.doesNotMatch(generated, /west.?coast/i);
 });

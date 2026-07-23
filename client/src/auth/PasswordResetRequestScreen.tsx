@@ -1,4 +1,5 @@
 import React, { useRef, useState, type FormEvent } from "react";
+import { AuthBrand } from "../ui/BrandIdentity.js";
 import type { AuthApi } from "./api.js";
 import { PasswordResetApiError } from "./api.js";
 import { createSingleFlight } from "./login-state.js";
@@ -63,10 +64,7 @@ export function PasswordResetRequestPanel({
   return (
     <main className="login-page">
       <section className="login-panel" aria-labelledby="reset-request-title">
-        <div className="login-brand">
-          <span className="login-brand-mark">WCIB</span>
-          <span>Account recovery</span>
-        </div>
+        <AuthBrand context="Account recovery" />
         <div className="login-heading">
           <h1 id="reset-request-title">Reset your password</h1>
           <p>Enter the email address for your WCIB account.</p>

@@ -13,6 +13,7 @@ import {
   loginFailureState,
   type LoginErrorKind,
 } from "./login-state.js";
+import { AuthBrand } from "../ui/BrandIdentity.js";
 
 interface LoginScreenProps {
   api: AuthApi;
@@ -113,10 +114,7 @@ export function LoginPanel({
   return (
     <main className="login-page">
       <section className="login-panel" aria-labelledby="login-title">
-        <div className="login-brand" aria-label="West Coast Insurance Brokers">
-          <span className="login-brand-mark">WCIB</span>
-          <span>West Coast Insurance Brokers</span>
-        </div>
+        <AuthBrand />
         <div className="login-heading">
           <h1 id="login-title">Sign in</h1>
           <p>Use your WCIB account to continue.</p>

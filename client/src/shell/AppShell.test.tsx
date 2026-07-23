@@ -45,7 +45,6 @@ test("shell renders the exact admin navigation supplied by /api/me", () => {
     "Pay Sheets",
     "Agency Overview",
     "Manage Staff",
-    "Settings",
     "Check Turn-In",
     "My Drafts",
   ]) {
@@ -56,6 +55,10 @@ test("shell renders the exact admin navigation supplied by /api/me", () => {
   assert.match(markup, />Work<\/h2>/);
   assert.match(markup, />Records &amp; Money<\/h2>/);
   assert.match(markup, />Team<\/h2>/);
+  assert.match(markup, /src="\/wcib-logo-transparent\.png"/);
+  assert.match(markup, />Profile &amp; security</);
+  assert.match(markup, />Agency settings</);
+  assert.doesNotMatch(markup, /class="workspace-nav-link" href="#\/settings"/);
   assert.doesNotMatch(markup, /class="workspace-nav-link" href="#\/help-requests"/);
   assert.match(markup, /<h1 id="kpi-message-title">Loading KPIs<\/h1>/);
   assert.match(markup, /<main[^>]*tabindex="-1"/i);
@@ -83,20 +86,20 @@ test("producer and employee shells degrade grouped navigation by authorization",
   assert.match(producer, />My Commissions</);
   assert.match(producer, />Overview<\/h2>/);
   assert.match(producer, />Work<\/h2>/);
-  assert.match(producer, />Account<\/h2>/);
+  assert.match(producer, />Profile &amp; security</);
   assert.match(producer, /Loading commissions/);
   assert.doesNotMatch(producer, />Pay Sheets</);
 
   assert.match(employee, />Check Turn-In</);
   assert.match(employee, />My Drafts</);
   assert.match(employee, />Work<\/h2>/);
-  assert.match(employee, />Account<\/h2>/);
+  assert.match(employee, />Profile &amp; security</);
   assert.doesNotMatch(employee, />Overview<\/h2>/);
   assert.doesNotMatch(employee, />My Commissions</);
   assert.doesNotMatch(employee, />Policy Ledger</);
 });
 
-test("support-only shell exposes Support and Settings without admin workspaces", () => {
+test("support-only shell exposes Support with personal settings in the account menu", () => {
   const markup = shellMarkup({
     ...baseUser,
     allowedNavigation: ["support", "settings"],
@@ -106,7 +109,8 @@ test("support-only shell exposes Support and Settings without admin workspaces",
   });
 
   assert.match(markup, />Support<\/span>/);
-  assert.match(markup, />Settings<\/span>/);
+  assert.match(markup, />Profile &amp; security</);
+  assert.doesNotMatch(markup, />Agency settings</);
   assert.match(markup, /Support engineer/);
   assert.match(markup, /Loading support status/);
   assert.doesNotMatch(markup, />Manage Staff<|>Review Queue<|>Pay Sheets<|>Agency Overview</);
@@ -154,6 +158,8 @@ test("mobile navigation is a modal sheet with keyboard dismissal and focus conta
   assert.match(source, /event\.key === "Escape"/);
   assert.match(source, /event\.key !== "Tab"/);
   assert.match(source, /mobileMenuButtonRef\.current\?\.focus\(\)/);
+  assert.match(source, /closeOnOutsidePress/);
+  assert.match(source, /triggerRef\.current\?\.focus\(\)/);
 });
 
 test("server-authorized staff my_items route mounts the status-only My Items screen", () => {

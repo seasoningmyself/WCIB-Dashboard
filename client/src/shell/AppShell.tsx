@@ -21,6 +21,7 @@ import { ManageStaff } from "../staff/ManageStaff.js";
 import { SettingsSurface } from "../settings/AccountSettings.js";
 import { KpisGoals } from "../kpis/KpisGoals.js";
 import { SupportDashboard } from "../support/SupportDashboard.js";
+import { BrandArtwork } from "../ui/BrandIdentity.js";
 import { PageHeader } from "../ui/PageHeader.js";
 import { resolveDraftSelection } from "../drafts/my-drafts-state.js";
 import { VocabularyProvider } from "../vocabulary/context.js";
@@ -134,6 +135,7 @@ export function AppShellView({
       ? activeNavigationId(route.item.id, navigation)
       : null;
   const name = user.displayName ?? user.email;
+  const settingsAvailable = navigation.some(({ id }) => id === "settings");
 
   useEffect(() => {
     setMobileNavigationOpen(false);
@@ -182,7 +184,14 @@ export function AppShellView({
           groups={navigationGroups}
           label="Primary navigation"
         />
-        <WorkspaceUser capabilities={user.capabilities} name={name} onLogout={onLogout} role={user.role} />
+        <WorkspaceUser
+          capabilities={user.capabilities}
+          name={name}
+          onLogout={onLogout}
+          onNavigate={onNavigate}
+          role={user.role}
+          settingsAvailable={settingsAvailable}
+        />
       </aside>
 
       <div className="workspace-main">
@@ -232,7 +241,17 @@ export function AppShellView({
                   onNavigate?.(path);
                 }}
               />
-              <WorkspaceUser capabilities={user.capabilities} name={name} onLogout={onLogout} role={user.role} />
+              <WorkspaceUser
+                capabilities={user.capabilities}
+                name={name}
+                onLogout={onLogout}
+                onNavigate={(path) => {
+                  setMobileNavigationOpen(false);
+                  onNavigate?.(path);
+                }}
+                role={user.role}
+                settingsAvailable={settingsAvailable}
+              />
             </div>
           </>
         ) : null}
@@ -309,8 +328,11 @@ function GroupedNavigation({
 function WorkspaceBrand() {
   return (
     <a className="workspace-brand" href="#/" aria-label="West Coast Insurance Brokers home">
-      <strong>West Coast</strong>
-      <span>Insurance Brokers</span>
+      <BrandArtwork variant="mark" />
+      <span className="workspace-brand-copy">
+        <strong>West Coast</strong>
+        <span>Insurance Brokers</span>
+      </span>
     </a>
   );
 }
@@ -319,23 +341,93 @@ function WorkspaceUser({
   capabilities,
   name,
   onLogout,
+  onNavigate,
   role,
+  settingsAvailable,
 }: {
   capabilities: CurrentUser["capabilities"];
   name: string;
   onLogout(): void;
+  onNavigate?(path: string): void;
   role: CurrentUser["role"];
+  settingsAvailable: boolean;
 }) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const isAdmin = role === "admin" && capabilities.includes("admin");
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnOutsidePress = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        !containerRef.current?.contains(event.target)
+      ) {
+        setOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setOpen(false);
+      triggerRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePress);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePress);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  const navigate = (path: string) => {
+    setOpen(false);
+    onNavigate?.(path);
+  };
+
   return (
-    <div className="workspace-user" aria-label="Current user">
-      <span className="workspace-avatar" aria-hidden="true">{initials(name)}</span>
-      <span className="workspace-user-copy">
-        <strong>{name}</strong>
-        <span>{roleLabel(role, capabilities)}</span>
-      </span>
-      <button className="workspace-logout" onClick={onLogout} type="button">
-        Sign out
+    <div className="workspace-user" aria-label="Current user" ref={containerRef}>
+      <button
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label={`${open ? "Close" : "Open"} account menu for ${name}`}
+        className="workspace-user-trigger"
+        onClick={() => setOpen((current) => !current)}
+        ref={triggerRef}
+        type="button"
+      >
+        <span className="workspace-avatar" aria-hidden="true">{initials(name)}</span>
+        <span className="workspace-user-copy">
+          <strong>{name}</strong>
+          <span>{roleLabel(role, capabilities)}</span>
+        </span>
+        <span className="workspace-user-chevron" aria-hidden="true">^</span>
       </button>
+      <div
+        aria-label="Account menu"
+        className="workspace-user-menu"
+        hidden={!open}
+        role="menu"
+      >
+        {settingsAvailable ? (
+          <a href="#/settings" onClick={() => navigate("/settings")} role="menuitem">
+            Profile &amp; security
+          </a>
+        ) : null}
+        {settingsAvailable && isAdmin ? (
+          <a
+            href="#/settings?scope=agency"
+            onClick={() => navigate("/settings?scope=agency")}
+            role="menuitem"
+          >
+            Agency settings
+          </a>
+        ) : null}
+        <button onClick={onLogout} role="menuitem" type="button">
+          Sign out
+        </button>
+      </div>
     </div>
   );
 }
@@ -432,6 +524,7 @@ function ShellContent({
     if (route.item.id === "settings") {
       return (
         <SettingsSurface
+          currentPath={currentPath}
           onDisplayNameChange={(displayName) =>
             onUserChanged?.({ ...user, displayName })
           }

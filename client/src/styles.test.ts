@@ -131,6 +131,30 @@ test("turn-in content reserves desktop clearance for the sticky action bar", () 
   );
 });
 
+test("MGA payables switch to labeled rows before the table can clip", () => {
+  assert.match(
+    css,
+    /\.mga-page\s*\{[^}]*container:\s*mga-payables\s*\/\s*inline-size/,
+  );
+  assert.match(
+    css,
+    /@container mga-payables \(max-width: 1168px\)\s*\{[\s\S]*?\.mga-table-header\s*\{[^}]*display:\s*none;[\s\S]*?\.mga-table-row\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)\s*100px;/,
+  );
+});
+
+test("settings focus outlines are not clipped by the page container", () => {
+  const settingsPage = css.match(
+    /\.settings-page,\s*\n\.settings-message\s*\{([^}]*)\}/,
+  );
+
+  assert.ok(settingsPage);
+  assert.doesNotMatch(settingsPage[1], /overflow-x:\s*clip/);
+  assert.match(
+    css,
+    /\.settings-form input:focus-visible,[\s\S]*?outline:\s*var\(--border-width-strong\)\s+solid\s+var\(--focus-ring\);[\s\S]*?outline-offset:\s*var\(--focus-offset\)/,
+  );
+});
+
 test("raw visual values stay inside the token definition block", () => {
   assert.doesNotMatch(
     screenCss,
@@ -348,14 +372,14 @@ test("removed overloaded color properties are no longer referenced", () => {
   }
 });
 
-test("responsive thresholds remain unchanged", () => {
+test("remaining viewport thresholds stay unchanged after MGA container sizing", () => {
   const breakpoints = [
     ...css.matchAll(/@media \(max-width: (\d+)px\)/g),
   ].map((match) => Number(match[1]));
 
   assert.deepEqual(breakpoints, [
     980, 680, 420, 680, 420, 1040, 600, 640, 1020, 760, 760, 600, 760, 900,
-    680, 1160, 920, 680, 1080, 680, 520, 1080, 760, 480, 900, 700, 500,
+    680, 1160, 920, 680, 680, 520, 1080, 760, 480, 900, 700, 500,
     860, 600, 600, 760,
   ]);
 });
@@ -379,7 +403,7 @@ test("mobile MFA method actions override the compact desktop height", () => {
   );
 });
 
-test("mobile settings tabs fit all four sections without clipping", () => {
+test("mobile settings tabs fit variable personal and agency sections without clipping", () => {
   const mobileSettingsStart = css.lastIndexOf("@media (max-width: 600px)");
   const mobileTouchStart = css.lastIndexOf("@media (max-width: 760px)");
   assert.notEqual(mobileSettingsStart, -1);

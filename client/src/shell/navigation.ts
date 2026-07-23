@@ -100,7 +100,7 @@ const NAVIGATION_GROUPS: readonly {
   },
   {
     id: "team",
-    identifiers: ["manage_staff", "settings"],
+    identifiers: ["manage_staff"],
     label: "Team",
   },
 ];
@@ -144,11 +144,7 @@ export function groupAuthorizedNavigation(
     if (items.length === 0) {
       return [];
     }
-    const label =
-      group.id === "team" && !byId.has("manage_staff")
-        ? "Account"
-        : group.label;
-    return [{ ...group, items, label }];
+    return [{ ...group, items }];
   });
 }
 

@@ -15,61 +15,88 @@ import type { MfaState } from "../../../shared/mfa-scaffold.js";
 import { normalizePassword } from "../../../shared/password-policy.js";
 import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
 import { PasswordRequirements } from "../auth/PasswordRequirements.js";
-import { OfficeLocationsSettings } from "../offices/OfficeLocationsSettings.js";
 import { PageHeader } from "../ui/PageHeader.js";
 import { createSettingsApi, SettingsApiError } from "./api.js";
 import { createMfaApi } from "../auth/mfa-api.js";
 import { MfaSettingsPanel } from "../auth/MfaEnrollment.js";
-import { AccountSecurityPanel } from "./AccountSecurity.js";
+import { AgencySettings } from "./AgencySettings.js";
 
-type SettingsTab = "account" | "security" | "account_security" | "office";
+type PersonalSettingsTab = "account" | "security";
+type SettingsScope = "agency" | "personal";
 type AccountState =
   | { status: "denied" | "error" | "loading" }
   | { settings: OwnSettings; status: "ready" };
 
 export function SettingsSurface({
+  currentPath = "/settings",
   onDisplayNameChange,
   onMfaChange,
   user,
 }: {
+  currentPath?: string;
   onDisplayNameChange(displayName: string): void;
   onMfaChange(mfa: MfaState): void;
   user: CurrentUser;
 }) {
-  const [tab, setTab] = useState<SettingsTab>("account");
+  const [tab, setTab] = useState<PersonalSettingsTab>("account");
   const isAdmin = user.role === "admin" && user.capabilities.includes("admin");
+  const scope = settingsScopeFromPath(currentPath, isAdmin);
   return (
     <section className="settings-page" aria-labelledby="settings-title">
       <PageHeader
-        eyebrow="Personal account"
-        status={<>Manage the profile and security settings for <strong>{user.email}</strong>.</>}
+        eyebrow={scope === "agency" ? "Agency administration" : "Personal account"}
+        status={scope === "agency"
+          ? <>Manage <strong>agency configuration and recovery controls</strong>.</>
+          : <>Manage the profile and security settings for <strong>{user.email}</strong>.</>}
         title="Settings"
         titleId="settings-title"
       />
-      <div className="settings-tabs" role="tablist" aria-label="Settings sections">
-        <SettingsTabButton active={tab === "account"} onClick={() => setTab("account")}>Account</SettingsTabButton>
-        <SettingsTabButton active={tab === "security"} onClick={() => setTab("security")}>Security</SettingsTabButton>
-        {isAdmin ? (
-          <SettingsTabButton active={tab === "account_security"} onClick={() => setTab("account_security")}>Account security</SettingsTabButton>
-        ) : null}
-        {isAdmin ? (
-          <SettingsTabButton active={tab === "office"} onClick={() => setTab("office")}>Office &amp; data</SettingsTabButton>
-        ) : null}
-      </div>
-      {tab === "office" && isAdmin ? (
-        <OfficeLocationsSettings user={user} />
-      ) : tab === "account_security" && isAdmin ? (
-        <AccountSecurityPanel user={user} />
+      {isAdmin ? (
+        <nav aria-label="Settings scope" className="settings-scope-tabs">
+          <a
+            aria-current={scope === "personal" ? "page" : undefined}
+            href="#/settings"
+          >
+            Personal
+          </a>
+          <a
+            aria-current={scope === "agency" ? "page" : undefined}
+            href="#/settings?scope=agency"
+          >
+            Agency
+          </a>
+        </nav>
+      ) : null}
+      {scope === "agency" ? (
+        <AgencySettings user={user} />
       ) : (
-        <OwnSettingsController
-          activeTab={tab === "security" ? "security" : "account"}
-          onDisplayNameChange={onDisplayNameChange}
-          onMfaChange={onMfaChange}
-          user={user}
-        />
+        <>
+          <div className="settings-tabs" role="tablist" aria-label="Personal settings sections">
+            <SettingsTabButton active={tab === "account"} onClick={() => setTab("account")}>Profile</SettingsTabButton>
+            <SettingsTabButton active={tab === "security"} onClick={() => setTab("security")}>Password &amp; MFA</SettingsTabButton>
+          </div>
+          <OwnSettingsController
+            activeTab={tab}
+            canManageStaff={isAdmin}
+            onDisplayNameChange={onDisplayNameChange}
+            onMfaChange={onMfaChange}
+            user={user}
+          />
+        </>
       )}
     </section>
   );
+}
+
+export function settingsScopeFromPath(
+  currentPath: string,
+  isAdmin: boolean,
+): SettingsScope {
+  if (!isAdmin) return "personal";
+  const query = currentPath.split("?", 2)[1]?.split("#", 1)[0] ?? "";
+  return new URLSearchParams(query).get("scope") === "agency"
+    ? "agency"
+    : "personal";
 }
 
 function SettingsTabButton({
@@ -96,11 +123,13 @@ function SettingsTabButton({
 
 function OwnSettingsController({
   activeTab,
+  canManageStaff,
   onDisplayNameChange,
   onMfaChange,
   user,
 }: {
   activeTab: "account" | "security";
+  canManageStaff: boolean;
   onDisplayNameChange(displayName: string): void;
   onMfaChange(mfa: MfaState): void;
   user: CurrentUser;
@@ -146,6 +175,7 @@ function OwnSettingsController({
 
   return activeTab === "account" ? (
     <AccountPanel
+      canManageStaff={canManageStaff}
       error={error}
       notice={notice}
       onSave={async (displayName) => {
@@ -205,12 +235,14 @@ function OwnSettingsController({
 }
 
 export function AccountPanel({
+  canManageStaff = false,
   error,
   notice,
   onSave,
   pending,
   settings,
 }: {
+  canManageStaff?: boolean;
   error: string | null;
   notice: string | null;
   onSave(displayName: string): void;
@@ -226,8 +258,8 @@ export function AccountPanel({
   return (
     <section className="settings-panel" aria-labelledby="account-settings-title" role="tabpanel">
       <header>
-        <h2 id="account-settings-title">Account details</h2>
-        <p>Your email and office assignment are managed by an administrator.</p>
+        <h2 id="account-settings-title">Personal profile</h2>
+        <p>Your display name is the only account detail you can change here.</p>
       </header>
       <form className="settings-form" onSubmit={submit}>
         <label>
@@ -240,11 +272,18 @@ export function AccountPanel({
             required
             value={displayName}
           />
+          <small>This name appears throughout the dashboard.</small>
         </label>
         <label>
           <span>Email</span>
           <input readOnly type="email" value={settings.email} />
-          <small>Contact an administrator to change your sign-in email.</small>
+          <small>
+            {canManageStaff ? (
+              <>Sign-in email changes require MFA confirmation in <a href="#/staff">Manage Staff</a>.</>
+            ) : (
+              "Ask an administrator to change your sign-in email."
+            )}
+          </small>
         </label>
         <label>
           <span>Assigned office</span>
@@ -252,6 +291,13 @@ export function AccountPanel({
             readOnly
             value={settings.officeLocation?.name ?? "Not assigned"}
           />
+          <small>
+            {canManageStaff ? (
+              <>Update office assignments in <a href="#/staff">Manage Staff</a>.</>
+            ) : (
+              "Ask an administrator to change your office assignment."
+            )}
+          </small>
         </label>
         <SettingsFeedback error={error} notice={notice} />
         <button
@@ -263,7 +309,7 @@ export function AccountPanel({
           }
           type="submit"
         >
-          {pending ? "Saving..." : "Save name"}
+          {pending ? "Saving..." : "Save display name"}
         </button>
       </form>
     </section>

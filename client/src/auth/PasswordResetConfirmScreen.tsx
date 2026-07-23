@@ -10,6 +10,7 @@ import {
   isPasswordPolicySatisfied,
 } from "../../../shared/password-policy.js";
 import { passwordResetTokenSchema } from "../../../shared/password-reset.js";
+import { AuthBrand } from "../ui/BrandIdentity.js";
 import type { AuthApi } from "./api.js";
 import { PasswordResetApiError } from "./api.js";
 import { createSingleFlight } from "./login-state.js";
@@ -126,10 +127,7 @@ export function PasswordResetConfirmPanel({
   return (
     <main className="login-page">
       <section className="login-panel" aria-labelledby="reset-confirm-title">
-        <div className="login-brand">
-          <span className="login-brand-mark">WCIB</span>
-          <span>Account recovery</span>
-        </div>
+        <AuthBrand context="Account recovery" />
         <div className="login-heading">
           <h1 id="reset-confirm-title">Choose a new password</h1>
           <p>Set a new password for your WCIB account.</p>
