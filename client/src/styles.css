@@ -1394,6 +1394,10 @@
     overflow-wrap: anywhere;
   }
 
+  .staff-more-menu > summary {
+    min-height: 44px;
+  }
+
   .staff-more-menu > div {
     right: 0;
     left: auto;

@@ -86,6 +86,12 @@ test("mobile controls keep the 44px touch-height floor", () => {
   const mobileFloorStart = css.lastIndexOf("@media (max-width: 760px)");
   assert.notEqual(mobileFloorStart, -1);
   const mobileFloor = css.slice(mobileFloorStart);
+  const staffMobileStart = css.indexOf("@media (max-width: 680px)");
+  assert.notEqual(staffMobileStart, -1);
+  const staffMobile = css.slice(
+    staffMobileStart,
+    css.indexOf("@media (max-width: 420px)", staffMobileStart),
+  );
 
   assert.match(mobileFloor, /\.workspace-content button,/);
   assert.match(mobileFloor, /\.workspace-content input:not/);
@@ -94,6 +100,10 @@ test("mobile controls keep the 44px touch-height floor", () => {
   assert.match(mobileFloor, /\.password-label-row a,/);
   assert.match(mobileFloor, /min-height:\s*44px/);
   assert.match(mobileFloor, /\.turn-in-icon-button\s*\{[^}]*min-width:\s*var\(--space-44\)/);
+  assert.match(
+    staffMobile,
+    /\.staff-more-menu > summary\s*\{[^}]*min-height:\s*44px/,
+  );
 });
 
 test("turn-in content reserves desktop clearance for the sticky action bar", () => {
