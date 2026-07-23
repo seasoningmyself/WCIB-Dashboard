@@ -97,7 +97,15 @@ test("Check Turn-In renders every active v15 input and exact producer assignment
   for (const type of ["New", "Renewal", "Rewrite", "Won Back", "Cross-sale", "Endorsement", "Audit"]) {
     assert.match(markup, new RegExp(`>${escapeRegExp(type)}<`));
   }
-  assert.match(markup, /aria-label="Add custom transaction type"/);
+  assert.match(markup, /placeholder="Full legal name of insured"/);
+  assert.match(markup, /placeholder="DBA or company name"/);
+  assert.match(markup, /placeholder="Search transaction types"/);
+  assert.match(markup, /TBD — paid later by carrier/);
+  assert.match(markup, /N\/A — broker fee only/);
+  assert.match(markup, /Broker fee \(our fee\)/);
+  assert.match(markup, /Deposit — financing may apply/);
+  assert.match(markup, /Direct bill — not financed/);
+  assert.doesNotMatch(markup, /Add custom transaction type/);
   assert.doesNotMatch(markup, /producer payout/i);
   assert.doesNotMatch(markup, /producer personal/i);
   assert.doesNotMatch(markup, /personal split/i);
@@ -106,7 +114,7 @@ test("Check Turn-In renders every active v15 input and exact producer assignment
   assert.doesNotMatch(markup, /ownerUserId|linkedPolicyId|status selector/);
 });
 
-test("custom transaction values expose explicit add and remove controls", () => {
+test("transaction type is search-only while preserving existing custom draft values", () => {
   const custom = renderView({
     form: { ...createEmptyTurnInState(), transactionType: "Reinstatement" },
     user: producer(),
@@ -116,11 +124,10 @@ test("custom transaction values expose explicit add and remove controls", () => 
     user: producer(),
   });
 
-  assert.match(custom, /<option selected="">Reinstatement<\/option>/);
-  assert.match(custom, /aria-label="Remove custom transaction type"/);
-  assert.match(custom, /title="Remove this custom transaction type"/);
-  assert.match(standard, /<option selected="">Renewal<\/option>/);
-  assert.doesNotMatch(standard, /aria-label="Remove custom transaction type"/);
+  assert.match(custom, /role="combobox"[^>]*value="Reinstatement"/);
+  assert.match(standard, /role="combobox"[^>]*value="Renewal"/);
+  assert.doesNotMatch(custom, /Add custom transaction type|Remove custom transaction type/);
+  assert.doesNotMatch(standard, /Add custom transaction type|Remove custom transaction type/);
 });
 
 test("Deposit option is visible for every payment mode in v15 field order", () => {
@@ -226,16 +233,38 @@ test("IPFS history shows prior context while preserving explicit selection contr
 test("validation state is accessible and admin submission targets the ledger", () => {
   const markup = renderView({
     errors: { insuredName: "Enter the insured name." },
-    form: createEmptyTurnInState(),
+    form: completeForm(),
     user: { ...producer(), capabilities: ["admin"], role: "admin" },
   });
 
   assert.match(markup, /aria-invalid="true"/);
   assert.match(markup, /aria-describedby="turn-in-insuredName-error"/);
-  assert.match(markup, /1 issue to fix before submitting/);
+  assert.match(markup, /Issues to fix before submitting/);
+  assert.match(markup, /1 item needs attention/);
   assert.match(markup, /title="Go to this field"/);
   assert.match(markup, /Fix →/);
   assert.match(markup, /Submit to ledger/);
+});
+
+test("live validation exposes missing and contradictory fields before submit", () => {
+  const missing = renderView({
+    form: createEmptyTurnInState(),
+    user: producer(),
+  });
+  const invalid = renderView({
+    form: {
+      ...completeForm(),
+      effectiveDate: "07/10/2027",
+      expirationDate: "07/10/2026",
+    },
+    user: producer(),
+  });
+
+  assert.match(missing, /aria-live="polite"/);
+  assert.match(missing, /class="turn-in-validation is-warning"/);
+  assert.match(missing, /Choose an account assignment/);
+  assert.match(invalid, /class="turn-in-validation is-error"/);
+  assert.match(invalid, /Expiration cannot precede the effective date/);
 });
 
 test("payment guidance renders v15 full, direct-bill, and deposit context", () => {
@@ -479,6 +508,42 @@ function producer(): CurrentUser {
     id: USER_ID,
     passwordChangeRequired: false,
     role: "producer",
+  };
+}
+
+function completeForm(): TurnInFormState {
+  return {
+    ...createEmptyTurnInState(),
+    accountAssignment: "book",
+    amountPaid: "500.00",
+    basePremium: "1000.00",
+    brokerFee: "25.00",
+    carrierId: OFFICE_A,
+    commissionConfirmed: true,
+    commissionRate: "10",
+    companyName: "Acme Holdings",
+    depositOption: "500.00",
+    effectiveDate: "07/10/2026",
+    expirationDate: "07/10/2027",
+    financeAddress: "10 Main Street",
+    financeEmail: "insured@example.test",
+    financeMobile: "555-0100",
+    financeReference: "IPFS-22",
+    insuredName: "Acme LLC",
+    invoiceNumber: "INV-9",
+    ipfsFinanced: "yes",
+    ipfsReturning: "new",
+    mgaFee: "10.00",
+    mgaId: OFFICE_A,
+    officeLocationId: OFFICE_A,
+    paymentMode: "deposit",
+    policyNumber: "POL-1",
+    policyTypeId: OFFICE_A,
+    producerUserId: USER_ID,
+    proposalTotal: "1135.00",
+    taxes: "100.00",
+    transactionNotes: "Endorsement note",
+    transactionType: "Endorsement",
   };
 }
 

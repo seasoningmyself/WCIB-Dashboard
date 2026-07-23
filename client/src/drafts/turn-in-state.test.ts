@@ -122,6 +122,10 @@ test("turn-in validation enforces conditional invoice, commission, and IPFS fiel
   const valid = completeState();
   assert.deepEqual(validateTurnInForSubmit(valid), {});
 
+  const empty = validateTurnInForSubmit(createEmptyTurnInState());
+  assert.equal(empty.amountPaid, "Enter an amount collected greater than zero.");
+  assert.equal(empty.proposalTotal, "Enter a proposal total greater than zero.");
+
   const invalid = {
     ...valid,
     commissionConfirmed: false,

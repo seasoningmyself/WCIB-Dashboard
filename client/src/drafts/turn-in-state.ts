@@ -571,13 +571,19 @@ export function validateTurnInForSubmit(
   }
   if (
     input.proposalTotal == null ||
-    compareMoney(input.proposalTotal, "0.00") !== 1 ||
+    compareMoney(input.proposalTotal, "0.00") !== 1
+  ) {
+    errors.proposalTotal = "Enter a proposal total greater than zero.";
+  } else if (
     summary.proposalTotal === null ||
     !proposalTotalsMatch(input.proposalTotal, summary.proposalTotal)
   ) {
     errors.proposalTotal = "Proposal total must match premium, taxes, MGA fee, and broker fee.";
   }
-  if (summary.netDue === null || compareMoney(summary.netDue, "0.00") === -1) {
+  if (
+    summary.netDue !== null &&
+    compareMoney(summary.netDue, "0.00") === -1
+  ) {
     errors.amountPaid = "Net due to the MGA cannot be negative.";
   }
   if (state.paymentMode === "deposit") {

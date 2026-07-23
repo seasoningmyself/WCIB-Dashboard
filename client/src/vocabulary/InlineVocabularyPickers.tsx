@@ -30,6 +30,7 @@ import {
 type AddableRole = CurrentUserRole | null;
 
 interface InlineRoleProps {
+  allowCreate?: boolean;
   role: AddableRole;
 }
 
@@ -55,6 +56,7 @@ interface MgaConfirmation {
 }
 
 export function InlineCarrierPicker({
+  allowCreate = true,
   onChange,
   onConvenienceMgaChange,
   role,
@@ -159,16 +161,20 @@ export function InlineCarrierPicker({
             }
           }
         }}
-        renderInlineAction={(query) => (
-          <InlineVocabularyAction
-            errorMessage={feedbackError(feedback, query, "carrier")}
-            kind="carrier"
-            onSubmit={() => void submit(query)}
-            pending={mutation.pending}
-            query={query}
-            role={role}
-          />
-        )}
+        renderInlineAction={
+          allowCreate
+            ? (query) => (
+                <InlineVocabularyAction
+                  errorMessage={feedbackError(feedback, query, "carrier")}
+                  kind="carrier"
+                  onSubmit={() => void submit(query)}
+                  pending={mutation.pending}
+                  query={query}
+                  role={role}
+                />
+              )
+            : undefined
+        }
       />
       <MutationStatus feedback={feedback} />
     </div>
@@ -196,6 +202,7 @@ export async function createMissingConvenienceMga(
 }
 
 export function InlinePolicyTypePicker({
+  allowCreate = true,
   onChange,
   role,
   ...pickerProps
@@ -251,18 +258,22 @@ export function InlinePolicyTypePicker({
           setFeedback(null);
           onChange(value);
         }}
-        renderInlineAction={(query) => (
-          <InlineVocabularyAction
-            classTag={classTag}
-            errorMessage={feedbackError(feedback, query, "policy type")}
-            kind="policy_type"
-            onClassChange={setClassTag}
-            onSubmit={() => void submit(query)}
-            pending={mutation.pending}
-            query={query}
-            role={role}
-          />
-        )}
+        renderInlineAction={
+          allowCreate
+            ? (query) => (
+                <InlineVocabularyAction
+                  classTag={classTag}
+                  errorMessage={feedbackError(feedback, query, "policy type")}
+                  kind="policy_type"
+                  onClassChange={setClassTag}
+                  onSubmit={() => void submit(query)}
+                  pending={mutation.pending}
+                  query={query}
+                  role={role}
+                />
+              )
+            : undefined
+        }
       />
       <MutationStatus feedback={feedback} />
     </div>
@@ -270,6 +281,7 @@ export function InlinePolicyTypePicker({
 }
 
 export function InlineMgaPicker({
+  allowCreate = true,
   onChange,
   role,
   ...pickerProps
@@ -332,24 +344,28 @@ export function InlineMgaPicker({
           setFeedback(null);
           onChange(value);
         }}
-        renderInlineAction={(query) => (
-          <InlineVocabularyAction
-            confirmation={
-              confirmation?.name === query ? confirmation : null
-            }
-            errorMessage={feedbackError(feedback, query, "MGA")}
-            kind="mga"
-            onCancel={() => {
-              setConfirmation(null);
-              setFocusRequestKey((value) => value + 1);
-            }}
-            onConfirm={() => void submit(query, true)}
-            onSubmit={() => void submit(query, false)}
-            pending={mutation.pending}
-            query={query}
-            role={role}
-          />
-        )}
+        renderInlineAction={
+          allowCreate
+            ? (query) => (
+                <InlineVocabularyAction
+                  confirmation={
+                    confirmation?.name === query ? confirmation : null
+                  }
+                  errorMessage={feedbackError(feedback, query, "MGA")}
+                  kind="mga"
+                  onCancel={() => {
+                    setConfirmation(null);
+                    setFocusRequestKey((value) => value + 1);
+                  }}
+                  onConfirm={() => void submit(query, true)}
+                  onSubmit={() => void submit(query, false)}
+                  pending={mutation.pending}
+                  query={query}
+                  role={role}
+                />
+              )
+            : undefined
+        }
       />
       <MutationStatus feedback={feedback} />
     </div>

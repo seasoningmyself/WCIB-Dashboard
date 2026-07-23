@@ -3257,15 +3257,30 @@ h1 {
 }
 
 .turn-in-validation {
-  border-top: var(--border-width-thin) solid var(--error-border);
-  background: var(--error-surface);
+  border-top: var(--border-width-thin) solid var(--warning-border);
+  background: var(--warning-surface);
   padding: var(--space-16) var(--space-24);
 }
 
+.turn-in-validation.is-error {
+  border-top-color: var(--error-border);
+  background: var(--error-surface);
+}
+
 .turn-in-validation h2 {
-  margin: var(--space-0) var(--space-0) var(--space-9);
-  color: var(--error-text);
+  margin: var(--space-0) var(--space-0) var(--space-3);
+  color: var(--warning-text);
   font-size: var(--font-size-body-emphasis);
+}
+
+.turn-in-validation.is-error h2 {
+  color: var(--error-text);
+}
+
+.turn-in-validation > p {
+  margin: var(--space-0) var(--space-0) var(--space-9);
+  color: var(--text-muted);
+  font-size: var(--font-size-body);
 }
 
 .turn-in-validation ul {
@@ -3285,11 +3300,15 @@ h1 {
   border: 0;
   background: var(--transparent);
   padding: var(--space-5) var(--space-0);
-  color: var(--error-text);
+  color: var(--warning-text);
   cursor: pointer;
   font: inherit;
   font-size: var(--font-size-body);
   text-align: left;
+}
+
+.turn-in-validation li.is-error button {
+  color: var(--error-text);
 }
 
 .turn-in-validation button strong {
