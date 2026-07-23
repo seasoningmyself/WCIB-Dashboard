@@ -21,9 +21,12 @@ const supportActions = [
 test("support schema rolls back and reapplies transactionally", async () => {
   const databaseUrl = process.env.DATABASE_URL;
   assert.ok(databaseUrl, "DATABASE_URL is required for support migration test");
-  const migration = loadMigrationPlan().find(
+  const plan = loadMigrationPlan();
+  const migrationIndex = plan.findIndex(
     ({ tag }) => tag === "0054_support_engineer_capability",
   );
+  const migration = plan[migrationIndex];
+  const dependentMigrations = plan.slice(migrationIndex + 1);
   assert.ok(migration);
 
   await withDisposableMigratedDatabase(
@@ -34,6 +37,11 @@ test("support schema rolls back and reapplies transactionally", async () => {
       await client.connect();
       try {
         await client.query("BEGIN");
+        for (const dependent of [...dependentMigrations].reverse()) {
+          for (const statement of dependent.backoutStatements) {
+            await client.query(statement);
+          }
+        }
         assert.deepEqual(await readSupportSchema(client), {
           actions: supportActions,
           lastLoginColumn: true,
