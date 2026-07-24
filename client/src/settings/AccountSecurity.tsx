@@ -66,7 +66,7 @@ export function AccountSecurityPanel({ user }: { user: CurrentUser }) {
 
   const descriptor = mutation === null ? null : mutationDescriptor(mutation);
   return (
-    <section className="settings-panel account-security-panel" aria-labelledby="account-security-title" role="tabpanel">
+    <section className="settings-panel account-security-panel" aria-labelledby="account-security-title">
       <header>
         <h2 id="account-security-title">Account security</h2>
         <p>Manage administrator recovery, sign-in email, and capability-only support access.</p>

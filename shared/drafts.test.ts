@@ -4,6 +4,7 @@ import {
   createDraftRequestSchema,
   draftWritableInputFromSource,
   flagDraftRequestSchema,
+  hasContentBearingDraftFields,
   listDraftsQuerySchema,
   submitDraftRequestSchema,
   updateDraftRequestSchema,
@@ -28,6 +29,48 @@ test("draft input normalizes exact decimal and text values", () => {
       producerUserId: PRODUCER_ID,
     },
   );
+});
+
+test("content-bearing draft detection matches the enforced draft-cap fields", () => {
+  assert.equal(
+    hasContentBearingDraftFields({
+      commissionConfirmed: true,
+      officeLocationId: PRODUCER_ID,
+      paymentMode: "full",
+      producerUserId: PRODUCER_ID,
+    }),
+    false,
+  );
+  assert.equal(hasContentBearingDraftFields({ insuredName: "  " }), false);
+
+  for (const field of [
+    "accountAssignment",
+    "amountPaid",
+    "basePremium",
+    "brokerFee",
+    "carrierId",
+    "commissionRate",
+    "companyName",
+    "depositOption",
+    "effectiveDate",
+    "expirationDate",
+    "financeReference",
+    "insuredName",
+    "invoiceNumber",
+    "mgaId",
+    "notes",
+    "policyNumber",
+    "policyTypeId",
+    "proposalTotal",
+    "transactionNotes",
+    "transactionType",
+  ] as const) {
+    assert.equal(
+      hasContentBearingDraftFields({ [field]: "content" }),
+      true,
+      `${field} should consume a draft slot`,
+    );
+  }
 });
 
 test("submitted snapshots project back to only writable draft fields", () => {

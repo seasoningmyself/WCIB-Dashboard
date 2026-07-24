@@ -60,7 +60,8 @@ test("shell renders the exact admin navigation supplied by /api/me", () => {
   assert.match(markup, />Agency settings</);
   assert.doesNotMatch(markup, /class="workspace-nav-link" href="#\/settings"/);
   assert.doesNotMatch(markup, /class="workspace-nav-link" href="#\/help-requests"/);
-  assert.match(markup, /<h1 id="kpi-message-title">Loading KPIs<\/h1>/);
+  assert.match(markup, /<h1 id="kpi-page-title">Agency Overview<\/h1>/);
+  assert.match(markup, /Loading current agency activity/);
   assert.match(markup, /<main[^>]*tabindex="-1"/i);
   assert.match(markup, /<button[^>]*>Sign out<\/button>/);
   assert.match(markup, /aria-controls="workspace-mobile-panel"/);
@@ -379,7 +380,9 @@ test("server-authorized KPI route mounts the real admin goals workspace", () => 
     ),
   );
 
-  assert.match(markup, /Loading KPIs/);
+  assert.match(markup, /Agency Overview/);
+  assert.match(markup, /Loading current agency activity/);
+  assert.match(markup, /Loading settled agency results/);
   assert.doesNotMatch(markup, /WCIB workspace/);
 });
 

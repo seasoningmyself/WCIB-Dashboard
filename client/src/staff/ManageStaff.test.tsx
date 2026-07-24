@@ -36,26 +36,28 @@ test("Manage Staff shows active staff, producer percentages, and recovery action
     isActive: false,
     userId: uuid(5),
   });
+  const passwordPending = employeeFixture({
+    displayName: "Password Pending",
+    passwordChangeRequired: true,
+    userId: uuid(6),
+  });
   const markup = renderView([
     producer,
     producerWithoutRates,
     neverProducer,
     formerProducer,
     inactive,
+    passwordPending,
   ]);
 
   for (const visible of [
     "Manage Staff",
     "Kaylee Producer",
     "Former Producer",
-    "Current producer rates",
-    "Former producer rates",
-    "New commission",
-    "New broker",
-    "Renewal commission",
-    "Renewal broker",
-    "26.00%",
+    "Rates set",
+    "Former producer rates retained",
     "No rates set. Pay Sheet will not calculate.",
+    "Password reset pending",
     "Compensation",
     "Issue temporary password",
     "Deactivate account",
@@ -72,7 +74,7 @@ test("Manage Staff shows active staff, producer percentages, and recovery action
   const neverProducerRow = staffRowMarkup(markup, "Mercedes Employee");
   assert.doesNotMatch(
     neverProducerRow,
-    /No producer rate|Compensation|Current producer rates|Former producer rates/,
+    /No producer rate|Compensation|Rates set|Former producer rates/,
   );
   assert.match(
     staffRowMarkup(markup, "Producer Missing Rates"),
@@ -80,7 +82,15 @@ test("Manage Staff shows active staff, producer percentages, and recovery action
   );
   assert.match(
     staffRowMarkup(markup, "Former Producer"),
-    /Former producer rates|Compensation/,
+    /Former producer rates retained|Compensation/,
+  );
+  assert.doesNotMatch(
+    staffRowMarkup(markup, "Kaylee Producer"),
+    /New commission|New broker|Renewal commission|Renewal broker|26\.00%/,
+  );
+  assert.match(
+    staffRowMarkup(markup, "Password Pending"),
+    /Password reset pending/,
   );
   assert.doesNotMatch(markup, />Delete<|hard delete|localStorage/i);
 });

@@ -8,6 +8,9 @@ import { ApiClientProvider } from "../api/context.js";
 import { createSessionBoundary } from "../auth/session-boundary.js";
 import { VocabularyProvider } from "../vocabulary/context.js";
 import {
+  countActiveDraftSlots,
+  derivedDraftReference,
+  draftListIdentity,
   loadMyDraftsState,
   MyDraftsView,
   type MyDraftsState,
@@ -34,6 +37,7 @@ test("My Drafts lists only projected identifying fields and status actions", () 
   });
 
   assert.match(markup, /My Drafts/);
+  assert.match(markup, /Draft storage <strong>1 of 20<\/strong>/);
   assert.match(markup, /Acme LLC/);
   assert.match(markup, /WCIB-100/);
   assert.match(markup, />7 days ago<\/time>/);
@@ -47,6 +51,105 @@ test("My Drafts lists only projected identifying fields and status actions", () 
   assert.match(markup, /View status/);
   assert.doesNotMatch(markup, /Base premium|Agency commission total|IPFS financing/);
   assert.doesNotMatch(markup, /ownerUserId|producerUserId/);
+});
+
+test("blank drafts use stable derived references and partial identity precedence", () => {
+  const blank = draft({
+    accountAssignment: null,
+    companyName: null,
+    effectiveDate: null,
+    expirationDate: null,
+    id: DRAFT_ID,
+    insuredName: null,
+    policyNumber: null,
+    producerUserId: null,
+    transactionType: null,
+  });
+  const otherBlank = draft({
+    accountAssignment: null,
+    companyName: null,
+    effectiveDate: null,
+    expirationDate: null,
+    id: OTHER_ID,
+    insuredName: null,
+    policyNumber: null,
+    producerUserId: null,
+    transactionType: null,
+  });
+  const partial = draft({
+    companyName: "Acme Holdings",
+    insuredName: null,
+    policyNumber: "WCIB-200",
+    transactionType: "Renewal",
+  });
+
+  assert.equal(derivedDraftReference(DRAFT_ID), "Draft 0000-0301");
+  assert.equal(derivedDraftReference(DRAFT_ID), derivedDraftReference(DRAFT_ID));
+  assert.notEqual(
+    derivedDraftReference(DRAFT_ID),
+    derivedDraftReference(OTHER_ID),
+  );
+  const blankIdentity = draftListIdentity(blank);
+  assert.equal(blankIdentity.primary, "Draft 0000-0301");
+  assert.match(blankIdentity.secondary, /^Started Jul 10, 2026,/);
+  const partialIdentity = draftListIdentity(partial);
+  assert.equal(partialIdentity.primary, "Acme Holdings");
+  assert.match(partialIdentity.secondary, /^Started Jul 10, 2026,/);
+
+  const markup = renderView({
+    currentPath: "/my-drafts",
+    state: {
+      drafts: [blank, otherBlank, partial],
+      requests: [],
+      status: "ready",
+    },
+  });
+  assert.match(markup, /Draft 0000-0301/);
+  assert.match(markup, /Draft 0000-0302/);
+  assert.match(markup, /Acme Holdings/);
+  assert.doesNotMatch(markup, /Unnamed insured/);
+  assert.equal(countActiveDraftSlots([blank, otherBlank, partial]), 1);
+  assert.equal(
+    countActiveDraftSlots([
+      partial,
+      draft({ id: uuid(80), status: "submitted" }),
+    ]),
+    1,
+  );
+});
+
+test("draft storage reports empty, single, and near-limit usage", () => {
+  const empty = renderView({
+    currentPath: "/my-drafts",
+    state: { drafts: [], requests: [], status: "ready" },
+  });
+  assert.match(empty, /Draft storage <strong>0 of 20<\/strong>/);
+
+  const single = renderView({
+    currentPath: "/my-drafts",
+    state: {
+      drafts: [draft({ insuredName: "Acme" })],
+      requests: [],
+      status: "ready",
+    },
+  });
+  assert.match(single, /Draft storage <strong>1 of 20<\/strong>/);
+  assert.doesNotMatch(single, /my-drafts-cap is-near-limit/);
+
+  const nearLimit = renderView({
+    currentPath: "/my-drafts",
+    state: {
+      drafts: Array.from({ length: 18 }, (_, index) =>
+        draft({ id: uuid(index + 100), insuredName: `Insured ${index + 1}` }),
+      ),
+      requests: [],
+      status: "ready",
+    },
+  });
+  assert.match(
+    nearLimit,
+    /class="my-drafts-cap is-near-limit">Draft storage <strong>18 of 20<\/strong>/,
+  );
 });
 
 test("active producer draft editing renders agency inputs but no personal split", () => {

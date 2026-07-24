@@ -2,6 +2,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
 } from "react";
@@ -19,10 +20,29 @@ import { PageHeader } from "../ui/PageHeader.js";
 import { createSettingsApi, SettingsApiError } from "./api.js";
 import { createMfaApi } from "../auth/mfa-api.js";
 import { MfaSettingsPanel } from "../auth/MfaEnrollment.js";
-import { AgencySettings } from "./AgencySettings.js";
+import {
+  AgencySettings,
+  type AgencySettingsTab,
+} from "./AgencySettings.js";
 
-type PersonalSettingsTab = "account" | "security";
-type SettingsScope = "agency" | "personal";
+export type SettingsSection =
+  | AgencySettingsTab
+  | "profile"
+  | "security";
+
+const PERSONAL_SETTINGS_SECTIONS = [
+  { id: "profile", label: "Profile" },
+  { id: "security", label: "Password & MFA" },
+] as const satisfies readonly { id: SettingsSection; label: string }[];
+
+const AGENCY_SETTINGS_SECTIONS = [
+  { id: "offices", label: "Offices" },
+  { id: "assignments", label: "Assignment options" },
+  { id: "vocabulary", label: "Vocabulary" },
+  { id: "account-security", label: "Account security" },
+  { id: "data-recovery", label: "Data recovery" },
+] as const satisfies readonly { id: SettingsSection; label: string }[];
+
 type AccountState =
   | { status: "denied" | "error" | "loading" }
   | { settings: OwnSettings; status: "ready" };
@@ -38,87 +58,184 @@ export function SettingsSurface({
   onMfaChange(mfa: MfaState): void;
   user: CurrentUser;
 }) {
-  const [tab, setTab] = useState<PersonalSettingsTab>("account");
   const isAdmin = user.role === "admin" && user.capabilities.includes("admin");
-  const scope = settingsScopeFromPath(currentPath, isAdmin);
+  const section = settingsSectionFromPath(currentPath, isAdmin);
+  const agencySection = isAgencySettingsSection(section);
   return (
     <section className="settings-page" aria-labelledby="settings-title">
       <PageHeader
-        eyebrow={scope === "agency" ? "Agency administration" : "Personal account"}
-        status={scope === "agency"
+        eyebrow={agencySection ? "Agency administration" : "Personal account"}
+        status={agencySection
           ? <>Manage <strong>agency configuration and recovery controls</strong>.</>
           : <>Manage the profile and security settings for <strong>{user.email}</strong>.</>}
         title="Settings"
         titleId="settings-title"
       />
-      {isAdmin ? (
-        <nav aria-label="Settings scope" className="settings-scope-tabs">
-          <a
-            aria-current={scope === "personal" ? "page" : undefined}
-            href="#/settings"
-          >
-            Personal
-          </a>
-          <a
-            aria-current={scope === "agency" ? "page" : undefined}
-            href="#/settings?scope=agency"
-          >
-            Agency
-          </a>
-        </nav>
-      ) : null}
-      {scope === "agency" ? (
-        <AgencySettings user={user} />
-      ) : (
-        <>
-          <div className="settings-tabs" role="tablist" aria-label="Personal settings sections">
-            <SettingsTabButton active={tab === "account"} onClick={() => setTab("account")}>Profile</SettingsTabButton>
-            <SettingsTabButton active={tab === "security"} onClick={() => setTab("security")}>Password &amp; MFA</SettingsTabButton>
-          </div>
-          <OwnSettingsController
-            activeTab={tab}
-            canManageStaff={isAdmin}
-            onDisplayNameChange={onDisplayNameChange}
-            onMfaChange={onMfaChange}
-            user={user}
-          />
-        </>
-      )}
+      <div className="settings-layout">
+        <SettingsSubNavigation activeSection={section} isAdmin={isAdmin} />
+        <div className="settings-content">
+          {agencySection ? (
+            <AgencySettings activeTab={section} user={user} />
+          ) : (
+            <OwnSettingsController
+              activeTab={section === "security" ? "security" : "account"}
+              canManageStaff={isAdmin}
+              onDisplayNameChange={onDisplayNameChange}
+              onMfaChange={onMfaChange}
+              user={user}
+            />
+          )}
+        </div>
+      </div>
     </section>
   );
 }
 
-export function settingsScopeFromPath(
+export function settingsSectionFromPath(
   currentPath: string,
   isAdmin: boolean,
-): SettingsScope {
-  if (!isAdmin) return "personal";
+): SettingsSection {
   const query = currentPath.split("?", 2)[1]?.split("#", 1)[0] ?? "";
-  return new URLSearchParams(query).get("scope") === "agency"
-    ? "agency"
-    : "personal";
+  const params = new URLSearchParams(query);
+  const requested = normalizeSettingsSection(params.get("section"));
+  if (requested !== null) {
+    return !isAdmin && isAgencySettingsSection(requested)
+      ? "profile"
+      : requested;
+  }
+  return isAdmin && params.get("scope") === "agency"
+    ? "offices"
+    : "profile";
 }
 
-function SettingsTabButton({
-  active,
-  children,
-  onClick,
+export function SettingsSubNavigation({
+  activeSection,
+  isAdmin,
 }: {
-  active: boolean;
-  children: React.ReactNode;
-  onClick(): void;
+  activeSection: SettingsSection;
+  isAdmin: boolean;
+}) {
+  const navigationRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const navigation = navigationRef.current;
+    if (navigation === null) return;
+    const revealActiveLink = () => {
+      const activeLink = navigation.querySelector<HTMLElement>(
+        '[aria-current="page"]',
+      );
+      if (activeLink === null) return;
+      const navigationRect = navigation.getBoundingClientRect();
+      const activeRect = activeLink.getBoundingClientRect();
+      const nextScrollLeft = settingsSubnavScrollLeft({
+        activeLeft: activeRect.left,
+        activeRight: activeRect.right,
+        containerLeft: navigationRect.left,
+        containerRight: navigationRect.right,
+        currentScrollLeft: navigation.scrollLeft,
+        maximumScrollLeft: navigation.scrollWidth - navigation.clientWidth,
+      });
+      if (nextScrollLeft !== navigation.scrollLeft) {
+        navigation.scrollLeft = nextScrollLeft;
+      }
+    };
+    revealActiveLink();
+    window.addEventListener("resize", revealActiveLink);
+    return () => {
+      window.removeEventListener("resize", revealActiveLink);
+    };
+  }, [activeSection]);
+
+  return (
+    <nav
+      aria-label="Settings sections"
+      className="settings-subnav"
+      ref={navigationRef}
+    >
+      <SettingsSubNavigationGroup
+        activeSection={activeSection}
+        label="Personal"
+        sections={PERSONAL_SETTINGS_SECTIONS}
+      />
+      {isAdmin ? (
+        <SettingsSubNavigationGroup
+          activeSection={activeSection}
+          label="Agency"
+          sections={AGENCY_SETTINGS_SECTIONS}
+        />
+      ) : null}
+    </nav>
+  );
+}
+
+function SettingsSubNavigationGroup({
+  activeSection,
+  label,
+  sections,
+}: {
+  activeSection: SettingsSection;
+  label: string;
+  sections: readonly { id: SettingsSection; label: string }[];
 }) {
   return (
-    <button
-      aria-selected={active}
-      className={active ? "is-active" : undefined}
-      onClick={onClick}
-      role="tab"
-      type="button"
-    >
-      {children}
-    </button>
+    <div className="settings-subnav-group">
+      <p>{label}</p>
+      <div>
+        {sections.map(({ id, label: sectionLabel }) => (
+          <a
+            aria-current={activeSection === id ? "page" : undefined}
+            href={`#/settings?section=${encodeURIComponent(id)}`}
+            key={id}
+          >
+            {sectionLabel}
+          </a>
+        ))}
+      </div>
+    </div>
   );
+}
+
+export function settingsSubnavScrollLeft({
+  activeLeft,
+  activeRight,
+  containerLeft,
+  containerRight,
+  currentScrollLeft,
+  maximumScrollLeft,
+}: {
+  activeLeft: number;
+  activeRight: number;
+  containerLeft: number;
+  containerRight: number;
+  currentScrollLeft: number;
+  maximumScrollLeft: number;
+}): number {
+  if (activeLeft < containerLeft) {
+    return Math.max(0, currentScrollLeft - (containerLeft - activeLeft));
+  }
+  if (activeRight > containerRight) {
+    return Math.min(
+      maximumScrollLeft,
+      currentScrollLeft + activeRight - containerRight,
+    );
+  }
+  return currentScrollLeft;
+}
+
+function normalizeSettingsSection(value: string | null): SettingsSection | null {
+  if (value === null) return null;
+  if (value === "account") return "profile";
+  if (value === "password-mfa") return "security";
+  return [...PERSONAL_SETTINGS_SECTIONS, ...AGENCY_SETTINGS_SECTIONS].some(
+    ({ id }) => id === value,
+  )
+    ? value as SettingsSection
+    : null;
+}
+
+function isAgencySettingsSection(
+  section: SettingsSection,
+): section is AgencySettingsTab {
+  return AGENCY_SETTINGS_SECTIONS.some(({ id }) => id === section);
 }
 
 function OwnSettingsController({
@@ -256,7 +373,7 @@ export function AccountPanel({
     if (parsed.success) onSave(parsed.data.displayName);
   };
   return (
-    <section className="settings-panel" aria-labelledby="account-settings-title" role="tabpanel">
+    <section className="settings-panel" aria-labelledby="account-settings-title">
       <header>
         <h2 id="account-settings-title">Personal profile</h2>
         <p>Your display name is the only account detail you can change here.</p>
@@ -361,7 +478,7 @@ export function SecurityPanel({
     });
   };
   return (
-    <section className="settings-panel" aria-labelledby="security-settings-title" role="tabpanel">
+    <section className="settings-panel" aria-labelledby="security-settings-title">
       <header>
         <h2 id="security-settings-title">Change password</h2>
         <p>Changing your password ends every other signed-in session.</p>

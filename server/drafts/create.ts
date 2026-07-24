@@ -6,6 +6,8 @@ import {
 } from "../../shared/draft-calculations.js";
 import {
   createDraftRequestSchema,
+  hasContentBearingDraftFields,
+  MAX_CONTENT_BEARING_DRAFTS_PER_USER,
   type CreateDraftRequest,
 } from "../../shared/drafts.js";
 import type { ApiErrorDetail } from "../../shared/api-errors.js";
@@ -34,7 +36,7 @@ const IPFS_FINANCE_META = Object.freeze({
   minEarnedPct: null,
 });
 
-export const MAX_CONTENT_BEARING_DRAFTS_PER_USER = 20;
+export { MAX_CONTENT_BEARING_DRAFTS_PER_USER };
 
 export class DraftInputValidationError extends Error {
   constructor(readonly details: ApiErrorDetail[]) {
@@ -89,7 +91,7 @@ async function enforceContentBearingDraftLimit(
   ownerUserId: string,
   input: CreateDraftRequest,
 ): Promise<void> {
-  if (!hasDraftContent(input)) {
+  if (!hasContentBearingDraftFields(input)) {
     return;
   }
 
@@ -117,31 +119,6 @@ async function enforceContentBearingDraftLimit(
   if ((result?.count ?? 0) >= MAX_CONTENT_BEARING_DRAFTS_PER_USER) {
     throw new DraftLimitReachedError();
   }
-}
-
-function hasDraftContent(input: CreateDraftRequest): boolean {
-  return [
-    input.accountAssignment,
-    input.amountPaid,
-    input.basePremium,
-    input.brokerFee,
-    input.carrierId,
-    input.commissionRate,
-    input.companyName,
-    input.depositOption,
-    input.effectiveDate,
-    input.expirationDate,
-    input.financeReference,
-    input.insuredName,
-    input.invoiceNumber,
-    input.mgaId,
-    input.notes,
-    input.policyNumber,
-    input.policyTypeId,
-    input.proposalTotal,
-    input.transactionNotes,
-    input.transactionType,
-  ].some((value) => value !== null && value !== undefined);
 }
 
 function draftHasContentPredicate() {

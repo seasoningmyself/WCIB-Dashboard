@@ -336,8 +336,7 @@ test("turn-in status and operations render in one consolidated action surface", 
   assert.match(markup, /Clear form/);
   assert.match(markup, /Discard draft/);
   assert.match(markup, /Download PDF/);
-  assert.match(markup, /Approvals waiting/);
-  assert.match(markup, /href="#\/approvals"/);
+  assert.doesNotMatch(markup, /Approvals waiting|turn-in-metrics/);
   assert.doesNotMatch(markup, /turn-in-draft-actions/);
   assert.equal((markup.match(/>Request help</g) ?? []).length, 1);
   assert.equal((markup.match(/>Clear form</g) ?? []).length, 1);
@@ -485,7 +484,6 @@ function renderView({
           form={form}
           help={help}
           ipfsHistory={ipfsHistory}
-          metrics={[{ href: "#/approvals", label: "Approvals waiting", value: 3 }]}
           onAssignmentChange={() => {}}
           onClear={() => {}}
           onDiscard={() => {}}

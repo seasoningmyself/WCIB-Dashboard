@@ -4,7 +4,7 @@ import type { ApiClient, ApiRequestOptions } from "../api/client.js";
 import { createKpiApi, KpiApiError } from "./api.js";
 import { kpiActualsFixture, kpiTargetsFixture, PRODUCER_ID } from "./test-fixture.js";
 
-test("KPI API consumes only J1 and J2 with stable UUID scope", async () => {
+test("KPI API consumes only its bounded KPI routes with stable UUID scope", async () => {
   const calls: Array<{ options?: ApiRequestOptions; path: string }> = [];
   const targets = kpiTargetsFixture();
   const responses = [
@@ -16,6 +16,16 @@ test("KPI API consumes only J1 and J2 with stable UUID scope", async () => {
         scopeType: "producer",
       },
     })),
+    Response.json({
+      activities: [
+        {
+          actionType: "policy_approved",
+          actorDisplayName: "Sophia Nguyen",
+          occurredAt: "2026-07-23T12:00:00.000Z",
+          targetReference: "Policy WCIB-1001",
+        },
+      ],
+    }),
     Response.json({ target: targets.items[1] }),
   ];
   const api = createKpiApi({
@@ -32,6 +42,7 @@ test("KPI API consumes only J1 and J2 with stable UUID scope", async () => {
     scopeType: "producer",
     year: 2026,
   });
+  await api.loadRecentActivity();
   await api.saveTarget("producer", 2026, {
     newPolicyCountTarget: 7,
     newRevenueTarget: "70000.00",
@@ -47,10 +58,11 @@ test("KPI API consumes only J1 and J2 with stable UUID scope", async () => {
         "GET",
         `/kpi-actuals?period=Q1&producerUserId=${PRODUCER_ID}&scopeType=producer&year=2026`,
       ],
+      ["GET", "/kpi-activity"],
       ["PUT", "/kpi-targets/producer/2026"],
     ],
   );
-  assert.deepEqual(JSON.parse(String(calls[2]?.options?.body)), {
+  assert.deepEqual(JSON.parse(String(calls[3]?.options?.body)), {
     newPolicyCountTarget: 7,
     newRevenueTarget: "70000.00",
     producerUserId: PRODUCER_ID,

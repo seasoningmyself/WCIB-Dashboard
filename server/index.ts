@@ -158,11 +158,13 @@ import {
 } from "./offices/admin.js";
 import { registerKpiTargetRoutes } from "./http/kpi-targets.js";
 import { registerKpiActualRoute } from "./http/kpi-actuals.js";
+import { registerKpiRecentActivityRoute } from "./http/kpi-activity.js";
 import {
   listKpiTargetSources,
   upsertKpiTarget,
 } from "./kpi/targets.js";
 import { loadKpiActualSource } from "./kpi/actuals.js";
+import { loadKpiRecentActivitySource } from "./kpi/activity.js";
 import { registerPolicyChangeRequestRoutes } from "./http/policy-change-requests.js";
 import {
   correctPolicyChangeRequest,
@@ -800,6 +802,11 @@ const app = createApp({
       authorization,
       list: (context, query) =>
         loadKpiActualSource(database, context, query),
+      logger,
+    });
+    registerKpiRecentActivityRoute(routes, {
+      authorization,
+      list: (context) => loadKpiRecentActivitySource(database, context),
       logger,
     });
   },

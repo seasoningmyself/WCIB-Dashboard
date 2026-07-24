@@ -34,7 +34,6 @@ import {
   formatStaffDate,
   isManageStaffAdmin,
   newestRatesFirst,
-  formatRate,
   staffRoleLabel,
 } from "./view-state.js";
 
@@ -556,74 +555,102 @@ export function ManageStaffView({
               heading="No active staff"
             />
           ) : (
-          <div className="staff-roster" role="list">
-          {visibleItems.map((staff) => (
-              <article className={`staff-row${staff.isActive ? "" : " is-inactive"}`} key={staff.userId} role="listitem">
-                <div className="staff-row-main">
-                  <header className="staff-card-header">
-                    <div className="staff-identity">
-                      <span className="staff-initials" aria-hidden="true">{initials(staff.displayName)}</span>
-                      <div>
-                        <h2>{staff.displayName}</h2>
-                        <p>{staff.email}</p>
+            <div className="staff-roster" role="list">
+              {visibleItems.map((staff) => (
+                <article
+                  className={`staff-row${staff.isActive ? "" : " is-inactive"}`}
+                  key={staff.userId}
+                  role="listitem"
+                >
+                  <div className="staff-row-main">
+                    <header className="staff-card-header">
+                      <div className="staff-identity">
+                        <span className="staff-initials" aria-hidden="true">
+                          {initials(staff.displayName)}
+                        </span>
+                        <div>
+                          <h2>{staff.displayName}</h2>
+                          <p>{staff.email}</p>
+                        </div>
                       </div>
+                      <div
+                        aria-label="Account classification"
+                        className="staff-badges"
+                      >
+                        <span className="is-role">
+                          {staffRoleLabel(staff.role)}
+                        </span>
+                        <span
+                          className={
+                            staff.isActive ? "is-active" : "is-inactive"
+                          }
+                        >
+                          {staff.isActive ? "Active" : "Inactive"}
+                        </span>
+                        {staff.passwordChangeRequired ? (
+                          <span
+                            className="is-password-required"
+                            title="Password change required at next sign-in"
+                          >
+                            Password reset pending
+                          </span>
+                        ) : null}
+                      </div>
+                    </header>
+                    <div className="staff-card-details">
+                      <div className="staff-card-detail">
+                        <span>Office</span>
+                        <strong>
+                          {staff.officeLocation?.name ?? "Not assigned"}
+                        </strong>
+                      </div>
+                      <StaffRateSummary staff={staff} />
                     </div>
-                    <div className="staff-badges" aria-label="Account classification">
-                      <span className="is-role">{staffRoleLabel(staff.role)}</span>
-                      <span className={staff.isActive ? "is-active" : "is-inactive"}>
-                        {staff.isActive ? "Active" : "Inactive"}
-                      </span>
-                    </div>
-                  </header>
-                  <div className="staff-card-details">
-                    <div className="staff-card-detail">
-                      <span>Office</span>
-                      <strong>{staff.officeLocation?.name ?? "Not assigned"}</strong>
-                    </div>
-                    <StaffRateSummary staff={staff} />
-                    {staff.passwordChangeRequired ? (
-                      <p className="staff-password-state">
-                        Password change required at next sign-in
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="staff-row-actions">
-                    <button disabled={pending} onClick={() => onEdit(staff)} type="button">Edit</button>
-                    {staff.rateState === "not_applicable" ? null : (
+                    <div className="staff-row-actions">
                       <button
                         disabled={pending}
-                        onClick={() => onCompensation(staff)}
+                        onClick={() => onEdit(staff)}
                         type="button"
                       >
-                        Compensation
+                        Edit
                       </button>
-                    )}
-                    <details className="staff-more-menu">
-                      <summary>More</summary>
-                      <div>
+                      {staff.rateState === "not_applicable" ? null : (
                         <button
                           disabled={pending}
-                          onClick={() => onActive(staff, !staff.isActive)}
+                          onClick={() => onCompensation(staff)}
                           type="button"
                         >
-                          {staff.isActive ? "Deactivate account" : "Reactivate account"}
+                          Compensation
                         </button>
-                        {staff.userId === currentUserId ? null : (
+                      )}
+                      <details className="staff-more-menu">
+                        <summary>More</summary>
+                        <div>
                           <button
                             disabled={pending}
-                            onClick={() => onTemporaryPassword(staff)}
+                            onClick={() => onActive(staff, !staff.isActive)}
                             type="button"
                           >
-                            Issue temporary password
+                            {staff.isActive
+                              ? "Deactivate account"
+                              : "Reactivate account"}
                           </button>
-                        )}
-                      </div>
-                    </details>
+                          {staff.userId === currentUserId ? null : (
+                            <button
+                              disabled={pending}
+                              onClick={() => onTemporaryPassword(staff)}
+                              type="button"
+                            >
+                              Issue temporary password
+                            </button>
+                          )}
+                        </div>
+                      </details>
+                    </div>
                   </div>
-                </div>
-              </article>
-          ))}
-          </div>
+                </article>
+              ))}
+            </div>
           )}
         </>
       )}
@@ -647,7 +674,7 @@ function StaffRateSummary({
   const rate = rateForCard(staff.rates);
   if (rate === null) return null;
   return (
-    <div
+    <p
       aria-label={`${staff.displayName} ${
         staff.rateState === "dormant" ? "dormant" : "current"
       } producer rates`}
@@ -655,31 +682,12 @@ function StaffRateSummary({
         staff.rateState === "dormant" ? " is-dormant" : ""
       }`}
     >
-      <div className="staff-rate-summary-heading">
-        <span>
-          {staff.rateState === "dormant"
-            ? "Former producer rates"
-            : "Current producer rates"}
-        </span>
-        <small>Effective {formatStaffDate(rate.effectiveDate)}</small>
-      </div>
-      <RateValue label="New commission" value={rate.newCommissionRate} />
-      <RateValue label="New broker" value={rate.newBrokerRate} />
-      <RateValue
-        label="Renewal commission"
-        value={rate.renewalCommissionRate}
-      />
-      <RateValue label="Renewal broker" value={rate.renewalBrokerRate} />
-    </div>
-  );
-}
-
-function RateValue({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <span>{label}</span>
-      <strong>{formatRate(value)}</strong>
-    </div>
+      {staff.rateState === "dormant"
+        ? "Former producer rates retained"
+        : "Rates set"}
+      <span aria-hidden="true"> · </span>
+      <small>Effective {formatStaffDate(rate.effectiveDate)}</small>
+    </p>
   );
 }
 
