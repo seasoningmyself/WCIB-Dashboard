@@ -5,7 +5,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   AccountPanel,
   SecurityPanel,
-  settingsScopeFromPath,
+  SettingsSubNavigation,
+  settingsSectionFromPath,
+  settingsSubnavScrollLeft,
 } from "./AccountSettings.js";
 
 test("account settings expose own name with view-only email and office", () => {
@@ -65,17 +67,91 @@ test("account settings expose own name with view-only email and office", () => {
   assert.equal((admin.match(/href="#\/staff"/g) ?? []).length, 2);
   assert.match(admin, /require MFA confirmation/);
   assert.doesNotMatch(assigned, /userId|capabilities|Role/);
+  assert.doesNotMatch(assigned, /role="tabpanel"/);
 });
 
-test("admin settings can deep-link to agency controls without exposing them to staff", () => {
-  assert.equal(settingsScopeFromPath("/settings", true), "personal");
+test("settings deep links resolve through one role-aware section hierarchy", () => {
+  assert.equal(settingsSectionFromPath("/settings", true), "profile");
   assert.equal(
-    settingsScopeFromPath("/settings?scope=agency", true),
-    "agency",
+    settingsSectionFromPath("/settings?scope=agency", true),
+    "offices",
   );
   assert.equal(
-    settingsScopeFromPath("/settings?scope=agency", false),
-    "personal",
+    settingsSectionFromPath("/settings?section=vocabulary", true),
+    "vocabulary",
+  );
+  assert.equal(
+    settingsSectionFromPath("/settings?section=security", false),
+    "security",
+  );
+  assert.equal(
+    settingsSectionFromPath("/settings?section=account-security", false),
+    "profile",
+  );
+
+  const adminNavigation = renderToStaticMarkup(
+    <SettingsSubNavigation activeSection="vocabulary" isAdmin />,
+  );
+  for (const label of [
+    "Personal",
+    "Profile",
+    "Password &amp; MFA",
+    "Agency",
+    "Offices",
+    "Assignment options",
+    "Vocabulary",
+    "Account security",
+    "Data recovery",
+  ]) {
+    assert.match(adminNavigation, new RegExp(label));
+  }
+  assert.match(
+    adminNavigation,
+    /aria-current="page" href="#\/settings\?section=vocabulary"/,
+  );
+
+  const staffNavigation = renderToStaticMarkup(
+    <SettingsSubNavigation activeSection="profile" isAdmin={false} />,
+  );
+  assert.doesNotMatch(
+    staffNavigation,
+    /Agency|Offices|Assignment options|Vocabulary|Account security|Data recovery/,
+  );
+});
+
+test("mobile settings navigation scrolls the active deep link into view", () => {
+  assert.equal(
+    settingsSubnavScrollLeft({
+      activeLeft: 627,
+      activeRight: 730,
+      containerLeft: 12,
+      containerRight: 378,
+      currentScrollLeft: 0,
+      maximumScrollLeft: 352,
+    }),
+    352,
+  );
+  assert.equal(
+    settingsSubnavScrollLeft({
+      activeLeft: -80,
+      activeRight: 20,
+      containerLeft: 12,
+      containerRight: 378,
+      currentScrollLeft: 200,
+      maximumScrollLeft: 352,
+    }),
+    108,
+  );
+  assert.equal(
+    settingsSubnavScrollLeft({
+      activeLeft: 40,
+      activeRight: 140,
+      containerLeft: 12,
+      containerRight: 378,
+      currentScrollLeft: 108,
+      maximumScrollLeft: 352,
+    }),
+    108,
   );
 });
 
@@ -95,4 +171,5 @@ test("security settings require current password and show shared live policy", (
   assert.match(markup, /Not common, compromised, or WCIB-predictable/);
   assert.match(markup, /Different from the current or temporary password/);
   assert.match(markup, /ends every other signed-in session/);
+  assert.doesNotMatch(markup, /role="tabpanel"/);
 });

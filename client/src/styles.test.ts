@@ -391,17 +391,20 @@ test("all table headers use the existing Coastal subtle surface", () => {
 });
 
 test("Manage Staff uses one compact roster surface instead of elevated cards", () => {
-  assert.match(
-    css,
-    /\.staff-row-main\s*\{[^}]*grid-template-areas:[^}]*"identity details"[^}]*"actions details"[^}]*padding:\s*var\(--space-10\) var\(--space-14\)/,
+  const elevationPass = css.slice(
+    css.indexOf("/* UI elevation pass: sign-in composition"),
   );
   assert.match(
-    css,
-    /@media \(max-width: 980px\)\s*\{[\s\S]*?\.staff-roster \.staff-row-main\s*\{[^}]*grid-template-areas:[^}]*"identity"[^}]*"details"[^}]*"actions";[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/,
+    elevationPass,
+    /\.staff-row-main\s*\{[^}]*grid-template-areas:\s*"identity details actions"[^}]*padding:\s*var\(--space-8\) var\(--space-14\)/,
   );
   assert.match(
-    css,
-    /@media \(max-width: 680px\)\s*\{[\s\S]*?\.staff-roster \.staff-rate-summary\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/,
+    elevationPass,
+    /\.staff-rate-summary\s*\{[^}]*display:\s*block;[^}]*font-size:\s*var\(--font-size-body\)/,
+  );
+  assert.match(
+    elevationPass,
+    /@media \(max-width: 980px\)\s*\{[\s\S]*?\.staff-row-main\s*\{[^}]*grid-template-areas:[^}]*"identity"[^}]*"details"[^}]*"actions";[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/,
   );
   assert.match(
     css,
@@ -600,7 +603,7 @@ test("removed overloaded color properties are no longer referenced", () => {
   }
 });
 
-test("remaining viewport thresholds stay unchanged after MGA container sizing", () => {
+test("viewport thresholds include only the approved responsive additions", () => {
   const breakpoints = [
     ...css.matchAll(/@media \(max-width: (\d+)px\)/g),
   ].map((match) => Number(match[1]));
@@ -608,7 +611,7 @@ test("remaining viewport thresholds stay unchanged after MGA container sizing", 
   assert.deepEqual(breakpoints, [
     980, 680, 420, 680, 420, 1040, 600, 640, 1020, 760, 760, 600, 760, 900,
     680, 1160, 920, 680, 680, 520, 1080, 760, 480, 900, 700, 500,
-    860, 600, 600, 760,
+    860, 600, 600, 760, 980, 600,
   ]);
 });
 
@@ -631,19 +634,33 @@ test("mobile MFA method actions override the compact desktop height", () => {
   );
 });
 
-test("mobile settings tabs fit variable personal and agency sections without clipping", () => {
-  const mobileSettingsStart = css.lastIndexOf("@media (max-width: 600px)");
-  const mobileTouchStart = css.lastIndexOf("@media (max-width: 760px)");
+test("mobile settings sub-navigation scrolls labeled sections without clipping", () => {
+  const mobileSettingsStart = css.lastIndexOf(
+    "@media screen and (max-width: 760px)",
+  );
   assert.notEqual(mobileSettingsStart, -1);
-  assert.ok(mobileTouchStart > mobileSettingsStart);
-  const mobileSettings = css.slice(mobileSettingsStart, mobileTouchStart);
+  const mobileSettings = css.slice(
+    mobileSettingsStart,
+    css.indexOf("@media (max-width: 600px)", mobileSettingsStart),
+  );
 
   assert.match(
     mobileSettings,
-    /\.settings-tabs\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\);[^}]*overflow-x:\s*visible;/,
+    /\.settings-subnav\s*\{[^}]*display:\s*flex;[^}]*overflow-x:\s*auto;/,
   );
   assert.match(
     mobileSettings,
-    /\.settings-tabs button\s*\{[^}]*min-width:\s*0;[^}]*min-height:\s*44px;/,
+    /\.settings-subnav a\s*\{[^}]*min-width:\s*max-content;/,
+  );
+  assert.match(
+    css,
+    /\.settings-subnav a\s*\{[^}]*min-height:\s*var\(--space-44\)/,
+  );
+});
+
+test("draft tables preserve horizontal access before the mobile card breakpoint", () => {
+  assert.match(
+    css,
+    /\.my-drafts-table-wrap\s*\{[^}]*overflow-x:\s*auto;[^}]*overflow-y:\s*hidden;/,
   );
 });

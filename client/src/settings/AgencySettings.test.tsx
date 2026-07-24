@@ -3,10 +3,7 @@ import { test } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { CurrentUser } from "../../../shared/current-user.js";
-import {
-  AgencySettings,
-  AgencySettingsNavigation,
-} from "./AgencySettings.js";
+import { AgencySettings } from "./AgencySettings.js";
 
 const employee: CurrentUser = {
   allowedNavigation: ["settings"],
@@ -18,25 +15,10 @@ const employee: CurrentUser = {
   role: "employee",
 };
 
-test("agency settings navigation contains each existing agency controller", () => {
-  const markup = renderToStaticMarkup(
-    <AgencySettingsNavigation activeTab="offices" onSelect={() => {}} />,
-  );
-
-  for (const label of [
-    "Offices",
-    "Assignment options",
-    "Vocabulary",
-    "Account security",
-    "Data recovery",
-  ]) {
-    assert.match(markup, new RegExp(`>${label}<`));
-  }
-  assert.equal((markup.match(/role="tab"/g) ?? []).length, 5);
-});
-
 test("agency settings fail closed for non-admin accounts", () => {
-  const markup = renderToStaticMarkup(<AgencySettings user={employee} />);
+  const markup = renderToStaticMarkup(
+    <AgencySettings activeTab="offices" user={employee} />,
+  );
 
   assert.match(markup, /Agency settings unavailable/);
   assert.match(markup, /restricted to administrators/);

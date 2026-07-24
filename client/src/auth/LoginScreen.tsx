@@ -29,6 +29,7 @@ interface LoginPanelProps {
   password: string;
   pending: boolean;
   retryAfterSeconds?: number;
+  year?: number;
 }
 
 export function LoginScreen({ api, onAuthenticated }: LoginScreenProps) {
@@ -110,71 +111,86 @@ export function LoginPanel({
   pending,
   retryAfterSeconds = 0,
   errorRef,
+  year = new Date().getFullYear(),
 }: LoginPanelProps & { errorRef?: React.RefObject<HTMLDivElement> }) {
   return (
-    <main className="login-page">
-      <section className="login-panel" aria-labelledby="login-title">
+    <main className="login-page is-sign-in">
+      <section
+        aria-label="West Coast Insurance Brokers"
+        className="login-brand-panel"
+      >
         <AuthBrand />
-        <div className="login-heading">
-          <h1 id="login-title">Sign in</h1>
-          <p>Use your WCIB account to continue.</p>
-        </div>
-
-        {error === null ? null : (
-          <div
-            className="form-alert"
-            ref={errorRef}
-            role="alert"
-            tabIndex={-1}
-          >
-            {loginErrorText(error, retryAfterSeconds)}
-          </div>
-        )}
-
-        <form className="login-form" onSubmit={onSubmit}>
-          <label htmlFor="login-email">Email</label>
-          <input
-            autoComplete="username"
-            disabled={pending || retryAfterSeconds > 0}
-            id="login-email"
-            inputMode="email"
-            maxLength={320}
-            name="email"
-            onChange={(event) => onEmailChange(event.currentTarget.value)}
-            required
-            type="email"
-            value={email}
-          />
-
-          <div className="password-label-row">
-            <label htmlFor="login-password">Password</label>
-            <a href="#/reset-password">Forgot password?</a>
-          </div>
-          <input
-            autoComplete="current-password"
-            disabled={pending || retryAfterSeconds > 0}
-            id="login-password"
-            maxLength={1_024}
-            name="password"
-            onChange={(event) => onPasswordChange(event.currentTarget.value)}
-            required
-            type="password"
-            value={password}
-          />
-
-          <button
-            className="login-submit"
-            disabled={pending || retryAfterSeconds > 0}
-            type="submit"
-          >
-            {pending
-              ? "Signing in..."
-              : retryAfterSeconds > 0
-                ? `Try again in ${retryAfterSeconds}s`
-                : "Sign in"}
-          </button>
-        </form>
+        <p>
+          One secure workspace for policy intake, approvals, and agency
+          operations.
+        </p>
       </section>
+      <div className="login-form-panel">
+        <section className="login-panel" aria-labelledby="login-title">
+          <div className="login-heading">
+            <h1 id="login-title">Sign in</h1>
+            <p>Use your WCIB account to continue.</p>
+          </div>
+
+          {error === null ? null : (
+            <div
+              className="form-alert"
+              ref={errorRef}
+              role="alert"
+              tabIndex={-1}
+            >
+              {loginErrorText(error, retryAfterSeconds)}
+            </div>
+          )}
+
+          <form className="login-form" onSubmit={onSubmit}>
+            <label htmlFor="login-email">Email</label>
+            <input
+              autoComplete="email"
+              disabled={pending || retryAfterSeconds > 0}
+              id="login-email"
+              inputMode="email"
+              maxLength={320}
+              name="email"
+              onChange={(event) => onEmailChange(event.currentTarget.value)}
+              required
+              type="email"
+              value={email}
+            />
+
+            <div className="password-label-row">
+              <label htmlFor="login-password">Password</label>
+              <a href="#/reset-password">Forgot password?</a>
+            </div>
+            <input
+              autoComplete="current-password"
+              disabled={pending || retryAfterSeconds > 0}
+              id="login-password"
+              maxLength={1_024}
+              name="password"
+              onChange={(event) => onPasswordChange(event.currentTarget.value)}
+              required
+              type="password"
+              value={password}
+            />
+
+            <button
+              className="login-submit"
+              disabled={pending || retryAfterSeconds > 0}
+              type="submit"
+            >
+              {pending
+                ? "Signing in..."
+                : retryAfterSeconds > 0
+                  ? `Try again in ${retryAfterSeconds}s`
+                  : "Sign in"}
+            </button>
+          </form>
+        </section>
+        <footer className="login-footer">
+          West Coast Insurance Brokers · {year}
+        </footer>
+      </div>
     </main>
   );
 }

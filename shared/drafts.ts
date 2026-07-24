@@ -8,6 +8,8 @@ import {
   PAYMENT_MODES,
 } from "./policy-fields.js";
 
+export const MAX_CONTENT_BEARING_DRAFTS_PER_USER = 20;
+
 const nullableUuidSchema = z.string().uuid().nullable().optional();
 const nullableDateSchema = z
   .string()
@@ -236,6 +238,44 @@ export type WithdrawSubmittedDraftResponse = z.output<
 >;
 export type ListDraftsQuery = z.output<typeof listDraftsQuerySchema>;
 export type ListDraftsResponse = z.output<typeof listDraftsResponseSchema>;
+
+const CONTENT_BEARING_DRAFT_FIELDS = [
+  "accountAssignment",
+  "amountPaid",
+  "basePremium",
+  "brokerFee",
+  "carrierId",
+  "commissionRate",
+  "companyName",
+  "depositOption",
+  "effectiveDate",
+  "expirationDate",
+  "financeReference",
+  "insuredName",
+  "invoiceNumber",
+  "mgaId",
+  "notes",
+  "policyNumber",
+  "policyTypeId",
+  "proposalTotal",
+  "transactionNotes",
+  "transactionType",
+] as const;
+
+type ContentBearingDraft = Partial<
+  Record<(typeof CONTENT_BEARING_DRAFT_FIELDS)[number], unknown>
+>;
+
+export function hasContentBearingDraftFields<T extends object>(
+  draft: Readonly<T> & Readonly<ContentBearingDraft>,
+): boolean {
+  return CONTENT_BEARING_DRAFT_FIELDS.some((field) => {
+    const value = draft[field];
+    return typeof value === "string"
+      ? value.trim().length > 0
+      : value !== null && value !== undefined;
+  });
+}
 
 function fixedDecimalSchema(integerDigits: number, scale: number) {
   const pattern = new RegExp(

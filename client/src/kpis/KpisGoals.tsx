@@ -15,7 +15,13 @@ import type { KpiTargetListResponse } from "../../../shared/kpi-target-api.js";
 import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
 import { EmptyState } from "../ui/EmptyState.js";
 import { PageHeader } from "../ui/PageHeader.js";
+import { AgencyOverviewModules } from "./AgencyOverview.js";
 import { createKpiApi, KpiApiError } from "./api.js";
+import {
+  AgencyOverviewApiError,
+  loadAgencyOverview,
+  type AgencyOverviewState,
+} from "./overview.js";
 import {
   KPI_PERIOD_OPTIONS,
   buildKpiTargetInput,
@@ -59,7 +65,7 @@ export function KpisGoals({ user }: { user: CurrentUser }) {
   return isKpiAdmin(user) ? (
     <KpisGoalsController />
   ) : (
-    <KpiMessage kind="denied" />
+    <KpiDeniedMessage />
   );
 }
 
@@ -71,17 +77,21 @@ function KpisGoalsController() {
   const [yearDraft, setYearDraft] = useState(String(year));
   const [period, setPeriod] = useState<KpiActualPeriod>("full");
   const [state, setState] = useState<KpiScreenState>({ status: "loading" });
+  const [overviewState, setOverviewState] = useState<AgencyOverviewState>({
+    status: "loading",
+  });
   const [targetValues, setTargetValues] =
     useState<KpiTargetEditorValues>(EMPTY_TARGETS);
   const [pending, setPending] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const requestVersion = useRef(0);
+  const closedRequestVersion = useRef(0);
+  const overviewRequestVersion = useRef(0);
   const pendingRef = useRef(false);
 
-  const load = useCallback(async (showLoading = true) => {
-    const version = requestVersion.current + 1;
-    requestVersion.current = version;
+  const loadClosedPerformance = useCallback(async (showLoading = true) => {
+    const version = closedRequestVersion.current + 1;
+    closedRequestVersion.current = version;
     if (showLoading) setState({ status: "loading" });
     try {
       const query = scope.scopeType === "company"
@@ -96,11 +106,11 @@ function KpisGoalsController() {
         api.loadTargets(year),
         api.loadActuals(query),
       ]);
-      if (requestVersion.current !== version) return;
+      if (closedRequestVersion.current !== version) return;
       setState({ actuals, status: "ready", targets });
       setTargetValues(kpiTargetEditorValues(findKpiTarget(targets, scope)));
     } catch (error) {
-      if (requestVersion.current !== version) return;
+      if (closedRequestVersion.current !== version) return;
       setState({
         status:
           error instanceof KpiApiError && error.kind === "denied"
@@ -110,19 +120,47 @@ function KpisGoalsController() {
     }
   }, [api, period, scope, year]);
 
+  const loadOverview = useCallback(async (showLoading = true) => {
+    const version = overviewRequestVersion.current + 1;
+    overviewRequestVersion.current = version;
+    if (showLoading) setOverviewState({ status: "loading" });
+    try {
+      const overview = await loadAgencyOverview(client);
+      if (overviewRequestVersion.current !== version) return;
+      setOverviewState({ overview, status: "ready" });
+    } catch (error) {
+      if (overviewRequestVersion.current !== version) return;
+      setOverviewState({
+        status:
+          error instanceof AgencyOverviewApiError && error.kind === "denied"
+            ? "denied"
+            : "error",
+      });
+    }
+  }, [client]);
+
   useEffect(() => {
-    void load();
+    void loadClosedPerformance();
     return () => {
-      requestVersion.current += 1;
+      closedRequestVersion.current += 1;
     };
-  }, [load]);
+  }, [loadClosedPerformance]);
+
+  useEffect(() => {
+    void loadOverview();
+    return () => {
+      overviewRequestVersion.current += 1;
+    };
+  }, [loadOverview]);
 
   const clearSensitiveState = useCallback(() => {
-    requestVersion.current += 1;
+    closedRequestVersion.current += 1;
+    overviewRequestVersion.current += 1;
     pendingRef.current = false;
     setScope(COMPANY_SCOPE);
     setPeriod("full");
     setState({ status: "loading" });
+    setOverviewState({ status: "loading" });
     setTargetValues(EMPTY_TARGETS);
     setPending(false);
     setFormError(null);
@@ -145,11 +183,11 @@ function KpisGoalsController() {
     setNotice(null);
     try {
       await api.saveTarget(scope.scopeType, year, result.input);
-      await load(false);
+      await loadClosedPerformance(false);
       setNotice(clear ? "Annual targets cleared." : "Annual targets saved.");
     } catch (error) {
       if (error instanceof KpiApiError && error.kind === "denied") {
-        requestVersion.current += 1;
+        closedRequestVersion.current += 1;
         setState({ status: "denied" });
       } else {
         setFormError(targetMutationMessage(error));
@@ -158,7 +196,7 @@ function KpisGoalsController() {
       pendingRef.current = false;
       setPending(false);
     }
-  }, [api, load, scope, targetValues, year]);
+  }, [api, loadClosedPerformance, scope, targetValues, year]);
 
   const applyYear = useCallback((event: FormEvent) => {
     event.preventDefault();
@@ -183,7 +221,8 @@ function KpisGoalsController() {
         setNotice(null);
         setPeriod(next);
       }}
-      onRetry={() => void load()}
+      onRetryClosed={() => void loadClosedPerformance()}
+      onRetryOverview={() => void loadOverview()}
       onSave={() => void saveTarget(false)}
       onScope={(value) => {
         const next = decodeKpiScope(value);
@@ -196,6 +235,7 @@ function KpisGoalsController() {
       onYearDraft={setYearDraft}
       pending={pending}
       period={period}
+      overviewState={overviewState}
       scope={scope}
       state={state}
       targetValues={targetValues}
@@ -211,7 +251,101 @@ export function KpisGoalsView({
   onApplyYear,
   onClear,
   onPeriod,
-  onRetry,
+  onRetryClosed,
+  onRetryOverview,
+  onSave,
+  onScope,
+  onTargetValues,
+  onYearDraft,
+  overviewState,
+  pending,
+  period,
+  scope,
+  state,
+  targetValues,
+  year,
+  yearDraft,
+  now = new Date(),
+}: {
+  formError: string | null;
+  notice: string | null;
+  onApplyYear(event: FormEvent): void;
+  onClear(): void;
+  onPeriod(period: KpiActualPeriod): void;
+  onRetryClosed(): void;
+  onRetryOverview(): void;
+  onSave(): void;
+  onScope(value: string): void;
+  onTargetValues(values: KpiTargetEditorValues): void;
+  onYearDraft(value: string): void;
+  overviewState: AgencyOverviewState;
+  pending: boolean;
+  period: KpiActualPeriod;
+  scope: KpiScopeSelection;
+  state: KpiScreenState;
+  targetValues: KpiTargetEditorValues;
+  year: number;
+  yearDraft: string;
+  now?: Date;
+}) {
+  if (state.status === "denied" || overviewState.status === "denied") {
+    return <KpiDeniedMessage />;
+  }
+  return (
+    <section className="kpi-page" aria-labelledby="kpi-page-title">
+      <PageHeader
+        eyebrow="Agency operations"
+        status={(
+          <>
+            Live activity remains <strong>in progress</strong>; settled results appear only after pay sheets close.
+          </>
+        )}
+        title="Agency Overview"
+        titleId="kpi-page-title"
+      />
+
+      <AgencyOverviewModules
+        now={now}
+        onRetry={onRetryOverview}
+        state={overviewState}
+      />
+
+      {state.status === "ready" ? (
+        <ClosedPerformanceModule
+          formError={formError}
+          notice={notice}
+          onApplyYear={onApplyYear}
+          onClear={onClear}
+          onPeriod={onPeriod}
+          onSave={onSave}
+          onScope={onScope}
+          onTargetValues={onTargetValues}
+          onYearDraft={onYearDraft}
+          pending={pending}
+          period={period}
+          scope={scope}
+          state={state}
+          targetValues={targetValues}
+          year={year}
+          yearDraft={yearDraft}
+        />
+      ) : (
+        <KpiModuleMessage
+          kind={state.status}
+          onRetry={onRetryClosed}
+          title="Settled agency results"
+        />
+      )}
+    </section>
+  );
+}
+
+function ClosedPerformanceModule({
+  formError,
+  notice,
+  onApplyYear,
+  onClear,
+  onPeriod,
   onSave,
   onScope,
   onTargetValues,
@@ -229,7 +363,6 @@ export function KpisGoalsView({
   onApplyYear(event: FormEvent): void;
   onClear(): void;
   onPeriod(period: KpiActualPeriod): void;
-  onRetry(): void;
   onSave(): void;
   onScope(value: string): void;
   onTargetValues(values: KpiTargetEditorValues): void;
@@ -237,14 +370,11 @@ export function KpisGoalsView({
   pending: boolean;
   period: KpiActualPeriod;
   scope: KpiScopeSelection;
-  state: KpiScreenState;
+  state: Extract<KpiScreenState, { status: "ready" }>;
   targetValues: KpiTargetEditorValues;
   year: number;
   yearDraft: string;
 }) {
-  if (state.status !== "ready") {
-    return <KpiMessage kind={state.status} onRetry={onRetry} />;
-  }
   const scopeValue = encodeKpiScope(scope);
   const configuredTarget = findKpiTarget(state.targets, scope);
   const firstRun =
@@ -261,17 +391,20 @@ export function KpisGoalsView({
     ? "Company-wide"
     : state.actuals.scope.displayName ?? "Selected producer";
   return (
-    <section className="kpi-page" aria-labelledby="kpi-page-title">
-      <PageHeader
-        eyebrow="Closed performance"
-        status={(
-          <>
-            Showing <strong>{scopeName}</strong> for {year}, {period === "full" ? "full year" : period}.
-          </>
-        )}
-        title="Agency Overview"
-        titleId="kpi-page-title"
-      />
+    <section
+      className="kpi-closed-module"
+      aria-labelledby="kpi-closed-performance-title"
+    >
+      <header className="kpi-module-heading">
+        <div>
+          <p>Closed performance</p>
+          <h2 id="kpi-closed-performance-title">Settled agency results</h2>
+          <span>
+            Frozen results from closed pay sheets for <strong>{scopeName}</strong>.
+          </span>
+        </div>
+        <span className="kpi-period-state is-closed">Closed</span>
+      </header>
 
       <section className="kpi-controls" aria-label="KPI scope and period">
         <label>
@@ -351,16 +484,43 @@ export function KpisGoalsView({
       )}
 
       {firstRun ? null : state.actuals.empty ? (
-          <EmptyState
-            action={<a href="#/pay-sheets">View pay sheets</a>}
-            body="KPI actuals appear after a pay sheet is closed for the selected period."
-            className="kpi-empty"
-            heading="No closed performance yet"
-            headingId="kpi-empty-title"
-          />
-        ) : (
-          <KpiActuals actuals={state.actuals} />
-        )}
+        <EmptyState
+          action={<a href="#/pay-sheets">View pay sheets</a>}
+          body="KPI actuals appear after a pay sheet is closed for the selected period."
+          className="kpi-empty"
+          heading="No closed performance yet"
+          headingId="kpi-empty-title"
+        />
+      ) : (
+        <KpiActuals actuals={state.actuals} />
+      )}
+    </section>
+  );
+}
+
+function KpiModuleMessage({
+  kind,
+  onRetry,
+  title,
+}: {
+  kind: "error" | "loading";
+  onRetry(): void;
+  title: string;
+}) {
+  return (
+    <section
+      aria-busy={kind === "loading"}
+      className="kpi-module-message"
+    >
+      <h2>{kind === "loading" ? `Loading ${title.toLowerCase()}` : `${title} unavailable`}</h2>
+      <p>
+        {kind === "loading"
+          ? "Retrieving the latest information..."
+          : "This section could not be loaded. Other agency information remains available."}
+      </p>
+      {kind === "error" ? (
+        <button onClick={onRetry} type="button">Try again</button>
+      ) : null}
     </section>
   );
 }
@@ -751,26 +911,12 @@ function BreakdownSection({
   );
 }
 
-function KpiMessage({
-  kind,
-  onRetry,
-}: {
-  kind: "denied" | "error" | "loading";
-  onRetry?: () => void;
-}) {
-  const content = kind === "loading"
-    ? { body: "Retrieving closed performance and annual targets...", title: "Loading KPIs" }
-    : kind === "denied"
-      ? { body: "This page is not available for your account.", title: "KPIs unavailable" }
-      : { body: "KPI data could not be loaded.", title: "KPIs unavailable" };
+function KpiDeniedMessage() {
   return (
-    <section className="kpi-message" aria-busy={kind === "loading"} aria-labelledby="kpi-message-title">
+    <section className="kpi-message" aria-labelledby="kpi-message-title">
       <p>Performance</p>
-      <h1 id="kpi-message-title">{content.title}</h1>
-      <span>{content.body}</span>
-      {kind !== "error" || onRetry === undefined ? null : (
-        <button onClick={onRetry} type="button">Try again</button>
-      )}
+      <h1 id="kpi-message-title">KPIs unavailable</h1>
+      <span>This page is not available for your account.</span>
     </section>
   );
 }
@@ -795,5 +941,5 @@ function monthLabel(month: number): string {
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     timeZone: "UTC",
-  }).format(new Date(Date.UTC(2026, month - 1, 1)));
+  }).format(new Date(Date.UTC(2000, month - 1, 1)));
 }

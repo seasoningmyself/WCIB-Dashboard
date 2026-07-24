@@ -30,6 +30,7 @@ import { registerIpfsPriorFinancingRoute } from "./ipfs.js";
 import { registerIpfsWorkQueueRoute } from "./ipfs-work-queue.js";
 import { registerPolicyIpfsPushedRoute } from "./ipfs-pushed.js";
 import { registerKpiActualRoute } from "./kpi-actuals.js";
+import { registerKpiRecentActivityRoute } from "./kpi-activity.js";
 import { registerKpiTargetRoutes } from "./kpi-targets.js";
 import { registerMgaPayableGroupStateRoute } from "./mga-payable-group-state.js";
 import { registerMgaPayableStateRoute } from "./mga-payable-state.js";
@@ -143,6 +144,7 @@ function registerForbiddenGroups(fixture: ReturnType<typeof createFixture>): str
     ["ipfs_pushed", registerPolicyIpfsPushedRoute],
     ["ipfs_work_queue", registerIpfsWorkQueueRoute],
     ["kpi_actuals", registerKpiActualRoute],
+    ["kpi_activity", registerKpiRecentActivityRoute],
     ["kpi_targets", registerKpiTargetRoutes],
     ["mga_group_state", registerMgaPayableGroupStateRoute],
     ["mga_state", registerMgaPayableStateRoute],

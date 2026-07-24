@@ -6,7 +6,11 @@ import React, {
   useState,
 } from "react";
 import type { CurrentUser } from "../../../shared/current-user.js";
-import type { DraftResponse } from "../../../shared/drafts.js";
+import {
+  hasContentBearingDraftFields,
+  MAX_CONTENT_BEARING_DRAFTS_PER_USER,
+  type DraftResponse,
+} from "../../../shared/drafts.js";
 import {
   MAX_POLICY_CHANGE_REQUEST_REASON_LENGTH,
   type OwnerPolicyChangeRequest,
@@ -104,7 +108,7 @@ export function MyDrafts({
   const acceptProjection = useCallback((draft: DraftResponse) => {
     setState((current) =>
       current.status === "ready"
-          ? {
+        ? {
             drafts: replaceProjectedDraft(current.drafts, draft),
             requests: current.requests,
             status: "ready",
@@ -340,6 +344,7 @@ function DraftList({
   onWithdraw(draftId: string, status: WithdrawableDraftStatus): void;
   withdrawal: DraftWithdrawalState;
 }) {
+  const activeDraftCount = countActiveDraftSlots(drafts);
   return (
     <section className="my-drafts-page" aria-labelledby="my-drafts-title">
       <PageHeader
@@ -356,6 +361,12 @@ function DraftList({
         titleId="my-drafts-title"
       />
 
+      <p
+        className={`my-drafts-cap ${activeDraftCount >= 18 ? "is-near-limit" : ""}`}
+      >
+        Draft storage <strong>{activeDraftCount} of {MAX_CONTENT_BEARING_DRAFTS_PER_USER}</strong> active slots used
+      </p>
+
       {drafts.length === 0 ? (
         <EmptyState
           action={<a href="#/turn-in">Start a turn-in</a>}
@@ -369,75 +380,112 @@ function DraftList({
             <thead>
               <tr>
                 <th scope="col">Status</th>
-                <th scope="col">Insured</th>
+                <th scope="col">Draft</th>
                 <th scope="col">Policy</th>
                 <th scope="col">Last activity</th>
                 <th scope="col"><span className="sr-only">Action</span></th>
               </tr>
             </thead>
             <tbody>
-              {drafts.map((draft) => (
-                <tr key={draft.id}>
-                  <td data-label="Status">
-                    <span className={`draft-status is-${draft.status}`}>
-                      {draftStatusLabel(draft.status)}
-                    </span>
-                  </td>
-                  <td data-label="Insured">
-                    <strong>{draft.insuredName ?? "Unnamed insured"}</strong>
-                    {draft.companyName === null ? null : <span>{draft.companyName}</span>}
-                  </td>
-                  <td data-label="Policy">
-                    <strong>{draft.policyNumber ?? "Policy number pending"}</strong>
-                    <span>{draft.transactionType ?? "Transaction pending"}</span>
-                  </td>
-                  <td data-label="Last activity">
-                    <time
-                      dateTime={draft.lastEditedAt}
-                      title={formatAbsoluteTimestamp(draft.lastEditedAt)}
-                    >
-                      {formatRelativeTime(draft.lastEditedAt, now)}
-                    </time>
-                  </td>
-                  <td className="my-drafts-action">
-                    {draft.status === "flagged" || draft.status === "submitted" ? (
-                      <>
-                        <button
-                          disabled={withdrawal?.draftId === draft.id && withdrawal.status === "loading"}
-                          onClick={() => {
-                            if (
-                              draft.status === "flagged" ||
-                              draft.status === "submitted"
-                            ) {
-                              onWithdraw(draft.id, draft.status);
-                            }
-                          }}
-                          type="button"
-                        >
-                          {withdrawal?.draftId === draft.id && withdrawal.status === "loading"
-                            ? "Reopening..."
-                            : draftActionLabel(draft.status)}
-                        </button>
-                        {withdrawal?.draftId === draft.id && withdrawal.status === "error" ? (
-                          <span className="my-drafts-action-error" role="alert">
-                            Could not reopen. Refresh and try again.
-                          </span>
-                        ) : null}
-                      </>
-                    ) : (
-                      <a href={`#/my-drafts?draft=${encodeURIComponent(draft.id)}`}>
-                        {draftActionLabel(draft.status)}
-                      </a>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {drafts.map((draft) => {
+                const identity = draftListIdentity(draft);
+                return (
+                  <tr key={draft.id}>
+                    <td data-label="Status">
+                      <span className={`draft-status is-${draft.status}`}>
+                        {draftStatusLabel(draft.status)}
+                      </span>
+                    </td>
+                    <td data-label="Draft">
+                      <strong>{identity.primary}</strong>
+                      <span>{identity.secondary}</span>
+                    </td>
+                    <td data-label="Policy">
+                      <strong>{draft.policyNumber ?? "Policy number pending"}</strong>
+                      <span>{draft.transactionType ?? "Transaction pending"}</span>
+                    </td>
+                    <td data-label="Last activity">
+                      <time
+                        dateTime={draft.lastEditedAt}
+                        title={formatAbsoluteTimestamp(draft.lastEditedAt)}
+                      >
+                        {formatRelativeTime(draft.lastEditedAt, now)}
+                      </time>
+                    </td>
+                    <td className="my-drafts-action">
+                      {draft.status === "flagged" || draft.status === "submitted" ? (
+                        <>
+                          <button
+                            disabled={withdrawal?.draftId === draft.id && withdrawal.status === "loading"}
+                            onClick={() => {
+                              if (
+                                draft.status === "flagged" ||
+                                draft.status === "submitted"
+                              ) {
+                                onWithdraw(draft.id, draft.status);
+                              }
+                            }}
+                            type="button"
+                          >
+                            {withdrawal?.draftId === draft.id && withdrawal.status === "loading"
+                              ? "Reopening..."
+                              : draftActionLabel(draft.status)}
+                          </button>
+                          {withdrawal?.draftId === draft.id && withdrawal.status === "error" ? (
+                            <span className="my-drafts-action-error" role="alert">
+                              Could not reopen. Refresh and try again.
+                            </span>
+                          ) : null}
+                        </>
+                      ) : (
+                        <a href={`#/my-drafts?draft=${encodeURIComponent(draft.id)}`}>
+                          {draftActionLabel(draft.status)}
+                        </a>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
     </section>
   );
+}
+
+export function countActiveDraftSlots(
+  drafts: readonly DraftResponse[],
+): number {
+  return drafts.filter(
+    (draft) =>
+      draft.status === "draft" &&
+      hasContentBearingDraftFields(draft),
+  ).length;
+}
+
+export function derivedDraftReference(id: string): string {
+  const stable = id.replaceAll("-", "").toUpperCase();
+  return `Draft ${stable.slice(0, 4)}-${stable.slice(-4)}`;
+}
+
+export function draftListIdentity(
+  draft: Readonly<DraftResponse>,
+): { primary: string; secondary: string } {
+  const candidates = [
+    draft.insuredName,
+    draft.companyName,
+    draft.policyNumber,
+    draft.transactionType,
+  ].filter(
+    (value): value is string =>
+      value !== null && value.trim().length > 0,
+  );
+  const started = `Started ${formatAbsoluteTimestamp(draft.createdAt)}`;
+  return {
+    primary: candidates[0] ?? derivedDraftReference(draft.id),
+    secondary: started,
+  };
 }
 
 function DraftStatusView({

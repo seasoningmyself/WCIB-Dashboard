@@ -6,6 +6,10 @@ import {
   type KpiActualResponse,
 } from "../../../shared/kpi-actuals.js";
 import {
+  kpiRecentActivityResponseSchema,
+  type KpiRecentActivityResponse,
+} from "../../../shared/kpi-activity.js";
+import {
   kpiTargetListQuerySchema,
   kpiTargetListResponseSchema,
   kpiTargetMutationRequestSchema,
@@ -33,6 +37,7 @@ export class KpiApiError extends Error {
 
 export interface KpiApi {
   loadActuals(query: KpiActualQuery): Promise<KpiActualResponse>;
+  loadRecentActivity(): Promise<KpiRecentActivityResponse>;
   loadTargets(year: number): Promise<KpiTargetListResponse>;
   saveTarget(
     scopeType: "company" | "producer",
@@ -53,6 +58,9 @@ export function createKpiApi(client: ApiClient): KpiApi {
       params.set("scopeType", query.scopeType);
       params.set("year", String(query.year));
       return read(client, `/kpi-actuals?${params.toString()}`, kpiActualResponseSchema);
+    },
+    async loadRecentActivity() {
+      return read(client, "/kpi-activity", kpiRecentActivityResponseSchema);
     },
     async loadTargets(year) {
       const query = parseRequest(kpiTargetListQuerySchema, { year });
