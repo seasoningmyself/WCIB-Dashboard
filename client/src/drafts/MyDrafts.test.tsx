@@ -36,6 +36,11 @@ test("My Drafts lists only projected identifying fields and status actions", () 
   assert.match(markup, /My Drafts/);
   assert.match(markup, /Acme LLC/);
   assert.match(markup, /WCIB-100/);
+  assert.match(markup, />7 days ago<\/time>/);
+  assert.match(
+    markup,
+    /dateTime="2026-07-10T12:00:00.000Z" title="Jul 10, 2026,/,
+  );
   assert.match(markup, />Edit</);
   assert.match(markup, />Review and reopen</);
   assert.match(markup, />Reopen and edit</);
@@ -262,6 +267,7 @@ function renderView({
         <MyDraftsView
           changeRequestDialog={changeRequestDialog}
           currentPath={currentPath}
+          now={new Date("2026-07-17T12:00:00.000Z")}
           onDraftChange={() => {}}
           onRetry={() => {}}
           onWithdraw={() => {}}

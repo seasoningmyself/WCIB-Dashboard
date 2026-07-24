@@ -68,6 +68,11 @@ test("Archivo is self-hosted at every supported UI weight", () => {
   }
 });
 
+test("financial and operational figures use tabular numerals globally", () => {
+  assert.match(rootCss, /font-feature-settings:\s*"tnum" 1/);
+  assert.match(rootCss, /font-variant-numeric:\s*tabular-nums/);
+});
+
 test("body, table, and control examples retain the 12px content floor", () => {
   for (const rule of [
     /\.staff-rate-table\s*\{[^}]*font-size:\s*var\(--font-size-body\)/,
@@ -103,6 +108,18 @@ test("mobile controls keep the 44px touch-height floor", () => {
   assert.match(
     staffMobile,
     /\.staff-more-menu > summary\s*\{[^}]*min-height:\s*44px/,
+  );
+  assert.match(
+    css,
+    /\.approval-row-select\s*\{[^}]*min-width:\s*var\(--space-44\);[^}]*min-height:\s*var\(--space-44\)/,
+  );
+  assert.match(
+    css,
+    /@media \(max-width: 600px\)\s*\{[\s\S]*?\.my-items-filters\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\);[^}]*overflow-x:\s*visible/,
+  );
+  assert.match(
+    mobileFloor,
+    /\.my-items-new,[\s\S]*?min-height:\s*44px/,
   );
 });
 
@@ -173,6 +190,36 @@ test("MGA payables switch to labeled rows before the table can clip", () => {
   assert.match(
     css,
     /@container mga-payables \(max-width: 1168px\)\s*\{[\s\S]*?\.mga-table-header\s*\{[^}]*display:\s*none;[\s\S]*?\.mga-table-row\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)\s*100px;/,
+  );
+});
+
+test("policy ledger switches to labeled rows before the table can clip", () => {
+  assert.match(
+    css,
+    /\.ledger-page\s*\{[^}]*container:\s*policy-ledger\s*\/\s*inline-size/,
+  );
+  assert.match(
+    css,
+    /@container policy-ledger \(max-width: 1080px\)\s*\{[\s\S]*?\.ledger-table-header\s*\{[^}]*display:\s*none;[\s\S]*?\.ledger-table-row\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)\s*40px;/,
+  );
+  assert.match(
+    css,
+    /@container policy-ledger \(max-width: 720px\)\s*\{[\s\S]*?\.ledger-toolbar\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\);[\s\S]*?\.ledger-search\s*\{[^}]*grid-column:\s*1\s*\/\s*-1;/,
+  );
+});
+
+test("Review Queue rows respond to their content width instead of the viewport", () => {
+  assert.match(
+    css,
+    /\.approval-work-list\s*\{[^}]*container:\s*approval-work-list\s*\/\s*inline-size[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/,
+  );
+  assert.match(
+    css,
+    /@container approval-work-list \(max-width: 850px\)\s*\{[\s\S]*?\.approval-review-row\.is-submission > summary\s*\{[^}]*grid-template-columns:\s*20px 70px minmax\(0,\s*1\.4fr\) minmax\(0,\s*1fr\) 100px 78px/,
+  );
+  assert.match(
+    css,
+    /@container approval-work-list \(max-width: 700px\)\s*\{[\s\S]*?\.approval-review-row\.is-submission > summary\s*\{[^}]*grid-template-columns:\s*var\(--space-44\) 68px minmax\(0,\s*1fr\)/,
   );
 });
 
@@ -300,12 +347,159 @@ test("Coastal canvas reaches every full-page ground", () => {
   );
 });
 
+test("visual craft uses the approved elevation hierarchy", () => {
+  assert.match(
+    tokenValue("--shadow-surface"),
+    /0 1px 2px rgb\(29 58 74 \/ 4%\),\s*0 4px 12px rgb\(29 58 74 \/ 4%\)/,
+  );
+  assert.match(
+    css,
+    /\/\* Level 1:[\s\S]*?\.turn-in-form,[\s\S]*?\.ledger-table,[\s\S]*?box-shadow:\s*var\(--shadow-surface\)/,
+  );
+  assert.match(
+    css,
+    /\/\* Level 0:[\s\S]*?\.turn-in-conditional,[\s\S]*?\.ledger-filter-strip,[\s\S]*?box-shadow:\s*none/,
+  );
+  assert.match(
+    css,
+    /\/\* Level 2:[\s\S]*?\.staff-dialog,[\s\S]*?\.pay-sheet-dialog,[\s\S]*?box-shadow:\s*var\(--shadow-dialog-elevated\)/,
+  );
+  assert.match(
+    css,
+    /\/\* Work-set containers own elevation;[\s\S]*?\.help-request-list[\s\S]*?background:\s*var\(--surface\)/,
+  );
+  assert.match(
+    css,
+    /:is\(\s*\.staff-row,[\s\S]*?\.help-request-card\s*\)\s*\{[^}]*border:\s*0;[^}]*box-shadow:\s*none/,
+  );
+  assert.match(
+    css,
+    /\.pay-sheet-panel\s*\{[^}]*border-top-color:\s*var\(--accent-border\)/,
+  );
+  assert.match(
+    css,
+    /\.pay-sheet-panel\.is-closed\s*\{[^}]*border-top-color:\s*var\(--dormant-text\)/,
+  );
+});
+
+test("all table headers use the existing Coastal subtle surface", () => {
+  assert.match(
+    css,
+    /\/\* One deliberate table-header surface[\s\S]*?\.staff-rate-table thead,[\s\S]*?\.my-drafts-table th,[\s\S]*?\.support-table thead[\s\S]*?background:\s*var\(--surface-subtle\)/,
+  );
+  assert.doesNotMatch(rootCss, /--surface-table-header:/);
+});
+
+test("Manage Staff uses one compact roster surface instead of elevated cards", () => {
+  assert.match(
+    css,
+    /\.staff-row-main\s*\{[^}]*grid-template-areas:[^}]*"identity details"[^}]*"actions details"[^}]*padding:\s*var\(--space-10\) var\(--space-14\)/,
+  );
+  assert.match(
+    css,
+    /@media \(max-width: 980px\)\s*\{[\s\S]*?\.staff-roster \.staff-row-main\s*\{[^}]*grid-template-areas:[^}]*"identity"[^}]*"details"[^}]*"actions";[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/,
+  );
+  assert.match(
+    css,
+    /@media \(max-width: 680px\)\s*\{[\s\S]*?\.staff-roster \.staff-rate-summary\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/,
+  );
+  assert.match(
+    css,
+    /:is\(\s*\.staff-row,[\s\S]*?\)\s*\{[^}]*box-shadow:\s*none/,
+  );
+});
+
+test("tide motif uses the approved page rule and restrained dialog echo", () => {
+  assert.match(
+    css,
+    /\.tide-rule\s*\{[^}]*gap:\s*var\(--space-5\)[^}]*margin-top:\s*var\(--space-16\)/,
+  );
+  assert.match(
+    css,
+    /\.tide-rule span\s*\{[^}]*width:\s*var\(--space-56\)[^}]*height:\s*var\(--space-3\)/,
+  );
+  assert.match(
+    css,
+    /\.tide-rule span:nth-child\(2\)\s*\{[^}]*width:\s*var\(--space-24\)[^}]*height:\s*var\(--space-2\)[^}]*opacity:\s*var\(--opacity-tide-middle\)/,
+  );
+  assert.match(
+    css,
+    /\.tide-rule span:nth-child\(3\)\s*\{[^}]*width:\s*var\(--space-10\)[^}]*height:\s*var\(--space-2\)[^}]*opacity:\s*var\(--opacity-tide-tail\)/,
+  );
+  assert.equal(tokenValue("--opacity-tide-middle"), "0.55");
+  assert.equal(tokenValue("--opacity-tide-tail"), "0.3");
+  assert.match(
+    css,
+    /\.required-password-dialog h1::after\s*\{[^}]*width:\s*var\(--space-24\)[^}]*height:\s*var\(--space-2\)[^}]*margin-top:\s*var\(--space-16\)/,
+  );
+});
+
+test("motion stays restrained and fully disables for reduced-motion users", () => {
+  for (const token of ["--motion-fast", "--motion-dialog", "--motion-content"]) {
+    const duration = Number.parseFloat(tokenValue(token));
+    assert.ok(duration >= 120 && duration <= 200, `${token} is ${duration}ms`);
+  }
+  assert.match(css, /@keyframes coastal-dialog-enter/);
+  assert.match(css, /transform:\s*scale\(var\(--motion-dialog-scale\)\)/);
+  assert.match(css, /\.workspace-mobile-panel\[data-open="true"\]/);
+  assert.match(
+    css,
+    /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?animation:\s*none !important;[\s\S]*?transition:\s*none !important;/,
+  );
+});
+
+test("status chips and loading states use the shared craft treatment", () => {
+  assert.match(
+    css,
+    /\/\* State chips[\s\S]*?\.approval-status,[\s\S]*?\.ledger-badge,[\s\S]*?letter-spacing:\s*var\(--letter-spacing-chip\)/,
+  );
+  assert.match(
+    css,
+    /\.status-badge\s*\{[^}]*border:\s*var\(--border-width-thin\) solid var\(--dormant-border\)[^}]*background:\s*var\(--dormant-surface\)/,
+  );
+  assert.match(
+    css,
+    /\/\* Route loading[\s\S]*?\[aria-busy="true"\]::after\s*\{[^}]*animation:\s*coastal-loading-pulse/,
+  );
+});
+
+test("support page-header actions use the established support button treatment", () => {
+  assert.match(
+    css,
+    /\.support-controls :is\(input, select, button\),\s*\n\.support-refresh,[\s\S]*?min-height:\s*var\(--space-44\);[\s\S]*?border:\s*var\(--border-width-thin\) solid var\(--control-border\);/,
+  );
+  assert.match(
+    css,
+    /\.support-controls button,\s*\n\.support-refresh,[\s\S]*?cursor:\s*pointer/,
+  );
+});
+
+test("focus indicators use one AA-visible width, offset, and color", () => {
+  assert.match(
+    css,
+    /html body :is\([\s\S]*?\):focus-visible\s*\{[^}]*outline:\s*var\(--border-width-strong\) solid var\(--focus-ring\);[^}]*outline-offset:\s*var\(--focus-offset\)/,
+  );
+  for (const background of [
+    "--surface",
+    "--canvas",
+    "--surface-subtle",
+    "--surface-accent",
+    "--surface-muted",
+  ]) {
+    assert.ok(
+      contrastRatio(tokenValue("--focus-ring"), tokenValue(background)) >= 3,
+      `focus ring on ${background}`,
+    );
+  }
+});
+
 test("Coastal text and interactive boundaries meet their contrast floors", () => {
   const textPairs = [
     ["--text", "--canvas"],
     ["--text", "--surface"],
     ["--text-secondary", "--canvas"],
     ["--text-secondary", "--surface"],
+    ["--text-secondary", "--surface-subtle"],
     ["--text-muted", "--canvas"],
     ["--text-muted", "--surface"],
     ["--text-inverse", "--accent"],

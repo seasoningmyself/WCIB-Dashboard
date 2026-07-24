@@ -142,7 +142,7 @@ export function MyItemsView({
   return (
     <section className="my-items-page" aria-labelledby="my-items-title">
       <PageHeader
-        actions={state.data.items.length === 0 ? undefined : <a href="#/turn-in">New turn-in</a>}
+        actions={state.data.items.length === 0 ? undefined : <a className="my-items-new" href="#/turn-in">New turn-in</a>}
         eyebrow="Turn-in activity"
         status={(
           <>

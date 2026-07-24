@@ -26,7 +26,7 @@ test("dedicated Help Requests renders v15 context and the shared resolution acti
   for (const value of [
     "Review Queue",
     "Mercedes",
-    "3h old",
+    "3 hours ago",
     "Need help with financing",
     "Flagged Insured",
     "HELP-100",
@@ -56,10 +56,10 @@ test("dedicated Help Requests has bounded states and fails closed for staff role
 
 test("help-request age formatting is deterministic and bounded", () => {
   const now = new Date("2026-07-17T15:00:00.000Z");
-  assert.equal(formatHelpRequestAge("2026-07-17T14:59:30.000Z", now), "Just now");
-  assert.equal(formatHelpRequestAge("2026-07-17T14:15:00.000Z", now), "45m old");
-  assert.equal(formatHelpRequestAge("2026-07-17T05:00:00.000Z", now), "10h old");
-  assert.equal(formatHelpRequestAge("2026-07-14T15:00:00.000Z", now), "3d old");
+  assert.equal(formatHelpRequestAge("2026-07-17T14:59:30.000Z", now), "just now");
+  assert.equal(formatHelpRequestAge("2026-07-17T14:15:00.000Z", now), "45 minutes ago");
+  assert.equal(formatHelpRequestAge("2026-07-17T05:00:00.000Z", now), "10 hours ago");
+  assert.equal(formatHelpRequestAge("2026-07-14T15:00:00.000Z", now), "3 days ago");
 });
 
 function renderView(state: React.ComponentProps<typeof HelpRequestsView>["state"]) {

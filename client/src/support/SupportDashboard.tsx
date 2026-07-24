@@ -101,7 +101,7 @@ export function SupportDashboardView({
   return (
     <section className="support-page" aria-labelledby="support-page-title">
       <PageHeader
-        actions={<button onClick={onRefresh} type="button">Refresh status</button>}
+        actions={<button className="support-refresh" onClick={onRefresh} type="button">Refresh status</button>}
         eyebrow="Engineering support"
         status={<>Operational status and calculation health as of <strong>{formatTimestamp(dashboard.observedAt)}</strong>.</>}
         title="Support"

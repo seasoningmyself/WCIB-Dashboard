@@ -5,6 +5,8 @@ import {
   formatPayableCommissionRate,
   formatPayableDate,
   isMgaPayablesAdmin,
+  oldestOutstandingDays,
+  outstandingShare,
   payableAccountLabel,
   payableAging,
   payableGroupAction,
@@ -44,19 +46,37 @@ test("MGA payable aging matches v15 30 and 60 day boundaries", () => {
       payableItemFixture({ approvedAt: "2026-06-11T12:00:00.000Z" }),
       now,
     ),
-    { label: "30d", tone: "warning" },
+    { label: "30d outstanding", tone: "warning" },
   );
   assert.deepEqual(
     payableAging(
       payableItemFixture({ approvedAt: "2026-05-12T12:00:00.000Z" }),
       now,
     ),
-    { label: "60d overdue", tone: "danger" },
+    { label: "60d outstanding", tone: "danger" },
   );
   assert.equal(
     payableAging(payableItemFixture({ status: "paid" }), now),
     null,
   );
+});
+
+test("MGA group context reports exact share and oldest unpaid age", () => {
+  const now = new Date("2026-07-11T12:00:00.000Z");
+  const group = payablesFixture().groups[0]!;
+  group.items = [
+    payableItemFixture({ approvedAt: "2026-05-01T12:00:00.000Z" }),
+    payableItemFixture({
+      approvedAt: "2026-04-01T12:00:00.000Z",
+      policyId: uuid(70),
+      status: "paid",
+    }),
+  ];
+
+  assert.equal(oldestOutstandingDays(group, now), 71);
+  assert.equal(outstandingShare("1075.01", "2150.02"), "50%");
+  assert.equal(outstandingShare("1.00", "3.00"), "33.3%");
+  assert.equal(outstandingShare("0.00", "0.00"), "0%");
 });
 
 test("MGA group action targets only the state that differs", () => {

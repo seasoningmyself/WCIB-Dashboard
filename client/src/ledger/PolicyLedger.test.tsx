@@ -75,6 +75,7 @@ test("admin ledger renders financial totals, filters, badges, detail, and separa
     "Delete policy",
     "Deleted policies",
     "Export IPFS CSV",
+    "July 2026",
   ]) {
     assert.match(markup, new RegExp(escapeRegExp(visible)));
   }
@@ -89,6 +90,12 @@ test("admin ledger renders financial totals, filters, badges, detail, and separa
   assert.match(markup, /class="ledger-metric-primary"/);
   assert.match(markup, /class="ledger-metric-split"/);
   assert.match(markup, /class="ledger-metric-secondary"/);
+  assert.match(
+    markup,
+    /Showing <strong>2<\/strong> of <strong>2<\/strong> policies in <strong>July 2026<\/strong>/,
+  );
+  assert.match(markup, /data-keyboard-row="true"/);
+  assert.match(markup, /data-row-primary-action="true"/);
   assert.match(markup, /Revenue split/);
   assert.doesNotMatch(markup, /class="ledger-metric"/);
   for (const dormantPaymentField of [

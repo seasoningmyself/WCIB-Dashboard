@@ -11,7 +11,10 @@ import { CheckTurnInForm } from "../drafts/CheckTurnInForm.js";
 import { MyDrafts } from "../drafts/MyDrafts.js";
 import { ApprovalQueue } from "../approvals/ApprovalQueue.js";
 import { HelpRequests } from "../approvals/HelpRequests.js";
-import { ReviewQueueTabs } from "../approvals/ReviewQueueTabs.js";
+import {
+  ReviewQueueTabs,
+  reviewQueueTabFromPath,
+} from "../approvals/ReviewQueueTabs.js";
 import { PolicyLedger } from "../ledger/PolicyLedger.js";
 import { MgaPayables } from "../mga-payables/MgaPayables.js";
 import { PaySheets } from "../pay-sheets/PaySheets.js";
@@ -39,6 +42,14 @@ import {
   visibleNavigationCount,
   type NavigationCounts,
 } from "./navigation-counts.js";
+import {
+  goToDestination,
+  isTypingTarget,
+} from "./keyboard-shortcuts.js";
+import {
+  WorkspaceCommandOverlay,
+  type WorkspaceOverlay,
+} from "./WorkspaceCommandOverlay.js";
 
 interface AppShellProps {
   onLogout(): void;
@@ -77,6 +88,7 @@ export function AppShell({ onLogout, onUserChanged, user }: AppShellProps) {
   }, []);
 
   useEffect(() => {
+    window.scrollTo({ left: 0, top: 0 });
     mainRef.current?.focus();
   }, [currentPath]);
 
@@ -127,8 +139,16 @@ export function AppShellView({
     [navigation],
   );
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+  const [mobileNavigationMounted, setMobileNavigationMounted] = useState(false);
+  const [workspaceOverlay, setWorkspaceOverlay] =
+    useState<WorkspaceOverlay>(null);
+  const [goSequenceActive, setGoSequenceActive] = useState(false);
   const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
   const mobilePanelRef = useRef<HTMLDivElement>(null);
+  const localMainRef = useRef<HTMLElement>(null);
+  const goSequenceRef = useRef(false);
+  const goSequenceTimerRef = useRef<number | null>(null);
+  const resolvedMainRef = mainRef ?? localMainRef;
   const route = resolveShellRoute(currentPath, navigation);
   const activeId =
     route.status === "ready"
@@ -136,10 +156,257 @@ export function AppShellView({
       : null;
   const name = user.displayName ?? user.email;
   const settingsAvailable = navigation.some(({ id }) => id === "settings");
+  const navigate = useCallback(
+    (path: string) => {
+      if (onNavigate !== undefined) {
+        onNavigate(path);
+      } else if (typeof window !== "undefined") {
+        window.location.hash = path;
+      }
+    },
+    [onNavigate],
+  );
+
+  const openMobileNavigation = () => {
+    setMobileNavigationMounted(true);
+    window.requestAnimationFrame(() => setMobileNavigationOpen(true));
+  };
+
+  const closeMobileNavigation = (restoreFocus = false) => {
+    setMobileNavigationOpen(false);
+    if (restoreFocus) mobileMenuButtonRef.current?.focus();
+  };
 
   useEffect(() => {
-    setMobileNavigationOpen(false);
+    closeMobileNavigation();
+    setWorkspaceOverlay(null);
   }, [currentPath]);
+
+  useEffect(() => {
+    const clearGoSequence = () => {
+      goSequenceRef.current = false;
+      setGoSequenceActive(false);
+      if (goSequenceTimerRef.current !== null) {
+        window.clearTimeout(goSequenceTimerRef.current);
+        goSequenceTimerRef.current = null;
+      }
+    };
+    const beginGoSequence = () => {
+      clearGoSequence();
+      goSequenceRef.current = true;
+      setGoSequenceActive(true);
+      goSequenceTimerRef.current = window.setTimeout(clearGoSequence, 1_000);
+    };
+    const visibleRows = () =>
+      Array.from(
+        resolvedMainRef.current?.querySelectorAll<HTMLElement>(
+          "[data-keyboard-row]",
+        ) ?? [],
+      ).filter((row) => row.getClientRects().length > 0);
+    const focusTarget = (row: HTMLElement) =>
+      row.querySelector<HTMLElement>("[data-row-focus-target]") ?? row;
+    const focusedRow = () =>
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement.closest<HTMLElement>("[data-keyboard-row]")
+        : null;
+    const rowNavigationFocused = () => {
+      const row = focusedRow();
+      const active = document.activeElement;
+      return (
+        row !== null &&
+        active instanceof HTMLElement &&
+        (active === row || active.hasAttribute("data-row-focus-target"))
+      );
+    };
+    const focusRelativeRow = (direction: -1 | 1) => {
+      const rows = visibleRows();
+      if (rows.length === 0) return false;
+      const current = focusedRow();
+      const index = current === null ? -1 : rows.indexOf(current);
+      const nextIndex =
+        index < 0
+          ? direction > 0
+            ? 0
+            : rows.length - 1
+          : Math.max(0, Math.min(rows.length - 1, index + direction));
+      const target = rows[nextIndex];
+      if (target === undefined) return false;
+      focusTarget(target).focus();
+      target.scrollIntoView({ block: "nearest" });
+      return true;
+    };
+    const focusBoundaryRow = (boundary: "first" | "last") => {
+      const rows = visibleRows();
+      const target = boundary === "first" ? rows[0] : rows.at(-1);
+      if (target === undefined) return false;
+      focusTarget(target).focus();
+      target.scrollIntoView({ block: "nearest" });
+      return true;
+    };
+    const focusPageSearch = () => {
+      const search = resolvedMainRef.current?.querySelector<HTMLInputElement>(
+        "[data-primary-search]",
+      );
+      if (search === null || search === undefined) return false;
+      search.focus();
+      search.select();
+      return true;
+    };
+    const clickRowControl = (selector: string) => {
+      const row = focusedRow();
+      const control =
+        row?.matches(selector) === true
+          ? row
+          : row?.querySelector<HTMLElement>(selector);
+      if (
+        control === null ||
+        control === undefined ||
+        control.getAttribute("aria-disabled") === "true" ||
+        (control instanceof HTMLButtonElement && control.disabled) ||
+        (control instanceof HTMLInputElement && control.disabled)
+      ) {
+        return false;
+      }
+      control.click();
+      return true;
+    };
+    const hasOtherModal = () =>
+      document.querySelector(
+        '[role="dialog"][aria-modal="true"]:not(.workspace-command-dialog)',
+      ) !== null;
+
+    const handleWorkspaceKeyDown = (event: KeyboardEvent) => {
+      const commandKey = event.metaKey || event.ctrlKey;
+      if (workspaceOverlay !== null) {
+        if (commandKey && event.key.toLowerCase() === "k") {
+          event.preventDefault();
+          setWorkspaceOverlay(null);
+        }
+        return;
+      }
+      if (mobileNavigationOpen || hasOtherModal()) return;
+      if (commandKey && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        clearGoSequence();
+        setWorkspaceOverlay((current) =>
+          current === "commands" ? null : "commands"
+        );
+        return;
+      }
+      if (isTypingTarget(event.target)) return;
+
+      if (event.key === "?") {
+        event.preventDefault();
+        clearGoSequence();
+        setWorkspaceOverlay("shortcuts");
+        return;
+      }
+      if (goSequenceRef.current) {
+        if (event.altKey || event.metaKey || event.ctrlKey) {
+          clearGoSequence();
+          return;
+        }
+        event.preventDefault();
+        const destination = goToDestination(event.key, navigation);
+        clearGoSequence();
+        if (destination !== null) navigate(destination.path);
+        return;
+      }
+      if (
+        event.key.toLowerCase() === "g" &&
+        !event.altKey &&
+        !event.metaKey &&
+        !event.ctrlKey
+      ) {
+        event.preventDefault();
+        beginGoSequence();
+        return;
+      }
+      if (event.key === "/") {
+        if (focusPageSearch()) event.preventDefault();
+        return;
+      }
+      if (event.key === "j" || event.key === "ArrowDown") {
+        if (focusRelativeRow(1)) event.preventDefault();
+        return;
+      }
+      if (event.key === "k" || event.key === "ArrowUp") {
+        if (focusRelativeRow(-1)) event.preventDefault();
+        return;
+      }
+      if (event.key === "Home" && focusedRow() !== null) {
+        if (focusBoundaryRow("first")) event.preventDefault();
+        return;
+      }
+      if (event.key === "End" && focusedRow() !== null) {
+        if (focusBoundaryRow("last")) event.preventDefault();
+        return;
+      }
+      if (event.key.toLowerCase() === "x") {
+        if (rowNavigationFocused() && clickRowControl("[data-row-select]")) {
+          event.preventDefault();
+        }
+        return;
+      }
+      if (
+        event.shiftKey &&
+        event.key.toLowerCase() === "a" &&
+        !event.metaKey &&
+        !event.ctrlKey
+      ) {
+        const bulkApprove =
+          resolvedMainRef.current?.querySelector<HTMLButtonElement>(
+            "[data-bulk-approve]",
+          );
+        if (bulkApprove !== null && bulkApprove !== undefined && !bulkApprove.disabled) {
+          event.preventDefault();
+          bulkApprove.click();
+        }
+        return;
+      }
+      if (event.key === "Enter" && event.shiftKey) {
+        if (
+          rowNavigationFocused() &&
+          clickRowControl("[data-row-approve-action]")
+        ) {
+          event.preventDefault();
+        }
+        return;
+      }
+      if (event.key === "Enter") {
+        const active = document.activeElement;
+        if (!rowNavigationFocused()) return;
+        if (active instanceof HTMLElement && active.matches("summary")) return;
+        if (clickRowControl("[data-row-primary-action]")) {
+          event.preventDefault();
+        }
+        return;
+      }
+      if (event.key === "Escape") {
+        const row = focusedRow();
+        if (row instanceof HTMLDetailsElement && row.open) {
+          event.preventDefault();
+          row.open = false;
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleWorkspaceKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleWorkspaceKeyDown);
+      clearGoSequence();
+    };
+  }, [
+    mobileNavigationOpen,
+    navigate,
+    navigation,
+    resolvedMainRef,
+    workspaceOverlay,
+  ]);
+
+  useEffect(() => {
+    mobilePanelRef.current?.toggleAttribute("inert", !mobileNavigationOpen);
+  }, [mobileNavigationMounted, mobileNavigationOpen]);
 
   useEffect(() => {
     if (!mobileNavigationOpen) return;
@@ -184,6 +451,15 @@ export function AppShellView({
           groups={navigationGroups}
           label="Primary navigation"
         />
+        <button
+          className="workspace-shortcuts-button"
+          onClick={() => setWorkspaceOverlay("shortcuts")}
+          title="Keyboard shortcuts (?)"
+          type="button"
+        >
+          <kbd>?</kbd>
+          <span>Keyboard shortcuts</span>
+        </button>
         <WorkspaceUser
           capabilities={user.capabilities}
           name={name}
@@ -202,7 +478,13 @@ export function AppShellView({
             aria-expanded={mobileNavigationOpen}
             aria-label={`${mobileNavigationOpen ? "Close" : "Open"} navigation and account menu`}
             className="workspace-mobile-menu-button"
-            onClick={() => setMobileNavigationOpen((open) => !open)}
+            onClick={() => {
+              if (mobileNavigationOpen) {
+                closeMobileNavigation(true);
+              } else {
+                openMobileNavigation();
+              }
+            }}
             ref={mobileMenuButtonRef}
             type="button"
           >
@@ -211,23 +493,34 @@ export function AppShellView({
           </button>
         </header>
 
-        {mobileNavigationOpen ? (
+        {mobileNavigationMounted ? (
           <>
             <button
               aria-label="Close navigation"
               className="workspace-mobile-backdrop"
+              data-open={mobileNavigationOpen}
               onClick={() => {
-                setMobileNavigationOpen(false);
-                mobileMenuButtonRef.current?.focus();
+                closeMobileNavigation(true);
               }}
               tabIndex={-1}
               type="button"
             />
             <div
+              aria-hidden={!mobileNavigationOpen}
               aria-label="Navigation and account menu"
-              aria-modal="true"
+              aria-modal={mobileNavigationOpen || undefined}
               className="workspace-mobile-panel"
+              data-open={mobileNavigationOpen}
               id="workspace-mobile-panel"
+              onTransitionEnd={(event) => {
+                if (
+                  event.currentTarget === event.target &&
+                  event.propertyName === "transform" &&
+                  !mobileNavigationOpen
+                ) {
+                  setMobileNavigationMounted(false);
+                }
+              }}
               ref={mobilePanelRef}
               role="dialog"
             >
@@ -237,16 +530,27 @@ export function AppShellView({
                 groups={navigationGroups}
                 label="Mobile primary navigation"
                 onNavigate={(path) => {
-                  setMobileNavigationOpen(false);
+                  closeMobileNavigation();
                   onNavigate?.(path);
                 }}
               />
+              <button
+                className="workspace-shortcuts-button"
+                onClick={() => {
+                  closeMobileNavigation(true);
+                  setWorkspaceOverlay("shortcuts");
+                }}
+                type="button"
+              >
+                <kbd>?</kbd>
+                <span>Keyboard shortcuts</span>
+              </button>
               <WorkspaceUser
                 capabilities={user.capabilities}
                 name={name}
                 onLogout={onLogout}
                 onNavigate={(path) => {
-                  setMobileNavigationOpen(false);
+                  closeMobileNavigation();
                   onNavigate?.(path);
                 }}
                 role={user.role}
@@ -259,7 +563,7 @@ export function AppShellView({
         <main
           className="workspace-content"
           id="main-content"
-          ref={mainRef}
+          ref={resolvedMainRef}
           tabIndex={-1}
         >
           <ShellContent
@@ -272,6 +576,27 @@ export function AppShellView({
           />
         </main>
       </div>
+      {goSequenceActive ? (
+        <div aria-live="polite" className="workspace-keyboard-sequence">
+          <kbd>G</kbd> then a destination key
+        </div>
+      ) : null}
+      {workspaceOverlay === null ? null : (
+        <WorkspaceCommandOverlay
+          mode={workspaceOverlay}
+          navigation={navigation}
+          onClose={() => setWorkspaceOverlay(null)}
+          onFocusSearch={() => {
+            const search = resolvedMainRef.current?.querySelector<HTMLInputElement>(
+              "[data-primary-search]",
+            );
+            search?.focus();
+            search?.select();
+          }}
+          onMode={setWorkspaceOverlay}
+          onNavigate={navigate}
+        />
+      )}
     </div>
   );
 }
@@ -448,22 +773,35 @@ function ShellContent({
   user: CurrentUser;
 }) {
   if (route.status === "ready") {
-    const hasCompleteReviewQueue =
-      navigation.some(({ id }) => id === "approvals") &&
-      navigation.some(({ id }) => id === "help_requests");
+    const canReviewApprovals = navigation.some(({ id }) => id === "approvals");
+    const canReviewHelpRequests = navigation.some(
+      ({ id }) => id === "help_requests",
+    );
+    const activeReviewTab =
+      route.item.id === "approvals" || route.item.id === "help_requests"
+        ? reviewQueueTabFromPath(currentPath, route.item.id)
+        : null;
     const reviewNavigation =
-      hasCompleteReviewQueue &&
-      (route.item.id === "approvals" || route.item.id === "help_requests") ? (
+      activeReviewTab === null ? undefined : (
         <ReviewQueueTabs
-          active={route.item.id}
-          approvalCount={navigationCounts.approvals}
+          active={activeReviewTab}
           helpRequestCount={navigationCounts.help_requests}
+          policyChangeCount={navigationCounts.policy_change_requests}
+          showHelpRequests={canReviewHelpRequests}
+          showSubmittedTurnIns={canReviewApprovals}
+          submittedTurnInCount={navigationCounts.approvals}
         />
-      ) : undefined;
+      );
     if (route.item.id === "approvals") {
       return (
         <VocabularyProvider>
           <ApprovalQueue
+            activeView={
+              activeReviewTab === "policy_changes"
+                ? "policy_changes"
+                : "submitted_turn_ins"
+            }
+            key={activeReviewTab}
             reviewNavigation={reviewNavigation}
             user={user}
           />

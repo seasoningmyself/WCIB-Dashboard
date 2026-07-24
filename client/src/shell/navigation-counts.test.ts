@@ -22,7 +22,7 @@ const producer: CurrentUser = {
 test("navigation counts match the corresponding projected screen sets", () => {
   const counts = navigationCountsFromProjectedData({
     approvalWork: {
-      changeRequests: [],
+      changeRequests: [{} as never],
       helpRequests: [
         {} as never,
         {} as never,
@@ -74,12 +74,17 @@ test("navigation counts match the corresponding projected screen sets", () => {
     my_commissions: 5,
     my_items: 2,
     pay_sheets: 1,
+    policy_change_requests: 1,
   });
   assert.equal(visibleNavigationCount(counts, "approvals"), 3);
   assert.equal(visibleNavigationCount({ approvals: 0 }, "approvals"), null);
-  assert.equal(reviewQueueNavigationCount(counts), 5);
+  assert.equal(reviewQueueNavigationCount(counts), 6);
   assert.equal(
-    reviewQueueNavigationCount({ approvals: 0, help_requests: 0 }),
+    reviewQueueNavigationCount({
+      approvals: 0,
+      help_requests: 0,
+      policy_change_requests: 0,
+    }),
     null,
   );
 });

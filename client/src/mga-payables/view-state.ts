@@ -4,8 +4,7 @@ import type {
   MgaPayableGroup,
   MgaPayableItem,
 } from "../../../shared/mga-payables.js";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
+import { ageInWholeDays } from "../ui/time.js";
 
 export interface PayableAging {
   label: string;
@@ -44,21 +43,41 @@ export function payableAging(
   now = new Date(),
 ): PayableAging | null {
   if (item.status === "paid") return null;
-  const approvedAt = new Date(item.approvedAt);
-  if (Number.isNaN(approvedAt.getTime()) || Number.isNaN(now.getTime())) {
-    return null;
-  }
-  const days = Math.max(
-    0,
-    Math.floor((now.getTime() - approvedAt.getTime()) / DAY_MS),
-  );
+  const days = ageInWholeDays(item.approvedAt, now);
+  if (days === null) return null;
   if (days >= 60) {
-    return { label: `${days}d overdue`, tone: "danger" };
+    return { label: `${days}d outstanding`, tone: "danger" };
   }
   if (days >= 30) {
-    return { label: `${days}d`, tone: "warning" };
+    return { label: `${days}d outstanding`, tone: "warning" };
   }
   return null;
+}
+
+export function oldestOutstandingDays(
+  group: MgaPayableGroup,
+  now = new Date(),
+): number | null {
+  const ages = group.items.flatMap((item) => {
+    if (item.status === "paid") return [];
+    const age = ageInWholeDays(item.approvedAt, now);
+    return age === null ? [] : [age];
+  });
+  return ages.length === 0 ? null : Math.max(...ages);
+}
+
+export function outstandingShare(
+  outstandingAmount: string,
+  totalOutstandingAmount: string,
+): string {
+  const amount = moneyToCents(outstandingAmount);
+  const total = moneyToCents(totalOutstandingAmount);
+  if (amount === null || total === null || total === 0n) return "0%";
+  const tenths = Number((amount * 1_000n + total / 2n) / total);
+  return `${(tenths / 10).toLocaleString("en-US", {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: tenths % 10 === 0 ? 0 : 1,
+  })}%`;
 }
 
 export function formatPayableDate(value: string): string {
@@ -74,4 +93,10 @@ export function formatPayableCommissionRate(value: string | null): string | null
   if (value === null) return null;
   const normalized = value.replace(/0+$/, "").replace(/\.$/, "");
   return normalized === "0" ? null : `${normalized}%`;
+}
+
+function moneyToCents(value: string): bigint | null {
+  const match = /^(0|[1-9][0-9]*)\.([0-9]{2})$/.exec(value);
+  if (match?.[1] === undefined || match[2] === undefined) return null;
+  return BigInt(match[1]) * 100n + BigInt(match[2]);
 }

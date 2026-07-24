@@ -126,6 +126,7 @@ test("shell renders count badges only for positive projected counts", () => {
           help_requests: 2,
           mga_payables: 7,
           pay_sheets: 2,
+          policy_change_requests: 1,
         }}
         onLogout={() => {}}
         user={{
@@ -143,23 +144,33 @@ test("shell renders count badges only for positive projected counts", () => {
     ),
   );
 
-  assert.match(markup, /aria-label="5 items need attention"[^>]*>5</);
+  assert.match(markup, /aria-label="6 items need attention"[^>]*>6</);
   assert.match(markup, /aria-label="Review queue sections"/);
-  assert.match(markup, />Approvals<\/span><small>3<\/small>/);
-  assert.match(markup, />Help Requests<\/span><small>2<\/small>/);
+  assert.match(markup, />Submitted turn-ins<\/span><small>3<\/small>/);
+  assert.match(markup, />Help requests<\/span><small>2<\/small>/);
+  assert.match(markup, />Policy changes<\/span><small>1<\/small>/);
   assert.doesNotMatch(markup, /0 items need attention/);
   assert.doesNotMatch(markup, /<select|<option|<optgroup/);
 });
 
 test("mobile navigation is a modal sheet with keyboard dismissal and focus containment", () => {
   const source = readFileSync(new URL("./AppShell.tsx", import.meta.url), "utf8");
-  assert.match(source, /aria-modal="true"/);
+  assert.match(source, /window\.scrollTo\(\{ left: 0, top: 0 \}\)/);
+  assert.match(source, /aria-modal=\{mobileNavigationOpen \|\| undefined\}/);
   assert.match(source, /role="dialog"/);
   assert.match(source, /event\.key === "Escape"/);
   assert.match(source, /event\.key !== "Tab"/);
   assert.match(source, /mobileMenuButtonRef\.current\?\.focus\(\)/);
   assert.match(source, /closeOnOutsidePress/);
   assert.match(source, /triggerRef\.current\?\.focus\(\)/);
+  assert.match(source, /mobileNavigationMounted/);
+  assert.match(source, /data-open=\{mobileNavigationOpen\}/);
+  assert.match(source, /onTransitionEnd=/);
+  assert.match(source, /toggleAttribute\("inert", !mobileNavigationOpen\)/);
+  assert.ok(
+    source.indexOf('toggleAttribute("inert", !mobileNavigationOpen)') <
+      source.indexOf("focusable()[0]?.focus()"),
+  );
 });
 
 test("server-authorized staff my_items route mounts the status-only My Items screen", () => {
@@ -235,15 +246,49 @@ test("server-authorized approvals route mounts the real admin queue", () => {
   assert.doesNotMatch(markup, /WCIB workspace/);
 });
 
+test("policy-change query opens the dedicated Review Queue tab", () => {
+  const markup = renderToStaticMarkup(
+    withApi(
+      <AppShellView
+        currentPath="/approvals?view=policy-changes"
+        navigationCounts={{
+          approvals: 3,
+          help_requests: 2,
+          policy_change_requests: 1,
+        }}
+        onLogout={() => {}}
+        user={{
+          ...baseUser,
+          allowedNavigation: ["approvals", "help_requests"],
+          capabilities: ["admin"],
+          role: "admin",
+        }}
+      />,
+    ),
+  );
+
+  assert.match(
+    markup,
+    /aria-current="page" href="#\/approvals\?view=policy-changes"/,
+  );
+  assert.match(markup, />Policy changes<\/span><small>1<\/small>/);
+  assert.doesNotMatch(markup, /aria-label="Approval queue filter"/);
+});
+
 test("server-authorized Help Requests route mounts the dedicated admin screen", () => {
   const markup = renderToStaticMarkup(
     withApi(
       <AppShellView
         currentPath="/help-requests"
+        navigationCounts={{
+          approvals: 3,
+          help_requests: 2,
+          policy_change_requests: 1,
+        }}
         onLogout={() => {}}
         user={{
           ...baseUser,
-          allowedNavigation: ["help_requests"],
+          allowedNavigation: ["approvals", "help_requests"],
           capabilities: ["admin"],
           role: "admin",
         }}
@@ -252,6 +297,9 @@ test("server-authorized Help Requests route mounts the dedicated admin screen", 
   );
 
   assert.match(markup, /Loading Help Requests/);
+  assert.match(markup, /aria-current="page" href="#\/help-requests"/);
+  assert.match(markup, />Submitted turn-ins<\/span><small>3<\/small>/);
+  assert.match(markup, />Policy changes<\/span><small>1<\/small>/);
   assert.doesNotMatch(markup, /WCIB workspace/);
 });
 

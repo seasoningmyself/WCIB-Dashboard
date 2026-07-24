@@ -9,10 +9,10 @@ import type { CurrentUser } from "../../../shared/current-user.js";
 import type { DraftAssignmentOption } from "../../../shared/draft-assignment-options.js";
 import type {
   ApprovalWorkListResponse,
-  ListApprovalWorkQuery,
 } from "../../../shared/approval-queue.js";
 import type {
   DeletedApprovalWorkListResponse,
+  DeletedApprovalWorkItem,
 } from "../../../shared/approval-work-deletions.js";
 import type { UpdateDraftRequest } from "../../../shared/drafts.js";
 import type { ApproveWithOverrideRequest } from "../../../shared/policy-overrides.js";
@@ -20,6 +20,16 @@ import type { PolicyLedgerCorrectionRequest } from "../../../shared/policy-corre
 import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
 import { EmptyState } from "../ui/EmptyState.js";
 import { PageHeader } from "../ui/PageHeader.js";
+import {
+  ActionFeedback,
+  CONFIRMATION_FEEDBACK_MS,
+  REVERSIBLE_ACTION_WINDOW_MS,
+  type ActionFeedbackState,
+} from "../ui/ActionFeedback.js";
+import {
+  formatAbsoluteTimestamp,
+  formatRelativeTime,
+} from "../ui/time.js";
 import {
   PolicyLedgerApiError,
   createPolicyLedgerApi,
@@ -51,9 +61,8 @@ import {
   type ApprovalValueLookups,
 } from "./review-state.js";
 
-type ApprovalFilter = ListApprovalWorkQuery["status"];
+export type ApprovalQueueViewId = "submitted_turn_ins" | "policy_changes";
 type Submission = ApprovalWorkListResponse["submissions"][number];
-type HelpRequest = ApprovalWorkListResponse["helpRequests"][number];
 type ChangeRequest = ApprovalWorkListResponse["changeRequests"][number];
 type QueueDialog = ApprovalDialog | PolicyChangeRequestDialog;
 
@@ -74,14 +83,20 @@ export type ApprovalQueueState =
     };
 
 export function ApprovalQueue({
+  activeView,
   reviewNavigation,
   user,
 }: {
+  activeView: ApprovalQueueViewId;
   reviewNavigation?: React.ReactNode;
   user: CurrentUser;
 }) {
   return isApprovalAdmin(user) ? (
-    <AdminApprovalQueue reviewNavigation={reviewNavigation} user={user} />
+    <AdminApprovalQueue
+      activeView={activeView}
+      reviewNavigation={reviewNavigation}
+      user={user}
+    />
   ) : (
     <ApprovalMessage
       body="This page is not available for your account."
@@ -91,9 +106,11 @@ export function ApprovalQueue({
 }
 
 function AdminApprovalQueue({
+  activeView,
   reviewNavigation,
   user,
 }: {
+  activeView: ApprovalQueueViewId;
   reviewNavigation?: React.ReactNode;
   user: CurrentUser;
 }) {
@@ -101,7 +118,6 @@ function AdminApprovalQueue({
   const api = useMemo(() => createApprovalApi(client), [client]);
   const ledgerApi = useMemo(() => createPolicyLedgerApi(client), [client]);
   const vocabulary = useVocabulary();
-  const [filter, setFilter] = useState<ApprovalFilter>("all");
   const [state, setState] = useState<ApprovalQueueState>({ status: "loading" });
   const [dialog, setDialog] = useState<QueueDialog | null>(null);
   const [deletionDialog, setDeletionDialog] =
@@ -109,7 +125,12 @@ function AdminApprovalQueue({
   const [showDeleted, setShowDeleted] = useState(false);
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<ActionFeedbackState | null>(null);
   const [bulkResults, setBulkResults] = useState<BulkApprovalResult[]>([]);
+  const [activeWorkId, setActiveWorkId] = useState<string | null>(null);
+  const [departingWorkIds, setDepartingWorkIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [producerOptions, setProducerOptions] = useState<
     readonly DraftAssignmentOption[]
   >([]);
@@ -129,7 +150,7 @@ function AdminApprovalQueue({
     setProducerOptions([]);
     try {
       const [work, deleted, assignmentOptions] = await Promise.all([
-        api.list({ status: filter }),
+        api.list({ status: "all" }),
         api.listDeleted(),
         ledgerApi.listAssignmentOptions(),
       ]);
@@ -155,7 +176,7 @@ function AdminApprovalQueue({
             : "error",
       });
     }
-  }, [api, filter, ledgerApi]);
+  }, [api, ledgerApi]);
 
   useEffect(() => {
     void load();
@@ -171,7 +192,10 @@ function AdminApprovalQueue({
     setDeletionDialog(null);
     setShowDeleted(false);
     setNotice(null);
+    setFeedback(null);
     setBulkResults([]);
+    setActiveWorkId(null);
+    setDepartingWorkIds(new Set());
     setProducerOptions([]);
     setSelectedSubmissionIds(new Set());
     setExpandedSubmissionIds(new Set());
@@ -180,20 +204,30 @@ function AdminApprovalQueue({
   }, []);
   useSensitiveSessionCleanup(clearSensitiveState);
 
-  const resolve = useCallback(
+  const resolve: (
+    target: ApprovalResolutionTarget,
+    action: () => Promise<unknown>,
+    successMessage?: string,
+  ) => Promise<void> = useCallback(
     async (
       target: ApprovalResolutionTarget,
       action: () => Promise<unknown>,
+      successMessage = "Review action completed.",
     ) => {
       if (pendingRef.current) {
         return;
       }
       pendingRef.current = true;
       setPending(true);
+      setActiveWorkId(target.id);
       setNotice(null);
+      setFeedback(null);
       setBulkResults([]);
       try {
         await action();
+        setDepartingWorkIds(new Set([target.id]));
+        setFeedback({ kind: "success", message: successMessage });
+        await waitForApprovalRowDeparture();
         setState((current) =>
           current.status === "ready"
             ? {
@@ -206,26 +240,39 @@ function AdminApprovalQueue({
         setDialog(null);
         await load();
       } catch (error) {
-        setDialog(null);
         if (error instanceof ApprovalApiError && error.kind === "denied") {
           requestVersion.current += 1;
           setState({ status: "denied" });
           setNotice(null);
+          setDialog(null);
         } else if (
           error instanceof ApprovalApiError &&
           error.kind === "conflict"
         ) {
+          setDialog(null);
           setNotice("That item changed while it was open. The queue has been refreshed.");
           await load();
         } else if (
           error instanceof ApprovalApiError &&
           error.kind === "rejected"
         ) {
-          setNotice("The action was rejected. Review the values and try again.");
+          setFeedback({
+            actionLabel: "Retry",
+            kind: "error",
+            message: "The action was rejected. Review the values and try again.",
+            onAction: () => void resolve(target, action, successMessage),
+          });
         } else {
-          setNotice("The action could not be completed. Try again.");
+          setFeedback({
+            actionLabel: "Retry",
+            kind: "error",
+            message: "The action could not be completed. Try again.",
+            onAction: () => void resolve(target, action, successMessage),
+          });
         }
       } finally {
+        setActiveWorkId(null);
+        setDepartingWorkIds(new Set());
         pendingRef.current = false;
         setPending(false);
       }
@@ -249,16 +296,59 @@ function AdminApprovalQueue({
     };
   }, [producerOptions, vocabulary.state]);
 
-  const changeDeletion = useCallback(
-    async (action: () => Promise<unknown>, successMessage: string) => {
+  const undoApprovalDeletion: (
+    item: DeletedApprovalWorkItem,
+  ) => Promise<void> = useCallback(
+    async (item) => {
+      if (pendingRef.current) return;
+      const id = item.kind === "submission" ? item.entry.id : item.draft.id;
+      const expectedUpdatedAt =
+        item.kind === "submission"
+          ? item.entry.updatedAt
+          : item.draft.lastEditedAt;
+      pendingRef.current = true;
+      setPending(true);
+      setActiveWorkId(id);
+      setFeedback(null);
+      try {
+        await api.restoreDeleted(item.kind, id, { expectedUpdatedAt });
+        setFeedback({
+          kind: "success",
+          message: "Approval work restored.",
+        });
+        await load();
+      } catch (error) {
+        setFeedback({
+          actionLabel: "Retry",
+          kind: "error",
+          message:
+            error instanceof ApprovalApiError && error.kind === "conflict"
+              ? "That record changed before Undo could finish. Refresh and review it."
+              : "Undo could not restore the record. It remains in deleted work.",
+          onAction: () => void undoApprovalDeletion(item),
+        });
+      } finally {
+        setActiveWorkId(null);
+        pendingRef.current = false;
+        setPending(false);
+      }
+    },
+    [api, load],
+  );
+
+  async function changeDeletion<Result>(
+    action: () => Promise<Result>,
+    onSuccess: (result: Result) => void | Promise<void>,
+  ) {
       if (pendingRef.current) return;
       pendingRef.current = true;
       setPending(true);
       setNotice(null);
+      setFeedback(null);
       try {
-        await action();
+        const result = await action();
         setDeletionDialog(null);
-        setNotice(successMessage);
+        await onSuccess(result);
         await load();
       } catch (error) {
         setDeletionDialog(null);
@@ -281,12 +371,12 @@ function AdminApprovalQueue({
           setNotice("The deletion request could not be completed. Try again.");
         }
       } finally {
+        setActiveWorkId(null);
+        setDepartingWorkIds(new Set());
         pendingRef.current = false;
         setPending(false);
       }
-    },
-    [api, load],
-  );
+  }
 
   const cancelDialog = useCallback(() => {
     if (!pending) {
@@ -392,6 +482,10 @@ function AdminApprovalQueue({
         setExpandedSubmissionIds((current) =>
           new Set([...current].filter((id) => !approvedIds.has(id))),
         );
+        setDepartingWorkIds(approvedIds);
+        if (approvedIds.size > 0) {
+          await waitForApprovalRowDeparture();
+        }
         setState((current) =>
           current.status === "ready"
             ? {
@@ -426,6 +520,7 @@ function AdminApprovalQueue({
           await load();
         }
       } finally {
+        setDepartingWorkIds(new Set());
         pendingRef.current = false;
         setPending(false);
       }
@@ -439,19 +534,13 @@ function AdminApprovalQueue({
   return (
     <>
       <ApprovalQueueView
+        activeView={activeView}
         bulkResults={bulkResults}
+        activeWorkId={activeWorkId}
+        departingWorkIds={departingWorkIds}
         expandedSubmissionIds={expandedSubmissionIds}
-        filter={filter}
         lookups={lookups}
         notice={notice}
-        onFilter={(next) => {
-          setDialog(null);
-          setNotice(null);
-          setBulkResults([]);
-          setSelectedSubmissionIds(new Set());
-          setExpandedSubmissionIds(new Set());
-          setFilter(next);
-        }}
         onApproveSelected={(items) => setDialog({ items, kind: "bulk_approve" })}
         onExpandSubmission={(id, expanded) =>
           setExpandedSubmissionIds((current) => {
@@ -471,19 +560,10 @@ function AdminApprovalQueue({
           void resolve(
             { id: item.entry.id, kind: "submission" },
             () => api.approve(item.entry.id),
+            "Submission approved and added to the ledger.",
           )
         }
-        onOpenHelpFix={(item) =>
-          void openFixDialog((assignmentOptions) => ({
-            assignmentOptions,
-            item,
-            kind: "open_fix",
-          }))
-        }
         onOpenChangeFix={(item) => void openPolicyChangeRequest(item)}
-        onDeleteHelp={(item) =>
-          setDeletionDialog({ item, kind: "delete_help" })
-        }
         onDeleteSubmission={(item) =>
           setDeletionDialog({ item, kind: "delete_submission" })
         }
@@ -516,6 +596,17 @@ function AdminApprovalQueue({
         selectedSubmissionIds={selectedSubmissionIds}
         state={state}
       />
+      <ActionFeedback
+        feedback={feedback}
+        onDismiss={() => setFeedback(null)}
+        timeoutMs={
+          feedback?.kind !== "success"
+            ? undefined
+            : feedback.onAction === undefined
+              ? CONFIRMATION_FEEDBACK_MS
+              : REVERSIBLE_ACTION_WINDOW_MS
+        }
+      />
       <DeletedApprovalWorkPanel
         data={state.status === "ready" ? state.deleted : { items: [] }}
         onClose={() => {
@@ -539,7 +630,16 @@ function AdminApprovalQueue({
                   expectedUpdatedAt: deletionDialog.item.entry.updatedAt,
                   reason,
                 }),
-              "Submission moved to deleted records.",
+              async (result) => {
+                setDepartingWorkIds(new Set([deletionDialog.item.entry.id]));
+                setFeedback({
+                  actionLabel: "Undo",
+                  kind: "success",
+                  message: "Submission moved to deleted records.",
+                  onAction: () => void undoApprovalDeletion(result.item),
+                });
+                await waitForApprovalRowDeparture();
+              },
             );
           } else if (deletionDialog?.kind === "delete_help") {
             void changeDeletion(
@@ -548,7 +648,16 @@ function AdminApprovalQueue({
                   expectedUpdatedAt: deletionDialog.item.draft.lastEditedAt,
                   reason,
                 }),
-              "Help request moved to deleted records.",
+              async (result) => {
+                setDepartingWorkIds(new Set([deletionDialog.item.draft.id]));
+                setFeedback({
+                  actionLabel: "Undo",
+                  kind: "success",
+                  message: "Help request moved to deleted records.",
+                  onAction: () => void undoApprovalDeletion(result.item),
+                });
+                await waitForApprovalRowDeparture();
+              },
             );
           }
         }}
@@ -562,7 +671,7 @@ function AdminApprovalQueue({
               : item.draft.lastEditedAt;
           void changeDeletion(
             () => api.restoreDeleted(item.kind, id, { expectedUpdatedAt }),
-            "Approval work restored.",
+            () => setNotice("Approval work restored."),
           );
         }}
         pending={pending}
@@ -574,6 +683,7 @@ function AdminApprovalQueue({
           void resolve(
             { id: queueEntryId, kind: "submission" },
             () => api.approve(queueEntryId),
+            "Submission approved and added to the ledger.",
           )
         }
         onBulkApprove={(queueEntryIds) => void bulkApprove(queueEntryIds)}
@@ -582,24 +692,28 @@ function AdminApprovalQueue({
           void resolve(
             { id: queueEntryId, kind: "submission" },
             () => api.editFixSubmission(queueEntryId, input),
+            "Corrected submission approved and added to the ledger.",
           )
         }
         onOpenFix={(draftId, input: UpdateDraftRequest) =>
           void resolve(
             { id: draftId, kind: "help" },
             () => api.openFixHelp(draftId, input),
+            "Help request corrected and approved.",
           )
         }
         onOverride={(queueEntryId, input: ApproveWithOverrideRequest) =>
           void resolve(
             { id: queueEntryId, kind: "submission" },
             () => api.approveWithOverride(queueEntryId, input),
+            "Submission approved with a financial override.",
           )
         }
         onPushThrough={(draftId) =>
           void resolve(
             { id: draftId, kind: "help" },
             () => api.pushThroughHelp(draftId),
+            "Help request approved as submitted.",
           )
         }
         onSendBack={(kind, id, reason) =>
@@ -609,6 +723,9 @@ function AdminApprovalQueue({
               kind === "help"
                 ? api.sendBackHelp(id, { reason })
                 : api.sendBackSubmission(id, { reason }),
+            kind === "help"
+              ? "Help request sent back."
+              : "Submission sent back.",
           )
         }
         pending={pending}
@@ -666,19 +783,18 @@ function AdminApprovalQueue({
 }
 
 export function ApprovalQueueView({
+  activeWorkId = null,
+  activeView,
   bulkResults,
+  departingWorkIds = new Set(),
   expandedSubmissionIds,
-  filter,
   lookups,
   notice,
   onApproveSelected,
-  onDeleteHelp,
   onDeleteSubmission,
   onExpandSubmission,
   onExpandSubmissions,
-  onFilter,
   onInlineApprove,
-  onOpenHelpFix,
   onOpenChangeFix,
   onOpenDeleted,
   onOpen,
@@ -686,24 +802,24 @@ export function ApprovalQueueView({
   onRetry,
   onSelectSubmission,
   onSelectSubmissions,
+  now = new Date(),
   pending,
   reviewNavigation,
   selectedSubmissionIds,
   state,
 }: {
+  activeWorkId?: string | null;
+  activeView: ApprovalQueueViewId;
   bulkResults: readonly BulkApprovalResult[];
+  departingWorkIds?: ReadonlySet<string>;
   expandedSubmissionIds: ReadonlySet<string>;
-  filter: ApprovalFilter;
   lookups: ApprovalValueLookups;
   notice: string | null;
   onApproveSelected(items: Submission[]): void;
-  onDeleteHelp(item: HelpRequest): void;
   onDeleteSubmission(item: Submission): void;
   onExpandSubmission(id: string, expanded: boolean): void;
   onExpandSubmissions(expanded: boolean): void;
-  onFilter(filter: ApprovalFilter): void;
   onInlineApprove(item: Submission): void;
-  onOpenHelpFix(item: HelpRequest): void;
   onOpen(dialog: QueueDialog): void;
   onOpenSubmissionFix(item: Submission): void;
   onOpenChangeFix(item: ChangeRequest): void;
@@ -711,6 +827,7 @@ export function ApprovalQueueView({
   onRetry(): void;
   onSelectSubmission(id: string, selected: boolean): void;
   onSelectSubmissions(selected: boolean): void;
+  now?: Date;
   pending: boolean;
   reviewNavigation?: React.ReactNode;
   selectedSubmissionIds: ReadonlySet<string>;
@@ -747,9 +864,17 @@ export function ApprovalQueueView({
   }
 
   const total =
-    state.work.submissions.length +
-    state.work.helpRequests.length +
-    state.work.changeRequests.length;
+    activeView === "submitted_turn_ins"
+      ? state.work.submissions.length
+      : state.work.changeRequests.length;
+  const itemLabel =
+    activeView === "submitted_turn_ins"
+      ? total === 1
+        ? "submitted turn-in needs"
+        : "submitted turn-ins need"
+      : total === 1
+        ? "policy change needs"
+        : "policy changes need";
   const submissionPriority = groupApprovalSubmissions(state.work.submissions);
   const orderedSubmissions = submissionPriority.groups.flatMap(
     ({ items }) => items,
@@ -781,7 +906,7 @@ export function ApprovalQueueView({
         eyebrow="Policy review"
         status={(
           <>
-            <strong>{total}</strong> {total === 1 ? "open item is" : "open items are"} waiting for review.
+            <strong>{total}</strong> {itemLabel} review.
           </>
         )}
         title="Review Queue"
@@ -790,25 +915,11 @@ export function ApprovalQueueView({
 
       {reviewNavigation}
 
-      <div className="approval-toolbar" aria-label="Approval queue filter">
-        {(["all", "pending", "flagged"] as const).map((value) => (
-          <button
-            aria-pressed={filter === value}
-            disabled={pending}
-            key={value}
-            onClick={() => onFilter(value)}
-            type="button"
-          >
-            {value === "all" ? "All" : value === "pending" ? "Pending" : "Help requests"}
-          </button>
-        ))}
-      </div>
-
       {notice === null ? null : (
         <div className="approval-notice" role="status">{notice}</div>
       )}
 
-      {bulkResults.length === 0 ? null : (
+      {activeView !== "submitted_turn_ins" || bulkResults.length === 0 ? null : (
         <div className="approval-bulk-results" aria-label="Bulk approval results">
           {bulkResults.map((result) => (
             <div className={`is-${result.status}`} key={result.id}>
@@ -821,29 +932,25 @@ export function ApprovalQueueView({
 
       {total === 0 ? (
         <EmptyState
-          action={filter === "all" ? (
-            <a href="#/turn-in">Start a turn-in</a>
-          ) : (
-            <button disabled={pending} onClick={() => onFilter("all")} type="button">Show all</button>
-          )}
-          body={filter === "all"
-            ? "Submitted turn-ins and help requests will appear here when they need an administrator's decision."
-            : "There is no work in this part of the queue right now."}
+          body={
+            activeView === "submitted_turn_ins"
+              ? "New submissions will appear here after staff send a turn-in for administrator review."
+              : "Requests to change an approved policy will appear here when they need an administrator's decision."
+          }
           className="approval-empty"
-          heading={filter === "pending"
-            ? "No pending submissions"
-            : filter === "flagged"
-              ? "No help requests in this view"
-              : "Nothing waiting for review"}
+          heading={
+            activeView === "submitted_turn_ins"
+              ? "No turn-ins are waiting for review"
+              : "No policy changes are waiting for review"
+          }
         />
       ) : (
         <div className="approval-work-list">
-          {state.work.submissions.length === 0 ? null : (
+          {activeView !== "submitted_turn_ins" ? null : (
             <section aria-labelledby="pending-approvals-title">
-              <div className="approval-section-heading">
-                <h2 id="pending-approvals-title">Pending submissions</h2>
-                <span>{state.work.submissions.length}</span>
-              </div>
+              <h2 className="sr-only" id="pending-approvals-title">
+                Submitted turn-ins
+              </h2>
               <div className="approval-bulk-toolbar" aria-label="Pending submission controls">
                 <label>
                   <input
@@ -858,6 +965,7 @@ export function ApprovalQueueView({
                 </label>
                 <button
                   className="is-primary"
+                  data-bulk-approve
                   disabled={pending || selectedSubmissions.length === 0}
                   onClick={() => onApproveSelected(selectedSubmissions)}
                   type="button"
@@ -883,6 +991,7 @@ export function ApprovalQueueView({
                   {group.items.map((item) => (
                     <SubmissionReview
                       expanded={expandedSubmissionIds.has(item.entry.id)}
+                      departing={departingWorkIds.has(item.entry.id)}
                       item={item}
                       key={item.entry.id}
                       lookups={lookups}
@@ -896,7 +1005,9 @@ export function ApprovalQueueView({
                       onSelected={(selected) =>
                         onSelectSubmission(item.entry.id, selected)
                       }
+                      now={now}
                       pending={pending}
+                      rowPending={activeWorkId === item.entry.id}
                       selected={selectedSubmissionIds.has(item.entry.id)}
                     />
                   ))}
@@ -905,39 +1016,21 @@ export function ApprovalQueueView({
             </section>
           )}
 
-          {state.work.helpRequests.length === 0 ? null : (
-            <section aria-labelledby="help-approvals-title">
-              <div className="approval-section-heading">
-                <h2 id="help-approvals-title">Help requests</h2>
-                <span>{state.work.helpRequests.length}</span>
-              </div>
-              {state.work.helpRequests.map((item) => (
-                <HelpReview
-                  item={item}
-                  key={item.draft.id}
-                  lookups={lookups}
-                  onDelete={onDeleteHelp}
-                  onOpenFix={onOpenHelpFix}
-                  onOpen={onOpen}
-                  pending={pending}
-                />
-              ))}
-            </section>
-          )}
-
-          {state.work.changeRequests.length === 0 ? null : (
+          {activeView !== "policy_changes" ? null : (
             <section aria-labelledby="change-request-approvals-title">
-              <div className="approval-section-heading">
-                <h2 id="change-request-approvals-title">Approved-policy change requests</h2>
-                <span>{state.work.changeRequests.length}</span>
-              </div>
+              <h2 className="sr-only" id="change-request-approvals-title">
+                Approved-policy change requests
+              </h2>
               {state.work.changeRequests.map((item) => (
                 <ChangeRequestReview
                   item={item}
                   key={item.request.id}
+                  departing={departingWorkIds.has(item.request.id)}
+                  now={now}
                   onOpen={onOpen}
                   onOpenFix={onOpenChangeFix}
                   pending={pending}
+                  rowPending={activeWorkId === item.request.id}
                 />
               ))}
             </section>
@@ -949,6 +1042,7 @@ export function ApprovalQueueView({
 }
 
 function SubmissionReview({
+  departing,
   expanded,
   item,
   lookups,
@@ -958,9 +1052,12 @@ function SubmissionReview({
   onInlineApprove,
   onOpen,
   onSelected,
+  now,
   pending,
+  rowPending,
   selected,
 }: {
+  departing: boolean;
   expanded: boolean;
   item: Submission;
   lookups: ApprovalValueLookups;
@@ -970,31 +1067,40 @@ function SubmissionReview({
   onInlineApprove(item: Submission): void;
   onOpen(dialog: ApprovalDialog): void;
   onSelected(selected: boolean): void;
+  now: Date;
   pending: boolean;
+  rowPending: boolean;
   selected: boolean;
 }) {
   const source = item.entry.submittedPayload;
   const reviewBadge = approvalReviewBadge(item);
   return (
     <details
-      className="approval-review-row is-submission"
+      aria-busy={rowPending || undefined}
+      className={`approval-review-row is-submission${
+        departing ? " is-departing" : ""
+      }`}
+      data-keyboard-row
       onToggle={(event) => onExpanded(event.currentTarget.open)}
       open={expanded}
     >
-      <summary>
-        <span
+      <summary data-row-focus-target data-row-primary-action>
+        <label
           className="approval-row-select"
           onClick={(event) => event.stopPropagation()}
         >
           <input
             aria-label={`Select ${String(source.insuredName ?? "unnamed insured")}`}
             checked={selected}
+            data-row-select
             disabled={pending}
             onChange={(event) => onSelected(event.currentTarget.checked)}
             type="checkbox"
           />
+        </label>
+        <span className="approval-status is-pending">
+          {rowPending ? "Working" : "Pending"}
         </span>
-        <span className="approval-status is-pending">Pending</span>
         <span className="approval-review-primary">
           <strong>{String(source.insuredName ?? "Unnamed insured")}</strong>
           <span>{item.submitterDisplayName ?? "Unknown submitter"}</span>
@@ -1009,9 +1115,19 @@ function SubmissionReview({
           <span>{String(source.transactionType ?? "Transaction pending")}</span>
         </span>
         <span className="approval-review-amount">
-          {reviewSourceValue(source, { key: "netDue", label: "Net due", money: true })}
+          <small>Net due</small>
+          <strong>
+            {reviewSourceValue(source, { key: "netDue", label: "Net due", money: true })}
+          </strong>
         </span>
-        <span className="approval-review-time">{formatTimestamp(item.entry.submittedAt)}</span>
+        <span className="approval-review-time">
+          <time
+            dateTime={item.entry.submittedAt}
+            title={formatAbsoluteTimestamp(item.entry.submittedAt)}
+          >
+            {formatRelativeTime(item.entry.submittedAt, now)}
+          </time>
+        </span>
         <button
           className="approval-inline-approve"
           disabled={pending}
@@ -1029,7 +1145,14 @@ function SubmissionReview({
         <ReviewFields lookups={lookups} source={source} />
         <div className="approval-row-actions">
           <button disabled={pending} onClick={() => onEditFix(item)} type="button">Edit &amp; fix</button>
-          <button disabled={pending} onClick={() => onOpen({ item, kind: "approve" })} type="button">Approve</button>
+          <button
+            data-row-approve-action
+            disabled={pending}
+            onClick={() => onOpen({ item, kind: "approve" })}
+            type="button"
+          >
+            Approve
+          </button>
           <button className="is-override" disabled={pending} onClick={() => onOpen({ item, kind: "override" })} type="button">Approve with override</button>
           <button className="is-danger" disabled={pending} onClick={() => onOpen({ item, kind: "send_back_submission" })} type="button">Send back</button>
           <button className="is-danger" disabled={pending} onClick={() => onDelete(item)} type="button">Delete</button>
@@ -1039,70 +1162,32 @@ function SubmissionReview({
   );
 }
 
-function HelpReview({
-  item,
-  lookups,
-  onDelete,
-  onOpenFix,
-  onOpen,
-  pending,
-}: {
-  item: HelpRequest;
-  lookups: ApprovalValueLookups;
-  onDelete(item: HelpRequest): void;
-  onOpenFix(item: HelpRequest): void;
-  onOpen(dialog: ApprovalDialog): void;
-  pending: boolean;
-}) {
-  const source = item.draft as unknown as Record<string, unknown>;
-  return (
-    <details className="approval-review-row is-help">
-      <summary>
-        <span className="approval-status is-flagged">Help</span>
-        <span className="approval-review-primary">
-          <strong>{item.draft.insuredName ?? "Unnamed insured"}</strong>
-          <span>{item.submitterDisplayName ?? "Unknown submitter"}</span>
-        </span>
-        <span className="approval-review-policy">
-          <strong>{item.draft.policyNumber ?? "Policy pending"}</strong>
-          <span>{item.draft.transactionType ?? "Transaction pending"}</span>
-        </span>
-        <span className="approval-review-amount">
-          {reviewSourceValue(source, { key: "netDue", label: "Net due", money: true })}
-        </span>
-        <span className="approval-review-time">{formatTimestamp(item.draft.lastEditedAt)}</span>
-      </summary>
-      <div className="approval-review-body">
-        <div className="approval-help-reason">
-          <strong>Help requested</strong>
-          <p>{item.draft.flagReason ?? "No reason recorded"}</p>
-        </div>
-        <ReviewFields lookups={lookups} source={source} />
-        <div className="approval-row-actions">
-          <button disabled={pending} onClick={() => onOpenFix(item)} type="button">Open &amp; fix</button>
-          <button className="is-primary" disabled={pending} onClick={() => onOpen({ item, kind: "push_through" })} type="button">Push through as-is</button>
-          <button className="is-danger" disabled={pending} onClick={() => onOpen({ item, kind: "send_back_help" })} type="button">Send back</button>
-          <button className="is-danger" disabled={pending} onClick={() => onDelete(item)} type="button">Delete</button>
-        </div>
-      </div>
-    </details>
-  );
-}
-
 function ChangeRequestReview({
+  departing,
   item,
+  now,
   onOpen,
   onOpenFix,
   pending,
+  rowPending,
 }: {
+  departing: boolean;
   item: ChangeRequest;
+  now: Date;
   onOpen(dialog: QueueDialog): void;
   onOpenFix(item: ChangeRequest): void;
   pending: boolean;
+  rowPending: boolean;
 }) {
   return (
-    <details className="approval-review-row is-help">
-      <summary>
+    <details
+      aria-busy={rowPending || undefined}
+      className={`approval-review-row is-help${
+        departing ? " is-departing" : ""
+      }`}
+      data-keyboard-row
+    >
+      <summary data-row-focus-target data-row-primary-action>
         <span className="approval-status is-flagged">Change</span>
         <span className="approval-review-primary">
           <strong>{item.insuredName}</strong>
@@ -1114,7 +1199,12 @@ function ChangeRequestReview({
         </span>
         <span className="approval-review-amount">Reason only</span>
         <span className="approval-review-time">
-          {formatTimestamp(item.request.requestedAt)}
+          <time
+            dateTime={item.request.requestedAt}
+            title={formatAbsoluteTimestamp(item.request.requestedAt)}
+          >
+            {formatRelativeTime(item.request.requestedAt, now)}
+          </time>
         </span>
       </summary>
       <div className="approval-review-body">
@@ -1242,9 +1332,6 @@ function isApprovalDialog(dialog: QueueDialog | null): dialog is ApprovalDialog 
   return dialog !== null && !isPolicyChangeRequestDialog(dialog);
 }
 
-function formatTimestamp(value: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+function waitForApprovalRowDeparture(): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, 160));
 }

@@ -425,7 +425,7 @@ export function OfficeActiveDialog({
 
 function OfficeMessage({ kind, onRetry }: { kind: "denied" | "error" | "loading"; onRetry?(): void }) {
   if (kind === "loading") {
-    return <section className="office-message"><h1>Loading office locations</h1></section>;
+    return <section aria-busy="true" className="office-message"><h1>Loading office locations</h1></section>;
   }
   if (kind === "denied") {
     return <section className="office-message"><h1>Office settings unavailable</h1><p>This workspace requires office-management access.</p></section>;

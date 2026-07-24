@@ -31,7 +31,7 @@ const DRAFT_ID = "00000000-0000-4000-8000-000000000705";
 const CHANGE_REQUEST_ID = "00000000-0000-4000-8000-000000000706";
 const POLICY_ID = "00000000-0000-4000-8000-000000000707";
 
-test("admin queue renders every financial review group and live resolution action", () => {
+test("submitted turn-ins tab renders review fields and submission-only actions", () => {
   const markup = renderView({
     deleted: deletedApprovalWork(),
     status: "ready",
@@ -39,9 +39,7 @@ test("admin queue renders every financial review group and live resolution actio
   });
 
   for (const label of [
-    "Pending submissions",
-    "Help requests",
-    "Approved-policy change requests",
+    "Submitted turn-ins",
     "Base premium",
     "Agency commission",
     "Net due to MGA",
@@ -58,18 +56,45 @@ test("admin queue renders every financial review group and live resolution actio
     "Expand all",
     "Approve",
     "Approve with override",
-    "Open &amp; fix",
-    "Push through as-is",
+    "Edit &amp; fix",
     "Send back",
     "Delete",
   ]) {
     assert.match(markup, new RegExp(`>${action}<`));
   }
+  assert.match(markup, /<label class="approval-row-select">/);
+  assert.match(
+    markup,
+    /class="approval-review-amount"><small>Net due<\/small><strong>/,
+  );
+  assert.match(markup, /data-keyboard-row="true"/);
+  assert.match(markup, /data-row-approve-action="true"/);
+  assert.match(markup, />6 days ago<\/time>/);
   assert.match(markup, /\$1,000\.00/);
   assert.match(markup, /finance@example\.test/);
-  assert.match(markup, /Need admin help with financing/);
-  assert.match(markup, /Correct the approved insured name/);
+  assert.doesNotMatch(markup, /Need admin help with financing/);
+  assert.doesNotMatch(markup, /Correct the approved insured name/);
+  assert.doesNotMatch(markup, /aria-label="Approval queue filter"/);
   assert.doesNotMatch(markup, /read-only|localStorage|owner withdrawal/i);
+});
+
+test("policy changes tab renders only approved-policy change work", () => {
+  const markup = renderView(
+    {
+      deleted: deletedApprovalWork(),
+      status: "ready",
+      work: approvalWork(),
+    },
+    "policy_changes",
+  );
+
+  assert.match(markup, /Approved-policy change requests/);
+  assert.match(markup, /Correct the approved insured name/);
+  assert.match(markup, />Open &amp; fix</);
+  assert.match(markup, />Push through as-is</);
+  assert.match(markup, />Send back</);
+  assert.doesNotMatch(markup, /Select all|Approve selected|Base premium/);
+  assert.doesNotMatch(markup, /Need admin help with financing/);
 });
 
 test("approval queue has bounded loading, error, empty, and denied states", () => {
@@ -82,7 +107,18 @@ test("approval queue has bounded loading, error, empty, and denied states", () =
       status: "ready",
       work: { changeRequests: [], helpRequests: [], submissions: [] },
     }),
-    /Nothing waiting for review/,
+    /No turn-ins are waiting for review/,
+  );
+  assert.match(
+    renderView(
+      {
+        deleted: { items: [] },
+        status: "ready",
+        work: { changeRequests: [], helpRequests: [], submissions: [] },
+      },
+      "policy_changes",
+    ),
+    /No policy changes are waiting for review/,
   );
 });
 
@@ -171,10 +207,13 @@ test("approval deletion UI requires a reason and exposes recoverable restore", (
 
 test("non-admin component fails closed before API or queue rendering", () => {
   const producerMarkup = renderToStaticMarkup(
-    <ApprovalQueue user={producer()} />,
+    <ApprovalQueue activeView="submitted_turn_ins" user={producer()} />,
   );
   const employeeMarkup = renderToStaticMarkup(
-    <ApprovalQueue user={{ ...producer(), role: "employee" }} />,
+    <ApprovalQueue
+      activeView="submitted_turn_ins"
+      user={{ ...producer(), role: "employee" }}
+    />,
   );
   for (const markup of [producerMarkup, employeeMarkup]) {
     assert.match(markup, /Approvals unavailable/);
@@ -339,22 +378,23 @@ test("approved-policy change dialogs expose only the three safe admin resolution
   assert.doesNotMatch(sendBack, /Base premium|Commission|Net due|IPFS/);
 });
 
-function renderView(state: ApprovalQueueState): string {
+function renderView(
+  state: ApprovalQueueState,
+  activeView: React.ComponentProps<typeof ApprovalQueueView>["activeView"] =
+    "submitted_turn_ins",
+): string {
   return renderToStaticMarkup(
     <ApprovalQueueView
+      activeView={activeView}
       bulkResults={[]}
       expandedSubmissionIds={new Set()}
-      filter="all"
       lookups={{}}
       notice={null}
       onApproveSelected={() => {}}
-      onDeleteHelp={() => {}}
       onDeleteSubmission={() => {}}
       onExpandSubmission={() => {}}
       onExpandSubmissions={() => {}}
-      onFilter={() => {}}
       onInlineApprove={() => {}}
-      onOpenHelpFix={() => {}}
       onOpen={() => {}}
       onOpenChangeFix={() => {}}
       onOpenDeleted={() => {}}
@@ -362,6 +402,7 @@ function renderView(state: ApprovalQueueState): string {
       onRetry={() => {}}
       onSelectSubmission={() => {}}
       onSelectSubmissions={() => {}}
+      now={new Date("2026-07-17T12:00:00.000Z")}
       pending={false}
       selectedSubmissionIds={new Set()}
       state={state}
