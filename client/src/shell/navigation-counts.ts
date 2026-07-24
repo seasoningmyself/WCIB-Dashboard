@@ -16,7 +16,10 @@ import { createPaySheetsApi } from "../pay-sheets/api.js";
 
 export type NavigationCounts = Partial<
   Readonly<Record<AppNavigationId, number>>
->;
+> &
+  Readonly<{
+    policy_change_requests?: number;
+  }>;
 
 export async function loadNavigationCounts(
   client: ApiClient,
@@ -84,6 +87,7 @@ export function navigationCountsFromProjectedData({
       : {
           approvals: approvalWork.submissions.length,
           help_requests: approvalWork.helpRequests.length,
+          policy_change_requests: approvalWork.changeRequests.length,
         }),
     ...(myItems === null
       ? {}
@@ -121,7 +125,11 @@ export function visibleNavigationCount(
 export function reviewQueueNavigationCount(
   counts: NavigationCounts,
 ): number | null {
-  const values = [counts.approvals, counts.help_requests].filter(
+  const values = [
+    counts.approvals,
+    counts.help_requests,
+    counts.policy_change_requests,
+  ].filter(
     (value): value is number =>
       value !== undefined && Number.isSafeInteger(value) && value >= 0,
   );

@@ -16,6 +16,12 @@ import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
 import { EmptyState } from "../ui/EmptyState.js";
 import { PageHeader } from "../ui/PageHeader.js";
 import {
+  ActionFeedback,
+  CONFIRMATION_FEEDBACK_MS,
+  REVERSIBLE_ACTION_WINDOW_MS,
+  type ActionFeedbackState,
+} from "../ui/ActionFeedback.js";
+import {
   createMyCommissionsApi,
   MyCommissionsApiError,
 } from "./api.js";
@@ -55,7 +61,9 @@ function ProducerMyCommissions() {
   const [search, setSearch] = useState("");
   const [state, setState] = useState<MyCommissionsState>({ status: "loading" });
   const [notice, setNotice] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<ActionFeedbackState | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [departingId, setDepartingId] = useState<string | null>(null);
   const pendingRef = useRef<string | null>(null);
   const requestVersion = useRef(0);
 
@@ -90,6 +98,8 @@ function ProducerMyCommissions() {
     requestVersion.current += 1;
     setState({ status: "loading" });
     setNotice(null);
+    setFeedback(null);
+    setDepartingId(null);
     pendingRef.current = null;
     setPendingId(null);
     setSearch("");
@@ -97,15 +107,35 @@ function ProducerMyCommissions() {
   }, []);
   useSensitiveSessionCleanup(clearSensitiveState);
 
-  const setReceipt = useCallback(
-    async (item: MyCommissionItem, received: boolean) => {
+  const setReceipt: (
+    item: MyCommissionItem,
+    received: boolean,
+    offerUndo?: boolean,
+  ) => Promise<void> = useCallback(
+    async (
+      item: MyCommissionItem,
+      received: boolean,
+      offerUndo = true,
+    ) => {
       if (pendingRef.current !== null) return;
       pendingRef.current = item.id;
       setPendingId(item.id);
       setNotice(null);
+      setFeedback(null);
       try {
         await api.setReceipt(item.id, { received });
-        setNotice(received ? "Commission marked paid." : "Commission returned to owed.");
+        setDepartingId(item.id);
+        setFeedback({
+          actionLabel: offerUndo ? "Undo" : undefined,
+          kind: "success",
+          message: received
+            ? "Commission marked paid."
+            : "Commission returned to owed.",
+          onAction: offerUndo
+            ? () => void setReceipt(item, !received, false)
+            : undefined,
+        });
+        await waitForCommissionRowDeparture();
         await load();
       } catch (error) {
         if (error instanceof MyCommissionsApiError && error.kind === "denied") {
@@ -119,9 +149,15 @@ function ProducerMyCommissions() {
           setNotice("That commission changed. The server view has been refreshed.");
           await load();
         } else {
-          setNotice("The receipt change could not be completed. Try again.");
+          setFeedback({
+            actionLabel: "Retry",
+            kind: "error",
+            message: "The receipt change could not be completed.",
+            onAction: () => void setReceipt(item, received, offerUndo),
+          });
         }
       } finally {
+        setDepartingId(null);
         pendingRef.current = null;
         setPendingId(null);
       }
@@ -136,25 +172,40 @@ function ProducerMyCommissions() {
   };
 
   return (
-    <MyCommissionsView
-      notice={notice}
-      onReceipt={(item, received) => void setReceipt(item, received)}
-      onRetry={() => void load()}
-      onSearchChange={updateSearch}
-      onSort={(sort) => {
-        if (pendingRef.current !== null) return;
-        setNotice(null);
-        setQuery((current) => ({ ...current, sort }));
-      }}
-      pendingId={pendingId}
-      query={query}
-      search={search}
-      state={state}
-    />
+    <>
+      <MyCommissionsView
+        notice={notice}
+        departingId={departingId}
+        onReceipt={(item, received) => void setReceipt(item, received)}
+        onRetry={() => void load()}
+        onSearchChange={updateSearch}
+        onSort={(sort) => {
+          if (pendingRef.current !== null) return;
+          setNotice(null);
+          setQuery((current) => ({ ...current, sort }));
+        }}
+        pendingId={pendingId}
+        query={query}
+        search={search}
+        state={state}
+      />
+      <ActionFeedback
+        feedback={feedback}
+        onDismiss={() => setFeedback(null)}
+        timeoutMs={
+          feedback?.kind !== "success"
+            ? undefined
+            : feedback.onAction === undefined
+              ? CONFIRMATION_FEEDBACK_MS
+              : REVERSIBLE_ACTION_WINDOW_MS
+        }
+      />
+    </>
   );
 }
 
 export function MyCommissionsView({
+  departingId = null,
   notice,
   onReceipt,
   onRetry,
@@ -165,6 +216,7 @@ export function MyCommissionsView({
   search,
   state,
 }: {
+  departingId?: string | null;
   notice: string | null;
   onReceipt(item: MyCommissionItem, received: boolean): void;
   onRetry(): void;
@@ -241,6 +293,7 @@ export function MyCommissionsView({
             <div className={search === "" ? undefined : "has-clear"}>
               <input
                 autoComplete="off"
+                data-primary-search
                 id="commission-search"
                 maxLength={200}
                 onChange={(event) => onSearchChange(event.currentTarget.value)}
@@ -307,6 +360,7 @@ export function MyCommissionsView({
           <div className="my-commissions-sections">
             <CommissionSection
               empty="No commissions are currently awaiting payment."
+              departingId={departingId}
               items={sections.owed}
               onReceipt={onReceipt}
               pendingId={pendingId}
@@ -314,6 +368,7 @@ export function MyCommissionsView({
             />
             <CommissionSection
               empty="No submitted items are currently in review."
+              departingId={departingId}
               items={sections.inReview}
               onReceipt={onReceipt}
               pendingId={pendingId}
@@ -321,6 +376,7 @@ export function MyCommissionsView({
             />
             <CommissionSection
               empty="No commissions were marked paid in the last 30 days."
+              departingId={departingId}
               items={sections.paid}
               onReceipt={onReceipt}
               pendingId={pendingId}
@@ -337,12 +393,14 @@ export function MyCommissionsView({
 }
 
 function CommissionSection({
+  departingId,
   empty,
   items,
   onReceipt,
   pendingId,
   title,
 }: {
+  departingId: string | null;
   empty: string;
   items: readonly MyCommissionItem[];
   onReceipt(item: MyCommissionItem, received: boolean): void;
@@ -363,6 +421,7 @@ function CommissionSection({
             <CommissionRow
               item={item}
               key={item.id}
+              departing={departingId === item.id}
               onReceipt={onReceipt}
               pending={pendingId === item.id}
             />
@@ -374,17 +433,21 @@ function CommissionSection({
 }
 
 function CommissionRow({
+  departing,
   item,
   onReceipt,
   pending,
 }: {
+  departing: boolean;
   item: MyCommissionItem;
   onReceipt(item: MyCommissionItem, received: boolean): void;
   pending: boolean;
 }) {
   const receiptDate = formatReceiptDate(item.receivedAt);
   return (
-    <article className="my-commission-row">
+    <article
+      className={`my-commission-row${departing ? " is-departing" : ""}`}
+    >
       <div className="my-commission-identity">
         <strong>{item.insuredName}</strong>
         <span>{item.policyType}</span>
@@ -423,6 +486,10 @@ function CommissionRow({
       </div>
     </article>
   );
+}
+
+function waitForCommissionRowDeparture(): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, 160));
 }
 
 function CommissionMetric({

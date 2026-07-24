@@ -15,6 +15,10 @@ import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
 import { EmptyState } from "../ui/EmptyState.js";
 import { PageHeader } from "../ui/PageHeader.js";
 import {
+  formatAbsoluteTimestamp,
+  formatRelativeTime,
+} from "../ui/time.js";
+import {
   DialogActions,
   DialogFrame,
 } from "../approvals/ApprovalDialogs.js";
@@ -230,6 +234,7 @@ export function MyDraftsView({
   onDraftChange,
   onDraftDiscard,
   onOpenChangeRequest = () => {},
+  now = new Date(),
   onRetry,
   onSubmitChangeRequest = () => {},
   onWithdraw,
@@ -244,6 +249,7 @@ export function MyDraftsView({
   onDraftChange(draft: DraftResponse): void;
   onDraftDiscard?(draftId: string): void;
   onOpenChangeRequest?(policyId: string): void;
+  now?: Date;
   onRetry(): void;
   onSubmitChangeRequest?(): void;
   onWithdraw(draftId: string, status: WithdrawableDraftStatus): void;
@@ -296,6 +302,7 @@ export function MyDraftsView({
       <>
         <DraftStatusView
           draft={selected}
+          now={now}
           onOpenChangeRequest={onOpenChangeRequest}
           onWithdraw={onWithdraw}
           requests={state.requests}
@@ -315,6 +322,7 @@ export function MyDraftsView({
   return (
     <DraftList
       drafts={state.drafts}
+      now={now}
       onWithdraw={onWithdraw}
       withdrawal={withdrawal}
     />
@@ -323,10 +331,12 @@ export function MyDraftsView({
 
 function DraftList({
   drafts,
+  now,
   onWithdraw,
   withdrawal,
 }: {
   drafts: readonly DraftResponse[];
+  now: Date;
   onWithdraw(draftId: string, status: WithdrawableDraftStatus): void;
   withdrawal: DraftWithdrawalState;
 }) {
@@ -382,7 +392,12 @@ function DraftList({
                     <span>{draft.transactionType ?? "Transaction pending"}</span>
                   </td>
                   <td data-label="Last activity">
-                    <time dateTime={draft.lastEditedAt}>{formatTimestamp(draft.lastEditedAt)}</time>
+                    <time
+                      dateTime={draft.lastEditedAt}
+                      title={formatAbsoluteTimestamp(draft.lastEditedAt)}
+                    >
+                      {formatRelativeTime(draft.lastEditedAt, now)}
+                    </time>
                   </td>
                   <td className="my-drafts-action">
                     {draft.status === "flagged" || draft.status === "submitted" ? (
@@ -427,12 +442,14 @@ function DraftList({
 
 function DraftStatusView({
   draft,
+  now,
   onOpenChangeRequest,
   onWithdraw,
   requests,
   withdrawal,
 }: {
   draft: DraftResponse;
+  now: Date;
   onOpenChangeRequest(policyId: string): void;
   onWithdraw(draftId: string, status: WithdrawableDraftStatus): void;
   requests: readonly OwnerPolicyChangeRequest[];
@@ -463,9 +480,29 @@ function DraftStatusView({
       <dl>
         <div><dt>Policy number</dt><dd>{draft.policyNumber ?? "Pending"}</dd></div>
         <div><dt>Transaction</dt><dd>{draft.transactionType ?? "Pending"}</dd></div>
-        <div><dt>Last activity</dt><dd><time dateTime={draft.lastEditedAt}>{formatTimestamp(draft.lastEditedAt)}</time></dd></div>
+        <div>
+          <dt>Last activity</dt>
+          <dd>
+            <time
+              dateTime={draft.lastEditedAt}
+              title={formatAbsoluteTimestamp(draft.lastEditedAt)}
+            >
+              {formatRelativeTime(draft.lastEditedAt, now)}
+            </time>
+          </dd>
+        </div>
         {draft.submittedAt === null ? null : (
-          <div><dt>Submitted</dt><dd><time dateTime={draft.submittedAt}>{formatTimestamp(draft.submittedAt)}</time></dd></div>
+          <div>
+            <dt>Submitted</dt>
+            <dd>
+              <time
+                dateTime={draft.submittedAt}
+                title={formatAbsoluteTimestamp(draft.submittedAt)}
+              >
+                {formatRelativeTime(draft.submittedAt, now)}
+              </time>
+            </dd>
+          </div>
         )}
       </dl>
       {draft.status === "flagged" && draft.flagReason !== null ? (
@@ -638,11 +675,4 @@ function statusSummary(status: DraftResponse["status"]): string {
     case "sent_back":
       return "This turn-in needs changes before it can be resubmitted.";
   }
-}
-
-function formatTimestamp(value: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
 }

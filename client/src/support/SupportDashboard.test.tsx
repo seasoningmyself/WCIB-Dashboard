@@ -53,6 +53,7 @@ test("support dashboard renders operational and aggregate-only fields", () => {
     assert.match(markup, new RegExp(expected));
   }
   assert.match(markup, /without exposing revenue, targets, pay-sheet records, policies, or people/);
+  assert.match(markup, /class="support-refresh"[^>]*>Refresh status<\/button>/);
   assert.doesNotMatch(markup, /\$|agency revenue|new revenue|revenue target|Manage Staff|Start Fresh|commission rate|producer payout|policy number/i);
 });
 

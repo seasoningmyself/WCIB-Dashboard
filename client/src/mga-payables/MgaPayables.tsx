@@ -17,6 +17,16 @@ import {
 import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
 import { EmptyState } from "../ui/EmptyState.js";
 import { PageHeader } from "../ui/PageHeader.js";
+import {
+  ActionFeedback,
+  CONFIRMATION_FEEDBACK_MS,
+  REVERSIBLE_ACTION_WINDOW_MS,
+  type ActionFeedbackState,
+} from "../ui/ActionFeedback.js";
+import {
+  formatAbsoluteTimestamp,
+  formatRelativeTime,
+} from "../ui/time.js";
 import { formatMoneyExact } from "../ledger/view-state.js";
 import {
   createMgaPayablesApi,
@@ -24,8 +34,9 @@ import {
 } from "./api.js";
 import {
   formatPayableCommissionRate,
-  formatPayableDate,
   isMgaPayablesAdmin,
+  oldestOutstandingDays,
+  outstandingShare,
   payableAccountLabel,
   payableAging,
   payableGroupAction,
@@ -61,7 +72,10 @@ function AdminMgaPayables() {
   const [dialog, setDialog] = useState<MgaPaymentDialog | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<ActionFeedbackState | null>(null);
   const [pending, setPending] = useState(false);
+  const [pendingPolicyId, setPendingPolicyId] = useState<string | null>(null);
+  const [departingPolicyId, setDepartingPolicyId] = useState<string | null>(null);
   const requestVersion = useRef(0);
   const pendingRef = useRef(false);
 
@@ -98,18 +112,60 @@ function AdminMgaPayables() {
     setDialog(null);
     setDialogError(null);
     setNotice(null);
+    setFeedback(null);
+    setPendingPolicyId(null);
+    setDepartingPolicyId(null);
     pendingRef.current = false;
     setPending(false);
   }, []);
   useSensitiveSessionCleanup(clearSensitiveState);
+
+  const undoPayment: (item: MgaPayableItem) => Promise<void> = useCallback(
+    async (item: MgaPayableItem) => {
+      if (pendingRef.current) return;
+      pendingRef.current = true;
+      setPending(true);
+      setPendingPolicyId(item.policyId);
+      setFeedback(null);
+      try {
+        await api.change(item.policyId, {
+          reference: item.status === "paid" ? item.paymentReference : null,
+          status: item.status,
+        });
+        setFeedback({
+          kind: "success",
+          message: `MGA payment restored to ${item.status}.`,
+        });
+        await load();
+      } catch (error) {
+        setFeedback({
+          actionLabel: "Retry",
+          kind: "error",
+          message:
+            error instanceof MgaPayablesApiError && error.kind === "conflict"
+              ? "That payable changed before Undo could finish. Refresh and review it."
+              : "Undo could not be completed. The payment remains in its current state.",
+          onAction: () => void undoPayment(item),
+        });
+      } finally {
+        pendingRef.current = false;
+        setPendingPolicyId(null);
+        setPending(false);
+      }
+    },
+    [api, load],
+  );
 
   const submit = useCallback(
     async (reference: string | null) => {
       if (dialog === null || pendingRef.current) return;
       pendingRef.current = true;
       setPending(true);
+      setPendingPolicyId(dialog.item.policyId);
       setDialogError(null);
       setNotice(null);
+      setFeedback(null);
+      const previousItem = dialog.item;
       try {
         await api.change(dialog.item.policyId, {
           reference:
@@ -117,11 +173,17 @@ function AdminMgaPayables() {
           status: dialog.targetStatus,
         });
         setDialog(null);
-        setNotice(
-          dialog.targetStatus === "paid"
-            ? "MGA payment marked paid."
-            : "MGA payment marked unpaid.",
-        );
+        setDepartingPolicyId(dialog.item.policyId);
+        setFeedback({
+          actionLabel: "Undo",
+          kind: "success",
+          message:
+            dialog.targetStatus === "paid"
+              ? "MGA payment marked paid."
+              : "MGA payment marked unpaid.",
+          onAction: () => void undoPayment(previousItem),
+        });
+        await waitForRowDeparture();
         await load();
       } catch (error) {
         if (error instanceof MgaPayablesApiError && error.kind === "denied") {
@@ -145,11 +207,13 @@ function AdminMgaPayables() {
           setDialogError("The payment change could not be completed. Try again.");
         }
       } finally {
+        setDepartingPolicyId(null);
+        setPendingPolicyId(null);
         pendingRef.current = false;
         setPending(false);
       }
     },
-    [api, dialog, load],
+    [api, dialog, load, undoPayment],
   );
 
   const changeGroup = useCallback(
@@ -207,6 +271,7 @@ function AdminMgaPayables() {
       <MgaPayablesView
         filter={filter}
         notice={notice}
+        departingPolicyId={departingPolicyId}
         onFilter={(next) => {
           if (pendingRef.current) return;
           setDialog(null);
@@ -223,7 +288,19 @@ function AdminMgaPayables() {
         }}
         onRetry={() => void load()}
         pending={pending}
+        pendingPolicyId={pendingPolicyId}
         state={state}
+      />
+      <ActionFeedback
+        feedback={feedback}
+        onDismiss={() => setFeedback(null)}
+        timeoutMs={
+          feedback?.kind !== "success"
+            ? undefined
+            : feedback.onAction === undefined
+              ? CONFIRMATION_FEEDBACK_MS
+              : REVERSIBLE_ACTION_WINDOW_MS
+        }
       />
       <MgaPaymentStateDialog
         dialog={dialog}
@@ -247,6 +324,7 @@ function AdminMgaPayables() {
 }
 
 export function MgaPayablesView({
+  departingPolicyId = null,
   filter,
   notice,
   now = new Date(),
@@ -255,8 +333,10 @@ export function MgaPayablesView({
   onOpen,
   onRetry,
   pending,
+  pendingPolicyId = null,
   state,
 }: {
+  departingPolicyId?: string | null;
   filter: MgaPayableFilter;
   notice: string | null;
   now?: Date;
@@ -270,6 +350,7 @@ export function MgaPayablesView({
   onOpen(dialog: MgaPaymentDialog): void;
   onRetry(): void;
   pending: boolean;
+  pendingPolicyId?: string | null;
   state: MgaPayablesState;
 }) {
   if (state.status === "loading") {
@@ -375,6 +456,16 @@ export function MgaPayablesView({
                       ? "Fully settled"
                       : `${group.totals.paidCount} of ${group.totals.totalCount} settled`}
                   </span>
+                  <small className="mga-group-context">
+                    {outstandingShare(
+                      group.totals.outstandingAmount,
+                      data.summary.outstandingAmount,
+                    )}{" "}
+                    of agency outstanding
+                    {oldestOutstandingDays(group, now) === null
+                      ? null
+                      : ` · oldest ${oldestOutstandingDays(group, now)} days`}
+                  </small>
                 </div>
                 <dl>
                   <div>
@@ -424,7 +515,9 @@ export function MgaPayablesView({
                     key={item.policyId}
                     now={now}
                     onOpen={onOpen}
+                    departing={departingPolicyId === item.policyId}
                     pending={pending}
+                    rowPending={pendingPolicyId === item.policyId}
                   />
                 ))}
               </div>
@@ -454,21 +547,30 @@ function SummaryMetric({
 }
 
 function PayableRow({
+  departing,
   item,
   now,
   onOpen,
   pending,
+  rowPending,
 }: {
+  departing: boolean;
   item: MgaPayableItem;
   now: Date;
   onOpen(dialog: MgaPaymentDialog): void;
   pending: boolean;
+  rowPending: boolean;
 }) {
   const aging = payableAging(item, now);
   return (
     <div
-      className={`mga-table-row${item.status === "paid" ? " is-paid" : ""}`}
+      aria-busy={rowPending || undefined}
+      className={`mga-table-row${item.status === "paid" ? " is-paid" : ""}${
+        departing ? " is-departing" : ""
+      }`}
+      data-keyboard-row
       role="row"
+      tabIndex={0}
     >
       <span className="mga-insured" data-label="Insured" role="cell">
         <strong>{item.insuredName}</strong>
@@ -485,7 +587,15 @@ function PayableRow({
       </span>
       <span data-label="Policy" role="cell">
         <strong>{item.policyNumber}</strong>
-        <small>Approved {formatPayableDate(item.approvedAt)}</small>
+        <small>
+          Approved{" "}
+          <time
+            dateTime={item.approvedAt}
+            title={formatAbsoluteTimestamp(item.approvedAt)}
+          >
+            {formatRelativeTime(item.approvedAt, now)}
+          </time>
+        </small>
       </span>
       <span className="mga-collected" data-label="Collected" role="cell">
         <strong>{formatMoneyExact(item.amountPaid)}</strong>
@@ -505,7 +615,14 @@ function PayableRow({
           tone={item.status === "paid" ? "paid" : "unpaid"}
         />
         {item.paidAt === null ? null : (
-          <small>{formatPayableDate(item.paidAt)}</small>
+          <small>
+            <time
+              dateTime={item.paidAt}
+              title={formatAbsoluteTimestamp(item.paidAt)}
+            >
+              {formatRelativeTime(item.paidAt, now)}
+            </time>
+          </small>
         )}
       </span>
       <span className="mga-net" data-label="Net due" role="cell">
@@ -519,6 +636,7 @@ function PayableRow({
       <span className="mga-row-action" role="cell">
         <button
           className={item.status === "paid" ? "is-unmark" : "is-mark"}
+          data-row-primary-action
           disabled={pending}
           onClick={() =>
             onOpen({
@@ -528,11 +646,19 @@ function PayableRow({
           }
           type="button"
         >
-          {item.status === "paid" ? "Unmark" : "Mark paid"}
+          {rowPending
+            ? "Updating..."
+            : item.status === "paid"
+              ? "Unmark"
+              : "Mark paid"}
         </button>
       </span>
     </div>
   );
+}
+
+function waitForRowDeparture(): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, 160));
 }
 
 function Badge({

@@ -24,6 +24,12 @@ import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
 import { EmptyState } from "../ui/EmptyState.js";
 import { PageHeader } from "../ui/PageHeader.js";
 import {
+  ActionFeedback,
+  CONFIRMATION_FEEDBACK_MS,
+  REVERSIBLE_ACTION_WINDOW_MS,
+  type ActionFeedbackState,
+} from "../ui/ActionFeedback.js";
+import {
   PolicyCorrectionDialog,
   type LedgerCorrectionDialog,
 } from "./CorrectionDialogs.js";
@@ -99,6 +105,8 @@ function AdminPolicyLedger() {
   const [pending, setPending] = useState(false);
   const [exportingIpfs, setExportingIpfs] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<ActionFeedbackState | null>(null);
+  const [departingPolicyId, setDepartingPolicyId] = useState<string | null>(null);
   const listVersion = useRef(0);
   const detailVersion = useRef(0);
   const deletedVersion = useRef(0);
@@ -216,6 +224,8 @@ function AdminPolicyLedger() {
     setDeletedOpen(false);
     setDeletedState({ status: "closed" });
     setNotice(null);
+    setFeedback(null);
+    setDepartingPolicyId(null);
     pendingRef.current = false;
     exportingIpfsRef.current = false;
     setPending(false);
@@ -223,6 +233,42 @@ function AdminPolicyLedger() {
     ipfsExportResources.current?.dispose();
   }, []);
   useSensitiveSessionCleanup(clearSensitiveState);
+
+  const undoPolicyDeletion: (
+    item: DeletedPolicyLedgerItem,
+  ) => Promise<void> = useCallback(
+    async (item) => {
+      if (pendingRef.current) return;
+      pendingRef.current = true;
+      setPending(true);
+      setFeedback(null);
+      try {
+        await api.restore(item.policy.id, {
+          expectedUpdatedAt: item.policy.updatedAt,
+        });
+        setFeedback({
+          kind: "success",
+          message: "Policy restored to live records.",
+        });
+        await load();
+        if (deletedOpen) await loadDeleted();
+      } catch (error) {
+        setFeedback({
+          actionLabel: "Retry",
+          kind: "error",
+          message:
+            error instanceof PolicyLedgerApiError && error.kind === "conflict"
+              ? "That policy changed before Undo could finish. Refresh and review it."
+              : "Undo could not restore the policy. It remains in deleted records.",
+          onAction: () => void undoPolicyDeletion(item),
+        });
+      } finally {
+        pendingRef.current = false;
+        setPending(false);
+      }
+    },
+    [api, deletedOpen, load, loadDeleted],
+  );
 
   const toggleDetail = useCallback(
     (policyId: string) => {
@@ -301,13 +347,20 @@ function AdminPolicyLedger() {
       const policyId = deletionDialog.item.policy.id;
       try {
         if (deletionDialog.kind === "delete") {
-          await api.softDelete(policyId, {
+          const response = await api.softDelete(policyId, {
             expectedUpdatedAt: deletionDialog.item.policy.updatedAt,
             reason,
           });
-          setNotice("Policy moved to deleted records. Closed history was preserved.");
+          setDepartingPolicyId(policyId);
+          setFeedback({
+            actionLabel: "Undo",
+            kind: "success",
+            message: "Policy moved to deleted records. Closed history was preserved.",
+            onAction: () => void undoPolicyDeletion(response.item),
+          });
           setExpandedPolicyId(null);
           setDetail({ status: "closed" });
+          await waitForLedgerRowDeparture();
         } else {
           await api.restore(policyId, {
             expectedUpdatedAt: deletionDialog.item.policy.updatedAt,
@@ -336,14 +389,27 @@ function AdminPolicyLedger() {
         ) {
           setNotice("The policy action was rejected. Review the request and try again.");
         } else {
-          setNotice("The policy action could not be completed. Try again.");
+          setFeedback({
+            actionLabel: "Retry",
+            kind: "error",
+            message: "The policy action could not be completed.",
+            onAction: () => void submitDeletion(reason),
+          });
         }
       } finally {
+        setDepartingPolicyId(null);
         pendingRef.current = false;
         setPending(false);
       }
     },
-    [api, deletedOpen, deletionDialog, load, loadDeleted],
+    [
+      api,
+      deletedOpen,
+      deletionDialog,
+      load,
+      loadDeleted,
+      undoPolicyDeletion,
+    ],
   );
 
   const updateQuery = useCallback(
@@ -443,6 +509,7 @@ function AdminPolicyLedger() {
   return (
     <>
       <PolicyLedgerView
+        departingPolicyId={departingPolicyId}
         detail={detail}
         expandedPolicyId={expandedPolicyId}
         notice={notice}
@@ -470,6 +537,17 @@ function AdminPolicyLedger() {
         query={query}
         searchInput={searchInput}
         state={state}
+      />
+      <ActionFeedback
+        feedback={feedback}
+        onDismiss={() => setFeedback(null)}
+        timeoutMs={
+          feedback?.kind !== "success"
+            ? undefined
+            : feedback.onAction === undefined
+              ? CONFIRMATION_FEEDBACK_MS
+              : REVERSIBLE_ACTION_WINDOW_MS
+        }
       />
       <PolicyCorrectionDialog
         assignmentOptions={assignmentOptions}
@@ -515,6 +593,7 @@ function AdminPolicyLedger() {
 }
 
 export function PolicyLedgerView({
+  departingPolicyId = null,
   detail,
   expandedPolicyId,
   notice,
@@ -535,6 +614,7 @@ export function PolicyLedgerView({
   searchInput,
   state,
 }: {
+  departingPolicyId?: string | null;
   detail: PolicyLedgerDetailState;
   expandedPolicyId: string | null;
   notice: string | null;
@@ -618,6 +698,7 @@ export function PolicyLedgerView({
           <div>
             <input
               autoComplete="off"
+              data-primary-search
               id="ledger-search"
               maxLength={200}
               onChange={(event) => onSearch(event.currentTarget.value)}
@@ -702,6 +783,13 @@ export function PolicyLedgerView({
         <div className="ledger-notice" role="status">{notice}</div>
       )}
 
+      <p className="ledger-view-context">
+        Showing <strong>{state.data.filteredTotal}</strong> of{" "}
+        <strong>{state.data.total}</strong>{" "}
+        {state.data.total === 1 ? "policy" : "policies"} in{" "}
+        <strong>{formatLedgerMonth(state.data.month)}</strong>.
+      </p>
+
       {state.data.items.length === 0 ? (
         <EmptyState
           action={state.data.total === 0 ? (
@@ -744,6 +832,7 @@ export function PolicyLedgerView({
           {state.data.items.map((item) => (
             <LedgerRow
               detail={expandedPolicyId === item.policy.id ? detail : { status: "closed" }}
+              departing={departingPolicyId === item.policy.id}
               expanded={expandedPolicyId === item.policy.id}
               item={item}
               key={item.policy.id}
@@ -821,6 +910,7 @@ function LedgerMetrics({ totals }: { totals: PolicyLedgerListResponse["totals"] 
 
 function LedgerRow({
   detail,
+  departing,
   expanded,
   item,
   onCorrect,
@@ -831,6 +921,7 @@ function LedgerRow({
   pending,
 }: {
   detail: PolicyLedgerDetailState;
+  departing: boolean;
   expanded: boolean;
   item: PolicyLedgerItem;
   onCorrect(item: PolicyLedgerItem, kind: "general" | "override"): void;
@@ -842,7 +933,12 @@ function LedgerRow({
 }) {
   return (
     <div className="ledger-row-group" role="rowgroup">
-      <div className="ledger-table-row" role="row">
+      <div
+        className={`ledger-table-row${departing ? " is-departing" : ""}`}
+        data-keyboard-row
+        role="row"
+        tabIndex={0}
+      >
         <span className="ledger-row-date" data-label="Approved" role="cell">
           {shortDate(item.policy.approvedAt)}
         </span>
@@ -859,6 +955,7 @@ function LedgerRow({
           <small>{item.labels.submitterDisplayName}</small>
         </span>
         <span className="ledger-row-money" data-label="Agency financials" role="cell">
+          <small>Commission</small>
           <strong>{formatMoneyExact(item.policy.commissionAmount)}</strong>
           <small>{formatMoneyExact(item.policy.brokerFee)} fee · {formatMoneyExact(item.policy.netDue)} net</small>
         </span>
@@ -871,6 +968,7 @@ function LedgerRow({
           <button
             aria-expanded={expanded}
             aria-label={`${expanded ? "Collapse" : "Expand"} ${item.policy.insuredName}`}
+            data-row-primary-action
             disabled={pending}
             onClick={() => onToggle(item.policy.id)}
             title={expanded ? "Collapse details" : "Expand details"}
@@ -892,6 +990,10 @@ function LedgerRow({
       ) : null}
     </div>
   );
+}
+
+function waitForLedgerRowDeparture(): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, 160));
 }
 
 function LedgerDetail({
@@ -1209,4 +1311,14 @@ function shortDate(value: string): string {
     timeZone: "UTC",
     year: "numeric",
   }).format(date);
+}
+
+function formatLedgerMonth(value: string): string {
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(value);
+  if (match?.[1] === undefined || match[2] === undefined) return value;
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    timeZone: "UTC",
+    year: "numeric",
+  }).format(new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1)));
 }

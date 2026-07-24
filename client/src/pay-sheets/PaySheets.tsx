@@ -20,6 +20,10 @@ import type { PolicyTypeOption } from "../../../shared/vocabulary.js";
 import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
 import { EmptyState } from "../ui/EmptyState.js";
 import { PageHeader } from "../ui/PageHeader.js";
+import {
+  DialogActions,
+  DialogFrame,
+} from "../approvals/ApprovalDialogs.js";
 import { formatMoneyExact } from "../ledger/view-state.js";
 import { useVocabulary } from "../vocabulary/context.js";
 import {
@@ -819,66 +823,125 @@ export function PaySheetBootstrap({
   onSubmit(): void;
   period: PaySheetBootstrapRequest;
 }) {
+  const [confirming, setConfirming] = useState(false);
+  const startingPeriod = formatPaySheetPeriod(
+    period.periodMonth,
+    period.periodYear,
+  );
   return (
-    <form
-      className="app-empty-state pay-sheets-empty pay-sheet-bootstrap"
-      onSubmit={(event) => {
-        event.preventDefault();
-        onSubmit();
-      }}
-    >
-      <h2>Start pay sheets</h2>
-      <p>Choose the reporting period to begin from. This sets the first period for the agency and cannot be changed later.</p>
-      <div className="pay-sheet-bootstrap-fields">
-        <label>
-          <span>Starting month</span>
-          <select
-            disabled={disabled}
-            onChange={(event) =>
-              onChange({ ...period, periodMonth: Number(event.target.value) })
-            }
-            value={period.periodMonth}
-          >
-            {[
-              "January",
-              "February",
-              "March",
-              "April",
-              "May",
-              "June",
-              "July",
-              "August",
-              "September",
-              "October",
-              "November",
-              "December",
-            ].map((month, index) => (
-              <option key={month} value={index + 1}>{month}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>Starting year</span>
-          <input
-            disabled={disabled}
-            inputMode="numeric"
-            max={9999}
-            min={2000}
-            onChange={(event) =>
-              onChange({ ...period, periodYear: Number(event.target.value) })
-            }
-            type="number"
-            value={period.periodYear}
-          />
-        </label>
-      </div>
-      {error === null ? null : <p className="pay-sheet-bootstrap-error" role="alert">{error}</p>}
-      <div className="app-empty-state-action">
-        <button disabled={disabled} type="submit">
-          {disabled ? "Starting..." : "Start pay sheets"}
-        </button>
-      </div>
-    </form>
+    <>
+      <form
+        className="app-empty-state pay-sheets-empty pay-sheet-bootstrap"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setConfirming(true);
+        }}
+      >
+        <p className="pay-sheet-bootstrap-eyebrow">One-time agency setup</p>
+        <h2>Start pay sheets</h2>
+        <p>
+          A pay period is the monthly workspace where approved policies and
+          adjustments are reconciled for the agency and each producer.
+        </p>
+        <ul className="pay-sheet-bootstrap-explanation">
+          <li>
+            Closing a period freezes its policies and totals into permanent
+            history, then opens the next month.
+          </li>
+          <li>
+            Once started, current sheets, closed history, and export tools
+            appear here.
+          </li>
+          <li>
+            The first reporting period is permanent after initialization, so
+            verify it before continuing.
+          </li>
+        </ul>
+        <div className="pay-sheet-bootstrap-fields">
+          <label>
+            <span>Starting month</span>
+            <select
+              disabled={disabled}
+              onChange={(event) =>
+                onChange({ ...period, periodMonth: Number(event.target.value) })
+              }
+              value={period.periodMonth}
+            >
+              {[
+                "January",
+                "February",
+                "March",
+                "April",
+                "May",
+                "June",
+                "July",
+                "August",
+                "September",
+                "October",
+                "November",
+                "December",
+              ].map((month, index) => (
+                <option key={month} value={index + 1}>{month}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Starting year</span>
+            <input
+              disabled={disabled}
+              inputMode="numeric"
+              max={9999}
+              min={2000}
+              onChange={(event) =>
+                onChange({ ...period, periodYear: Number(event.target.value) })
+              }
+              type="number"
+              value={period.periodYear}
+            />
+          </label>
+        </div>
+        <p className="pay-sheet-bootstrap-selection">
+          First agency period: <strong>{startingPeriod}</strong>
+        </p>
+        {error === null ? null : <p className="pay-sheet-bootstrap-error" role="alert">{error}</p>}
+        <div className="app-empty-state-action">
+          <button disabled={disabled} type="submit">
+            Review starting period
+          </button>
+        </div>
+      </form>
+      {confirming ? (
+        <DialogFrame
+          onCancel={() => {
+            if (!disabled) setConfirming(false);
+          }}
+          pending={disabled}
+          title={`Start pay sheets in ${startingPeriod}?`}
+        >
+          <p className="approval-dialog-copy">
+            This creates the agency's first pay-sheet period. The starting
+            period cannot be changed after pay sheets begin.
+          </p>
+          <DialogActions>
+            <button
+              disabled={disabled}
+              onClick={() => setConfirming(false)}
+              type="button"
+            >
+              Go back
+            </button>
+            <button
+              className="is-primary"
+              disabled={disabled}
+              onClick={onSubmit}
+              type="button"
+            >
+              {disabled ? "Starting..." : `Start with ${startingPeriod}`}
+            </button>
+          </DialogActions>
+        </DialogFrame>
+      ) : null}
+    </>
   );
 }
 
@@ -1522,7 +1585,11 @@ function PaySheetsMessage({
   title: string;
 }) {
   return (
-    <section className="pay-sheets-message" aria-labelledby="pay-sheets-message-title">
+    <section
+      aria-busy={busy || undefined}
+      className="pay-sheets-message"
+      aria-labelledby="pay-sheets-message-title"
+    >
       {busy ? <span aria-hidden="true" className="pay-sheet-spinner" /> : null}
       <h1 id="pay-sheets-message-title">{title}</h1>
       <p>{body}</p>

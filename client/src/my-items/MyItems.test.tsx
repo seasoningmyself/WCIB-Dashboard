@@ -77,6 +77,7 @@ test("My Items renders v15 identifiers, age, reasons, and all status links", () 
   ]) {
     assert.match(markup, new RegExp(escapeRegExp(visible)));
   }
+  assert.match(markup, /class="my-items-new"/);
   assert.equal((markup.match(/href="#\/my-drafts\?draft=/g) ?? []).length, 5);
 });
 

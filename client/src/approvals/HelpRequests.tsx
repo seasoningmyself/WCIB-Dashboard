@@ -6,6 +6,10 @@ import { useApiClient, useSensitiveSessionCleanup } from "../api/context.js";
 import { EmptyState } from "../ui/EmptyState.js";
 import { PageHeader } from "../ui/PageHeader.js";
 import {
+  formatAbsoluteTimestamp,
+  formatRelativeTime,
+} from "../ui/time.js";
+import {
   PolicyLedgerApiError,
   createPolicyLedgerApi,
 } from "../ledger/api.js";
@@ -268,10 +272,10 @@ export function HelpRequestsView({
   return (
     <section className="help-requests-page" aria-labelledby="help-requests-title">
       <PageHeader
-        eyebrow="Flagged turn-ins"
+        eyebrow="Policy review"
         status={(
           <>
-            <strong>{state.items.length}</strong> open {state.items.length === 1 ? "request needs" : "requests need"} resolution.
+            <strong>{state.items.length}</strong> {state.items.length === 1 ? "help request needs" : "help requests need"} resolution.
           </>
         )}
         title="Review Queue"
@@ -283,10 +287,9 @@ export function HelpRequestsView({
       {notice === null ? null : <div className="approval-notice" role="status">{notice}</div>}
       {state.items.length === 0 ? (
         <EmptyState
-          action={<a href="#/approvals">View approvals</a>}
-          body="Requests appear here when a staff member asks an administrator to review or correct a turn-in."
+          body="Requests will appear here when staff ask an administrator to review or correct a turn-in."
           className="approval-empty"
-          heading="No help requests"
+          heading="No help requests are waiting"
         />
       ) : (
         <div className="help-request-list">
@@ -326,7 +329,11 @@ function HelpRequestCard({
   const source = draft as unknown as Record<string, unknown>;
   const mga = draft.mgaId === null ? "Not set" : mgaNames.get(draft.mgaId) ?? draft.mgaId;
   return (
-    <article className="help-request-card">
+    <article
+      className="help-request-card"
+      data-keyboard-row
+      tabIndex={0}
+    >
       <header>
         <div>
           <strong>{draft.insuredName ?? "Unnamed insured"}</strong>
@@ -334,7 +341,12 @@ function HelpRequestCard({
         </div>
         <div className="help-request-owner">
           <strong>{item.submitterDisplayName ?? "Unknown owner"}</strong>
-          <span>{formatHelpRequestAge(draft.lastEditedAt, now)}</span>
+          <time
+            dateTime={draft.lastEditedAt}
+            title={formatAbsoluteTimestamp(draft.lastEditedAt)}
+          >
+            {formatHelpRequestAge(draft.lastEditedAt, now)}
+          </time>
         </div>
       </header>
       <div className="approval-help-reason">
@@ -349,7 +361,14 @@ function HelpRequestCard({
         <div><dt>Net due</dt><dd>{reviewSourceValue(source, { key: "netDue", label: "Net due", money: true })}</dd></div>
       </dl>
       <div className="approval-row-actions">
-        <button disabled={pending} onClick={() => onOpenFix(item)} type="button">Open &amp; fix</button>
+        <button
+          data-row-primary-action
+          disabled={pending}
+          onClick={() => onOpenFix(item)}
+          type="button"
+        >
+          Open &amp; fix
+        </button>
         <button className="is-primary" disabled={pending} onClick={() => onOpen({ item, kind: "push_through" })} type="button">Push through</button>
         <button className="is-danger" disabled={pending} onClick={() => onOpen({ item, kind: "send_back_help" })} type="button">Send back</button>
       </div>
@@ -358,13 +377,7 @@ function HelpRequestCard({
 }
 
 export function formatHelpRequestAge(value: string, now = new Date()): string {
-  const elapsed = Math.max(0, now.getTime() - new Date(value).getTime());
-  const minutes = Math.floor(elapsed / 60_000);
-  if (minutes < 60) return minutes <= 1 ? "Just now" : `${minutes}m old`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h old`;
-  const days = Math.floor(hours / 24);
-  return `${days}d old`;
+  return formatRelativeTime(value, now);
 }
 
 function HelpRequestsMessage({

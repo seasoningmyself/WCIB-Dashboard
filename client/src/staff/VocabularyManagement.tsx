@@ -535,9 +535,15 @@ function VocabularySearchAdd({
       <label>
         <span>Search or add {title.toLowerCase()}</span>
         <input
+          data-primary-search
           disabled={disabled}
           maxLength={200}
           onChange={(event) => onQuery(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Escape") return;
+            event.preventDefault();
+            onQuery("");
+          }}
           placeholder={`Search or add ${title.toLowerCase()}`}
           type="search"
           value={query}

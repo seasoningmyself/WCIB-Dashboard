@@ -46,8 +46,10 @@ test("admin view renders server totals, stored net due, deterministic groups, an
     "$225.01",
     "$400.00",
     "Override",
-    "40d",
-    "71d overdue",
+    "40d outstanding",
+    "71d outstanding",
+    "100% of agency outstanding",
+    "oldest 71 days",
     "Kaylee&#x27;s book",
     "1st-yr house - Kaylee",
     "Sophia&#x27;s account",
@@ -62,6 +64,10 @@ test("admin view renders server totals, stored net due, deterministic groups, an
 
   assert.match(markup, /Alpha Managing General Agency[\s\S]*Beta MGA/);
   assert.match(markup, /Acme Construction[\s\S]*Beacon Bakery/);
+  assert.match(
+    markup,
+    /Approved <time dateTime="2026-05-01T12:00:00.000Z" title="May 1, 2026, [^"]+">2 months ago<\/time>/,
+  );
   for (const forbidden of [
     "Open balance",
     "Reminder",

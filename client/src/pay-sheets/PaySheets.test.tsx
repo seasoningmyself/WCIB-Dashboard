@@ -208,6 +208,12 @@ test("blank-state bootstrap defaults to June 2026 and remains editable", () => {
     />,
   );
   assert.match(markup, /Start pay sheets/);
+  assert.match(markup, /One-time agency setup/);
+  assert.match(markup, /monthly workspace/);
+  assert.match(markup, /Closing a period freezes its policies and totals/);
+  assert.match(markup, /first reporting period is permanent/);
+  assert.match(markup, /First agency period: <strong>June 2026<\/strong>/);
+  assert.match(markup, />Review starting period</);
   assert.match(markup, /<option value="6" selected="">June<\/option>/);
   assert.match(markup, /value="2026"/);
   assert.match(markup, /Starting month/);
